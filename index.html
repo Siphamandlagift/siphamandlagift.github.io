@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en-UK">
 <head>
@@ -133,15 +134,15 @@
         }
 
         /* Message Modal specific styles */
-        #messageModal, #addUserModal, #pdfViewerModal, #assignStudentsModal {
+        #messageModal, #addUserModal, #pdfViewerModal, #assignStudentsModal, #createAssignmentModal, #viewAssignmentModal {
             transition: opacity 0.3s ease, transform 0.3s ease;
             transform: translateY(20px);
         }
-        #messageModal.show, #addUserModal.show, #pdfViewerModal.show, #assignStudentsModal.show {
+        #messageModal.show, #addUserModal.show, #pdfViewerModal.show, #assignStudentsModal.show, #createAssignmentModal.show, #viewAssignmentModal.show {
             opacity: 1;
             transform: translateY(0);
         }
-        #messageModal.hidden, #addUserModal.hidden, #pdfViewerModal.hidden, #assignStudentsModal.hidden {
+        #messageModal.hidden, #addUserModal.hidden, #pdfViewerModal.hidden, #assignStudentsModal.hidden, #createAssignmentModal.hidden, #viewAssignmentModal.hidden {
             opacity: 0;
             pointer-events: none;
         }
@@ -308,6 +309,85 @@
             </div>
         </div>
     </div>
+
+    <!-- FIX: Create Assignment Modal (for Training Manager) -->
+    <div id="createAssignmentModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 shadow-xl max-w-lg w-full transform transition-all duration-300 scale-100 opacity-100">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Create New Assignment</h3>
+            <form id="createAssignmentForm">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-medium mb-2" for="assignToStudentSelect">Assign to Student</label>
+                    <select id="assignToStudentSelect" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <!-- Students will be populated here by JS -->
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentTitleInput">Assignment Title</label>
+                    <input id="assignmentTitleInput" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., Chapter 1 Review">
+                </div>
+                 <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentDueDateInput">Due Date</label>
+                    <input id="assignmentDueDateInput" type="date" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentInstructionsTextarea">Instructions</label>
+                    <textarea id="assignmentInstructionsTextarea" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" rows="4" placeholder="Provide clear instructions for the student..."></textarea>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentDocumentInput">Upload Document (Word, PDF)</label>
+                    <input type="file" id="assignmentDocumentInput" accept=".pdf,.doc,.docx" class="block w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-md file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-indigo-50 file:text-indigo-700
+                        hover:file:bg-indigo-100"/>
+                    <p id="assignmentDocFileName" class="text-xs text-gray-500 mt-1 hidden"></p>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentMarksInput">Total Marks</label>
+                    <input id="assignmentMarksInput" type="number" class="w-28 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., 100" min="0">
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="hideCreateAssignmentModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none">
+                        Create & Assign
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- FIX: View Assignment Modal (for Student) -->
+    <div id="viewAssignmentModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 shadow-xl max-w-xl w-full transform transition-all duration-300 scale-100 opacity-100">
+            <h3 class="text-2xl font-semibold text-gray-900 mb-2" id="viewAssignmentTitle">Assignment Title</h3>
+            <p class="text-sm text-gray-500 mb-4">Due: <span id="viewAssignmentDueDate"></span> | Total Marks: <span id="viewAssignmentTotalMarks" class="font-bold"></span></p>
+            
+            <div class="mb-4 border-t pt-4">
+                <h4 class="text-md font-semibold text-gray-800 mb-2">Instructions:</h4>
+                <p class="text-gray-700 text-sm whitespace-pre-wrap" id="viewAssignmentInstructions"></p>
+            </div>
+            
+             <div class="mb-6 border-t pt-4" id="viewAssignmentDocumentSection">
+                <h4 class="text-md font-semibold text-gray-800 mb-2">Attached Document:</h4>
+                <a href="#" id="viewAssignmentDownloadLink" target="_blank" class="text-indigo-600 hover:text-indigo-800 hover:underline">
+                    <i class="fas fa-file-download mr-2"></i><span id="viewAssignmentDocName">document.pdf</span>
+                </a>
+            </div>
+
+            <div class="flex justify-between items-center">
+                 <button onclick="hideViewAssignmentModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none">
+                    Close
+                </button>
+                <button id="submitAssignmentBtn" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none">
+                    <i class="fas fa-check-circle mr-2"></i>Mark as Submitted
+                </button>
+            </div>
+        </div>
+    </div>
+
 
     <div class="flex h-screen overflow-hidden">
         <!-- Sidebar -->
@@ -759,7 +839,7 @@
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Video</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Document</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Questions</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Marks</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Creator</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                     </tr>
@@ -1059,7 +1139,7 @@
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Video</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Document</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Questions</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Marks</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                     </tr>
                                 </thead>
@@ -1113,26 +1193,28 @@
                     
                     <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
                         <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                            <div class="flex space-x-2">
-                                <button class="px-3 py-1 bg-indigo-600 text-white rounded-md text-sm font-medium">All</button>
-                                <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">Pending</button>
-                                <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">Submitted</button>
-                                <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">Graded</button>
-                            </div>
+                            <h3 class="text-lg font-semibold text-gray-800">Your Created Assignments</h3>
                             <button class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 focus:outline-none" id="createAssignmentBtn">
                                 <i class="fas fa-plus mr-1"></i> Create Assignment
                             </button>
                         </div>
-                        <div class="divide-y divide-gray-200" id="assignmentsTableBody">
-                            <div class="p-6 text-gray-500 text-sm text-center">No assignments to display.</div>
-                        </div>
-                        <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-                            <div class="text-sm text-gray-500">Showing <span class="font-medium">0</span> to <span class="font-medium">0</span> of <span class="font-medium">0</span> assignments</div>
-                            <div class="flex space-x-2">
-                                <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>Previous</button>
-                                <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>1</button>
-                                <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>Next</button>
-                            </div>
+                        <!-- FIX: Table for TM assignments -->
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Marks</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="tmAssignmentsTableBody">
+                                    <tr><td colspan="6" class="p-6 text-gray-500 text-sm text-center">No assignments created yet.</td></tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -1197,11 +1279,9 @@
                 <div id="student-assignmentsContent" class="content-section">
                     <h2 class="text-2xl font-semibold text-gray-800 mb-4">My Assignments</h2>
                     <p class="text-gray-600 mb-6">View your assignments and submission status.</p>
-                    <div class="bg-white rounded-lg shadow p-6">
-                        <p class="text-gray-700">Students can submit assignments and check their status here.</p>
-                        <div class="divide-y divide-gray-200" id="studentAssignmentsList">
-                            <div class="p-4 text-gray-500 text-sm text-center">No assignments for you to display.</div>
-                        </div>
+                    <!-- FIX: Dynamic list for student assignments -->
+                    <div id="studentAssignmentsList" class="space-y-4">
+                        <div class="p-6 bg-white rounded-lg shadow text-gray-500 text-sm text-center">No assignments for you to display.</div>
                     </div>
                 </div>
 
@@ -1534,6 +1614,12 @@
             if (sectionId === 'my-coursesContent') { // Training Manager's "My Courses"
                 renderTrainingManagerCoursesTable();
             }
+            if (sectionId === 'assignmentsContent') {
+                renderTMAssignmentsTable();
+            }
+            if (sectionId === 'student-assignmentsContent') {
+                renderStudentAssignmentsList();
+            }
             if (sectionId === 'messagesContent') { // New: Populate student dropdown for emails
                 populateStudentEmailDropdown();
             }
@@ -1553,19 +1639,15 @@
             const role = document.getElementById('userRoleSelect').value;
             
             // In a real app, you'd validate credentials against a backend
-            // For this demo, we just simulate login and set user details
-            const userExists = allUsersData.some(u => u.name.toLowerCase() === username.toLowerCase() && u.role === role);
+            // For this demo, we just find the user by name and role
+            const userLoggedIn = allUsersData.find(u => u.name.toLowerCase() === username.toLowerCase() && u.role === role);
 
-            if (!userExists) {
+            if (!userLoggedIn) {
                 showMessageModal('Login Error', 'Invalid username or role. Please try again.');
                 return;
             }
 
-            // Find the specific user object for more detailed info
-            const userLoggedIn = allUsersData.find(u => u.name.toLowerCase() === username.toLowerCase() && u.role === role);
-
-
-            if (username && password && userLoggedIn) {
+            if (username && password) {
                 const loginModalElement = document.getElementById('loginModal');
                 if (loginModalElement) {
                     loginModalElement.classList.add('hidden');
@@ -1579,7 +1661,7 @@
                 loggedInUser.id = userLoggedIn.id;
                 loggedInUser.name = userLoggedIn.name;
                 loggedInUser.role = userLoggedIn.role;
-                loggedInUser.fullName = userLoggedIn.name + (userLoggedIn.surname ? ` ${userLoggedIn.surname}` : ''); // Only add surname if it exists
+                loggedInUser.fullName = `${userLoggedIn.name}${userLoggedIn.surname ? ' ' + userLoggedIn.surname : ''}`;
                 loggedInUser.email = userLoggedIn.email;
                 loggedInUser.picture = userLoggedIn.picture;
 
@@ -1617,7 +1699,7 @@
                 // Show appropriate default section based on role
                 let defaultSectionId = 'dashboardContent';
                 if (role === 'training_manager') {
-                    defaultSectionId = 'my-coursesContent';
+                    defaultSectionId = 'dashboardContent';
                 } else if (role === 'student') {
                     defaultSectionId = 'enrolled-coursesContent';
                 }
@@ -1625,7 +1707,7 @@
                 updateDashboardStats(); // Update dashboard stats after login
 
             } else {
-                showMessageModal('Login Error', 'Please enter both username and password, and select a role.');
+                showMessageModal('Login Error', 'Please enter both username and password.');
             }
         });
 
@@ -1694,7 +1776,7 @@
                 idNumber: 'ADM001',
                 company: 'SkillsConnect',
                 role: 'administrator',
-                picture: 'https://placehold.co/40x40/FF5733/FFFFFF?text=AD',
+                picture: 'https://placehold.co/40x40/FF5733/FFFFFF?text=AU',
                 status: 'active',
                 enrollmentDate: '2023-01-01',
                 endDate: null,
@@ -1858,15 +1940,17 @@
                 newRow.classList.add('cursor-pointer', 'hover:bg-gray-50');
                 newRow.dataset.userId = user.id;
 
+                const fullName = `${user.name}${user.surname ? ' ' + user.surname : ''}`;
+
                 const nameCell = newRow.insertCell();
                 nameCell.classList.add('px-6', 'py-4', 'whitespace-nowrap');
                 nameCell.innerHTML = `
                     <div class="flex items-center">
                         <div class="flex-shrink-0 h-10 w-10">
-                            <img class="h-10 w-10 rounded-full object-cover" src="${user.picture}" alt="${user.name} ${user.surname}">
+                            <img class="h-10 w-10 rounded-full object-cover" src="${user.picture}" alt="${fullName}">
                         </div>
                         <div class="ml-4">
-                            <div class="text-sm font-medium text-gray-900">${user.name} ${user.surname}</div>
+                            <div class="text-sm font-medium text-gray-900">${fullName}</div>
                             <div class="text-sm text-gray-500">${user.role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</div>
                         </div>
                     </div>
@@ -1941,62 +2025,61 @@
         }
 
 
-        // Sidebar toggle for mobile and hover for desktop
+        // Sidebar toggle logic
         const sidebar = document.getElementById('sidebar');
         const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-        const mobileCloseSidebarBtn = document.getElementById('mobileCloseSidebarBtn'); // New button for closing mobile sidebar
-        const toggleSidebarBtn = document.getElementById('toggleSidebar'); // Desktop toggle button
+        const mobileCloseSidebarBtn = document.getElementById('mobileCloseSidebarBtn');
+        const toggleSidebarBtn = document.getElementById('toggleSidebar');
         const contentArea = document.getElementById('contentArea');
+        let sidebarIsPinned = false; 
 
         // Mobile sidebar toggle (drawer functionality)
         mobileMenuBtn.addEventListener('click', () => {
-            sidebar.classList.add('active'); // Show mobile sidebar
+            sidebar.classList.add('active');
         });
         mobileCloseSidebarBtn.addEventListener('click', () => {
-            sidebar.classList.remove('active'); // Hide mobile sidebar
+            sidebar.classList.remove('active');
         });
 
-        // Desktop sidebar functionality (hover to expand, button for manual toggle)
-        let isManuallyCollapsed = false;
-
-        // Initial state: collapse on desktop if window width is large enough
-        window.addEventListener('load', () => {
-            if (window.innerWidth >= 1024) {
-                sidebar.classList.add('collapsed');
-            }
-        });
-        window.addEventListener('resize', () => {
-            if (window.innerWidth < 1024) {
-                sidebar.classList.remove('collapsed'); // Ensure it's not collapsed on mobile
-                isManuallyCollapsed = false; // Reset manual state for mobile
-            } else {
-                // If returning to desktop from mobile, collapse it by default unless manually expanded before
-                if (!isManuallyCollapsed) { // If it wasn't manually expanded before going to mobile
+        // Re-engineered desktop sidebar logic for hover and pinning
+        function handleDesktopSidebarState() {
+            if (window.innerWidth >= 1024) { // On desktop
+                if (!sidebarIsPinned) {
                     sidebar.classList.add('collapsed');
                 }
+            } else { // On mobile
+                sidebar.classList.remove('collapsed');
+                sidebarIsPinned = false; // Reset pinned state on mobile view
             }
-        });
-
+        }
+        
+        window.addEventListener('load', handleDesktopSidebarState);
+        window.addEventListener('resize', handleDesktopSidebarState);
+        
+        // Hover listeners that respect the pinned state
         sidebar.addEventListener('mouseenter', () => {
-            if (window.innerWidth >= 1024) { // Only on desktop
+            if (window.innerWidth >= 1024 && !sidebarIsPinned) {
                 sidebar.classList.remove('collapsed');
             }
         });
 
         sidebar.addEventListener('mouseleave', () => {
-            if (window.innerWidth >= 1024) { // Only on desktop
+            if (window.innerWidth >= 1024 && !sidebarIsPinned) {
                 sidebar.classList.add('collapsed');
             }
         });
-        
-        // Manual toggle button for desktop
+
+        // Toggle button now controls the pinned state
         toggleSidebarBtn.addEventListener('click', () => {
             if (window.innerWidth >= 1024) {
-                sidebar.classList.toggle('collapsed');
-                isManuallyCollapsed = sidebar.classList.contains('collapsed'); // Update manual state
+                sidebarIsPinned = !sidebarIsPinned; // Toggle the pinned state
+                if (sidebarIsPinned) {
+                    sidebar.classList.remove('collapsed'); // Pin it open
+                } else {
+                    sidebar.classList.add('collapsed'); // Unpin and collapse
+                }
             }
         });
-
 
         // Make entire table rows clickable (if they have data-link attribute) - Adjusted to avoid status button
         document.addEventListener('click', function(e) {
@@ -2037,8 +2120,8 @@
                 pdfFileName: 'web_dev_notes.pdf',
                 picture: 'https://placehold.co/128x128/E0E7FF/4F46E5?text=Web+Dev',
                 questions: [
-                    { type: 'multiple-choice', text: 'What does HTML stand for?', options: ['Hyper Text Markup Language', 'Hyperlink and Text Markup Language', 'High Tech Modern Language'], correctAnswer: 0 },
-                    { type: 'true-false', text: 'CSS is used for styling web pages.', correctAnswer: true }
+                    { type: 'multiple-choice', text: 'What does HTML stand for?', options: ['Hyper Text Markup Language', 'Hyperlink and Text Markup Language', 'High Tech Modern Language'], correctAnswer: 0, marks: 10 },
+                    { type: 'true-false', text: 'CSS is used for styling web pages.', correctAnswer: true, marks: 5 }
                 ],
                 readStatus: false,
                 creatorId: 2 // Created by Training Manager (Jane Trainer)
@@ -2051,8 +2134,8 @@
                 pdfFileName: 'data_science_guide.pdf',
                 picture: 'https://placehold.co/128x128/D1FAE5/065F46?text=Data+Science',
                 questions: [
-                    { type: 'multiple-choice', text: 'Which language is commonly used in data science?', options: ['Java', 'Python', 'C++'], correctAnswer: 1 },
-                    { type: 'matching', pairs: [{term: 'Regression', definition: 'Predicting continuous values'}, {term: 'Classification', definition: 'Categorizing data'}] }
+                    { type: 'multiple-choice', text: 'Which language is commonly used in data science?', options: ['Java', 'Python', 'C++'], correctAnswer: 1, marks: 10 },
+                    { type: 'matching', pairs: [{term: 'Regression', definition: 'Predicting continuous values'}, {term: 'Classification', definition: 'Categorizing data'}], marks: 20 }
                 ],
                 readStatus: false,
                 creatorId: 2 // Created by Training Manager (Jane Trainer)
@@ -2065,7 +2148,7 @@
                 pdfFileName: 'algo_handbook.pdf',
                 picture: 'https://placehold.co/128x128/FFE4E6/E04C6C?text=Algorithms',
                 questions: [
-                    { type: 'true-false', text: 'Big O notation describes the efficiency of an algorithm.', correctAnswer: true }
+                    { type: 'true-false', text: 'Big O notation describes the efficiency of an algorithm.', correctAnswer: true, marks: 15 }
                 ],
                 readStatus: false,
                 creatorId: 2 // Created by Training Manager (Jane Trainer)
@@ -2084,6 +2167,15 @@
             const questionInputArea = document.getElementById('questionInputArea');
             questionInputArea.innerHTML = ''; // Clear previous inputs
             document.getElementById('addQuestionBtn').disabled = true; // Disable until valid input
+
+            if (!type) return; // Exit if no type is selected
+
+            const marksInputHTML = `
+                <div class="mt-2">
+                    <label class="block text-gray-700 text-sm font-medium mb-2" for="questionMarks">Marks</label>
+                    <input type="number" id="questionMarks" class="w-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" min="1" value="1">
+                </div>
+            `;
 
             if (type === 'multiple-choice') {
                 questionInputArea.innerHTML = `
@@ -2107,6 +2199,7 @@
                     <button type="button" id="addMcOptionBtn" class="text-indigo-600 text-sm hover:text-indigo-800 focus:outline-none">
                         <i class="fas fa-plus mr-1"></i> Add Option
                     </button>
+                    ${marksInputHTML}
                 `;
                 document.getElementById('addMcOptionBtn').addEventListener('click', addMultipleChoiceOption);
                 document.querySelectorAll('.remove-option-btn').forEach(button => {
@@ -2139,6 +2232,7 @@
                             </label>
                         </div>
                     </div>
+                    ${marksInputHTML}
                 `;
                 document.getElementById('tfQuestionText').addEventListener('input', checkQuestionReadiness);
                 document.querySelectorAll('input[name="tfAnswer"]').forEach(radio => {
@@ -2166,6 +2260,7 @@
                             <i class="fas fa-plus mr-1"></i> Add Pair
                         </button>
                     </div>
+                    ${marksInputHTML}
                 `;
                 document.getElementById('addMatchingPairBtn').addEventListener('click', addMatchingPair);
                 document.querySelectorAll('.remove-pair-btn').forEach(button => {
@@ -2180,6 +2275,7 @@
                         <label class="block text-gray-700 text-sm font-medium mb-2" for="longAnswerQuestionText">Question Text</label>
                         <textarea id="longAnswerQuestionText" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" rows="3" placeholder="Enter long answer question"></textarea>
                     </div>
+                    ${marksInputHTML}
                 `;
                 document.getElementById('longAnswerQuestionText').addEventListener('input', checkQuestionReadiness);
             }
@@ -2289,6 +2385,15 @@
             const type = document.getElementById('questionTypeSelect').value;
             let question = { type: type };
 
+            const marksInput = document.getElementById('questionMarks');
+            const marks = marksInput ? parseInt(marksInput.value, 10) : 0;
+            if (!marks || marks <= 0) {
+                showMessageModal('Input Error', 'Please enter a valid number of marks (greater than 0).');
+                return;
+            }
+            question.marks = marks;
+
+
             if (type === 'multiple-choice') {
                 const questionText = document.getElementById('mcQuestionText').value.trim();
                 const options = Array.from(document.querySelectorAll('.mc-option')).map(input => input.value.trim());
@@ -2345,7 +2450,7 @@
 
             currentCourseQuestions.push(question);
             updateCourseQuestionsList();
-            showMessageModal('Question Added', `A ${type.replace('-', ' ')} question has been added.`);
+            showMessageModal('Question Added', `A ${type.replace('-', ' ')} question has been added for ${marks} marks.`);
             // Clear question form after adding
             document.getElementById('questionTypeSelect').value = '';
             renderQuestionInputArea(''); // Clear inputs
@@ -2369,14 +2474,15 @@
                     listItem.classList.remove('border-b'); // Remove border for last item
                 }
                 let questionSummary = '';
+                const marksText = `(${q.marks} ${q.marks === 1 ? 'mark' : 'marks'})`;
                 if (q.type === 'multiple-choice') {
-                    questionSummary = `MC: ${q.text.substring(0, 50)}${q.text.length > 50 ? '...' : ''} (${q.options.length} options)`;
+                    questionSummary = `MC: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 } else if (q.type === 'true-false') {
-                    questionSummary = `T/F: ${q.text.substring(0, 50)}${q.text.length > 50 ? '...' : ''}`;
+                    questionSummary = `T/F: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 } else if (q.type === 'matching') {
-                    questionSummary = `Matching: ${q.pairs.length} pairs`;
+                    questionSummary = `Matching: ${q.pairs.length} pairs ${marksText}`;
                 } else if (q.type === 'long-answer') {
-                    questionSummary = `Long Answer: ${q.text.substring(0, 50)}${q.text.length > 50 ? '...' : ''}`;
+                    questionSummary = `Long Answer: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 }
 
                 listItem.innerHTML = `
@@ -2520,12 +2626,14 @@
                     const newRow = tableBody.insertRow();
                     newRow.classList.add('cursor-pointer', 'hover:bg-gray-50');
 
+                    const totalMarks = course.questions.reduce((sum, q) => sum + (q.marks || 0), 0);
+
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><img src="${course.picture}" alt="Course" class="h-10 w-10 rounded-md object-cover"></td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${course.name}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.description.substring(0, 50)}${course.description.length > 50 ? '...' : ''}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.videoFileName || 'N/A'}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.pdfFileName || 'N/A'}</td>`;
-                    newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.questions.length} questions</td>`;
+                    newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalMarks}</td>`;
                     newRow.insertCell().outerHTML = `
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <a href="#" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</a>
@@ -2555,17 +2663,19 @@
             } else {
                 allCoursesData.forEach(course => {
                     const creator = allUsersData.find(user => user.id === course.creatorId);
-                    const creatorName = creator ? `${creator.name} ${creator.surname}`.trim() + (creator.role ? ` (${creator.role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')})` : '') : 'Unknown';
+                    const creatorName = creator ? `${creator.name}${creator.surname ? ' ' + creator.surname : ''}` + (creator.role ? ` (${creator.role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')})` : '') : 'Unknown';
 
                     const newRow = existingCoursesTableBody.insertRow();
                     newRow.classList.add('cursor-pointer', 'hover:bg-gray-50');
+
+                    const totalMarks = course.questions.reduce((sum, q) => sum + (q.marks || 0), 0);
 
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><img src="${course.picture}" alt="Course" class="h-10 w-10 rounded-md object-cover"></td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${course.name}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.description.substring(0, 50)}${course.description.length > 50 ? '...' : ''}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.videoFileName || 'N/A'}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.pdfFileName || 'N/A'}</td>`;
-                    newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.questions.length} questions</td>`;
+                    newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalMarks}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${creatorName}</td>`;
                     newRow.insertCell().outerHTML = `
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -2784,9 +2894,10 @@
                     const isAssignedToThisProgramme = programme.assignedStudentIds.includes(student.id);
                     const checkboxDiv = document.createElement('div');
                     checkboxDiv.classList.add('flex', 'items-center', 'py-1');
+                    const fullName = `${student.name}${student.surname ? ' ' + student.surname : ''}`;
                     checkboxDiv.innerHTML = `
                         <input type="checkbox" id="assignStudent_${student.id}" value="${student.id}" class="assign-student-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" ${isAssignedToThisProgramme ? 'checked' : ''}>
-                        <label for="assignStudent_${student.id}" class="ml-2 text-sm text-gray-700">${student.name} ${student.surname} (${student.email})</label>
+                        <label for="assignStudent_${student.id}" class="ml-2 text-sm text-gray-700">${fullName} (${student.email})</label>
                     `;
                     assignStudentsList.appendChild(checkboxDiv);
                 });
@@ -2880,7 +2991,7 @@
 
                     const assignedStudentsNames = programme.assignedStudentIds.map(id => {
                         const student = allUsersData.find(u => u.id === id);
-                        return student ? `${student.name} ${student.surname}`.trim() : 'Unknown Student';
+                        return student ? `${student.name}${student.surname ? ' ' + student.surname : ''}` : 'Unknown Student';
                     }).join(', ') || 'None';
 
                     row.innerHTML = `
@@ -3147,10 +3258,11 @@
                 const displayCompletedCourses = user.role === 'student' ? (completedCoursesNames.length > 0 ? completedCoursesNames.join(', ') : 'None') : 'N/A';
                 const displayHoursSpent = user.role === 'student' ? userTotalHours : 'N/A';
                 const userEndDate = user.endDate || 'N/A';
+                const fullName = `${user.name}${user.surname ? ' ' + user.surname : ''}`;
 
                 const newRow = reportResultsTableBody.insertRow();
                 newRow.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${user.name} ${user.surname}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${fullName}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.idNumber}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.status.charAt(0).toUpperCase() + user.status.slice(1)}</td>
@@ -3199,7 +3311,8 @@
                 students.forEach(student => {
                     const option = document.createElement('option');
                     option.value = student.email;
-                    option.textContent = `${student.name} ${student.surname || ''} (${student.email})`;
+                    const fullName = `${student.name}${student.surname ? ' ' + student.surname : ''}`;
+                    option.textContent = `${fullName} (${student.email})`;
                     emailRecipientSelect.appendChild(option);
                 });
             }
@@ -3243,6 +3356,226 @@
             }
         });
 
+        // --- FIX: ASSIGNMENT FUNCTIONALITY START ---
+        let allAssignmentsData = [];
+        const createAssignmentModal = document.getElementById('createAssignmentModal');
+        const createAssignmentForm = document.getElementById('createAssignmentForm');
+        const assignmentDocumentInput = document.getElementById('assignmentDocumentInput');
+        const viewAssignmentModal = document.getElementById('viewAssignmentModal');
+
+        // Show the create assignment modal
+        function showCreateAssignmentModal() {
+            populateStudentAssignmentDropdown();
+            createAssignmentForm.reset();
+            document.getElementById('assignmentDocFileName').classList.add('hidden');
+            createAssignmentModal.classList.remove('hidden');
+            createAssignmentModal.classList.add('show');
+        }
+
+        // Hide the create assignment modal
+        function hideCreateAssignmentModal() {
+            createAssignmentModal.classList.remove('show');
+            createAssignmentModal.classList.add('hidden');
+        }
+
+        // Populate student dropdown in the assignment modal
+        function populateStudentAssignmentDropdown() {
+            const select = document.getElementById('assignToStudentSelect');
+            select.innerHTML = '<option value="">-- Select a Student --</option>';
+            const students = allUsersData.filter(u => u.role === 'student' && u.status === 'active');
+            
+            if (students.length === 0) {
+                 select.innerHTML = '<option value="" disabled>No active students available</option>';
+            } else {
+                students.forEach(student => {
+                    const fullName = `${student.name}${student.surname ? ' ' + student.surname : ''}`;
+                    select.innerHTML += `<option value="${student.id}">${fullName}</option>`;
+                });
+            }
+        }
+
+        // Listener for the main "Create Assignment" button
+        document.getElementById('createAssignmentBtn').addEventListener('click', showCreateAssignmentModal);
+
+        // Show selected document name
+        assignmentDocumentInput.addEventListener('change', function() {
+            const fileNameDisplay = document.getElementById('assignmentDocFileName');
+            if(this.files.length > 0) {
+                fileNameDisplay.textContent = `Selected: ${this.files[0].name}`;
+                fileNameDisplay.classList.remove('hidden');
+            } else {
+                fileNameDisplay.classList.add('hidden');
+            }
+        });
+
+        // Handle the creation of a new assignment
+        createAssignmentForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const studentId = parseInt(document.getElementById('assignToStudentSelect').value, 10);
+            const title = document.getElementById('assignmentTitleInput').value.trim();
+            const instructions = document.getElementById('assignmentInstructionsTextarea').value.trim();
+            const dueDate = document.getElementById('assignmentDueDateInput').value;
+            const totalMarks = parseInt(document.getElementById('assignmentMarksInput').value, 10);
+            const documentFile = assignmentDocumentInput.files[0];
+
+            if (!studentId || !title || !instructions || !totalMarks || !dueDate) {
+                showMessageModal('Input Error', 'Please fill all fields: student, title, instructions, due date, and marks.');
+                return;
+            }
+
+            const newAssignment = {
+                id: Date.now(),
+                title,
+                instructions,
+                dueDate,
+                documentFileName: documentFile ? documentFile.name : null,
+                documentFileUrl: documentFile ? URL.createObjectURL(documentFile) : null,
+                totalMarks,
+                assignedStudentId: studentId,
+                creatorId: loggedInUser.id,
+                status: 'Assigned', // Initial status
+                submissionDate: null,
+                creationDate: new Date().toISOString().slice(0, 10)
+            };
+            allAssignmentsData.push(newAssignment);
+            renderTMAssignmentsTable();
+            showMessageModal('Success', `Assignment "${title}" has been created and assigned.`);
+            hideCreateAssignmentModal();
+        });
+
+        // Render assignments table for Training Manager
+        function renderTMAssignmentsTable() {
+            const tableBody = document.getElementById('tmAssignmentsTableBody');
+            const myAssignments = allAssignmentsData.filter(a => a.creatorId === loggedInUser.id);
+            tableBody.innerHTML = '';
+            
+            if(myAssignments.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="6" class="p-6 text-gray-500 text-sm text-center">No assignments created yet.</td></tr>`;
+                return;
+            }
+
+            myAssignments.forEach(assignment => {
+                const student = allUsersData.find(u => u.id === assignment.assignedStudentId);
+                const studentName = student ? `${student.name}${student.surname ? ' ' + student.surname : ''}` : 'Unknown Student';
+                
+                let statusColor = 'bg-blue-100 text-blue-800';
+                if (assignment.status === 'Submitted') statusColor = 'bg-green-100 text-green-800';
+                if (assignment.status === 'Graded') statusColor = 'bg-purple-100 text-purple-800';
+
+                const newRow = tableBody.insertRow();
+                newRow.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${assignment.title}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${studentName}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${assignment.dueDate}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}">${assignment.status}</span></td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${assignment.totalMarks}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <a href="#" class="text-indigo-600 hover:text-indigo-900">View/Grade</a>
+                    </td>
+                `;
+            });
+        }
+
+        // Render assignments list for Student
+        function renderStudentAssignmentsList() {
+            const container = document.getElementById('studentAssignmentsList');
+            const myAssignments = allAssignmentsData.filter(a => a.assignedStudentId === loggedInUser.id);
+            container.innerHTML = '';
+
+            if (myAssignments.length === 0) {
+                container.innerHTML = `<div class="p-6 bg-white rounded-lg shadow text-gray-500 text-sm text-center">You have no assignments.</div>`;
+                return;
+            }
+
+            myAssignments.forEach(assignment => {
+                let statusColor = 'bg-blue-100 text-blue-800';
+                if (assignment.status === 'Submitted') statusColor = 'bg-green-100 text-green-800';
+                
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-lg shadow p-4 flex justify-between items-center';
+                card.innerHTML = `
+                    <div>
+                        <h4 class="font-semibold text-gray-800">${assignment.title}</h4>
+                        <p class="text-sm text-gray-500">Due: ${assignment.dueDate}</p>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}">${assignment.status}</span>
+                         <button class="view-assignment-btn bg-indigo-600 text-white px-3 py-1 rounded-md text-sm hover:bg-indigo-700" data-assignment-id="${assignment.id}">View</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // Show the student view assignment modal
+        function showViewAssignmentModal(assignmentId) {
+            const assignment = allAssignmentsData.find(a => a.id === assignmentId);
+            if (!assignment) return;
+            
+            document.getElementById('viewAssignmentTitle').textContent = assignment.title;
+            document.getElementById('viewAssignmentDueDate').textContent = assignment.dueDate;
+            document.getElementById('viewAssignmentTotalMarks').textContent = assignment.totalMarks;
+            document.getElementById('viewAssignmentInstructions').textContent = assignment.instructions;
+
+            const docSection = document.getElementById('viewAssignmentDocumentSection');
+            if (assignment.documentFileName) {
+                docSection.classList.remove('hidden');
+                document.getElementById('viewAssignmentDocName').textContent = assignment.documentFileName;
+                document.getElementById('viewAssignmentDownloadLink').href = assignment.documentFileUrl;
+            } else {
+                docSection.classList.add('hidden');
+            }
+            
+            // Handle submit button state
+            const submitBtn = document.getElementById('submitAssignmentBtn');
+            submitBtn.dataset.assignmentId = assignmentId; // Store id on button
+            if (assignment.status === 'Submitted') {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Submitted';
+                submitBtn.classList.replace('bg-green-600', 'bg-gray-400');
+                submitBtn.classList.add('cursor-not-allowed');
+            } else {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = `<i class="fas fa-check-circle mr-2"></i>Mark as Submitted`;
+                submitBtn.classList.replace('bg-gray-400', 'bg-green-600');
+                submitBtn.classList.remove('cursor-not-allowed');
+            }
+
+
+            viewAssignmentModal.classList.remove('hidden');
+            viewAssignmentModal.classList.add('show');
+        }
+
+        function hideViewAssignmentModal() {
+            viewAssignmentModal.classList.remove('show');
+            viewAssignmentModal.classList.add('hidden');
+        }
+        
+        // Event delegation for student's "View" buttons
+        document.getElementById('studentAssignmentsList').addEventListener('click', function(e) {
+            if(e.target.classList.contains('view-assignment-btn')) {
+                const assignmentId = parseInt(e.target.dataset.assignmentId, 10);
+                showViewAssignmentModal(assignmentId);
+            }
+        });
+
+        // Handle student's submission click
+        document.getElementById('submitAssignmentBtn').addEventListener('click', function() {
+            const assignmentId = parseInt(this.dataset.assignmentId, 10);
+            const assignment = allAssignmentsData.find(a => a.id === assignmentId);
+            if (assignment) {
+                assignment.status = 'Submitted';
+                assignment.submissionDate = new Date().toISOString().slice(0, 10);
+                showMessageModal('Submitted', `Assignment "${assignment.title}" has been marked as submitted.`);
+                hideViewAssignmentModal();
+                renderStudentAssignmentsList(); // Refresh the student list to show new status
+                renderTMAssignmentsTable(); // Refresh TM list to show new status
+            }
+        });
+
+        // --- FIX: ASSIGNMENT FUNCTIONALITY END ---
+
     </script>
 </body>
 </html>
+```
