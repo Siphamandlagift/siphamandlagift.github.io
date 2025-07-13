@@ -1920,8 +1920,6 @@
 
         function renderUserTable() {
             const userTableBody = document.getElementById('userTableBody');
-            const paginationContainer = document.querySelector('#user-managementContent .flex.space-x-2');
-            
             userTableBody.innerHTML = ''; // Clear existing rows
 
             if (allUsersData.length === 0) {
@@ -1930,19 +1928,15 @@
                         <td colspan="7" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No users to display. Click "Add User" to add new entries.</td>
                     </tr>
                 `;
-                // Disable pagination buttons
-                paginationContainer.querySelectorAll('button').forEach(btn => {
-                    btn.disabled = true;
-                });
+                document.getElementById('usersTotalCount').textContent = 0;
+                document.getElementById('usersShowingCount').textContent = 0;
+                document.getElementById('usersTotalCountDisplay').textContent = 0;
                 return;
             }
 
-            // Simple pagination - show first 10 users
-            const usersToShow = allUsersData.slice(0, 10);
-            
-            usersToShow.forEach(user => {
+            allUsersData.forEach(user => {
                 const newRow = userTableBody.insertRow();
-                newRow.classList.add('hover:bg-gray-50');
+                newRow.classList.add('cursor-pointer', 'hover:bg-gray-50');
                 newRow.dataset.userId = user.id;
 
                 const fullName = `${user.name}${user.surname ? ' ' + user.surname : ''}`;
@@ -2036,39 +2030,27 @@
         const mobileCloseSidebarBtn = document.getElementById('mobileCloseSidebarBtn');
         const toggleSidebarBtn = document.getElementById('toggleSidebar');
         const contentArea = document.getElementById('contentArea');
-        let sidebarIsPinned = localStorage.getItem('sidebarPinned') === 'true';
+        let sidebarIsPinned = false;
 
-        // Initialize sidebar state
-        function initSidebarState() {
-            if (window.innerWidth >= 1024) { // Desktop
-                sidebar.classList.toggle('collapsed', !sidebarIsPinned);
-            } else { // Mobile
-                sidebar.classList.remove('collapsed');
-                sidebar.classList.remove('active');
-            }
-        }
-
-        // Mobile sidebar toggle
+        // Mobile sidebar toggle (drawer functionality)
         mobileMenuBtn.addEventListener('click', () => {
             sidebar.classList.add('active');
         });
-
         mobileCloseSidebarBtn.addEventListener('click', () => {
             sidebar.classList.remove('active');
         });
 
-        // Desktop sidebar toggle
-        toggleSidebarBtn.addEventListener('click', () => {
-            if (window.innerWidth >= 1024) {
-                sidebarIsPinned = !sidebarIsPinned;
-                localStorage.setItem('sidebarPinned', sidebarIsPinned);
-                sidebar.classList.toggle('collapsed', !sidebarIsPinned);
+        // Re-engineered desktop sidebar logic for hover and pinning
+        function handleDesktopSidebarState() {
+            if (window.innerWidth >= 1024) { // On desktop
+                if (!sidebarIsPinned) {
+                    sidebar.classList.add('collapsed');
+                }
+            } else { // On mobile
+                sidebar.classList.remove('collapsed');
+                sidebarIsPinned = false; // Reset pinned state on mobile view
             }
-        });
-
-        // Initialize on load and resize
-        window.addEventListener('load', initSidebarState);
-        window.addEventListener('resize', initSidebarState);
+        }
         
         window.addEventListener('load', handleDesktopSidebarState);
         window.addEventListener('resize', handleDesktopSidebarState);
@@ -2717,36 +2699,27 @@
         let currentViewingDocumentId = null; // To keep track of which document is being viewed
 
         function showPdfViewerModal(documentName, documentId) {
-            try {
-                if (!documentName || !documentId) {
-                    throw new Error('Invalid document parameters');
-                }
-
-                pdfModalTitle.textContent = `View Document: ${documentName}`;
-                simulatedPdfContentFileName.textContent = documentName;
-                currentViewingDocumentId = documentId;
-
-                const markAsReadBtn = document.getElementById('markAsReadBtn');
-                const course = allCoursesData.find(c => c.id === documentId);
-                
-                if (course) {
-                    if (course.readStatus) {
-                        markAsReadBtn.textContent = 'Already Read';
-                        markAsReadBtn.disabled = true;
-                        markAsReadBtn.classList.replace('bg-green-600', 'bg-gray-400');
-                    } else {
-                        markAsReadBtn.textContent = 'Mark as Read';
-                        markAsReadBtn.disabled = false;
-                        markAsReadBtn.classList.replace('bg-gray-400', 'bg-green-600');
-                    }
-                }
-
-                pdfViewerModal.classList.remove('hidden');
-                pdfViewerModal.classList.add('show');
-            } catch (error) {
-                console.error('Error showing PDF viewer:', error);
-                showMessageModal('Error', 'Failed to load document viewer. Please try again.');
+            pdfModalTitle.textContent = `View Document: ${documentName}`;
+            simulatedPdfContentFileName.textContent = documentName;
+            currentViewingDocumentId = documentId; // Store the ID
+            
+            // Set initial state of Mark as Read button based on document status
+            const markAsReadBtn = document.getElementById('markAsReadBtn');
+            const course = allCoursesData.find(c => c.id === documentId);
+            if (course && course.readStatus) {
+                markAsReadBtn.textContent = 'Already Read';
+                markAsReadBtn.disabled = true;
+                markAsReadBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                markAsReadBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
+            } else {
+                markAsReadBtn.textContent = 'Mark as Read';
+                markAsReadBtn.disabled = false;
+                markAsReadBtn.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                markAsReadBtn.classList.add('bg-green-600', 'hover:bg-green-700');
             }
+
+            pdfViewerModal.classList.remove('hidden');
+            pdfViewerModal.classList.add('show');
         }
 
         function hidePdfViewerModal() {
@@ -3391,17 +3364,11 @@
 
         // Show the create assignment modal
         function showCreateAssignmentModal() {
-            try {
-                populateStudentAssignmentDropdown();
-                createAssignmentForm.reset();
-                document.getElementById('assignmentDocFileName').classList.add('hidden');
-                document.getElementById('assignmentDueDateInput').valueAsDate = new Date();
-                createAssignmentModal.classList.remove('hidden');
-                createAssignmentModal.classList.add('show');
-            } catch (error) {
-                console.error('Error showing assignment modal:', error);
-                showMessageModal('Error', 'Failed to load assignment form. Please try again.');
-            }
+            populateStudentAssignmentDropdown();
+            createAssignmentForm.reset();
+            document.getElementById('assignmentDocFileName').classList.add('hidden');
+            createAssignmentModal.classList.remove('hidden');
+            createAssignmentModal.classList.add('show');
         }
 
         // Hide the create assignment modal
