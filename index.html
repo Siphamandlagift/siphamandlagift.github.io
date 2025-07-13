@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SKILLSCONNECT LMS</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
@@ -147,6 +149,7 @@
 </head>
 <body class="bg-gray-100 font-sans antialiased">
 
+    <!-- Message Modal -->
     <div id="messageModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-lg p-6 shadow-xl max-w-sm w-full transform transition-all duration-300 scale-100 opacity-100">
             <h3 class="text-lg font-semibold text-gray-900 mb-4" id="messageModalTitle">Notification</h3>
@@ -162,6 +165,7 @@
         </div>
     </div>
 
+    <!-- Add User Modal -->
     <div id="addUserModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-lg p-6 shadow-xl max-w-md w-full transform transition-all duration-300 scale-100 opacity-100">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Add New User</h3>
@@ -221,6 +225,7 @@
         </div>
     </div>
 
+    <!-- Login Modal -->
     <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
             <div class="text-center mb-6">
@@ -255,6 +260,7 @@
         </div>
     </div>
 
+    <!-- Modal for viewing PDF (simulated) -->
     <div id="pdfViewerModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-lg p-6 shadow-xl max-w-2xl w-full transform transition-all duration-300 scale-100 opacity-100">
             <h3 class="text-lg font-semibold text-gray-900 mb-4" id="pdfModalTitle">View Document</h3>
@@ -282,13 +288,15 @@
         </div>
     </div>
 
+    <!-- Assign Students Modal -->
     <div id="assignStudentsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-lg p-6 shadow-xl max-w-md w-full transform transition-all duration-300 scale-100 opacity-100">
             <h3 class="text-lg font-semibold text-gray-900 mb-4" id="assignStudentsModalTitle">Assign Students to Programme</h3>
             <div class="mb-4 max-h-60 overflow-y-auto border border-gray-300 rounded-md p-2">
                 <p id="noStudentsAvailable" class="text-gray-500 text-sm text-center py-4 hidden">No students available. Add students via User Management first.</p>
                 <div id="assignStudentsList" class="space-y-2">
-                    </div>
+                    <!-- Student checkboxes will be loaded here -->
+                </div>
             </div>
             <div class="flex justify-end space-x-3">
                 <button type="button" onclick="hideAssignStudentsModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none">
@@ -301,6 +309,7 @@
         </div>
     </div>
 
+    <!-- FIX: Create Assignment Modal (for Training Manager) -->
     <div id="createAssignmentModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-lg p-6 shadow-xl max-w-lg w-full transform transition-all duration-300 scale-100 opacity-100">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Create New Assignment</h3>
@@ -308,13 +317,14 @@
                 <div class="mb-4">
                     <label class="block text-gray-700 text-sm font-medium mb-2" for="assignToStudentSelect">Assign to Student</label>
                     <select id="assignToStudentSelect" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        </select>
+                        <!-- Students will be populated here by JS -->
+                    </select>
                 </div>
                 <div class="mb-4">
                     <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentTitleInput">Assignment Title</label>
                     <input id="assignmentTitleInput" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., Chapter 1 Review">
                 </div>
-                   <div class="mb-4">
+                 <div class="mb-4">
                     <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentDueDateInput">Due Date</label>
                     <input id="assignmentDueDateInput" type="date" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
                 </div>
@@ -348,6 +358,7 @@
         </div>
     </div>
     
+    <!-- FIX: View Assignment Modal (for Student) -->
     <div id="viewAssignmentModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-lg p-6 shadow-xl max-w-xl w-full transform transition-all duration-300 scale-100 opacity-100">
             <h3 class="text-2xl font-semibold text-gray-900 mb-2" id="viewAssignmentTitle">Assignment Title</h3>
@@ -366,7 +377,7 @@
             </div>
 
             <div class="flex justify-between items-center">
-                <button onclick="hideViewAssignmentModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none">
+                 <button onclick="hideViewAssignmentModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none">
                     Close
                 </button>
                 <button id="submitAssignmentBtn" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none">
@@ -378,7 +389,9 @@
 
 
     <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
         <div id="sidebar" class="sidebar bg-indigo-800 text-white flex flex-col">
+            <!-- Logo -->
             <div class="p-4 flex items-center justify-between border-b border-indigo-700">
                 <div class="flex items-center">
                     <i class="fas fa-graduation-cap text-2xl mr-3"></i>
@@ -392,6 +405,7 @@
                 </button>
             </div>
             
+            <!-- User Info -->
             <div class="user-info p-4 flex items-center border-b border-indigo-700">
                 <img src="https://placehold.co/40x40/FF5733/FFFFFF?text=U" alt="User" class="w-10 h-10 rounded-full mr-3">
                 <div>
@@ -400,6 +414,7 @@
                 </div>
             </div>
             
+            <!-- Navigation -->
             <nav class="flex-1 overflow-y-auto">
                 <div id="adminNav" class="nav-section">
                     <div class="p-4 text-xs uppercase text-indigo-400 font-semibold sidebar-text">Administration</div>
@@ -499,7 +514,9 @@
             </nav>
         </div>
         
+        <!-- Main Content -->
         <div id="contentArea" class="content-area flex-1 overflow-y-auto">
+            <!-- Top Navigation -->
             <header class="bg-white shadow-sm">
                 <div class="flex items-center justify-between px-6 py-4">
                     <div class="flex items-center">
@@ -555,13 +572,16 @@
                 </div>
             </header>
             
+            <!-- Page Content -->
             <main class="p-6 flex-1 overflow-y-auto">
+                <!-- Dashboard Content -->
                 <div id="dashboardContent" class="content-section active">
                     <div class="mb-6">
                         <h2 class="text-2xl font-semibold text-gray-800">Welcome back, <span id="greetingName"></span>!</h2>
                         <p class="text-gray-600">Here's what's happening in your LMS today.</p>
                     </div>
                     
+                    <!-- Stats Cards -->
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                         <div class="bg-white rounded-lg shadow p-6">
                             <div class="flex items-center">
@@ -600,6 +620,7 @@
                         </div>
                     </div>
                     
+                    <!-- Recent Activity -->
                     <div class="bg-white rounded-lg shadow p-6 mb-6">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="text-lg font-semibold text-gray-800">Recent Activity</h3>
@@ -610,7 +631,9 @@
                         </div>
                     </div>
                     
+                    <!-- Courses/Assignments Section -->
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Courses -->
                         <div class="bg-white rounded-lg shadow p-6">
                             <div class="flex justify-between items-center mb-4">
                                 <h3 class="text-lg font-semibold text-gray-800" id="coursesTitle">All Courses</h3>
@@ -621,6 +644,7 @@
                             </div>
                         </div>
                         
+                        <!-- Assignments -->
                         <div class="bg-white rounded-lg shadow p-6">
                             <div class="flex justify-between items-center mb-4">
                                 <h3 class="text-lg font-semibold text-gray-800" id="assignmentsTitle">Recent Assignments</h3>
@@ -633,6 +657,7 @@
                     </div>
                 </div>
                 
+                <!-- User Management Content -->
                 <div id="user-managementContent" class="content-section">
                     <div class="mb-6">
                         <h2 class="text-2xl font-semibold text-gray-800">User Management</h2>
@@ -677,11 +702,13 @@
                     </div>
                 </div>
 
+                <!-- Programme Management Content (formerly part of Course Management) -->
                 <div id="programme-managementContent" class="content-section">
                     <div class="mb-6">
                         <h2 class="text-2xl font-semibold text-gray-800">Programme Management</h2>
                         <p class="text-gray-600">Create, edit, and manage your learning programmes.</p>
                     </div>
+                    <!-- Create New Programme Section -->
                     <div class="bg-white rounded-lg shadow p-6 mb-6">
                         <h3 class="text-lg font-semibold text-gray-800 mb-4">Create New Programme</h3>
                         <form id="createProgrammeForm">
@@ -718,6 +745,7 @@
                         </form>
                     </div>
 
+                    <!-- Existing Programmes Table -->
                     <div class="bg-white rounded-lg shadow overflow-hidden">
                         <div class="px-6 py-4 border-b border-gray-200">
                             <h3 class="text-lg font-semibold text-gray-800">Existing Programmes</h3>
@@ -751,6 +779,7 @@
                     </div>
                 </div>
 
+                <!-- User Assignment to Programmes Content (New Section) -->
                 <div id="user-programme-assignmentContent" class="content-section">
                     <div class="mb-6">
                         <h2 class="text-2xl font-semibold text-gray-800">Assign Students to Programmes</h2>
@@ -790,10 +819,12 @@
                 </div>
 
 
+                <!-- Course Content & Creation Content (for Admin Overview) -->
                 <div id="course-contentContent" class="content-section">
                     <h2 class="text-2xl font-semibold text-gray-800 mb-4">Course Content Overview</h2>
                     <p class="text-gray-600 mb-6">View and manage all courses in the system.</p>
 
+                    <!-- Available Course Materials (All Existing Courses Table) -->
                     <div class="bg-white rounded-lg shadow overflow-hidden">
                         <div class="px-6 py-4 border-b border-gray-200">
                             <h3 class="text-lg font-semibold text-gray-800">All Existing Courses (for Admin Review)</h3>
@@ -830,6 +861,7 @@
                     </div>
                 </div>
 
+                <!-- Reports Content -->
                 <div id="reportsContent" class="content-section">
                     <div class="mb-6">
                         <h2 class="text-2xl font-semibold text-gray-800">Reports</h2>
@@ -862,7 +894,8 @@
                                 <label class="block text-gray-700 text-sm font-medium mb-2" for="reportCourseSelect">Select Course (Optional)</label>
                                 <select id="reportCourseSelect" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                     <option value="all">All Courses</option>
-                                    </select>
+                                    <!-- Courses will be dynamically loaded here -->
+                                </select>
                             </div>
                             <div class="col-span-full flex justify-end mt-4">
                                 <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition ease-in-out duration-150">
@@ -910,6 +943,7 @@
                 </div>
 
 
+                <!-- System Settings Content -->
                 <div id="system-settingsContent" class="content-section">
                     <h2 class="text-2xl font-semibold text-gray-800 mb-4">System Settings</h2>
                     <p class="text-gray-600 mb-6">Configure general LMS settings.</p>
@@ -998,12 +1032,14 @@
                     </div>
                 </div>
 
+                <!-- My Courses Content (Training Manager) -->
                 <div id="my-coursesContent" class="content-section">
                     <div class="mb-6">
                         <h2 class="text-2xl font-semibold text-gray-800">My Courses</h2>
                         <p class="text-gray-600">Create new courses and manage your assigned course materials.</p>
                     </div>
 
+                    <!-- Create New Course Section -->
                     <div class="bg-white rounded-lg shadow p-6 mb-6">
                         <h3 class="text-lg font-semibold text-gray-800 mb-4">Create New Course</h3>
                         <form id="createCourseForm">
@@ -1061,8 +1097,10 @@
                                 </select>
                             </div>
 
+                            <!-- Question Input Area (Dynamic) -->
                             <div id="questionInputArea" class="space-y-4 mb-4">
-                                </div>
+                                <!-- Content will be dynamically loaded here based on question type -->
+                            </div>
 
                             <button type="button" id="addQuestionBtn" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-md text-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 transition ease-in-out duration-150" disabled>
                                 <i class="fas fa-plus mr-1"></i> Add Question
@@ -1086,6 +1124,7 @@
                         </form>
                     </div>
 
+                    <!-- Available Course Materials (Training Manager's Courses) -->
                     <div class="bg-white rounded-lg shadow overflow-hidden">
                         <div class="px-6 py-4 border-b border-gray-200">
                             <h3 class="text-lg font-semibold text-gray-800">Your Created Courses</h3>
@@ -1121,6 +1160,7 @@
                     </div>
                 </div>
                 
+                <!-- Student Enrolled Courses Content -->
                 <div id="enrolled-coursesContent" class="content-section">
                     <div class="mb-6">
                         <h2 class="text-2xl font-semibold text-gray-800">My Courses</h2>
@@ -1143,6 +1183,7 @@
                     </div>
                 </div>
                 
+                <!-- Assignments Content -->
                 <div id="assignmentsContent" class="content-section">
                     <div class="mb-6">
                         <h2 class="text-2xl font-semibold text-gray-800" id="assignmentsPageTitle">Assignments</h2>
@@ -1156,6 +1197,7 @@
                                 <i class="fas fa-plus mr-1"></i> Create Assignment
                             </button>
                         </div>
+                        <!-- FIX: Table for TM assignments -->
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50">
@@ -1176,6 +1218,7 @@
                     </div>
                 </div>
                 
+                <!-- Grades Content (Training Manager) -->
                 <div id="gradesContent" class="content-section">
                     <div class="mb-6">
                         <h2 class="text-2xl font-semibold text-gray-800" id="gradesPageTitle">Gradebook</h2>
@@ -1231,14 +1274,17 @@
                     </div>
                 </div>
                 
+                <!-- Student Assignments Content (Placeholder) -->
                 <div id="student-assignmentsContent" class="content-section">
                     <h2 class="text-2xl font-semibold text-gray-800 mb-4">My Assignments</h2>
                     <p class="text-gray-600 mb-6">View your assignments and submission status.</p>
+                    <!-- FIX: Dynamic list for student assignments -->
                     <div id="studentAssignmentsList" class="space-y-4">
                         <div class="p-6 bg-white rounded-lg shadow text-gray-500 text-sm text-center">No assignments for you to display.</div>
                     </div>
                 </div>
 
+                <!-- My Grades Content (Student) -->
                 <div id="my-gradesContent" class="content-section">
                     <div class="mb-6">
                         <h2 class="text-2xl font-semibold text-gray-800">My Grades</h2>
@@ -1318,6 +1364,7 @@
                     </div>
                 </div>
 
+                <!-- Profile Content (Placeholder) -->
                 <div id="profileContent" class="content-section">
                     <h2 class="text-2xl font-semibold text-gray-800 mb-4">User Profile</h2>
                     <p class="text-gray-600 mb-6">Manage your personal information.</p>
@@ -1361,7 +1408,7 @@
                                 <div class="mb-6">
                                     <label class="block text-gray-700 text-sm font-medium mb-2" for="profilePasswordInput">New Password (leave blank to keep current)</label>
                                     <input type="password" id="profilePasswordInput" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Enter new password">
-                                            </div>
+                                                </div>
                                 <div class="flex justify-end">
                                     <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition ease-in-out duration-150">
                                         Save Changes
@@ -1372,10 +1419,12 @@
                     </div>
                 </div>
 
+                <!-- Messages Content (Placeholder) -->
                 <div id="messagesContent" class="content-section">
                     <h2 class="text-2xl font-semibold text-gray-800 mb-4">Messages</h2>
                     <p class="text-gray-600 mb-6">Compose and view your messages.</p>
                     
+                    <!-- Compose New Email Section -->
                     <div class="bg-white rounded-lg shadow p-6 mb-6">
                         <h3 class="text-lg font-semibold text-gray-800 mb-4">Compose New Email to Student</h3>
                         <form id="composeEmailForm">
@@ -1383,7 +1432,8 @@
                                 <label class="block text-gray-700 text-sm font-medium mb-2" for="emailRecipientSelect">To (Student)</label>
                                 <select id="emailRecipientSelect" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                     <option value="">Select a student</option>
-                                    </select>
+                                    <!-- Student options will be populated dynamically -->
+                                </select>
                             </div>
                             <div class="mb-4">
                                 <label class="block text-gray-700 text-sm font-medium mb-2" for="emailSubjectInput">Subject</label>
@@ -1401,6 +1451,7 @@
                         </form>
                     </div>
 
+                    <!-- Existing Messages/Inbox (Placeholder) -->
                     <div class="bg-white rounded-lg shadow p-6">
                         <h3 class="text-lg font-semibold text-gray-800 mb-4">Your Inbox</h3>
                         <div class="divide-y divide-gray-200" id="inboxMessagesList">
@@ -1409,6 +1460,7 @@
                     </div>
                 </div>
 
+                <!-- Notifications Content (Placeholder) -->
                 <div id="notificationsContent" class="content-section">
                     <h2 class="text-2xl font-semibold text-gray-800 mb-4">Notifications</h2>
                     <p class="text-gray-600 mb-6">View all your system notifications.</p>
@@ -1518,10 +1570,10 @@
                     } else if (sectionId === 'reportsContent') {
                         pageTitle.textContent = 'Reports';
                     } else if (sectionId === 'my-coursesContent') { // New for Training Manager
-                       pageTitle.textContent = 'My Courses';
+                         pageTitle.textContent = 'My Courses';
                     }
                     else {
-                        pageTitle.textContent = titleText;
+                         pageTitle.textContent = titleText;
                     }
                 }
             }
@@ -1541,7 +1593,7 @@
             }
             if (sectionId === 'programme-managementContent') {
                 populateLinkedCoursesSelection();
-                renderExistingProgrammesTable();
+                renderExistingProgramsTable();
             }
             if (sectionId === 'user-programme-assignmentContent') {
                 renderProgrammesForAssignmentTable();
@@ -1868,6 +1920,8 @@
 
         function renderUserTable() {
             const userTableBody = document.getElementById('userTableBody');
+            const paginationContainer = document.querySelector('#user-managementContent .flex.space-x-2');
+            
             userTableBody.innerHTML = ''; // Clear existing rows
 
             if (allUsersData.length === 0) {
@@ -1876,15 +1930,19 @@
                         <td colspan="7" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No users to display. Click "Add User" to add new entries.</td>
                     </tr>
                 `;
-                document.getElementById('usersTotalCount').textContent = 0;
-                document.getElementById('usersShowingCount').textContent = 0;
-                document.getElementById('usersTotalCountDisplay').textContent = 0;
+                // Disable pagination buttons
+                paginationContainer.querySelectorAll('button').forEach(btn => {
+                    btn.disabled = true;
+                });
                 return;
             }
 
-            allUsersData.forEach(user => {
+            // Simple pagination - show first 10 users
+            const usersToShow = allUsersData.slice(0, 10);
+            
+            usersToShow.forEach(user => {
                 const newRow = userTableBody.insertRow();
-                newRow.classList.add('cursor-pointer', 'hover:bg-gray-50');
+                newRow.classList.add('hover:bg-gray-50');
                 newRow.dataset.userId = user.id;
 
                 const fullName = `${user.name}${user.surname ? ' ' + user.surname : ''}`;
@@ -1978,27 +2036,39 @@
         const mobileCloseSidebarBtn = document.getElementById('mobileCloseSidebarBtn');
         const toggleSidebarBtn = document.getElementById('toggleSidebar');
         const contentArea = document.getElementById('contentArea');
-        let sidebarIsPinned = false; 
+        let sidebarIsPinned = localStorage.getItem('sidebarPinned') === 'true';
 
-        // Mobile sidebar toggle (drawer functionality)
+        // Initialize sidebar state
+        function initSidebarState() {
+            if (window.innerWidth >= 1024) { // Desktop
+                sidebar.classList.toggle('collapsed', !sidebarIsPinned);
+            } else { // Mobile
+                sidebar.classList.remove('collapsed');
+                sidebar.classList.remove('active');
+            }
+        }
+
+        // Mobile sidebar toggle
         mobileMenuBtn.addEventListener('click', () => {
             sidebar.classList.add('active');
         });
+
         mobileCloseSidebarBtn.addEventListener('click', () => {
             sidebar.classList.remove('active');
         });
 
-        // Re-engineered desktop sidebar logic for hover and pinning
-        function handleDesktopSidebarState() {
-            if (window.innerWidth >= 1024) { // On desktop
-                if (!sidebarIsPinned) {
-                    sidebar.classList.add('collapsed');
-                }
-            } else { // On mobile
-                sidebar.classList.remove('collapsed');
-                sidebarIsPinned = false; // Reset pinned state on mobile view
+        // Desktop sidebar toggle
+        toggleSidebarBtn.addEventListener('click', () => {
+            if (window.innerWidth >= 1024) {
+                sidebarIsPinned = !sidebarIsPinned;
+                localStorage.setItem('sidebarPinned', sidebarIsPinned);
+                sidebar.classList.toggle('collapsed', !sidebarIsPinned);
             }
-        }
+        });
+
+        // Initialize on load and resize
+        window.addEventListener('load', initSidebarState);
+        window.addEventListener('resize', initSidebarState);
         
         window.addEventListener('load', handleDesktopSidebarState);
         window.addEventListener('resize', handleDesktopSidebarState);
@@ -2647,27 +2717,36 @@
         let currentViewingDocumentId = null; // To keep track of which document is being viewed
 
         function showPdfViewerModal(documentName, documentId) {
-            pdfModalTitle.textContent = `View Document: ${documentName}`;
-            simulatedPdfContentFileName.textContent = documentName;
-            currentViewingDocumentId = documentId; // Store the ID
-            
-            // Set initial state of Mark as Read button based on document status
-            const markAsReadBtn = document.getElementById('markAsReadBtn');
-            const course = allCoursesData.find(c => c.id === documentId);
-            if (course && course.readStatus) {
-                markAsReadBtn.textContent = 'Already Read';
-                markAsReadBtn.disabled = true;
-                markAsReadBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
-                markAsReadBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
-            } else {
-                markAsReadBtn.textContent = 'Mark as Read';
-                markAsReadBtn.disabled = false;
-                markAsReadBtn.classList.remove('bg-gray-400', 'cursor-not-allowed');
-                markAsReadBtn.classList.add('bg-green-600', 'hover:bg-green-700');
-            }
+            try {
+                if (!documentName || !documentId) {
+                    throw new Error('Invalid document parameters');
+                }
 
-            pdfViewerModal.classList.remove('hidden');
-            pdfViewerModal.classList.add('show');
+                pdfModalTitle.textContent = `View Document: ${documentName}`;
+                simulatedPdfContentFileName.textContent = documentName;
+                currentViewingDocumentId = documentId;
+
+                const markAsReadBtn = document.getElementById('markAsReadBtn');
+                const course = allCoursesData.find(c => c.id === documentId);
+                
+                if (course) {
+                    if (course.readStatus) {
+                        markAsReadBtn.textContent = 'Already Read';
+                        markAsReadBtn.disabled = true;
+                        markAsReadBtn.classList.replace('bg-green-600', 'bg-gray-400');
+                    } else {
+                        markAsReadBtn.textContent = 'Mark as Read';
+                        markAsReadBtn.disabled = false;
+                        markAsReadBtn.classList.replace('bg-gray-400', 'bg-green-600');
+                    }
+                }
+
+                pdfViewerModal.classList.remove('hidden');
+                pdfViewerModal.classList.add('show');
+            } catch (error) {
+                console.error('Error showing PDF viewer:', error);
+                showMessageModal('Error', 'Failed to load document viewer. Please try again.');
+            }
         }
 
         function hidePdfViewerModal() {
@@ -2749,7 +2828,7 @@
             const programmeName = document.getElementById('programmeNameInput').value.trim();
             const programmePicture = programmePicturePreview.src;
             const selectedCourseIds = Array.from(document.querySelectorAll('.linked-course-checkbox:checked'))
-                                             .map(checkbox => parseInt(checkbox.value));
+                                          .map(checkbox => parseInt(checkbox.value));
 
             if (!programmeName) {
                 showMessageModal('Input Error', 'Please enter a programme name.');
@@ -2765,7 +2844,7 @@
             };
             allProgramsData.push(newProgramme);
             
-            renderExistingProgrammesTable();
+            renderExistingProgramsTable();
             renderProgrammesForAssignmentTable(); // Update the new assignment table
             updateDashboardStats(); // Update dashboard stats after adding programme
 
@@ -2774,7 +2853,7 @@
         });
 
         // Render Existing Programmes Table
-        function renderExistingProgrammesTable() {
+        function renderExistingProgramsTable() {
             const tableBody = document.getElementById('existingProgrammesTableBody');
             tableBody.innerHTML = '';
 
@@ -2865,7 +2944,7 @@
                 const programme = allProgramsData.find(p => p.id === currentProgrammeIdToAssign);
                 if (programme) {
                     const newlySelectedStudentIds = Array.from(document.querySelectorAll('.assign-student-checkbox:checked'))
-                                                            .map(checkbox => parseInt(checkbox.value));
+                                                      .map(checkbox => parseInt(checkbox.value));
                     
                     // Students removed from this programme
                     const removedStudentIds = programme.assignedStudentIds.filter(id => !newlySelectedStudentIds.includes(id));
@@ -2881,7 +2960,7 @@
                         const student = allUsersData.find(u => u.id === studentId);
                         if (student) {
                             // Remove courses linked to this programme from student's enrolled list
-                            student.coursesEnrolled = student.coursesEnrolled.filter(enr => 
+                            student.coursesEnrolled = student.coursesEnrolled.filter(enr =>
                                 !programmeLinkedCourses.includes(enr.courseId)
                             );
                             student.totalHoursSpent = student.coursesEnrolled.reduce((sum, c) => sum + (c.hoursSpent || 0), 0);
@@ -2902,12 +2981,12 @@
                                     });
                                 }
                             });
-                            student.totalHoursSpent = student.coursesEnrolled.reduce((sum, c) => sum + (c.hoursSpent || 0), 0);
+                             student.totalHoursSpent = student.coursesEnrolled.reduce((sum, c) => sum + (c.hoursSpent || 0), 0);
                         }
                     });
                     
                     showMessageModal('Success', `Student assignments for "${programme.name}" updated.`);
-                    renderExistingProgrammesTable(); // Re-render programme table
+                    renderExistingProgramsTable(); // Re-render programme table
                     renderProgrammesForAssignmentTable(); // Re-render assignment table
                     updateDashboardStats(); // Refresh dashboard counts
                 }
@@ -3011,13 +3090,13 @@
 
             systemSettings.systemName = systemNameInput.value.trim();
             // Store the base64 or URL for the logo if it's new
-            systemSettings.systemLogo = systemLogoPreview.src; 
+            systemSettings.systemLogo = systemLogoPreview.src;
             systemSettings.defaultTimezone = defaultTimezoneSelect.value;
             systemSettings.systemLanguage = systemLanguageSelect.value;
 
             // Update logo in sidebar and top nav if they exist
             document.querySelectorAll('.fas.fa-graduation-cap.text-2xl.mr-3').forEach(icon => {
-                    // Replace original logo icon with image if a custom logo is set
+                 // Replace original logo icon with image if a custom logo is set
                 if (systemSettings.systemLogo !== "https://placehold.co/96x96/ADD8E6/00008B?text=LMS") { // Check if it's not the default placeholder
                     const img = document.createElement('img');
                     img.src = systemSettings.systemLogo;
@@ -3312,11 +3391,17 @@
 
         // Show the create assignment modal
         function showCreateAssignmentModal() {
-            populateStudentAssignmentDropdown();
-            createAssignmentForm.reset();
-            document.getElementById('assignmentDocFileName').classList.add('hidden');
-            createAssignmentModal.classList.remove('hidden');
-            createAssignmentModal.classList.add('show');
+            try {
+                populateStudentAssignmentDropdown();
+                createAssignmentForm.reset();
+                document.getElementById('assignmentDocFileName').classList.add('hidden');
+                document.getElementById('assignmentDueDateInput').valueAsDate = new Date();
+                createAssignmentModal.classList.remove('hidden');
+                createAssignmentModal.classList.add('show');
+            } catch (error) {
+                console.error('Error showing assignment modal:', error);
+                showMessageModal('Error', 'Failed to load assignment form. Please try again.');
+            }
         }
 
         // Hide the create assignment modal
@@ -3332,7 +3417,7 @@
             const students = allUsersData.filter(u => u.role === 'student' && u.status === 'active');
             
             if (students.length === 0) {
-                   select.innerHTML = '<option value="" disabled>No active students available</option>';
+                 select.innerHTML = '<option value="" disabled>No active students available</option>';
             } else {
                 students.forEach(student => {
                     const fullName = `${student.name}${student.surname ? ' ' + student.surname : ''}`;
@@ -3387,8 +3472,141 @@
             allAssignmentsData.push(newAssignment);
             renderTMAssignmentsTable();
             showMessageModal('Success', `Assignment "${title}" has been created and assigned.`);
-            hide
-                </script>
+            hideCreateAssignmentModal();
+        });
+
+        // Render assignments table for Training Manager
+        function renderTMAssignmentsTable() {
+            const tableBody = document.getElementById('tmAssignmentsTableBody');
+            const myAssignments = allAssignmentsData.filter(a => a.creatorId === loggedInUser.id);
+            tableBody.innerHTML = '';
+            
+            if(myAssignments.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="6" class="p-6 text-gray-500 text-sm text-center">No assignments created yet.</td></tr>`;
+                return;
+            }
+
+            myAssignments.forEach(assignment => {
+                const student = allUsersData.find(u => u.id === assignment.assignedStudentId);
+                const studentName = student ? `${student.name}${student.surname ? ' ' + student.surname : ''}` : 'Unknown Student';
+                
+                let statusColor = 'bg-blue-100 text-blue-800';
+                if (assignment.status === 'Submitted') statusColor = 'bg-green-100 text-green-800';
+                if (assignment.status === 'Graded') statusColor = 'bg-purple-100 text-purple-800';
+
+                const newRow = tableBody.insertRow();
+                newRow.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${assignment.title}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${studentName}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${assignment.dueDate}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}">${assignment.status}</span></td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${assignment.totalMarks}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <a href="#" class="text-indigo-600 hover:text-indigo-900">View/Grade</a>
+                    </td>
+                `;
+            });
+        }
+
+        // Render assignments list for Student
+        function renderStudentAssignmentsList() {
+            const container = document.getElementById('studentAssignmentsList');
+            const myAssignments = allAssignmentsData.filter(a => a.assignedStudentId === loggedInUser.id);
+            container.innerHTML = '';
+
+            if (myAssignments.length === 0) {
+                container.innerHTML = `<div class="p-6 bg-white rounded-lg shadow text-gray-500 text-sm text-center">You have no assignments.</div>`;
+                return;
+            }
+
+            myAssignments.forEach(assignment => {
+                let statusColor = 'bg-blue-100 text-blue-800';
+                if (assignment.status === 'Submitted') statusColor = 'bg-green-100 text-green-800';
+                
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-lg shadow p-4 flex justify-between items-center';
+                card.innerHTML = `
+                    <div>
+                        <h4 class="font-semibold text-gray-800">${assignment.title}</h4>
+                        <p class="text-sm text-gray-500">Due: ${assignment.dueDate}</p>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}">${assignment.status}</span>
+                         <button class="view-assignment-btn bg-indigo-600 text-white px-3 py-1 rounded-md text-sm hover:bg-indigo-700" data-assignment-id="${assignment.id}">View</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // Show the student view assignment modal
+        function showViewAssignmentModal(assignmentId) {
+            const assignment = allAssignmentsData.find(a => a.id === assignmentId);
+            if (!assignment) return;
+            
+            document.getElementById('viewAssignmentTitle').textContent = assignment.title;
+            document.getElementById('viewAssignmentDueDate').textContent = assignment.dueDate;
+            document.getElementById('viewAssignmentTotalMarks').textContent = assignment.totalMarks;
+            document.getElementById('viewAssignmentInstructions').textContent = assignment.instructions;
+
+            const docSection = document.getElementById('viewAssignmentDocumentSection');
+            if (assignment.documentFileName) {
+                docSection.classList.remove('hidden');
+                document.getElementById('viewAssignmentDocName').textContent = assignment.documentFileName;
+                document.getElementById('viewAssignmentDownloadLink').href = assignment.documentFileUrl;
+            } else {
+                docSection.classList.add('hidden');
+            }
+            
+            // Handle submit button state
+            const submitBtn = document.getElementById('submitAssignmentBtn');
+            submitBtn.dataset.assignmentId = assignmentId; // Store id on button
+            if (assignment.status === 'Submitted') {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Submitted';
+                submitBtn.classList.replace('bg-green-600', 'bg-gray-400');
+                submitBtn.classList.add('cursor-not-allowed');
+            } else {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = `<i class="fas fa-check-circle mr-2"></i>Mark as Submitted`;
+                submitBtn.classList.replace('bg-gray-400', 'bg-green-600');
+                submitBtn.classList.remove('cursor-not-allowed');
+            }
+
+
+            viewAssignmentModal.classList.remove('hidden');
+            viewAssignmentModal.classList.add('show');
+        }
+
+        function hideViewAssignmentModal() {
+            viewAssignmentModal.classList.remove('show');
+            viewAssignmentModal.classList.add('hidden');
+        }
+        
+        // Event delegation for student's "View" buttons
+        document.getElementById('studentAssignmentsList').addEventListener('click', function(e) {
+            if(e.target.classList.contains('view-assignment-btn')) {
+                const assignmentId = parseInt(e.target.dataset.assignmentId, 10);
+                showViewAssignmentModal(assignmentId);
+            }
+        });
+
+        // Handle student's submission click
+        document.getElementById('submitAssignmentBtn').addEventListener('click', function() {
+            const assignmentId = parseInt(this.dataset.assignmentId, 10);
+            const assignment = allAssignmentsData.find(a => a.id === assignmentId);
+            if (assignment) {
+                assignment.status = 'Submitted';
+                assignment.submissionDate = new Date().toISOString().slice(0, 10);
+                showMessageModal('Submitted', `Assignment "${assignment.title}" has been marked as submitted.`);
+                hideViewAssignmentModal();
+                renderStudentAssignmentsList(); // Refresh the student list to show new status
+                renderTMAssignmentsTable(); // Refresh TM list to show new status
+            }
+        });
+
+        // --- FIX: ASSIGNMENT FUNCTIONALITY END ---
+
+    </script>
 </body>
 </html>
-```
