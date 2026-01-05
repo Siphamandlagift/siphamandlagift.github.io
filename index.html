@@ -1550,6 +1550,9 @@
             // Hide all content sections
             document.querySelectorAll('.content-section').forEach(section => {
                 section.classList.remove('active');
+                if (sectionId === "enrolled-courses") {
+    renderStudentCourses();
+}
             });
             // Show the requested section
             const targetSection = document.getElementById(sectionId);
