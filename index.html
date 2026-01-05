@@ -1160,12 +1160,28 @@
                     </div>
                 </div>
                 
-                <!-- Student Enrolled Courses Content -->
-                <div id="enrolled-coursesContent" class="content-section">
-                    <div class="mb-6">
-                        <h2 class="text-2xl font-semibold text-gray-800">My Courses</h2>
-                        <p class="text-gray-600">Courses you are currently enrolled in</p>
-                    </div>
+<div id="student-coursesContent" class="content-section">
+    <div class="mb-6">
+        <h2 class="text-2xl font-semibold text-gray-800">My Courses</h2>
+        <p class="text-gray-600">Track your learning progress</p>
+    </div>
+
+    <div class="mb-10">
+        <h3 class="text-xl font-bold text-gray-700 mb-4 border-b-2 border-indigo-500 pb-2 inline-block">
+            <i class="fas fa-spinner fa-spin mr-2 text-indigo-500"></i>In Progress
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="studentCoursesInProgressList">
+            </div>
+    </div>
+
+    <div>
+        <h3 class="text-xl font-bold text-gray-700 mb-4 border-b-2 border-green-500 pb-2 inline-block">
+            <i class="fas fa-check-circle mr-2 text-green-500"></i>Completed
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="studentCoursesCompletedList">
+            </div>
+    </div>
+</div>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="studentCoursesList">
                         <div class="course-card bg-white rounded-lg shadow overflow-hidden transition duration-300">
@@ -2768,24 +2784,34 @@
             }
         });
 
-        // Populate courses for linking to a programme
-        function populateLinkedCoursesSelection() {
-            linkedCoursesSelection.innerHTML = '';
-            if (allCoursesData.length === 0) {
-                linkedCoursesSelection.innerHTML = '<p id="noCoursesAvailableForProgramme" class="text-gray-500 text-sm text-center">No courses available. Create courses first.</p>';
-            } else {
-                allCoursesData.forEach(course => {
-                    const checkboxDiv = document.createElement('div');
-                    checkboxDiv.classList.add('flex', 'items-center', 'py-1');
-                    checkboxDiv.innerHTML = `
-                        <input type="checkbox" id="linkCourse_${course.id}" value="${course.id}" class="linked-course-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
-                        <label for="linkCourse_${course.id}" class="ml-2 text-sm text-gray-700">${course.name}</label>
-                    `;
-                    linkedCoursesSelection.appendChild(checkboxDiv);
-                });
-            }
-        }
+ function renderStudentCourses() {
+    const inProgressList = document.getElementById('studentCoursesInProgressList');
+    const completedList = document.getElementById('studentCoursesCompletedList');
+    
+    // Clear the lists before reloading
+    inProgressList.innerHTML = '';
+    completedList.innerHTML = '';
 
+    // Loop through all courses
+    allCoursesData.forEach(course => {
+        const courseCard = createCourseCard(course);
+        
+        // CHECK STATUS: If readStatus is true, put in Completed. Otherwise, In Progress.
+        if (course.readStatus === true) {
+            completedList.appendChild(courseCard);
+        } else {
+            inProgressList.appendChild(courseCard);
+        }
+    });
+
+    // If a section is empty, show a little message
+    if (inProgressList.children.length === 0) {
+        inProgressList.innerHTML = '<p class="text-gray-500 text-sm italic">No courses in progress.</p>';
+    }
+    if (completedList.children.length === 0) {
+        completedList.innerHTML = '<p class="text-gray-500 text-sm italic">No courses completed yet.</p>';
+    }
+}
         // Reset Programme Form
         function resetProgrammeForm() {
             document.getElementById('createProgrammeForm').reset();
