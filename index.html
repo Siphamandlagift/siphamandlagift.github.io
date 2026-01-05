@@ -1161,27 +1161,30 @@
                 </div>
                 
                 <!-- Student Enrolled Courses Content -->
-                <div id="enrolled-coursesContent" class="content-section">
-                    <div class="mb-6">
-                        <h2 class="text-2xl font-semibold text-gray-800">My Courses</h2>
-                        <p class="text-gray-600">Courses you are currently enrolled in</p>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="studentCoursesList">
-                        <div class="course-card bg-white rounded-lg shadow overflow-hidden transition duration-300">
-                            <div class="h-40 bg-indigo-500 flex items-center justify-center">
-                                <i class="fas fa-plus text-white text-5xl"></i>
-                            </div>
-                            <div class="p-6 flex flex-col items-center justify-center">
-                                <h3 class="text-lg font-semibold text-gray-800 mb-2">Enroll in a Course</h3>
-                                <button class="mt-2 bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 focus:outline-none">
-                                    <i class="fas fa-search mr-1"></i> Browse Courses
-                                </button>
-                            </div>
-                        </div>
-                        <p class="text-gray-500 text-sm col-span-full text-center">No courses enrolled yet.</p>
-                    </div>
-                </div>
+   <div class="mb-6">
+    <h2 class="text-2xl font-semibold text-gray-800">My Courses</h2>
+    <p class="text-gray-600">Track your learning progress</p>
+</div>
+
+<!-- In Progress -->
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <h3 class="text-lg font-semibold text-indigo-600 mb-4">
+        <i class="fas fa-spinner mr-2"></i> Courses In Progress
+    </h3>
+    <div id="coursesInProgressList" class="space-y-3">
+        <p class="text-gray-500 text-sm">No courses in progress.</p>
+    </div>
+</div>
+
+<!-- Completed -->
+<div class="bg-white rounded-lg shadow p-6">
+    <h3 class="text-lg font-semibold text-green-600 mb-4">
+        <i class="fas fa-check-circle mr-2"></i> Completed Courses
+    </h3>
+    <div id="coursesCompletedList" class="space-y-3">
+        <p class="text-gray-500 text-sm">No completed courses yet.</p>
+    </div>
+</div>
                 
                 <!-- Assignments Content -->
                 <div id="assignmentsContent" class="content-section">
@@ -3575,5 +3578,76 @@
         // --- FIX: ASSIGNMENT FUNCTIONALITY END ---
 
     </script>
+    <script>
+/* Student course memory */
+let studentCourseProgress = JSON.parse(
+    localStorage.getItem("studentCourseProgress")
+) || [];
+
+/* Show courses on screen */
+function renderStudentCourses() {
+    const inProgress = document.getElementById("coursesInProgressList");
+    const completed = document.getElementById("coursesCompletedList");
+
+    inProgress.innerHTML = "";
+    completed.innerHTML = "";
+
+    const busy = studentCourseProgress.filter(c => c.status === "in_progress");
+    const done = studentCourseProgress.filter(c => c.status === "completed");
+
+    if (busy.length === 0) {
+        inProgress.innerHTML = `<p class="text-gray-500 text-sm">No courses in progress.</p>`;
+    }
+
+    if (done.length === 0) {
+        completed.innerHTML = `<p class="text-gray-500 text-sm">No completed courses yet.</p>`;
+    }
+
+    busy.forEach(course => {
+        inProgress.innerHTML += `
+            <div class="flex justify-between items-center border p-3 rounded-md mb-2">
+                <span>${course.name}</span>
+                <button onclick="markCourseCompleted('${course.id}')"
+                    class="bg-green-600 text-white text-sm px-3 py-1 rounded">
+                    Finish
+                </button>
+            </div>
+        `;
+    });
+
+    done.forEach(course => {
+        completed.innerHTML += `
+            <div class="border p-3 rounded-md bg-green-50 mb-2">
+                ${course.name}
+            </div>
+        `;
+    });
+}
+
+/* Move course to completed */
+function markCourseCompleted(id) {
+    const course = studentCourseProgress.find(c => c.id === id);
+    if (!course) return;
+
+    course.status = "completed";
+    localStorage.setItem("studentCourseProgress", JSON.stringify(studentCourseProgress));
+    renderStudentCourses();
+}
+
+/* Start a course */
+function startCourse(id, name) {
+    if (!studentCourseProgress.find(c => c.id === id)) {
+        studentCourseProgress.push({
+            id: id,
+            name: name,
+            status: "in_progress"
+        });
+
+        localStorage.setItem("studentCourseProgress", JSON.stringify(studentCourseProgress));
+    }
+
+    renderStudentCourses();
+}
+</script>
 </body>
 </html>
