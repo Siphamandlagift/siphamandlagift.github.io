@@ -1160,28 +1160,28 @@
                     </div>
                 </div>
                 
-                <!-- Student Enrolled Courses Content -->
-                <div id="enrolled-coursesContent" class="content-section">
-                    <div class="mb-6">
-                        <h2 class="text-2xl font-semibold text-gray-800">My Courses</h2>
-                        <p class="text-gray-600">Courses you are currently enrolled in</p>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="studentCoursesList">
-                        <div class="course-card bg-white rounded-lg shadow overflow-hidden transition duration-300">
-                            <div class="h-40 bg-indigo-500 flex items-center justify-center">
-                                <i class="fas fa-plus text-white text-5xl"></i>
-                            </div>
-                            <div class="p-6 flex flex-col items-center justify-center">
-                                <h3 class="text-lg font-semibold text-gray-800 mb-2">Enroll in a Course</h3>
-                                <button class="mt-2 bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 focus:outline-none">
-                                    <i class="fas fa-search mr-1"></i> Browse Courses
-                                </button>
-                            </div>
-                        </div>
-                        <p class="text-gray-500 text-sm col-span-full text-center">No courses enrolled yet.</p>
-                    </div>
-                </div>
+<!-- ================= STUDENT MY COURSES (UPDATED) ================= -->
+<div id="enrolled-coursesContent" class="content-section">
+
+  <h2 class="text-2xl font-semibold mb-4">My Courses</h2>
+
+  <div class="flex space-x-4 mb-4">
+    <button onclick="showStudentCourses('inprogress')"
+      class="bg-indigo-600 text-white px-4 py-2 rounded">
+      In Progress
+    </button>
+
+    <button onclick="showStudentCourses('completed')"
+      class="bg-green-600 text-white px-4 py-2 rounded">
+      Completed
+    </button>
+  </div>
+
+  <div id="studentCoursesList"></div>
+
+</div>
+<!-- ================================================================ -->
+
                 
                 <!-- Assignments Content -->
                 <div id="assignmentsContent" class="content-section">
@@ -3575,5 +3575,48 @@
         // --- FIX: ASSIGNMENT FUNCTIONALITY END ---
 
     </script>
+<script>
+/* ================= STUDENT COURSE PROGRESS ================= */
+
+const studentCourses = [
+  { id: 1, name: "Health & Safety", progress: 40 },
+  { id: 2, name: "Fire Fighting", progress: 100 },
+  { id: 3, name: "First Aid", progress: 75 }
+];
+
+function showStudentCourses(type) {
+  const container = document.getElementById("studentCoursesList");
+  if (!container) return;
+
+  container.innerHTML = "";
+
+  const filtered = studentCourses.filter(course =>
+    type === "completed"
+      ? course.progress === 100
+      : course.progress < 100
+  );
+
+  if (filtered.length === 0) {
+    container.innerHTML = "<p>No courses found.</p>";
+    return;
+  }
+
+  filtered.forEach(course => {
+    container.innerHTML += `
+      <div class="bg-white p-4 rounded shadow mb-3">
+        <h3 class="font-semibold">${course.name}</h3>
+        <p>Progress: ${course.progress}%</p>
+      </div>
+    `;
+  });
+}
+
+/* DEFAULT LOAD */
+document.addEventListener("DOMContentLoaded", () => {
+  showStudentCourses("inprogress");
+});
+</script>
+
+
 </body>
 </html>
