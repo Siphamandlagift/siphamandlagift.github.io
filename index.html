@@ -1170,13 +1170,22 @@
 
   <!-- Tabs -->
   <div class="flex space-x-2 mb-6 bg-gray-100 p-1 rounded-lg w-fit">
-    <button id="tabInProgress"
-      onclick="showStudentCourses('inprogress')"
+    <button onclick="openStudentCourse()" class="mt-4 text-indigo-600 hover:underline">
+  View Course
+</button>
+
+      <button onclick="openStudentCourse()" class="mt-4 text-indigo-600 hover:underline">
+  View Course
+</button>
+
       class="px-5 py-2 rounded-md text-sm font-medium bg-indigo-600 text-white transition">
       In Progress
     </button>
 
-    <button id="tabCompleted"
+   <button onclick="openStudentCourse()" class="mt-4 text-indigo-600 hover:underline">
+  View Course
+</button>
+
       onclick="showStudentCourses('completed')"
       class="px-5 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-800 transition">
       Completed
