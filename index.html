@@ -1170,7 +1170,7 @@
 
   <!-- Tabs -->
   <div class="flex space-x-2 mb-6 bg-gray-100 p-1 rounded-lg w-fit">
-    <button onclick="openStudentCourse()">View Course</button>
+    <button id="tabInProgress"
       onclick="showStudentCourses('inprogress')"
       class="px-5 py-2 rounded-md text-sm font-medium bg-indigo-600 text-white transition">
       In Progress
@@ -1476,47 +1476,6 @@
                         <p class="text-gray-700">All system notifications will be listed here.</p>
                     </div>
                 </div>
-<div id="student-course-playerContent" class="content-section">
-
-  <div class="mb-6">
-    <h2 id="studentCourseTitle">Introduction to Safety</h2>
-    <p id="studentCourseDescription">
-      Learn the basics of workplace safety and compliance.
-    </p>
-  </div>
-
-  <div class="bg-white p-6 mb-6">
-    <h3>Course Video</h3>
-    <video controls width="100%">
-      <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4">
-    </video>
-  </div>
-
-  <div class="bg-white p-6">
-    <h3>Knowledge Check</h3>
-
-    <p>1. What is the first step in workplace safety?</p>
-    <label><input type="radio" name="q1"> Identify hazards</label><br>
-    <label><input type="radio" name="q1"> Wear PPE</label><br>
-
-    <br>
-
-    <p>2. Safety training is mandatory.</p>
-    <label><input type="radio" name="q2"> True</label><br>
-    <label><input type="radio" name="q2"> False</label><br>
-
-    <br>
-
-    <p>3. Why is safety important?</p>
-    <textarea rows="4" style="width:100%"></textarea>
-
-    <br><br>
-
-    <button>Submit</button>
-  </div>
-
-</div>
-
 
             </main>
         </div>
@@ -3703,16 +3662,6 @@ function showStudentCourses(type) {
 document.addEventListener("DOMContentLoaded", () => {
   showStudentCourses("inprogress");
 });
-function openStudentCourse() {
-  document
-    .querySelectorAll(".content-section")
-    .forEach(section => section.classList.remove("active"));
-
-  document
-    .getElementById("student-course-playerContent")
-    .classList.add("active");
-}
-
 </script>
 
 
