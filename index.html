@@ -1170,22 +1170,13 @@
 
   <!-- Tabs -->
   <div class="flex space-x-2 mb-6 bg-gray-100 p-1 rounded-lg w-fit">
-    <button onclick="openStudentCourse()" class="mt-4 text-indigo-600 hover:underline">
-  View Course
-</button>
-
-      <button onclick="openStudentCourse()" class="mt-4 text-indigo-600 hover:underline">
-  View Course
-</button>
-
+    <button id="tabInProgress"
+      onclick="showStudentCourses('inprogress')"
       class="px-5 py-2 rounded-md text-sm font-medium bg-indigo-600 text-white transition">
       In Progress
     </button>
 
-   <button onclick="openStudentCourse()" class="mt-4 text-indigo-600 hover:underline">
-  View Course
-</button>
-
+    <button id="tabCompleted"
       onclick="showStudentCourses('completed')"
       class="px-5 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-gray-800 transition">
       Completed
@@ -3695,31 +3686,6 @@ function showStudentCourses(type) {
 document.addEventListener("DOMContentLoaded", () => {
   showStudentCourses("inprogress");
 });
-function openCourseView(course) {
-    document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
-    document.getElementById('course-viewContent').classList.add('active');
-
-    document.getElementById('courseViewTitle').innerText = course.name;
-
-    let qList = document.getElementById('courseViewQuestions');
-    qList.innerHTML = '';
-
-    if (course.questions && course.questions.length > 0) {
-        course.questions.forEach(q => {
-            let li = document.createElement('li');
-            li.classList.add('p-4','bg-white','rounded','shadow');
-            li.innerText = q.question;
-            qList.appendChild(li);
-        });
-    } else {
-        qList.innerHTML = `<p class="text-gray-500 italic">No questions added yet.</p>`;
-    }
-}
-
-document.getElementById('courseBackBtn').onclick = () => {
-    document.getElementById('course-viewContent').classList.remove('active');
-    document.getElementById('enrolled-coursesContent').classList.add('active');
-};
 
 </script>
 
