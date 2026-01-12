@@ -1188,6 +1188,34 @@
   </div>
 
 </div>
+<div id="studentCoursesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        </div>
+    </div> ```
+
+### **The code to paste in that spot:**
+```html
+<section id="course-viewer" class="hidden p-6">
+    <button onclick="goBackToDashboard()" class="mb-4 text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-2">
+        <i class="fas fa-arrow-left"></i> Back to Courses
+    </button>
+    
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="w-full bg-black aspect-video flex flex-col items-center justify-center text-white">
+            <i class="fas fa-play-circle text-6xl mb-2 opacity-50"></i>
+            <p class="text-lg font-light tracking-wide">Course Video Content Placeholder</p>
+        </div>
+
+        <div class="p-8">
+            <h2 id="view-course-name" class="text-3xl font-bold text-gray-800 mb-6">Course Name</h2>
+            
+            <div class="border-t pt-6">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">Assessment Questions</h3>
+                <div id="view-course-questions" class="space-y-4">
+                    </div>
+            </div>
+        </div>
+    </div>
+</section>
 <!-- =================================================================== -->
 
                 
@@ -3581,7 +3609,40 @@
         });
 
         // --- FIX: ASSIGNMENT FUNCTIONALITY END ---
+// Function to show the course details
+function openCourseViewer(courseId) {
+    // 1. Find the course data
+    const course = allCoursesData.find(c => c.id === courseId);
+    if (!course) return;
 
+    // 2. Fill in the Title and Questions
+    document.getElementById('view-course-name').innerText = course.name;
+    const questionsBox = document.getElementById('view-course-questions');
+    questionsBox.innerHTML = ''; // Clear old questions
+
+    if (!course.questions || course.questions.length === 0) {
+        questionsBox.innerHTML = '<p class="text-gray-500 italic">No questions available for this course.</p>';
+    } else {
+        course.questions.forEach((q, index) => {
+            questionsBox.innerHTML += `
+                <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <p class="font-bold text-gray-700">Question ${index + 1}:</p>
+                    <p class="text-gray-600">${q.text}</p>
+                </div>
+            `;
+        });
+    }
+
+    // 3. Switch the "screens"
+    document.getElementById('student-dashboard').classList.add('hidden');
+    document.getElementById('course-viewer').classList.remove('hidden');
+}
+
+// Function to go back to the list
+function goBackToDashboard() {
+    document.getElementById('course-viewer').classList.add('hidden');
+    document.getElementById('student-dashboard').classList.remove('hidden');
+}
     </script>
 <script>
 /* ================= STUDENT COURSE PROGRESS (UI ENHANCED) ================= */
@@ -3622,9 +3683,12 @@ function showStudentCourses(type) {
     return;
   }
 
-  filtered.forEach(course => {
-    container.innerHTML += `
-      <div class="bg-white rounded-xl shadow hover:shadow-lg transition p-5">
+// FIND THIS LINE:
+filtered.forEach(course => {
+  container.innerHTML += `
+    <div class="bg-white rounded-xl shadow hover:shadow-lg transition p-5 cursor-pointer" onclick="openCourseViewer(${course.id})">
+      <div class="flex justify-between items-start mb-3">
+        <h3 class="font-semibold text-gray-800">${course.name}</h3>
 
         <div class="flex justify-between items-start mb-3">
           <h3 class="font-semibold text-gray-800">${course.name}</h3>
@@ -3662,6 +3726,12 @@ function showStudentCourses(type) {
 document.addEventListener("DOMContentLoaded", () => {
   showStudentCourses("inprogress");
 });
+function goBackToDashboard() {
+    // Hide the course viewer
+    document.getElementById('course-viewer').classList.add('hidden');
+    // Show the student dashboard list again
+    document.getElementById('student-dashboard').classList.remove('hidden');
+}
 </script>
 
 
