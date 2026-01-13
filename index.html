@@ -110,7 +110,7 @@
                 </div>
 
                 <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-lg font-semibold text-gray-800">Continue Learning</h2>
+                    <h2 class="text-lg font-semibold text-gray-800">View Course Details</h2>
                     <button onclick="switchTab('learning')" class="text-indigo-600 text-sm font-medium hover:underline">View All</button>
                 </div>
                 <div id="continueLearningGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -139,7 +139,6 @@
     </div>
 
     <script>
-        // Expanded Course Data
         const courses = [
             { id: 1, name: "UX/UI Foundations", instructor: "Sarah Miller", progress: 85, category: "Design", duration: "12h", icon: "fa-bezier-curve", color: "bg-blue-500" },
             { id: 2, name: "React for Beginners", instructor: "David Chen", progress: 40, category: "Development", duration: "20h", icon: "fa-code", color: "bg-cyan-500" },
@@ -148,7 +147,6 @@
             { id: 5, name: "Brand Strategy", instructor: "Marc Jacobs", progress: 0, category: "Design", duration: "15h", icon: "fa-lightbulb", color: "bg-pink-500" }
         ];
 
-        // UI Logic
         const sidebar = document.getElementById('sidebar');
         const toggleBtn = document.getElementById('toggleSidebar');
         const searchInput = document.getElementById('courseSearch');
@@ -204,7 +202,7 @@
                     </div>
                     
                     <button class="w-full py-2.5 rounded-lg text-sm font-semibold transition ${isCompleted ? 'bg-gray-50 text-gray-600 hover:bg-gray-100' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md shadow-indigo-100'}">
-                        ${isCompleted ? 'Review Content' : course.progress > 0 ? 'Continue' : 'Start Learning'}
+                        View Course
                     </button>
                 </div>
             `;
@@ -239,7 +237,6 @@
                    </div>`;
         }
 
-        // Search and Filter Listeners
         searchInput.addEventListener('input', () => {
             const activeTab = document.getElementById('dashboardView').classList.contains('hidden') ? 'courses' : 'dashboard';
             if (activeTab === 'courses') renderCourses('courses');
