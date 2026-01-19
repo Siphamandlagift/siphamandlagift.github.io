@@ -786,7 +786,7 @@
                     </div>
                     
                     <!-- Stats Cards -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6" id="adminStatsCards">
                         <div class="bg-white rounded-lg shadow p-6">
                             <div class="flex items-center">
                                 <div class="p-3 rounded-full bg-green-100 text-green-600 mr-4">
@@ -799,7 +799,7 @@
                             </div>
                         </div>
                         
-                        <div class="bg-white rounded-lg shadow p-6">
+                        <div class="bg-white rounded-lg shadow p-6" id="totalStudentsCard">
                             <div class="flex items-center">
                                 <div class="p-3 rounded-full bg-blue-100 text-blue-600 mr-4">
                                     <i class="fas fa-users text-xl"></i>
@@ -823,15 +823,65 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Student Stats Cards (Hidden by default) -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6" id="studentStatsCards" style="display: none;">
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-full bg-green-100 text-green-600 mr-4">
+                                    <i class="fas fa-book text-xl"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Enrolled Courses</p>
+                                    <h3 class="text-2xl font-semibold text-gray-800" id="studentEnrolledCourses">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-full bg-blue-100 text-blue-600 mr-4">
+                                    <i class="fas fa-clock text-xl"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Total Hours Spent</p>
+                                    <h3 class="text-2xl font-semibold text-gray-800" id="studentTotalHours">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-full bg-purple-100 text-purple-600 mr-4">
+                                    <i class="fas fa-trophy text-xl"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Badges Earned</p>
+                                    <h3 class="text-2xl font-semibold text-gray-800" id="studentBadgesCount">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     
                     <!-- Recent Activity -->
-                    <div class="bg-white rounded-lg shadow p-6 mb-6">
+                    <div class="bg-white rounded-lg shadow p-6 mb-6" id="recentActivitySection">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="text-lg font-semibold text-gray-800">Recent Activity</h3>
                             <a href="#" class="text-sm text-indigo-600 hover:underline">View all</a>
                         </div>
                         <div class="space-y-4" id="recentActivityList">
                             <p class="text-gray-500 text-sm">No recent activity to display.</p>
+                        </div>
+                    </div>
+
+                    <!-- Recent Notifications (For Students) -->
+                    <div class="bg-white rounded-lg shadow p-6 mb-6" id="recentNotificationsSection" style="display: none;">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-semibold text-gray-800">Recent Notifications</h3>
+                            <a href="#" class="text-sm text-indigo-600 hover:underline">Mark all as read</a>
+                        </div>
+                        <div class="space-y-3" id="recentNotificationsList">
+                            <p class="text-gray-500 text-sm">No notifications to display.</p>
                         </div>
                     </div>
                     
@@ -3832,16 +3882,160 @@
 
         // Function to update dashboard statistics
         function updateDashboardStats() {
+            const loggedInUser = JSON.parse(localStorage.getItem('loggedInUser'));
             const totalCoursesElement = document.getElementById('totalCourses');
             const totalStudentsElement = document.getElementById('totalStudents');
+            const adminStatsCards = document.getElementById('adminStatsCards');
+            const studentStatsCards = document.getElementById('studentStatsCards');
+            const recentActivitySection = document.getElementById('recentActivitySection');
+            const recentNotificationsSection = document.getElementById('recentNotificationsSection');
 
-            if (totalCoursesElement) {
-                totalCoursesElement.textContent = allCoursesData.length;
+            if (loggedInUser && loggedInUser.role === 'student') {
+                // Show student stats, hide admin stats
+                if (adminStatsCards) adminStatsCards.style.display = 'none';
+                if (studentStatsCards) studentStatsCards.style.display = 'grid';
+                if (recentActivitySection) recentActivitySection.style.display = 'none';
+                if (recentNotificationsSection) recentNotificationsSection.style.display = 'block';
+
+                // Update student stats
+                const enrolledCoursesCount = loggedInUser.coursesEnrolled ? loggedInUser.coursesEnrolled.length : 0;
+                const totalHours = loggedInUser.totalHoursSpent || 0;
+                
+                // Count student badges
+                const studentBadges = studentBadgesData.filter(b => b.studentId === loggedInUser.id);
+                const badgesCount = studentBadges.length;
+
+                document.getElementById('studentEnrolledCourses').textContent = enrolledCoursesCount;
+                document.getElementById('studentTotalHours').textContent = totalHours.toFixed(1);
+                document.getElementById('studentBadgesCount').textContent = badgesCount;
+
+                // Load recent notifications
+                loadStudentNotifications(loggedInUser.id);
+            } else {
+                // Show admin stats, hide student stats
+                if (adminStatsCards) adminStatsCards.style.display = 'grid';
+                if (studentStatsCards) studentStatsCards.style.display = 'none';
+                if (recentActivitySection) recentActivitySection.style.display = 'block';
+                if (recentNotificationsSection) recentNotificationsSection.style.display = 'none';
+
+                if (totalCoursesElement) {
+                    totalCoursesElement.textContent = allCoursesData.length;
+                }
+                if (totalStudentsElement) {
+                    const studentsCount = allUsersData.filter(user => user.role === 'student').length;
+                    totalStudentsElement.textContent = studentsCount;
+                }
             }
-            if (totalStudentsElement) {
-                const studentsCount = allUsersData.filter(user => user.role === 'student').length;
-                totalStudentsElement.textContent = studentsCount;
+        }
+
+        // Function to load student notifications
+        function loadStudentNotifications(studentId) {
+            const notificationsList = document.getElementById('recentNotificationsList');
+            
+            // Sample notifications - in a real system these would come from a database
+            const notifications = [
+                {
+                    id: 1,
+                    title: 'Assignment Due',
+                    message: 'Your "Health & Safety Quiz" assignment is due in 2 days',
+                    type: 'warning',
+                    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
+                    read: false
+                },
+                {
+                    id: 2,
+                    title: 'Course Completed',
+                    message: 'Congratulations! You completed "Fire Fighting Basics"',
+                    type: 'success',
+                    timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
+                    read: false
+                },
+                {
+                    id: 3,
+                    title: 'Badge Earned',
+                    message: 'You earned the "Learning Champion" badge for 50 hours of learning',
+                    type: 'info',
+                    timestamp: new Date(Date.now() - 48 * 60 * 60 * 1000),
+                    read: true
+                },
+                {
+                    id: 4,
+                    title: 'New Course Available',
+                    message: 'A new course "Advanced First Aid" is now available for enrollment',
+                    type: 'info',
+                    timestamp: new Date(Date.now() - 72 * 60 * 60 * 1000),
+                    read: true
+                },
+                {
+                    id: 5,
+                    title: 'Grade Posted',
+                    message: 'Your grade for "Safety Audit Assessment" has been posted: 92/100',
+                    type: 'success',
+                    timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+                    read: true
+                }
+            ];
+
+            if (notifications.length === 0) {
+                notificationsList.innerHTML = '<p class="text-gray-500 text-sm">No notifications to display.</p>';
+                return;
             }
+
+            notificationsList.innerHTML = '';
+            notifications.forEach(notification => {
+                const notificationElement = document.createElement('div');
+                notificationElement.className = `p-4 rounded-lg border-l-4 ${getNotificationStyles(notification.type)} ${notification.read ? 'bg-gray-50' : 'bg-white'}`;
+                
+                const timeAgo = getTimeAgo(notification.timestamp);
+                
+                notificationElement.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <h4 class="font-semibold text-gray-800 text-sm">${notification.title}</h4>
+                            <p class="text-gray-600 text-sm mt-1">${notification.message}</p>
+                            <p class="text-xs text-gray-500 mt-2">${timeAgo}</p>
+                        </div>
+                        ${!notification.read ? '<span class="ml-4 inline-block w-2 h-2 bg-blue-600 rounded-full"></span>' : ''}
+                    </div>
+                `;
+                notificationsList.appendChild(notificationElement);
+            });
+        }
+
+        // Helper function to get notification styling based on type
+        function getNotificationStyles(type) {
+            switch(type) {
+                case 'warning':
+                    return 'border-yellow-400 bg-yellow-50';
+                case 'success':
+                    return 'border-green-400 bg-green-50';
+                case 'error':
+                    return 'border-red-400 bg-red-50';
+                case 'info':
+                default:
+                    return 'border-blue-400 bg-blue-50';
+            }
+        }
+
+        // Helper function to format time ago
+        function getTimeAgo(date) {
+            const seconds = Math.floor((new Date() - date) / 1000);
+            const intervals = {
+                year: 31536000,
+                month: 2592000,
+                week: 604800,
+                day: 86400,
+                hour: 3600,
+                minute: 60
+            };
+
+            for (const [key, value] of Object.entries(intervals)) {
+                const interval = Math.floor(seconds / value);
+                if (interval >= 1) {
+                    return interval === 1 ? `${interval} ${key} ago` : `${interval} ${key}s ago`;
+                }
+            }
+            return 'Just now';
         }
 
         // Reports Section Logic
