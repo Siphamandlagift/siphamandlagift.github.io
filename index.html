@@ -2401,7 +2401,7 @@
                 if (role === 'training_manager') {
                     defaultSectionId = 'dashboardContent';
                 } else if (role === 'student') {
-                    defaultSectionId = 'enrolled-coursesContent';
+                    defaultSectionId = 'dashboardContent'; // Students also see dashboard
                 }
                 showSection(defaultSectionId);
                 updateDashboardStats(); // Update dashboard stats after login
@@ -5070,8 +5070,42 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // --- BADGES FEATURE ---
-        let allBadgesData = [];
-        let studentBadgesData = [];
+        let allBadgesData = [
+            {
+                id: 1,
+                name: 'Quick Learner',
+                hoursRequired: 5,
+                description: 'Completed 5 hours of learning',
+                icon: '🚀',
+                creatorId: 1,
+                createdDate: '2024-01-01',
+                timesEarned: 0
+            },
+            {
+                id: 2,
+                name: 'Dedicated Scholar',
+                hoursRequired: 25,
+                description: 'Completed 25 hours of learning',
+                icon: '📚',
+                creatorId: 1,
+                createdDate: '2024-01-01',
+                timesEarned: 0
+            },
+            {
+                id: 3,
+                name: 'Learning Champion',
+                hoursRequired: 50,
+                description: 'Completed 50 hours of learning',
+                icon: '🏆',
+                creatorId: 1,
+                createdDate: '2024-01-01',
+                timesEarned: 0
+            }
+        ];
+        let studentBadgesData = [
+            { studentId: 3, badgeId: 1, earnedDate: '2024-01-15' },
+            { studentId: 3, badgeId: 2, earnedDate: '2024-02-20' }
+        ];
 
         // Function to create a new badge
         function createNewBadge(name, hoursRequired, description, icon) {
