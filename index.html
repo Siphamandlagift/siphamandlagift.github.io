@@ -29,29 +29,11 @@
             width: 256px; /* Default width for desktop */
             flex-shrink: 0; /* Prevent shrinking */
         }
-        .sidebar.collapsed {
-            width: 70px;
-        }
-        .sidebar.collapsed .sidebar-text {
-            display: none;
-        }
-        .sidebar.collapsed .logo-text {
-            display: none;
-        }
-        .sidebar.collapsed .user-info {
-            display: none;
-        }
-        .sidebar.collapsed .sidebar-item {
-            justify-content: center; /* Center icons when collapsed */
-        }
         /* Adjust content area margin based on sidebar state */
         .content-area {
             transition: margin-left 0.3s ease;
             margin-left: 256px; /* Offset for default sidebar width */
             flex-grow: 1;
-        }
-        .sidebar.collapsed + .content-area { /* Apply margin change when sidebar is collapsed */
-            margin-left: 70px;
         }
 
         /* Mobile specific sidebar */
@@ -71,8 +53,8 @@
             .mobile-menu-btn {
                 display: block; /* Show mobile menu button */
             }
-            #toggleSidebar { /* Hide desktop toggle button on mobile */
-                display: none;
+            #toggleSidebar { /* Hide desktop toggle button on mobile and desktop */
+                display: none !important;
             }
         }
         @media (min-width: 1024px) {
@@ -2750,9 +2732,7 @@
         const sidebar = document.getElementById('sidebar');
         const mobileMenuBtn = document.getElementById('mobileMenuBtn');
         const mobileCloseSidebarBtn = document.getElementById('mobileCloseSidebarBtn');
-        const toggleSidebarBtn = document.getElementById('toggleSidebar');
         const contentArea = document.getElementById('contentArea');
-        let sidebarIsPinned = false;
 
         // Mobile sidebar toggle (drawer functionality)
         mobileMenuBtn.addEventListener('click', () => {
@@ -2762,45 +2742,7 @@
             sidebar.classList.remove('active');
         });
 
-        // Re-engineered desktop sidebar logic for hover and pinning
-        function handleDesktopSidebarState() {
-            if (window.innerWidth >= 1024) { // On desktop
-                if (!sidebarIsPinned) {
-                    sidebar.classList.add('collapsed');
-                }
-            } else { // On mobile
-                sidebar.classList.remove('collapsed');
-                sidebarIsPinned = false; // Reset pinned state on mobile view
-            }
-        }
-        
-        window.addEventListener('load', handleDesktopSidebarState);
-        window.addEventListener('resize', handleDesktopSidebarState);
-        
-        // Hover listeners that respect the pinned state
-        sidebar.addEventListener('mouseenter', () => {
-            if (window.innerWidth >= 1024 && !sidebarIsPinned) {
-                sidebar.classList.remove('collapsed');
-            }
-        });
-
-        sidebar.addEventListener('mouseleave', () => {
-            if (window.innerWidth >= 1024 && !sidebarIsPinned) {
-                sidebar.classList.add('collapsed');
-            }
-        });
-
-        // Toggle button now controls the pinned state
-        toggleSidebarBtn.addEventListener('click', () => {
-            if (window.innerWidth >= 1024) {
-                sidebarIsPinned = !sidebarIsPinned; // Toggle the pinned state
-                if (sidebarIsPinned) {
-                    sidebar.classList.remove('collapsed'); // Pin it open
-                } else {
-                    sidebar.classList.add('collapsed'); // Unpin and collapse
-                }
-            }
-        });
+        // Sidebar stays expanded at all times - no collapse functionality
 
         // Make entire table rows clickable (if they have data-link attribute) - Adjusted to avoid status button
         document.addEventListener('click', function(e) {
