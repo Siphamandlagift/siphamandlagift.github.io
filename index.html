@@ -387,6 +387,37 @@
         </div>
     </div>
 
+    <!-- Certificate Viewer Modal -->
+    <div id="certificateViewerModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 shadow-xl max-w-2xl w-full transform transition-all duration-300 scale-100 opacity-100">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold text-gray-900" id="certificateViewerTitle">View Certificate</h3>
+                <button onclick="closeCertificateViewer()" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="mb-4 bg-gradient-to-br from-amber-50 to-yellow-50 p-8 rounded-lg border-2 border-amber-200 text-center min-h-96 flex flex-col justify-center items-center" id="certificateDisplayArea">
+                <div class="text-6xl mb-4 text-amber-600">
+                    <i class="fas fa-certificate"></i>
+                </div>
+                <h2 class="text-3xl font-bold text-amber-900 mb-2" id="certificateName">Certificate of Achievement</h2>
+                <p class="text-gray-600 mb-4">This certifies that</p>
+                <p class="text-2xl font-semibold text-gray-800 mb-6" id="certificateStudentName">Student Name</p>
+                <p class="text-gray-600 mb-2">has successfully completed</p>
+                <p class="text-lg font-semibold text-gray-800 mb-6" id="certificateCourseName">Course Name</p>
+                <p class="text-sm text-gray-600 mb-6">Date: <span id="certificateDate"></span></p>
+                <p class="text-xs text-gray-500 italic">Certificate ID: <span id="certificateId"></span></p>
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button onclick="downloadCertificate()" class="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 focus:outline-none">
+                    <i class="fas fa-download mr-2"></i> Download
+                </button>
+                <button onclick="closeCertificateViewer()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
 
     <div class="flex h-screen overflow-hidden">
         <!-- Sidebar -->
@@ -438,6 +469,10 @@
                         <i class="fas fa-cog mr-3"></i>
                         <span class="sidebar-text">System Settings</span>
                     </a>
+                    <a href="#" class="sidebar-item" data-section="certificates-management">
+                        <i class="fas fa-certificate mr-3"></i>
+                        <span class="sidebar-text">Certificates</span>
+                    </a>
                 </div>
                 
                 <div id="trainingManagerNav" class="nav-section hidden">
@@ -472,6 +507,10 @@
                         <i class="fas fa-graduation-cap mr-3"></i>
                         <span class="sidebar-text">Gradebook</span>
                     </a>
+                    <a href="#" class="sidebar-item" data-section="certificate-templates">
+                        <i class="fas fa-certificate mr-3"></i>
+                        <span class="sidebar-text">Certificate Templates</span>
+                    </a>
                 </div>
                 
                 <div id="studentNav" class="nav-section hidden">
@@ -491,6 +530,10 @@
                     <a href="#" class="sidebar-item" data-section="my-grades">
                         <i class="fas fa-graduation-cap mr-3"></i>
                         <span class="sidebar-text">My Grades</span>
+                    </a>
+                    <a href="#" class="sidebar-item" data-section="my-certificates">
+                        <i class="fas fa-certificate mr-3"></i>
+                        <span class="sidebar-text">My Certificates</span>
                     </a>
 
                 </div>
@@ -1474,6 +1517,143 @@
                     <p class="text-gray-600 mb-6">View all your system notifications.</p>
                     <div class="bg-white rounded-lg shadow p-6">
                         <p class="text-gray-700">All system notifications will be listed here.</p>
+                    </div>
+                </div>
+
+                <!-- Student: My Certificates Content -->
+                <div id="my-certificatesContent" class="content-section">
+                    <div class="mb-6">
+                        <h2 class="text-2xl font-semibold text-gray-800">My Certificates</h2>
+                        <p class="text-gray-600">View and download your earned certificates.</p>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-gray-800">Your Certificates</h3>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Certificate ID</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issue Date</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="studentCertificatesTableBody">
+                                    <tr>
+                                        <td colspan="5" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No certificates earned yet. Complete courses to earn certificates.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Training Manager: Certificate Templates Content -->
+                <div id="certificate-templatesContent" class="content-section">
+                    <div class="mb-6">
+                        <h2 class="text-2xl font-semibold text-gray-800">Certificate Templates</h2>
+                        <p class="text-gray-600">Create and manage certificate templates for your courses.</p>
+                    </div>
+
+                    <!-- Create Certificate Template -->
+                    <div class="bg-white rounded-lg shadow p-6 mb-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">Create Certificate Template</h3>
+                        <form id="createCertificateTemplateForm">
+                            <div class="mb-4">
+                                <label class="block text-gray-700 text-sm font-medium mb-2" for="certTemplateName">Template Name</label>
+                                <input id="certTemplateName" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., Standard Course Completion">
+                            </div>
+                            <div class="mb-4">
+                                <label class="block text-gray-700 text-sm font-medium mb-2" for="certTemplateDesc">Template Description</label>
+                                <textarea id="certTemplateDesc" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" rows="3" placeholder="Description of the certificate template..."></textarea>
+                            </div>
+                            <div class="mb-4">
+                                <label class="block text-gray-700 text-sm font-medium mb-2" for="certTemplateColor">Certificate Color Scheme</label>
+                                <select id="certTemplateColor" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                    <option value="amber">Gold/Amber</option>
+                                    <option value="blue">Blue</option>
+                                    <option value="green">Green</option>
+                                    <option value="purple">Purple</option>
+                                </select>
+                            </div>
+                            <div class="mb-6">
+                                <label class="block text-gray-700 text-sm font-medium mb-2">Linked Courses</label>
+                                <div id="certTemplateCoursesSelection" class="border border-gray-300 rounded-md p-3 max-h-40 overflow-y-auto bg-gray-50">
+                                    <p id="noCertCourses" class="text-gray-500 text-sm text-center">No courses available. Create courses first.</p>
+                                </div>
+                            </div>
+                            <div class="flex justify-end space-x-3">
+                                <button type="button" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none" onclick="resetCertTemplateForm()">
+                                    Reset Form
+                                </button>
+                                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none">
+                                    Create Template
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Existing Certificate Templates -->
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-gray-800">Existing Templates</h3>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Template Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Color Scheme</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Linked Courses</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="certTemplatesTableBody">
+                                    <tr>
+                                        <td colspan="5" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No templates created yet. Create a new template above.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin: Certificates Management Content -->
+                <div id="certificates-managementContent" class="content-section">
+                    <div class="mb-6">
+                        <h2 class="text-2xl font-semibold text-gray-800">Certificate Management</h2>
+                        <p class="text-gray-600">Manage all certificates issued in the system.</p>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-gray-800">All Issued Certificates</h3>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Certificate ID</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issue Date</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Certificate Type</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="allCertificatesTableBody">
+                                    <tr>
+                                        <td colspan="7" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No certificates issued yet.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
@@ -3582,7 +3762,166 @@
 
         // --- FIX: ASSIGNMENT FUNCTIONALITY END ---
 
-    </script>
+        // --- CERTIFICATE FUNCTIONALITY ---
+        let allCertificateTemplatesData = [];
+
+        // Render student certificates table
+        function renderStudentCertificatesTable() {
+            const tableBody = document.getElementById('studentCertificatesTableBody');
+            const studentCerts = allCertificatesData.filter(c => c.studentId === loggedInUser.id);
+            
+            if (studentCerts.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No certificates earned yet. Complete courses to earn certificates.</td></tr>';
+                return;
+            }
+
+            tableBody.innerHTML = '';
+            studentCerts.forEach(cert => {
+                tableBody.innerHTML += `
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${cert.id}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${cert.courseName}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${cert.issueDate}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">${cert.status}</span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button onclick="showCertificateViewer('${cert.id}')" class="text-indigo-600 hover:text-indigo-900 mr-3">View</button>
+                            <button onclick="downloadCertificate()" class="text-blue-600 hover:text-blue-900">Download</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        // Render admin all certificates table
+        function renderAllCertificatesTable() {
+            const tableBody = document.getElementById('allCertificatesTableBody');
+            
+            if (allCertificatesData.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No certificates issued yet.</td></tr>';
+                return;
+            }
+
+            tableBody.innerHTML = '';
+            allCertificatesData.forEach(cert => {
+                tableBody.innerHTML += `
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${cert.id}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${cert.studentName}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${cert.courseName}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${cert.issueDate}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${cert.certificateType}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">${cert.status}</span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button onclick="showCertificateViewer('${cert.id}')" class="text-indigo-600 hover:text-indigo-900">View</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        // Render certificate templates for training manager
+        function renderCertificateTemplatesTable() {
+            const tableBody = document.getElementById('certTemplatesTableBody');
+            
+            if (allCertificateTemplatesData.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No templates created yet. Create a new template above.</td></tr>';
+                return;
+            }
+
+            tableBody.innerHTML = '';
+            allCertificateTemplatesData.forEach(template => {
+                const linkedCoursesNames = template.linkedCourseIds.map(id => {
+                    const course = allCoursesData.find(c => c.id === id);
+                    return course ? course.name : 'Unknown';
+                }).join(', ');
+
+                tableBody.innerHTML += `
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${template.name}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${template.description}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${template.colorScheme}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600">${linkedCoursesNames || 'No courses linked'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button class="text-blue-600 hover:text-blue-900 mr-2">Edit</button>
+                            <button class="text-red-600 hover:text-red-900">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        // Handle certificate template creation
+        document.getElementById('createCertificateTemplateForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('certTemplateName').value.trim();
+            const description = document.getElementById('certTemplateDesc').value.trim();
+            const colorScheme = document.getElementById('certTemplateColor').value;
+            const linkedCourseIds = Array.from(document.querySelectorAll('.cert-template-course-checkbox:checked'))
+                                      .map(cb => parseInt(cb.value));
+
+            if (!name || !description) {
+                showMessageModal('Input Error', 'Please fill in template name and description.');
+                return;
+            }
+
+            const newTemplate = {
+                id: Date.now(),
+                name,
+                description,
+                colorScheme,
+                linkedCourseIds,
+                creatorId: loggedInUser.id,
+                creationDate: new Date().toISOString().slice(0, 10)
+            };
+
+            allCertificateTemplatesData.push(newTemplate);
+            showMessageModal('Success', `Certificate template "${name}" has been created.`);
+            this.reset();
+            renderCertificateTemplatesTable();
+        });
+
+        function resetCertTemplateForm() {
+            document.getElementById('createCertificateTemplateForm').reset();
+        }
+
+        // Populate courses for certificate template creation
+        function populateCertificateTemplateCoursesSelection() {
+            const container = document.getElementById('certTemplateCoursesSelection');
+            const activeCoursesForTM = allCoursesData.filter(c => c.creatorId === loggedInUser.id);
+            
+            if (activeCoursesForTM.length === 0) {
+                container.innerHTML = '<p id="noCertCourses" class="text-gray-500 text-sm text-center">No courses available. Create courses first.</p>';
+                return;
+            }
+
+            container.innerHTML = '';
+            activeCoursesForTM.forEach(course => {
+                const label = document.createElement('label');
+                label.className = 'flex items-center py-2 px-2 hover:bg-gray-100 rounded cursor-pointer';
+                label.innerHTML = `
+                    <input type="checkbox" value="${course.id}" class="cert-template-course-checkbox mr-2">
+                    <span class="text-sm text-gray-700">${course.name}</span>
+                `;
+                container.appendChild(label);
+            });
+        }
+
+        // Update tables when sections are shown
+        document.addEventListener('click', function(e) {
+            if (e.target.getAttribute('data-section') === 'my-certificates') {
+                renderStudentCertificatesTable();
+            } else if (e.target.getAttribute('data-section') === 'certificate-templates') {
+                populateCertificateTemplateCoursesSelection();
+                renderCertificateTemplatesTable();
+            } else if (e.target.getAttribute('data-section') === 'certificates-management') {
+                renderAllCertificatesTable();
+            }
+        });
+
 <script>
 /* ================= STUDENT COURSE PROGRESS (UI ENHANCED) ================= */
 
@@ -3662,6 +4001,123 @@ function showStudentCourses(type) {
 document.addEventListener("DOMContentLoaded", () => {
   showStudentCourses("inprogress");
 });
+
+        // --- CERTIFICATE FEATURE ---
+        let allCertificatesData = [];
+
+        // Function to issue certificate to student
+        function issueCertificateToStudent(studentId, courseId, courseName) {
+            const student = allUsersData.find(u => u.id === studentId);
+            if (!student) return;
+
+            const certificateId = 'CERT-' + Date.now();
+            const certificate = {
+                id: certificateId,
+                studentId: studentId,
+                studentName: student.name + (student.surname ? ' ' + student.surname : ''),
+                courseId: courseId,
+                courseName: courseName,
+                issueDate: new Date().toISOString().slice(0, 10),
+                certificateType: 'Course Completion',
+                status: 'Active'
+            };
+            allCertificatesData.push(certificate);
+            showMessageModal('Success', `Certificate issued to ${student.name} for completing ${courseName}.`);
+        }
+
+        // Function to show certificate viewer
+        function showCertificateViewer(certificateId) {
+            const cert = allCertificatesData.find(c => c.id === certificateId);
+            if (!cert) {
+                showMessageModal('Error', 'Certificate not found.');
+                return;
+            }
+
+            document.getElementById('certificateName').textContent = 'Certificate of Achievement';
+            document.getElementById('certificateStudentName').textContent = cert.studentName;
+            document.getElementById('certificateCourseName').textContent = cert.courseName;
+            document.getElementById('certificateDate').textContent = cert.issueDate;
+            document.getElementById('certificateId').textContent = cert.id;
+
+            document.getElementById('certificateViewerModal').classList.remove('hidden');
+            document.getElementById('certificateViewerModal').classList.add('show');
+        }
+
+        // Close certificate viewer
+        function closeCertificateViewer() {
+            document.getElementById('certificateViewerModal').classList.add('hidden');
+            document.getElementById('certificateViewerModal').classList.remove('show');
+        }
+
+        // Download certificate as image
+        function downloadCertificate() {
+            const certificateArea = document.getElementById('certificateDisplayArea');
+            const canvas = document.createElement('canvas');
+            canvas.width = 1200;
+            canvas.height = 800;
+            const ctx = canvas.getContext('2d');
+
+            // Background gradient
+            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+            gradient.addColorStop(0, '#fef3c7');
+            gradient.addColorStop(1, '#fef08a');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Border
+            ctx.strokeStyle = '#b45309';
+            ctx.lineWidth = 8;
+            ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
+
+            // Text settings
+            ctx.fillStyle = '#78350f';
+            ctx.textAlign = 'center';
+
+            // Title
+            ctx.font = 'bold 72px Arial';
+            ctx.fillText('Certificate of Achievement', canvas.width / 2, 150);
+
+            // Subtitle
+            ctx.font = '24px Arial';
+            ctx.fillStyle = '#666';
+            ctx.fillText('This certifies that', canvas.width / 2, 250);
+
+            // Student name
+            ctx.font = 'bold 48px Arial';
+            ctx.fillStyle = '#333';
+            const studentName = document.getElementById('certificateStudentName').textContent;
+            ctx.fillText(studentName, canvas.width / 2, 350);
+
+            // Completion text
+            ctx.font = '24px Arial';
+            ctx.fillStyle = '#666';
+            ctx.fillText('has successfully completed', canvas.width / 2, 430);
+
+            // Course name
+            ctx.font = 'bold 32px Arial';
+            ctx.fillStyle = '#333';
+            const courseName = document.getElementById('certificateCourseName').textContent;
+            ctx.fillText(courseName, canvas.width / 2, 510);
+
+            // Date
+            ctx.font = '18px Arial';
+            ctx.fillStyle = '#666';
+            const date = document.getElementById('certificateDate').textContent;
+            ctx.fillText('Date: ' + date, canvas.width / 2, 600);
+
+            // Certificate ID
+            ctx.font = '14px Arial';
+            ctx.fillStyle = '#999';
+            const certId = document.getElementById('certificateId').textContent;
+            ctx.fillText('Certificate ID: ' + certId, canvas.width / 2, 700);
+
+            // Download
+            const link = document.createElement('a');
+            link.href = canvas.toDataURL();
+            link.download = `certificate-${certId}.png`;
+            link.click();
+        }
+
 </script>
 
 
