@@ -447,7 +447,7 @@
         </div>
     </div>
 
-    <!-- Course Viewer Modal (with Video and Questions) -->
+    <!-- Course Viewer Modal (with Sections, Video and Questions) -->
     <div id="courseViewerModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden overflow-y-auto">
         <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full m-4 transform transition-all duration-300">
             <div class="flex justify-between items-center p-6 border-b border-gray-200">
@@ -467,13 +467,20 @@
                     </div>
                 </div>
 
+                <!-- Section/Chapter Tabs -->
+                <div class="mb-6 border-b border-gray-200">
+                    <div class="flex overflow-x-auto space-x-4 pb-3" id="sectionTabsContainer">
+                        <!-- Section tabs will be inserted here -->
+                    </div>
+                </div>
+
                 <!-- Video Placeholder -->
                 <div class="mb-6">
                     <div id="videoPlayer" class="bg-black rounded-lg overflow-hidden flex items-center justify-center h-96 mb-4 relative group cursor-pointer">
                         <div class="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center">
                             <i class="fas fa-play-circle text-6xl text-white mb-4 group-hover:scale-110 transition"></i>
                             <p class="text-white text-lg">Video Player</p>
-                            <p class="text-gray-400 text-sm mt-2">Click to play course video</p>
+                            <p class="text-gray-400 text-sm mt-2">Click to play section video</p>
                         </div>
                     </div>
                     <div class="bg-gray-100 p-3 rounded text-sm text-gray-600">
@@ -481,9 +488,12 @@
                     </div>
                 </div>
 
+                <!-- Section Title -->
+                <h3 class="text-lg font-semibold text-gray-800 mb-4" id="sectionTitle">Section Title</h3>
+
                 <!-- Questions Section -->
                 <div class="border-t pt-6">
-                    <h3 class="text-xl font-semibold text-gray-800 mb-4">Course Questions</h3>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">Section Questions</h3>
                     <div id="courseQuestionsContainer" class="space-y-4">
                         <p class="text-gray-500 text-center py-8">Loading questions...</p>
                     </div>
@@ -4187,9 +4197,156 @@
         /* ================= STUDENT COURSE PROGRESS (UI ENHANCED) ================= */
 
         const studentCourses = [
-          { id: 1, name: "Health & Safety", progress: 40 },
-          { id: 2, name: "Fire Fighting", progress: 100 },
-  { id: 3, name: "First Aid", progress: 75 }
+          { 
+            id: 1, 
+            name: "Health & Safety", 
+            progress: 40,
+            sections: [
+              {
+                id: 101,
+                title: "Introduction",
+                videoDuration: "12 minutes",
+                questions: [
+                  {
+                    id: 1,
+                    type: 'multiple-choice',
+                    question: 'What is the primary goal of health and safety?',
+                    options: ['Maximize productivity', 'Protect worker wellbeing', 'Reduce costs', 'Increase efficiency'],
+                    correctAnswer: 1
+                  },
+                  {
+                    id: 2,
+                    type: 'true-false',
+                    question: 'Health and safety regulations are optional.',
+                    correctAnswer: false
+                  }
+                ]
+              },
+              {
+                id: 102,
+                title: "Chapter 1: Workplace Hazards",
+                videoDuration: "18 minutes",
+                questions: [
+                  {
+                    id: 3,
+                    type: 'multiple-choice',
+                    question: 'Which of these is a common workplace hazard?',
+                    options: ['Proper lighting', 'Slippery floors', 'Good ventilation', 'Ergonomic furniture'],
+                    correctAnswer: 1
+                  },
+                  {
+                    id: 4,
+                    type: 'multiple-choice',
+                    question: 'What should you do if you notice a hazard?',
+                    options: ['Ignore it', 'Report it immediately', 'Handle it yourself', 'Wait for others to notice'],
+                    correctAnswer: 1
+                  }
+                ]
+              },
+              {
+                id: 103,
+                title: "Chapter 2: Safety Procedures",
+                videoDuration: "15 minutes",
+                questions: [
+                  {
+                    id: 5,
+                    type: 'true-false',
+                    question: 'Personal Protective Equipment (PPE) is always required.',
+                    correctAnswer: true
+                  },
+                  {
+                    id: 6,
+                    type: 'multiple-choice',
+                    question: 'What is the first step in an emergency?',
+                    options: ['Alert management', 'Ensure everyone is safe', 'Document the incident', 'Continue working'],
+                    correctAnswer: 1
+                  }
+                ]
+              }
+            ]
+          },
+          { 
+            id: 2, 
+            name: "Fire Fighting", 
+            progress: 100,
+            sections: [
+              {
+                id: 201,
+                title: "Introduction",
+                videoDuration: "10 minutes",
+                questions: [
+                  {
+                    id: 1,
+                    type: 'multiple-choice',
+                    question: 'What is the primary purpose of fire safety training?',
+                    options: ['Save lives and property', 'Pass time', 'Look good', 'Follow rules'],
+                    correctAnswer: 0
+                  }
+                ]
+              },
+              {
+                id: 202,
+                title: "Chapter 1: Fire Basics",
+                videoDuration: "14 minutes",
+                questions: [
+                  {
+                    id: 2,
+                    type: 'true-false',
+                    question: 'Fire requires oxygen, fuel, and heat to burn.',
+                    correctAnswer: true
+                  }
+                ]
+              }
+            ]
+          },
+          { 
+            id: 3, 
+            name: "First Aid", 
+            progress: 75,
+            sections: [
+              {
+                id: 301,
+                title: "Introduction",
+                videoDuration: "11 minutes",
+                questions: [
+                  {
+                    id: 1,
+                    type: 'multiple-choice',
+                    question: 'What is first aid?',
+                    options: ['Medical treatment', 'Emergency care before professional help', 'Medicine', 'Surgery'],
+                    correctAnswer: 1
+                  }
+                ]
+              },
+              {
+                id: 302,
+                title: "Chapter 1: CPR & Recovery Position",
+                videoDuration: "20 minutes",
+                questions: [
+                  {
+                    id: 2,
+                    type: 'true-false',
+                    question: 'CPR should be performed on all unconscious people.',
+                    correctAnswer: false
+                  }
+                ]
+              },
+              {
+                id: 303,
+                title: "Chapter 2: Wound Care",
+                videoDuration: "16 minutes",
+                questions: [
+                  {
+                    id: 3,
+                    type: 'multiple-choice',
+                    question: 'What is the first step in treating a wound?',
+                    options: ['Apply bandage', 'Stop the bleeding', 'Disinfect', 'Call emergency'],
+                    correctAnswer: 1
+                  }
+                ]
+              }
+            ]
+          }
 ];
 
 function showStudentCourses(type) {
@@ -4258,63 +4415,89 @@ function showStudentCourses(type) {
   });
 }
 
-// Function to view student course with video and questions
+// Function to view student course with sections, video and questions
 function viewStudentCourse(courseId, courseName) {
     const course = studentCourses.find(c => c.id === courseId);
-    if (!course) return;
+    if (!course || !course.sections || course.sections.length === 0) return;
 
     document.getElementById('courseViewerTitle').textContent = course.name;
     document.getElementById('courseViewerDescription').textContent = 'Learn about ' + course.name + '. This course covers essential concepts and practical skills.';
     document.getElementById('courseViewerCourseId').textContent = 'COURSE-' + courseId;
     document.getElementById('courseViewerProgress').textContent = course.progress;
-    document.getElementById('courseVideoDuration').textContent = '15 minutes';
 
-    // Load questions for this course
-    loadCourseQuestions(courseId);
+    // Create section tabs
+    loadSectionTabs(course);
+
+    // Load first section by default
+    loadSection(course.sections[0].id, courseId);
 
     // Show the modal
     document.getElementById('courseViewerModal').classList.remove('hidden');
     document.getElementById('courseViewerModal').classList.add('show');
+
+    // Store current course for later use
+    window.currentCourse = course;
 }
 
-// Function to load and display course questions
-function loadCourseQuestions(courseId) {
-    const questionsContainer = document.getElementById('courseQuestionsContainer');
-    
-    // Sample questions for demonstration
-    const sampleQuestions = [
-        {
-            id: 1,
-            type: 'multiple-choice',
-            question: 'What is the first step in the learning process?',
-            options: ['Understanding the concept', 'Memorization', 'Practice', 'Assessment'],
-            correctAnswer: 0
-        },
-        {
-            id: 2,
-            type: 'multiple-choice',
-            question: 'Which of the following is most important for retention?',
-            options: ['Speed', 'Consistency', 'Difficulty', 'Frequency'],
-            correctAnswer: 1
-        },
-        {
-            id: 3,
-            type: 'true-false',
-            question: 'Regular practice improves learning outcomes.',
-            correctAnswer: true
-        },
-        {
-            id: 4,
-            type: 'multiple-choice',
-            question: 'What learning strategy is most effective?',
-            options: ['Passive reading', 'Active engagement', 'Memorization only', 'Skimming'],
-            correctAnswer: 1
-        }
-    ];
+// Function to create section tabs
+function loadSectionTabs(course) {
+    const tabsContainer = document.getElementById('sectionTabsContainer');
+    tabsContainer.innerHTML = '';
 
+    course.sections.forEach((section, index) => {
+        const tab = document.createElement('button');
+        tab.className = `px-4 py-2 rounded-md text-sm font-medium transition ${
+            index === 0 
+            ? 'bg-indigo-600 text-white' 
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        }`;
+        tab.textContent = section.title;
+        tab.onclick = () => loadSection(section.id, course.id);
+        
+        // Update active tab styling on click
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('#sectionTabsContainer button').forEach(btn => {
+                btn.className = 'px-4 py-2 rounded-md text-sm font-medium transition bg-gray-100 text-gray-700 hover:bg-gray-200';
+            });
+            this.className = 'px-4 py-2 rounded-md text-sm font-medium transition bg-indigo-600 text-white';
+        });
+
+        tabsContainer.appendChild(tab);
+    });
+}
+
+// Function to load a specific section
+function loadSection(sectionId, courseId) {
+    const course = studentCourses.find(c => c.id === courseId);
+    if (!course) return;
+
+    const section = course.sections.find(s => s.id === sectionId);
+    if (!section) return;
+
+    // Update section title
+    document.getElementById('sectionTitle').textContent = section.title;
+
+    // Update video duration
+    document.getElementById('courseVideoDuration').textContent = section.videoDuration;
+
+    // Load section questions
+    loadSectionQuestions(section.questions);
+
+    // Store current section for submission
+    window.currentSection = section;
+}
+
+// Function to load and display section questions
+function loadSectionQuestions(questions) {
+    const questionsContainer = document.getElementById('courseQuestionsContainer');
     questionsContainer.innerHTML = '';
 
-    sampleQuestions.forEach((q, index) => {
+    if (!questions || questions.length === 0) {
+        questionsContainer.innerHTML = '<p class="text-gray-500 text-center py-8">No questions for this section.</p>';
+        return;
+    }
+
+    questions.forEach((q, index) => {
         let questionHtml = '';
 
         if (q.type === 'multiple-choice') {
@@ -4363,7 +4546,7 @@ function loadCourseQuestions(courseId) {
     });
 
     // Store questions for submission
-    window.currentCourseQuestions = sampleQuestions;
+    window.currentSectionQuestions = questions;
 }
 
 // Function to close course viewer
@@ -4377,15 +4560,19 @@ document.addEventListener('DOMContentLoaded', function() {
     const submitBtn = document.getElementById('submitCourseAnswersBtn');
     if (submitBtn) {
         submitBtn.addEventListener('click', function() {
-            if (!window.currentCourseQuestions) return;
+            if (!window.currentSectionQuestions || window.currentSectionQuestions.length === 0) {
+                showMessageModal('No Questions', 'This section has no questions to answer.');
+                return;
+            }
 
             let score = 0;
-            let totalQuestions = window.currentCourseQuestions.length;
+            let totalQuestions = window.currentSectionQuestions.length;
+            let allAnswered = true;
 
-            window.currentCourseQuestions.forEach(q => {
+            window.currentSectionQuestions.forEach(q => {
                 const selected = document.querySelector(`input[name="question-${q.id}"]:checked`);
                 if (!selected) {
-                    showMessageModal('Incomplete', `Please answer all questions before submitting.`);
+                    allAnswered = false;
                     return;
                 }
 
@@ -4401,9 +4588,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
 
+            if (!allAnswered) {
+                showMessageModal('Incomplete', 'Please answer all questions before submitting.');
+                return;
+            }
+
             const percentage = Math.round((score / totalQuestions) * 100);
-            showMessageModal('Quiz Submitted', `You scored ${score}/${totalQuestions} (${percentage}%). Great job!`);
-            closeCourseViewer();
+            const sectionTitle = window.currentSection ? window.currentSection.title : 'Section';
+            showMessageModal('Section Complete', `You scored ${score}/${totalQuestions} (${percentage}%) on ${sectionTitle}. Great job!`);
         });
     }
 });
