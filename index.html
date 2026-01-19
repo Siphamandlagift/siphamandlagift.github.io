@@ -419,6 +419,34 @@
         </div>
     </div>
 
+    <!-- Badge Viewer Modal -->
+    <div id="badgeViewerModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 shadow-xl max-w-md w-full transform transition-all duration-300 scale-100 opacity-100">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold text-gray-900" id="badgeViewerTitle">Badge Details</h3>
+                <button onclick="closeBadgeViewer()" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="mb-4 text-center">
+                <div class="text-8xl mb-4" id="badgeViewerIcon">🏅</div>
+                <h2 class="text-2xl font-bold text-gray-900 mb-2" id="badgeViewerName">Badge Name</h2>
+                <p class="text-gray-600 mb-4" id="badgeViewerDescription">Badge description</p>
+                <div class="bg-blue-50 p-3 rounded-lg mb-4">
+                    <p class="text-sm text-gray-700"><strong>Requirements:</strong> <span id="badgeViewerRequirement">Complete requirement</span></p>
+                </div>
+                <div class="bg-green-50 p-2 rounded mb-4">
+                    <p class="text-xs text-green-700" id="badgeViewerStatus">Earned on: <span id="badgeEarnedDate"></span></p>
+                </div>
+            </div>
+            <div class="flex justify-end">
+                <button onclick="closeBadgeViewer()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="flex h-screen overflow-hidden">
         <!-- Sidebar -->
         <div id="sidebar" class="sidebar bg-indigo-800 text-white flex flex-col">
@@ -473,6 +501,10 @@
                         <i class="fas fa-certificate mr-3"></i>
                         <span class="sidebar-text">Certificates</span>
                     </a>
+                    <a href="#" class="sidebar-item" data-section="badges-management">
+                        <i class="fas fa-medal mr-3"></i>
+                        <span class="sidebar-text">Badges</span>
+                    </a>
                 </div>
                 
                 <div id="trainingManagerNav" class="nav-section hidden">
@@ -511,6 +543,10 @@
                         <i class="fas fa-certificate mr-3"></i>
                         <span class="sidebar-text">Certificate Templates</span>
                     </a>
+                    <a href="#" class="sidebar-item" data-section="badges-created">
+                        <i class="fas fa-medal mr-3"></i>
+                        <span class="sidebar-text">Manage Badges</span>
+                    </a>
                 </div>
                 
                 <div id="studentNav" class="nav-section hidden">
@@ -534,6 +570,10 @@
                     <a href="#" class="sidebar-item" data-section="my-certificates">
                         <i class="fas fa-certificate mr-3"></i>
                         <span class="sidebar-text">My Certificates</span>
+                    </a>
+                    <a href="#" class="sidebar-item" data-section="my-badges">
+                        <i class="fas fa-medal mr-3"></i>
+                        <span class="sidebar-text">My Badges</span>
                     </a>
 
                 </div>
@@ -1650,6 +1690,172 @@
                                 <tbody class="bg-white divide-y divide-gray-200" id="allCertificatesTableBody">
                                     <tr>
                                         <td colspan="7" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No certificates issued yet.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Student: My Badges Content -->
+                <div id="my-badgesContent" class="content-section">
+                    <div class="mb-6">
+                        <h2 class="text-2xl font-semibold text-gray-800">My Badges</h2>
+                        <p class="text-gray-600">Earn badges by reaching learning milestones. Each badge represents your learning progress.</p>
+                    </div>
+
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                        <h3 class="text-lg font-semibold text-blue-900 mb-2">Your Learning Progress</h3>
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-blue-700">Total Hours Spent</p>
+                                <p class="text-3xl font-bold text-blue-900" id="studentTotalHours">0</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-sm text-blue-700">Badges Earned</p>
+                                <p class="text-3xl font-bold text-blue-900" id="studentBadgesCount">0</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div id="studentBadgesContainer">
+                            <div class="text-center py-12">
+                                <p class="text-gray-500">Start learning to earn badges!</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Training Manager: Manage Badges Content -->
+                <div id="badges-createdContent" class="content-section">
+                    <div class="mb-6">
+                        <h2 class="text-2xl font-semibold text-gray-800">Manage Badges</h2>
+                        <p class="text-gray-600">Create and manage badges for student achievement recognition.</p>
+                    </div>
+
+                    <!-- Create Badge -->
+                    <div class="bg-white rounded-lg shadow p-6 mb-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">Create New Badge</h3>
+                        <form id="createBadgeForm">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="mb-4">
+                                    <label class="block text-gray-700 text-sm font-medium mb-2" for="badgeName">Badge Name</label>
+                                    <input id="badgeName" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., Rising Star">
+                                </div>
+                                <div class="mb-4">
+                                    <label class="block text-gray-700 text-sm font-medium mb-2" for="badgeHoursRequired">Hours Required</label>
+                                    <input id="badgeHoursRequired" type="number" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., 5" min="1">
+                                </div>
+                            </div>
+                            <div class="mb-4">
+                                <label class="block text-gray-700 text-sm font-medium mb-2" for="badgeDescription">Description</label>
+                                <textarea id="badgeDescription" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" rows="3" placeholder="Describe what achievement this badge represents..."></textarea>
+                            </div>
+                            <div class="mb-4">
+                                <label class="block text-gray-700 text-sm font-medium mb-2" for="badgeIcon">Badge Icon (Emoji)</label>
+                                <input id="badgeIcon" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., ⭐ or 🏅" maxlength="2">
+                            </div>
+                            <div class="flex justify-end space-x-3">
+                                <button type="button" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none" onclick="resetBadgeForm()">
+                                    Reset Form
+                                </button>
+                                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none">
+                                    Create Badge
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Existing Badges -->
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-gray-800">Available Badges</h3>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Icon</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Badge Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours Required</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Students Earned</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="createdBadgesTableBody">
+                                    <tr>
+                                        <td colspan="6" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No badges created yet. Create a new badge above.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin: Badges Management Content -->
+                <div id="badges-managementContent" class="content-section">
+                    <div class="mb-6">
+                        <h2 class="text-2xl font-semibold text-gray-800">Badges Management</h2>
+                        <p class="text-gray-600">Monitor all badges and student achievements across the system.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-full bg-yellow-100 text-yellow-600 mr-4">
+                                    <i class="fas fa-medal text-2xl"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Total Badges Created</p>
+                                    <h3 class="text-2xl font-semibold text-gray-800" id="totalBadgesCount">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-full bg-blue-100 text-blue-600 mr-4">
+                                    <i class="fas fa-award text-2xl"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Total Earned</p>
+                                    <h3 class="text-2xl font-semibold text-gray-800" id="totalEarnedCount">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-full bg-green-100 text-green-600 mr-4">
+                                    <i class="fas fa-users text-2xl"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Students with Badges</p>
+                                    <h3 class="text-2xl font-semibold text-gray-800" id="studentsWithBadgesCount">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-gray-800">All Badges in System</h3>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Icon</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Badge Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours Required</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created By</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Times Earned</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="allBadgesTableBody">
+                                    <tr>
+                                        <td colspan="6" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No badges in system yet.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -4116,6 +4322,253 @@ document.addEventListener("DOMContentLoaded", () => {
             link.download = `certificate-${certId}.png`;
             link.click();
         }
+
+        // --- BADGES FEATURE ---
+        let allBadgesData = [];
+        let studentBadgesData = [];
+
+        // Function to create a new badge
+        function createNewBadge(name, hoursRequired, description, icon) {
+            const badge = {
+                id: Date.now(),
+                name: name,
+                hoursRequired: hoursRequired,
+                description: description,
+                icon: icon,
+                creatorId: loggedInUser.id,
+                createdDate: new Date().toISOString().slice(0, 10),
+                timesEarned: 0
+            };
+            allBadgesData.push(badge);
+            return badge;
+        }
+
+        // Function to award badge to student based on hours spent
+        function awardBadgeToStudent(studentId, badgeId) {
+            const badge = allBadgesData.find(b => b.id === badgeId);
+            if (!badge) return false;
+
+            // Check if student already has this badge
+            const alreadyHasBadge = studentBadgesData.some(sb => sb.studentId === studentId && sb.badgeId === badgeId);
+            if (alreadyHasBadge) return false;
+
+            const earnedBadge = {
+                studentId: studentId,
+                badgeId: badgeId,
+                earnedDate: new Date().toISOString().slice(0, 10)
+            };
+            studentBadgesData.push(earnedBadge);
+            badge.timesEarned++;
+            return true;
+        }
+
+        // Function to check and award badges to a student based on hours spent
+        function checkAndAwardBadges(studentId) {
+            const student = allUsersData.find(u => u.id === studentId);
+            if (!student) return;
+
+            const totalHours = student.totalHoursSpent || 0;
+
+            allBadgesData.forEach(badge => {
+                // Check if student's hours meet the badge requirement
+                if (totalHours >= badge.hoursRequired) {
+                    const earned = awardBadgeToStudent(studentId, badge.id);
+                    if (earned) {
+                        showMessageModal('Badge Earned!', `Congratulations! You earned the "${badge.name}" badge for reaching ${badge.hoursRequired} learning hours!`);
+                    }
+                }
+            });
+        }
+
+        // Function to get student badges
+        function getStudentBadges(studentId) {
+            return studentBadgesData
+                .filter(sb => sb.studentId === studentId)
+                .map(sb => {
+                    const badge = allBadgesData.find(b => b.id === sb.badgeId);
+                    return {
+                        ...badge,
+                        earnedDate: sb.earnedDate
+                    };
+                });
+        }
+
+        // Function to render student badges grid
+        function renderStudentBadgesGrid() {
+            const container = document.getElementById('studentBadgesContainer');
+            if (!container) return;
+
+            const badges = getStudentBadges(loggedInUser.id);
+            const student = allUsersData.find(u => u.id === loggedInUser.id);
+            
+            document.getElementById('studentTotalHours').textContent = student ? (student.totalHoursSpent || 0) : 0;
+            document.getElementById('studentBadgesCount').textContent = badges.length;
+
+            if (badges.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full text-center py-12">
+                        <p class="text-gray-500 text-lg">No badges earned yet. Keep learning!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = '';
+            badges.forEach(badge => {
+                const badgeHtml = `
+                    <div class="bg-white rounded-lg shadow p-6 text-center hover:shadow-lg transition cursor-pointer" onclick="showBadgeDetails('${badge.id}', '${badge.name}', '${badge.description}', '${badge.icon}', '${badge.hoursRequired}', '${badge.earnedDate}')">
+                        <div class="text-6xl mb-3">${badge.icon}</div>
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">${badge.name}</h3>
+                        <p class="text-sm text-gray-600 mb-3">${badge.description}</p>
+                        <div class="text-xs text-gray-500 bg-green-50 p-2 rounded">
+                            Earned: ${badge.earnedDate}
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += badgeHtml;
+            });
+        }
+
+        // Function to show badge details
+        function showBadgeDetails(badgeId, name, description, icon, hoursRequired, earnedDate) {
+            document.getElementById('badgeViewerIcon').textContent = icon;
+            document.getElementById('badgeViewerName').textContent = name;
+            document.getElementById('badgeViewerDescription').textContent = description;
+            document.getElementById('badgeViewerRequirement').textContent = `Complete ${hoursRequired} hours of learning`;
+            document.getElementById('badgeEarnedDate').textContent = earnedDate;
+            document.getElementById('badgeViewerModal').classList.remove('hidden');
+            document.getElementById('badgeViewerModal').classList.add('show');
+        }
+
+        // Function to close badge viewer
+        function closeBadgeViewer() {
+            document.getElementById('badgeViewerModal').classList.add('hidden');
+            document.getElementById('badgeViewerModal').classList.remove('show');
+        }
+
+        // Function to render created badges table (for training managers)
+        function renderCreatedBadgesTable() {
+            const tableBody = document.getElementById('createdBadgesTableBody');
+            const myBadges = allBadgesData.filter(b => b.creatorId === loggedInUser.id);
+            tableBody.innerHTML = '';
+
+            if (myBadges.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No badges created yet.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            myBadges.forEach(badge => {
+                const row = `
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-center text-2xl">${badge.icon}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${badge.name}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${badge.hoursRequired} hours</td>
+                        <td class="px-6 py-4 text-sm text-gray-700">${badge.description.substring(0, 50)}...</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${badge.timesEarned}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button onclick="editBadge('${badge.id}')" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</button>
+                            <button onclick="deleteBadge('${badge.id}')" class="text-red-600 hover:text-red-900">Delete</button>
+                        </td>
+                    </tr>
+                `;
+                tableBody.innerHTML += row;
+            });
+        }
+
+        // Function to render all badges table (for admin)
+        function renderAllBadgesTable() {
+            const tableBody = document.getElementById('allBadgesTableBody');
+            tableBody.innerHTML = '';
+
+            if (allBadgesData.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No badges in system yet.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            allBadgesData.forEach(badge => {
+                const creator = allUsersData.find(u => u.id === badge.creatorId);
+                const creatorName = creator ? creator.name : 'Unknown';
+                const row = `
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-center text-2xl">${badge.icon}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${badge.name}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${badge.hoursRequired} hours</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${creatorName}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${badge.timesEarned}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button onclick="viewBadgeDetails('${badge.id}')" class="text-indigo-600 hover:text-indigo-900">View</button>
+                        </td>
+                    </tr>
+                `;
+                tableBody.innerHTML += row;
+            });
+
+            // Update admin stats
+            const uniqueStudentsWithBadges = new Set(studentBadgesData.map(sb => sb.studentId)).size;
+            document.getElementById('totalBadgesCount').textContent = allBadgesData.length;
+            document.getElementById('totalEarnedCount').textContent = studentBadgesData.length;
+            document.getElementById('studentsWithBadgesCount').textContent = uniqueStudentsWithBadges;
+        }
+
+        // Function to delete badge
+        function deleteBadge(badgeId) {
+            if (!confirm('Are you sure you want to delete this badge?')) return;
+            allBadgesData = allBadgesData.filter(b => b.id !== badgeId);
+            renderCreatedBadgesTable();
+            showMessageModal('Deleted', 'Badge has been deleted.');
+        }
+
+        // Function to edit badge
+        function editBadge(badgeId) {
+            showMessageModal('Edit Badge', 'Edit functionality coming soon.');
+        }
+
+        // Form submission for creating badge
+        const createBadgeForm = document.getElementById('createBadgeForm');
+        if (createBadgeForm) {
+            createBadgeForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const name = document.getElementById('badgeName').value.trim();
+                const hoursRequired = parseInt(document.getElementById('badgeHoursRequired').value, 10);
+                const description = document.getElementById('badgeDescription').value.trim();
+                const icon = document.getElementById('badgeIcon').value.trim();
+
+                if (!name || !hoursRequired || !description || !icon) {
+                    showMessageModal('Input Error', 'Please fill all fields.');
+                    return;
+                }
+
+                createNewBadge(name, hoursRequired, description, icon);
+                showMessageModal('Success', `Badge "${name}" has been created!`);
+                renderCreatedBadgesTable();
+                this.reset();
+            });
+        }
+
+        // Reset badge form
+        function resetBadgeForm() {
+            document.getElementById('createBadgeForm').reset();
+        }
+
+        // Event listeners for badges sections
+        document.addEventListener('click', function(e) {
+            if (e.target.getAttribute('data-section') === 'my-badges') {
+                renderStudentBadgesGrid();
+            } else if (e.target.getAttribute('data-section') === 'badges-created') {
+                renderCreatedBadgesTable();
+            } else if (e.target.getAttribute('data-section') === 'badges-management') {
+                renderAllBadgesTable();
+            }
+        });
+
 
 </script>
 
