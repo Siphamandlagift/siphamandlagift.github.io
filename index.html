@@ -447,6 +447,62 @@
         </div>
     </div>
 
+    <!-- Course Viewer Modal (with Video and Questions) -->
+    <div id="courseViewerModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden overflow-y-auto">
+        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full m-4 transform transition-all duration-300">
+            <div class="flex justify-between items-center p-6 border-b border-gray-200">
+                <h2 class="text-2xl font-semibold text-gray-900" id="courseViewerTitle">Course Title</h2>
+                <button onclick="closeCourseViewer()" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            
+            <div class="p-6">
+                <!-- Course Info -->
+                <div class="mb-6">
+                    <p class="text-gray-600 mb-2" id="courseViewerDescription">Course description</p>
+                    <div class="flex space-x-4 text-sm text-gray-600">
+                        <span><i class="fas fa-book mr-2"></i>Course ID: <span id="courseViewerCourseId"></span></span>
+                        <span><i class="fas fa-star mr-2"></i>Progress: <span id="courseViewerProgress"></span>%</span>
+                    </div>
+                </div>
+
+                <!-- Video Placeholder -->
+                <div class="mb-6">
+                    <div id="videoPlayer" class="bg-black rounded-lg overflow-hidden flex items-center justify-center h-96 mb-4 relative group cursor-pointer">
+                        <div class="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center">
+                            <i class="fas fa-play-circle text-6xl text-white mb-4 group-hover:scale-110 transition"></i>
+                            <p class="text-white text-lg">Video Player</p>
+                            <p class="text-gray-400 text-sm mt-2">Click to play course video</p>
+                        </div>
+                    </div>
+                    <div class="bg-gray-100 p-3 rounded text-sm text-gray-600">
+                        <p><strong>Video Duration:</strong> <span id="courseVideoDuration">15 minutes</span></p>
+                    </div>
+                </div>
+
+                <!-- Questions Section -->
+                <div class="border-t pt-6">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">Course Questions</h3>
+                    <div id="courseQuestionsContainer" class="space-y-4">
+                        <p class="text-gray-500 text-center py-8">Loading questions...</p>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex justify-between mt-8 pt-6 border-t border-gray-200">
+                    <button onclick="closeCourseViewer()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none">
+                        Close
+                    </button>
+                    <button id="submitCourseAnswersBtn" class="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none">
+                        <i class="fas fa-check mr-2"></i>Submit Answers
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
     <div class="flex h-screen overflow-hidden">
         <!-- Sidebar -->
         <div id="sidebar" class="sidebar bg-indigo-800 text-white flex flex-col">
@@ -4193,7 +4249,7 @@ function showStudentCourses(type) {
           Progress: <span class="font-medium">${course.progress}%</span>
         </p>
 
-        <button class="w-full text-sm bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 transition">
+        <button onclick="viewStudentCourse(${course.id}, '${course.name}')" class="w-full text-sm bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 transition">
           View course
         </button>
 
@@ -4201,6 +4257,156 @@ function showStudentCourses(type) {
     `;
   });
 }
+
+// Function to view student course with video and questions
+function viewStudentCourse(courseId, courseName) {
+    const course = studentCourses.find(c => c.id === courseId);
+    if (!course) return;
+
+    document.getElementById('courseViewerTitle').textContent = course.name;
+    document.getElementById('courseViewerDescription').textContent = 'Learn about ' + course.name + '. This course covers essential concepts and practical skills.';
+    document.getElementById('courseViewerCourseId').textContent = 'COURSE-' + courseId;
+    document.getElementById('courseViewerProgress').textContent = course.progress;
+    document.getElementById('courseVideoDuration').textContent = '15 minutes';
+
+    // Load questions for this course
+    loadCourseQuestions(courseId);
+
+    // Show the modal
+    document.getElementById('courseViewerModal').classList.remove('hidden');
+    document.getElementById('courseViewerModal').classList.add('show');
+}
+
+// Function to load and display course questions
+function loadCourseQuestions(courseId) {
+    const questionsContainer = document.getElementById('courseQuestionsContainer');
+    
+    // Sample questions for demonstration
+    const sampleQuestions = [
+        {
+            id: 1,
+            type: 'multiple-choice',
+            question: 'What is the first step in the learning process?',
+            options: ['Understanding the concept', 'Memorization', 'Practice', 'Assessment'],
+            correctAnswer: 0
+        },
+        {
+            id: 2,
+            type: 'multiple-choice',
+            question: 'Which of the following is most important for retention?',
+            options: ['Speed', 'Consistency', 'Difficulty', 'Frequency'],
+            correctAnswer: 1
+        },
+        {
+            id: 3,
+            type: 'true-false',
+            question: 'Regular practice improves learning outcomes.',
+            correctAnswer: true
+        },
+        {
+            id: 4,
+            type: 'multiple-choice',
+            question: 'What learning strategy is most effective?',
+            options: ['Passive reading', 'Active engagement', 'Memorization only', 'Skimming'],
+            correctAnswer: 1
+        }
+    ];
+
+    questionsContainer.innerHTML = '';
+
+    sampleQuestions.forEach((q, index) => {
+        let questionHtml = '';
+
+        if (q.type === 'multiple-choice') {
+            questionHtml = `
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <div class="flex items-start mb-3">
+                        <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3">
+                            ${index + 1}
+                        </span>
+                        <h4 class="text-lg font-semibold text-gray-800">${q.question}</h4>
+                    </div>
+                    <div class="space-y-2 ml-11">
+                        ${q.options.map((option, optIndex) => `
+                            <label class="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer">
+                                <input type="radio" name="question-${q.id}" value="${optIndex}" class="w-4 h-4 text-indigo-600">
+                                <span class="ml-3 text-gray-700">${option}</span>
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        } else if (q.type === 'true-false') {
+            questionHtml = `
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <div class="flex items-start mb-3">
+                        <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3">
+                            ${index + 1}
+                        </span>
+                        <h4 class="text-lg font-semibold text-gray-800">${q.question}</h4>
+                    </div>
+                    <div class="space-y-2 ml-11">
+                        <label class="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer">
+                            <input type="radio" name="question-${q.id}" value="true" class="w-4 h-4 text-indigo-600">
+                            <span class="ml-3 text-gray-700">True</span>
+                        </label>
+                        <label class="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer">
+                            <input type="radio" name="question-${q.id}" value="false" class="w-4 h-4 text-indigo-600">
+                            <span class="ml-3 text-gray-700">False</span>
+                        </label>
+                    </div>
+                </div>
+            `;
+        }
+
+        questionsContainer.innerHTML += questionHtml;
+    });
+
+    // Store questions for submission
+    window.currentCourseQuestions = sampleQuestions;
+}
+
+// Function to close course viewer
+function closeCourseViewer() {
+    document.getElementById('courseViewerModal').classList.add('hidden');
+    document.getElementById('courseViewerModal').classList.remove('show');
+}
+
+// Handle course answer submission
+document.addEventListener('DOMContentLoaded', function() {
+    const submitBtn = document.getElementById('submitCourseAnswersBtn');
+    if (submitBtn) {
+        submitBtn.addEventListener('click', function() {
+            if (!window.currentCourseQuestions) return;
+
+            let score = 0;
+            let totalQuestions = window.currentCourseQuestions.length;
+
+            window.currentCourseQuestions.forEach(q => {
+                const selected = document.querySelector(`input[name="question-${q.id}"]:checked`);
+                if (!selected) {
+                    showMessageModal('Incomplete', `Please answer all questions before submitting.`);
+                    return;
+                }
+
+                let userAnswer = selected.value;
+                if (q.type === 'true-false') {
+                    userAnswer = userAnswer === 'true';
+                } else {
+                    userAnswer = parseInt(userAnswer);
+                }
+
+                if (userAnswer === q.correctAnswer) {
+                    score++;
+                }
+            });
+
+            const percentage = Math.round((score / totalQuestions) * 100);
+            showMessageModal('Quiz Submitted', `You scored ${score}/${totalQuestions} (${percentage}%). Great job!`);
+            closeCourseViewer();
+        });
+    }
+});
 
 /* Default load */
 document.addEventListener("DOMContentLoaded", () => {
