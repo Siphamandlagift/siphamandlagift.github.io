@@ -3845,17 +3845,27 @@
                 if (recentActivitySection) recentActivitySection.style.display = 'none';
                 if (recentNotificationsSection) recentNotificationsSection.style.display = 'block';
 
-                // Update student stats
-                const enrolledCoursesCount = loggedInUser.coursesEnrolled ? loggedInUser.coursesEnrolled.length : 0;
-                const totalHours = loggedInUser.totalHoursSpent || 0;
-                
-                // Count student badges
-                const studentBadges = studentBadgesData.filter(b => b.studentId === loggedInUser.id);
-                const badgesCount = studentBadges.length;
+                // Update student stats - with null checks
+                const enrolledCoursesElement = document.getElementById('studentEnrolledCourses');
+                const totalHoursElement = document.getElementById('studentTotalHours');
+                const badgesElement = document.getElementById('studentBadgesCount');
 
-                document.getElementById('studentEnrolledCourses').textContent = enrolledCoursesCount;
-                document.getElementById('studentTotalHours').textContent = totalHours.toFixed(1);
-                document.getElementById('studentBadgesCount').textContent = badgesCount;
+                if (enrolledCoursesElement) {
+                    const enrolledCoursesCount = loggedInUser.coursesEnrolled ? loggedInUser.coursesEnrolled.length : 0;
+                    enrolledCoursesElement.textContent = enrolledCoursesCount;
+                }
+
+                if (totalHoursElement) {
+                    const totalHours = loggedInUser.totalHoursSpent || 0;
+                    totalHoursElement.textContent = totalHours.toFixed(1);
+                }
+
+                if (badgesElement) {
+                    // Count student badges
+                    const studentBadges = studentBadgesData.filter(b => b.studentId === loggedInUser.id);
+                    const badgesCount = studentBadges.length;
+                    badgesElement.textContent = badgesCount;
+                }
 
                 // Load recent notifications
                 loadStudentNotifications(loggedInUser.id);
@@ -3879,6 +3889,11 @@
         // Function to load student notifications
         function loadStudentNotifications(studentId) {
             const notificationsList = document.getElementById('recentNotificationsList');
+            
+            if (!notificationsList) {
+                console.error('recentNotificationsList element not found');
+                return;
+            }
             
             // Sample notifications - in a real system these would come from a database
             const notifications = [
@@ -5110,7 +5125,8 @@ document.addEventListener("DOMContentLoaded", () => {
         ];
         let studentBadgesData = [
             { studentId: 3, badgeId: 1, earnedDate: '2024-01-15' },
-            { studentId: 3, badgeId: 2, earnedDate: '2024-02-20' }
+            { studentId: 3, badgeId: 2, earnedDate: '2024-02-20' },
+            { studentId: 4, badgeId: 1, earnedDate: '2024-02-10' }
         ];
 
         // Function to create a new badge
