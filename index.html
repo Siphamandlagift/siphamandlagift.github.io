@@ -3933,42 +3933,58 @@
             const notifications = [
                 {
                     id: 1,
-                    title: 'Assignment Due',
-                    message: 'Your "Health & Safety Quiz" assignment is due in 2 days',
+                    title: 'Course Completion Reminder',
+                    message: 'Remember to complete "Health & Safety Fundamentals" by 25 August 2025',
                     type: 'warning',
-                    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
+                    timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000),
                     read: false
                 },
                 {
                     id: 2,
+                    title: 'Assignment Due Soon',
+                    message: 'Your "Fire Safety Assessment" assignment is due in 3 days (22 January 2026)',
+                    type: 'warning',
+                    timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000),
+                    read: false
+                },
+                {
+                    id: 3,
                     title: 'Course Completed',
-                    message: 'Congratulations! You completed "Fire Fighting Basics"',
+                    message: 'Congratulations! You completed "Introduction to Web Development"',
                     type: 'success',
                     timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
                     read: false
                 },
                 {
-                    id: 3,
+                    id: 4,
                     title: 'Badge Earned',
-                    message: 'You earned the "Learning Champion" badge for 50 hours of learning',
+                    message: 'You earned the "Quick Learner" badge for completing your first 5 hours of learning',
                     type: 'info',
                     timestamp: new Date(Date.now() - 48 * 60 * 60 * 1000),
                     read: true
                 },
                 {
-                    id: 4,
-                    title: 'New Course Available',
-                    message: 'A new course "Advanced First Aid" is now available for enrollment',
+                    id: 5,
+                    title: 'New Course Launch',
+                    message: 'New course available: "Advanced Fire Safety Procedures" - Enroll now to get started!',
                     type: 'info',
                     timestamp: new Date(Date.now() - 72 * 60 * 60 * 1000),
                     read: true
                 },
                 {
-                    id: 5,
+                    id: 6,
                     title: 'Grade Posted',
-                    message: 'Your grade for "Safety Audit Assessment" has been posted: 92/100',
+                    message: 'Your grade for "Data Science Quiz" has been posted: 88/100',
                     type: 'success',
                     timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+                    read: true
+                },
+                {
+                    id: 7,
+                    title: 'Training Manager Message',
+                    message: 'Your trainer Jane sent you feedback: "Great progress on the latest assignments! Keep it up."',
+                    type: 'info',
+                    timestamp: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000),
                     read: true
                 }
             ];
