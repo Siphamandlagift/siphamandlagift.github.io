@@ -3894,13 +3894,13 @@
                 }
 
                 // Load recent notifications
-                loadStudentNotifications(loggedInUser.id);
+                setTimeout(() => loadStudentNotifications(loggedInUser.id), 100);
                 
                 // Load badges earned
-                loadStudentBadgesEarned(loggedInUser.id);
+                setTimeout(() => loadStudentBadgesEarned(loggedInUser.id), 100);
 
                 // Load certificates earned
-                loadStudentCertificatesEarned(loggedInUser.id);
+                setTimeout(() => loadStudentCertificatesEarned(loggedInUser.id), 100);
             } else {
                 // Show admin stats, hide student stats
                 if (adminStatsCards) adminStatsCards.style.display = 'grid';
@@ -3928,6 +3928,8 @@
                 console.error('recentNotificationsList element not found');
                 return;
             }
+            
+            console.log('Loading notifications for student:', studentId);
             
             // Sample notifications - in a real system these would come from a database
             const notifications = [
