@@ -9,6 +9,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- jsPDF library for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -5185,7 +5187,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Download certificate as image
         function downloadCertificate() {
-            const certificateArea = document.getElementById('certificateDisplayArea');
+            // Get certificate details
+            const studentName = document.getElementById('certificateStudentName').textContent;
+            const courseName = document.getElementById('certificateCourseName').textContent;
+            const date = document.getElementById('certificateDate').textContent;
+            const certId = document.getElementById('certificateId').textContent;
+
+            // Create canvas for the certificate design
             const canvas = document.createElement('canvas');
             canvas.width = 1200;
             canvas.height = 800;
@@ -5219,7 +5227,6 @@ document.addEventListener("DOMContentLoaded", () => {
             // Student name
             ctx.font = 'bold 48px Arial';
             ctx.fillStyle = '#333';
-            const studentName = document.getElementById('certificateStudentName').textContent;
             ctx.fillText(studentName, canvas.width / 2, 350);
 
             // Completion text
@@ -5230,26 +5237,34 @@ document.addEventListener("DOMContentLoaded", () => {
             // Course name
             ctx.font = 'bold 32px Arial';
             ctx.fillStyle = '#333';
-            const courseName = document.getElementById('certificateCourseName').textContent;
             ctx.fillText(courseName, canvas.width / 2, 510);
 
             // Date
             ctx.font = '18px Arial';
             ctx.fillStyle = '#666';
-            const date = document.getElementById('certificateDate').textContent;
             ctx.fillText('Date: ' + date, canvas.width / 2, 600);
 
             // Certificate ID
             ctx.font = '14px Arial';
             ctx.fillStyle = '#999';
-            const certId = document.getElementById('certificateId').textContent;
             ctx.fillText('Certificate ID: ' + certId, canvas.width / 2, 700);
 
-            // Download
-            const link = document.createElement('a');
-            link.href = canvas.toDataURL();
-            link.download = `certificate-${certId}.png`;
-            link.click();
+            // Convert canvas to image
+            const imgData = canvas.toDataURL('image/png');
+
+            // Create PDF using jsPDF
+            const { jsPDF } = window;
+            const pdf = new jsPDF({
+                orientation: 'landscape',
+                unit: 'px',
+                format: [1200, 800]
+            });
+
+            // Add image to PDF
+            pdf.addImage(imgData, 'PNG', 0, 0, 1200, 800);
+
+            // Download PDF
+            pdf.save(`certificate-${certId}.pdf`);
         }
 
         // --- BADGES FEATURE ---
