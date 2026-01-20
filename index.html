@@ -872,6 +872,17 @@
                             <p class="text-gray-500 text-sm">No notifications to display.</p>
                         </div>
                     </div>
+
+                    <!-- Badges Earned Summary (For Students) -->
+                    <div class="bg-white rounded-lg shadow p-6 mb-6" id="badgesEarnedSection" style="display: none;">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-semibold text-gray-800">Badges Earned</h3>
+                            <a href="#" class="text-sm text-indigo-600 hover:underline">View all badges</a>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4" id="badgesEarnedList">
+                            <p class="text-gray-500 text-sm col-span-full">No badges earned yet. Keep learning to earn badges!</p>
+                        </div>
+                    </div>
                     
                     <!-- Courses/Assignments Section -->
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -3837,6 +3848,7 @@
             const studentStatsCards = document.getElementById('studentStatsCards');
             const recentActivitySection = document.getElementById('recentActivitySection');
             const recentNotificationsSection = document.getElementById('recentNotificationsSection');
+            const badgesEarnedSection = document.getElementById('badgesEarnedSection');
 
             if (loggedInUser && loggedInUser.role === 'student') {
                 // Show student stats, hide admin stats
@@ -3844,6 +3856,7 @@
                 if (studentStatsCards) studentStatsCards.style.display = 'grid';
                 if (recentActivitySection) recentActivitySection.style.display = 'none';
                 if (recentNotificationsSection) recentNotificationsSection.style.display = 'block';
+                if (badgesEarnedSection) badgesEarnedSection.style.display = 'block';
 
                 // Update student stats - with null checks
                 const enrolledCoursesElement = document.getElementById('studentEnrolledCourses');
@@ -3869,12 +3882,16 @@
 
                 // Load recent notifications
                 loadStudentNotifications(loggedInUser.id);
+                
+                // Load badges earned
+                loadStudentBadgesEarned(loggedInUser.id);
             } else {
                 // Show admin stats, hide student stats
                 if (adminStatsCards) adminStatsCards.style.display = 'grid';
                 if (studentStatsCards) studentStatsCards.style.display = 'none';
                 if (recentActivitySection) recentActivitySection.style.display = 'block';
                 if (recentNotificationsSection) recentNotificationsSection.style.display = 'none';
+                if (badgesEarnedSection) badgesEarnedSection.style.display = 'none';
 
                 if (totalCoursesElement) {
                     totalCoursesElement.textContent = allCoursesData.length;
@@ -3999,6 +4016,47 @@
                 }
             }
             return 'Just now';
+        }
+
+        // Function to load and display student badges earned
+        function loadStudentBadgesEarned(studentId) {
+            const badgesEarnedList = document.getElementById('badgesEarnedList');
+            
+            if (!badgesEarnedList) {
+                console.error('badgesEarnedList element not found');
+                return;
+            }
+
+            // Get all badges earned by this student
+            const studentBadgesEarned = studentBadgesData.filter(b => b.studentId === studentId);
+
+            if (studentBadgesEarned.length === 0) {
+                badgesEarnedList.innerHTML = '<p class="text-gray-500 text-sm col-span-full">No badges earned yet. Keep learning to earn badges!</p>';
+                return;
+            }
+
+            badgesEarnedList.innerHTML = '';
+            
+            // Get badge details for each earned badge
+            studentBadgesEarned.forEach(earnedBadge => {
+                const badgeData = allBadgesData.find(b => b.id === earnedBadge.badgeId);
+                
+                if (badgeData) {
+                    const badgeElement = document.createElement('div');
+                    badgeElement.className = 'flex flex-col items-center p-4 rounded-lg border-2 border-yellow-400 bg-yellow-50 hover:shadow-lg transition';
+                    
+                    const earnedDate = new Date(earnedBadge.earnedDate);
+                    const dateFormatted = earnedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                    
+                    badgeElement.innerHTML = `
+                        <div class="text-5xl mb-2">${badgeData.icon}</div>
+                        <h4 class="font-semibold text-gray-800 text-center text-sm">${badgeData.name}</h4>
+                        <p class="text-xs text-gray-600 text-center mt-1">${badgeData.description}</p>
+                        <p class="text-xs text-gray-500 mt-2">Earned on ${dateFormatted}</p>
+                    `;
+                    badgesEarnedList.appendChild(badgeElement);
+                }
+            });
         }
 
         // Reports Section Logic
