@@ -4332,6 +4332,23 @@
 
         // --- FIX: ASSIGNMENT FUNCTIONALITY START ---
         let allAssignmentsData = [];
+        
+        // Add Health & Safety Case Study Assignment for Alice
+        allAssignmentsData.push({
+            id: Date.now(),
+            title: 'Health and Safety Case Study - TechNow Solutions',
+            instructions: 'Read the comprehensive case study about a fire incident at TechNow Solutions and complete all 8 questions. This assignment tests your understanding of workplace health and safety principles including hazard identification, risk assessment, and control measures implementation.',
+            dueDate: '2026-02-21',
+            documentFileName: 'Health-Safety-Case-Study.html',
+            documentFileUrl: 'health-safety-assignment.html',
+            totalMarks: 100,
+            assignedStudentId: 3,
+            creatorId: 1,
+            status: 'Assigned',
+            submissionDate: null,
+            creationDate: '2026-01-21'
+        });
+        
         const createAssignmentModal = document.getElementById('createAssignmentModal');
         const createAssignmentForm = document.getElementById('createAssignmentForm');
         const assignmentDocumentInput = document.getElementById('assignmentDocumentInput');
