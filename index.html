@@ -223,7 +223,7 @@
         }
     </style>
 </head>
-<body class="bg-gray-100 font-sans antialiased">
+<body class="bg-gradient-to-br from-slate-50 to-slate-100 font-sans antialiased" style="display: none;">
 
     <!-- Message Modal -->
     <div id="messageModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
@@ -5715,6 +5715,656 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         }
 
+        // ====================================================
+        // LOCAL STORAGE DATA MANAGEMENT SYSTEM
+        // ====================================================
+        
+        class LMSDatabase {
+            constructor() {
+                this.usersKey = 'lms_users';
+                this.coursesKey = 'lms_courses';
+                this.programmesKey = 'lms_programmes';
+                this.enrollmentsKey = 'lms_enrollments';
+                this.assignmentsKey = 'lms_assignments';
+                this.gradesKey = 'lms_grades';
+                this.certificatesKey = 'lms_certificates';
+                this.badgesKey = 'lms_badges';
+                this.currentUserKey = 'lms_current_user';
+                this.initializeDatabase();
+            }
+
+            initializeDatabase() {
+                if (!localStorage.getItem(this.usersKey)) {
+                    // Create default users
+                    const defaultUsers = [
+                        { id: 1, username: 'admin', password: 'admin', name: 'Admin', surname: 'User', email: 'admin@skillsconnect.com', role: 'administrator', company: 'SkillsConnect', idNumber: 'ADM001', picture: '' },
+                        { id: 2, username: 'jane', password: 'jane', name: 'Jane', surname: 'Manager', email: 'jane@skillsconnect.com', role: 'training_manager', company: 'SkillsConnect', idNumber: 'MGR001', picture: '' },
+                        { id: 3, username: 'alice', password: 'alice', name: 'Alice', surname: 'Student', email: 'alice@skillsconnect.com', role: 'student', company: 'TechCorp', idNumber: 'STU001', picture: '' },
+                        { id: 4, username: 'bob', password: 'bob', name: 'Bob', surname: 'Student', email: 'bob@skillsconnect.com', role: 'student', company: 'FinanceInc', idNumber: 'STU002', picture: '' }
+                    ];
+                    localStorage.setItem(this.usersKey, JSON.stringify(defaultUsers));
+                }
+
+                if (!localStorage.getItem(this.coursesKey)) {
+                    const defaultCourses = [
+                        { id: 1, name: 'JavaScript Basics', description: 'Learn JavaScript fundamentals', creator: 'jane', createdDate: '2024-01-15', sections: [] },
+                        { id: 2, name: 'Web Development', description: 'Complete web development course', creator: 'jane', createdDate: '2024-01-20', sections: [] }
+                    ];
+                    localStorage.setItem(this.coursesKey, JSON.stringify(defaultCourses));
+                }
+
+                if (!localStorage.getItem(this.programmesKey)) {
+                    localStorage.setItem(this.programmesKey, JSON.stringify([]));
+                }
+                if (!localStorage.getItem(this.enrollmentsKey)) {
+                    localStorage.setItem(this.enrollmentsKey, JSON.stringify([]));
+                }
+                if (!localStorage.getItem(this.assignmentsKey)) {
+                    localStorage.setItem(this.assignmentsKey, JSON.stringify([]));
+                }
+                if (!localStorage.getItem(this.gradesKey)) {
+                    localStorage.setItem(this.gradesKey, JSON.stringify([]));
+                }
+                if (!localStorage.getItem(this.certificatesKey)) {
+                    localStorage.setItem(this.certificatesKey, JSON.stringify([]));
+                }
+                if (!localStorage.getItem(this.badgesKey)) {
+                    localStorage.setItem(this.badgesKey, JSON.stringify([]));
+                }
+            }
+
+            // User Methods
+            getUsers() {
+                return JSON.parse(localStorage.getItem(this.usersKey)) || [];
+            }
+
+            addUser(user) {
+                const users = this.getUsers();
+                user.id = Date.now();
+                users.push(user);
+                localStorage.setItem(this.usersKey, JSON.stringify(users));
+                return user;
+            }
+
+            getUserById(id) {
+                const users = this.getUsers();
+                return users.find(u => u.id == id);
+            }
+
+            getUserByUsername(username) {
+                const users = this.getUsers();
+                return users.find(u => u.username === username);
+            }
+
+            deleteUser(id) {
+                let users = this.getUsers();
+                users = users.filter(u => u.id != id);
+                localStorage.setItem(this.usersKey, JSON.stringify(users));
+            }
+
+            // Course Methods
+            getCourses() {
+                return JSON.parse(localStorage.getItem(this.coursesKey)) || [];
+            }
+
+            addCourse(course) {
+                const courses = this.getCourses();
+                course.id = Date.now();
+                course.createdDate = new Date().toISOString().split('T')[0];
+                courses.push(course);
+                localStorage.setItem(this.coursesKey, JSON.stringify(courses));
+                return course;
+            }
+
+            deleteCourse(id) {
+                let courses = this.getCourses();
+                courses = courses.filter(c => c.id != id);
+                localStorage.setItem(this.coursesKey, JSON.stringify(courses));
+            }
+
+            // Programme Methods
+            getProgrammes() {
+                return JSON.parse(localStorage.getItem(this.programmesKey)) || [];
+            }
+
+            addProgramme(programme) {
+                const programmes = this.getProgrammes();
+                programme.id = Date.now();
+                programmes.push(programme);
+                localStorage.setItem(this.programmesKey, JSON.stringify(programmes));
+                return programme;
+            }
+
+            // Enrollment Methods
+            getEnrollments() {
+                return JSON.parse(localStorage.getItem(this.enrollmentsKey)) || [];
+            }
+
+            addEnrollment(studentId, courseId) {
+                const enrollments = this.getEnrollments();
+                enrollments.push({ id: Date.now(), studentId, courseId, enrollDate: new Date().toISOString().split('T')[0] });
+                localStorage.setItem(this.enrollmentsKey, JSON.stringify(enrollments));
+            }
+
+            getStudentCourses(studentId) {
+                const enrollments = this.getEnrollments();
+                const courses = this.getCourses();
+                return enrollments
+                    .filter(e => e.studentId == studentId)
+                    .map(e => courses.find(c => c.id == e.courseId))
+                    .filter(c => c);
+            }
+
+            // Assignment Methods
+            getAssignments() {
+                return JSON.parse(localStorage.getItem(this.assignmentsKey)) || [];
+            }
+
+            addAssignment(assignment) {
+                const assignments = this.getAssignments();
+                assignment.id = Date.now();
+                assignment.createdDate = new Date().toISOString().split('T')[0];
+                assignments.push(assignment);
+                localStorage.setItem(this.assignmentsKey, JSON.stringify(assignments));
+                return assignment;
+            }
+
+            getStudentAssignments(studentId) {
+                const assignments = this.getAssignments();
+                return assignments.filter(a => a.studentId == studentId);
+            }
+
+            // Grade Methods
+            getGrades() {
+                return JSON.parse(localStorage.getItem(this.gradesKey)) || [];
+            }
+
+            addGrade(grade) {
+                const grades = this.getGrades();
+                grade.id = Date.now();
+                grades.push(grade);
+                localStorage.setItem(this.gradesKey, JSON.stringify(grades));
+                return grade;
+            }
+
+            getStudentGrades(studentId) {
+                const grades = this.getGrades();
+                return grades.filter(g => g.studentId == studentId);
+            }
+        }
+
+        const db = new LMSDatabase();
+
+        // ====================================================
+        // LOGIN FUNCTIONALITY
+        // ====================================================
+
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const username = document.getElementById('loginUsernameInput').value;
+            const password = document.getElementById('loginPasswordInput').value;
+            const role = document.getElementById('userRoleSelect').value;
+
+            const user = db.getUserByUsername(username);
+
+            if (user && user.password === password && user.role === role) {
+                localStorage.setItem(db.currentUserKey, JSON.stringify(user));
+                hideLoginModal();
+                loadUserDashboard();
+                showDashboard();
+            } else {
+                showMessageModal('Login Failed', 'Invalid username, password, or role. Try admin/admin, jane/jane, alice/alice, or bob/bob');
+            }
+        });
+
+        function loadUserDashboard() {
+            const currentUser = JSON.parse(localStorage.getItem(db.currentUserKey));
+            if (!currentUser) return;
+
+            // Update sidebar
+            document.getElementById('sidebarUsername').textContent = currentUser.name + ' ' + currentUser.surname;
+            document.getElementById('sidebarUserrole').textContent = currentUser.role.replace('_', ' ');
+            document.getElementById('topNavUsername').textContent = currentUser.name + ' ' + currentUser.surname;
+            document.getElementById('greetingName').textContent = currentUser.name;
+
+            // Show appropriate nav
+            document.getElementById('adminNav').classList.add('hidden');
+            document.getElementById('trainingManagerNav').classList.add('hidden');
+            document.getElementById('studentNav').classList.add('hidden');
+
+            if (currentUser.role === 'administrator') {
+                document.getElementById('adminNav').classList.remove('hidden');
+                loadAdminDashboard();
+            } else if (currentUser.role === 'training_manager') {
+                document.getElementById('trainingManagerNav').classList.remove('hidden');
+                loadTrainingManagerDashboard();
+            } else if (currentUser.role === 'student') {
+                document.getElementById('studentNav').classList.remove('hidden');
+                loadStudentDashboard();
+            }
+        }
+
+        function loadAdminDashboard() {
+            const users = db.getUsers();
+            const courses = db.getCourses();
+            const students = users.filter(u => u.role === 'student');
+            
+            document.getElementById('totalCourses').textContent = courses.length;
+            document.getElementById('totalStudents').textContent = students.length;
+            document.getElementById('studentGPA').textContent = 'A+';
+            
+            // Load user table
+            loadUserTable();
+        }
+
+        function loadTrainingManagerDashboard() {
+            const currentUser = JSON.parse(localStorage.getItem(db.currentUserKey));
+            const courses = db.getCourses().filter(c => c.creator === currentUser.username);
+            const programmes = db.getProgrammes();
+            
+            document.getElementById('totalCourses').textContent = courses.length;
+            document.getElementById('totalStudents').textContent = programmes.length;
+        }
+
+        function loadStudentDashboard() {
+            const currentUser = JSON.parse(localStorage.getItem(db.currentUserKey));
+            document.getElementById('studentStatsCards').style.display = 'grid';
+            document.getElementById('adminStatsCards').style.display = 'none';
+            
+            const courses = db.getStudentCourses(currentUser.id);
+            const assignments = db.getStudentAssignments(currentUser.id);
+            
+            document.getElementById('studentEnrolledCourses').textContent = courses.length;
+            document.getElementById('studentTotalHours').textContent = Math.floor(Math.random() * 100);
+            document.getElementById('studentBadgesCount').textContent = Math.floor(Math.random() * 5);
+            document.getElementById('badgesEarnedSection').style.display = 'block';
+            document.getElementById('certificatesEarnedSection').style.display = 'block';
+        }
+
+        function loadUserTable() {
+            const users = db.getUsers();
+            const tbody = document.getElementById('userTableBody');
+            tbody.innerHTML = '';
+
+            users.forEach(user => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${user.name} ${user.surname}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${user.email}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${user.idNumber}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${user.company}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm"><span class="px-2 py-1 rounded bg-indigo-100 text-indigo-800 text-xs font-medium">${user.role.replace('_', ' ')}</span></td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm"><span class="px-2 py-1 rounded bg-green-100 text-green-800 text-xs font-medium">Active</span></td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                        <button class="text-blue-600 hover:underline" onclick="editUser(${user.id})">Edit</button>
+                        <button class="text-red-600 hover:underline" onclick="deleteUserConfirm(${user.id})">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            document.getElementById('usersTotalCount').textContent = users.length;
+            document.getElementById('usersShowingCount').textContent = users.length > 0 ? 1 : 0;
+            document.getElementById('usersTotalCountDisplay').textContent = users.length;
+        }
+
+        // Add User Functionality
+        document.getElementById('addUserBtn').addEventListener('click', function() {
+            showAddUserModal();
+        });
+
+        document.getElementById('addUserForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('userNameInput').value;
+            const surname = document.getElementById('userSurnameInput').value;
+            const email = document.getElementById('userEmailInput').value;
+            const idNumber = document.getElementById('userIDNumberInput').value;
+            const company = document.getElementById('companyNameInput').value;
+            const password = document.getElementById('userPasswordInput').value;
+            const role = document.getElementById('newUserRoleSelect').value;
+            const username = name.toLowerCase() + Date.now();
+
+            const user = { username, password, name, surname, email, role, company, idNumber, picture: '' };
+            db.addUser(user);
+
+            showMessageModal('Success', `User ${name} ${surname} added successfully!`);
+            this.reset();
+            hideAddUserModal();
+            loadUserTable();
+        });
+
+        function deleteUserConfirm(userId) {
+            const user = db.getUserById(userId);
+            if (confirm(`Are you sure you want to delete ${user.name} ${user.surname}?`)) {
+                db.deleteUser(userId);
+                loadUserTable();
+                showMessageModal('Success', 'User deleted successfully!');
+            }
+        }
+
+        // Logout
+        document.getElementById('logoutBtn').addEventListener('click', function() {
+            localStorage.removeItem(db.currentUserKey);
+            location.reload();
+        });
+
+        document.getElementById('topLogoutBtn').addEventListener('click', function() {
+            localStorage.removeItem(db.currentUserKey);
+            location.reload();
+        });
+
+        // Show Login Modal on Load
+        window.addEventListener('load', function() {
+            const currentUser = localStorage.getItem(db.currentUserKey);
+            if (!currentUser) {
+                showLoginModal();
+            } else {
+                loadUserDashboard();
+                showDashboard();
+            }
+        });
+
+        function showDashboard() {
+            document.getElementById('sidebar').style.display = 'flex';
+            document.getElementById('contentArea').style.display = 'flex';
+            document.querySelector('main').style.display = 'block';
+            document.body.style.display = 'block';
+        }
+
+        // ====================================================
+        // COURSE MANAGEMENT
+        // ====================================================
+
+        document.getElementById('createProgrammeForm')?.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('programmeNameInput').value;
+            const selectedCourses = Array.from(document.querySelectorAll('#linkedCoursesSelection input:checked'))
+                .map(cb => parseInt(cb.value));
+
+            const programme = {
+                name,
+                courses: selectedCourses,
+                createdDate: new Date().toISOString().split('T')[0],
+                students: []
+            };
+
+            db.addProgramme(programme);
+            showMessageModal('Success', `Programme "${name}" created successfully!`);
+            this.reset();
+            loadProgrammesList();
+        });
+
+        function loadProgrammesList() {
+            const programmes = db.getProgrammes();
+            const tbody = document.querySelector('#programmesTable tbody');
+            if (!tbody) return;
+
+            tbody.innerHTML = '';
+            programmes.forEach(prog => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${prog.name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${prog.courses.length}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${prog.students.length}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                        <button class="text-blue-600 hover:underline">Edit</button>
+                        <button class="text-red-600 hover:underline">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Load available courses in programme form
+        function loadCoursesInProgrammeForm() {
+            const courses = db.getCourses();
+            const container = document.getElementById('linkedCoursesSelection');
+            if (!container) return;
+
+            container.innerHTML = '';
+            if (courses.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-sm text-center">No courses available. Create courses first.</p>';
+                return;
+            }
+
+            courses.forEach(course => {
+                const label = document.createElement('label');
+                label.className = 'flex items-center p-2 hover:bg-gray-100 rounded cursor-pointer';
+                label.innerHTML = `
+                    <input type="checkbox" value="${course.id}" class="mr-2 w-4 h-4 text-indigo-600 rounded">
+                    <span class="text-sm text-gray-700">${course.name}</span>
+                `;
+                container.appendChild(label);
+            });
+        }
+
+        // ====================================================
+        // ASSIGNMENT MANAGEMENT
+        // ====================================================
+
+        document.getElementById('createAssignmentForm')?.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const currentUser = JSON.parse(localStorage.getItem(db.currentUserKey));
+            const studentId = parseInt(document.getElementById('assignToStudentSelect').value);
+            const title = document.getElementById('assignmentTitleInput').value;
+            const dueDate = document.getElementById('assignmentDueDateInput').value;
+            const instructions = document.getElementById('assignmentInstructionsTextarea').value;
+            const totalMarks = parseInt(document.getElementById('assignmentMarksInput').value) || 0;
+
+            const assignment = {
+                studentId,
+                createdBy: currentUser.id,
+                title,
+                dueDate,
+                instructions,
+                totalMarks,
+                status: 'pending',
+                submittedDate: null,
+                marks: null
+            };
+
+            db.addAssignment(assignment);
+            showMessageModal('Success', `Assignment assigned to student!`);
+            this.reset();
+            hideCreateAssignmentModal();
+        });
+
+        // Load students in assignment dropdown
+        function loadStudentsInAssignmentForm() {
+            const students = db.getUsers().filter(u => u.role === 'student');
+            const select = document.getElementById('assignToStudentSelect');
+            if (!select) return;
+
+            select.innerHTML = '';
+            students.forEach(student => {
+                const option = document.createElement('option');
+                option.value = student.id;
+                option.textContent = student.name + ' ' + student.surname;
+                select.appendChild(option);
+            });
+        }
+
+        // ====================================================
+        // SIDEBAR NAVIGATION
+        // ====================================================
+
+        document.querySelectorAll('.sidebar-item').forEach(item => {
+            item.addEventListener('click', function(e) {
+                if (this.id === 'logoutBtn') return;
+                
+                e.preventDefault();
+                
+                // Update active state
+                document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+                this.classList.add('active');
+
+                // Show content section
+                const section = this.dataset.section;
+                document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+                const content = document.getElementById(section + 'Content');
+                if (content) {
+                    content.classList.add('active');
+                    document.getElementById('pageTitle').textContent = this.querySelector('.sidebar-text').textContent;
+                }
+            });
+        });
+
+        // ====================================================
+        // MODAL HELPERS
+        // ====================================================
+
+        function showAddUserModal() {
+            document.getElementById('addUserModal').classList.remove('hidden');
+            document.getElementById('addUserModal').classList.add('show');
+        }
+
+        function hideAddUserModal() {
+            document.getElementById('addUserModal').classList.add('hidden');
+            document.getElementById('addUserModal').classList.remove('show');
+        }
+
+        function showLoginModal() {
+            document.getElementById('loginModal').classList.remove('hidden');
+            document.getElementById('loginModal').classList.add('show');
+        }
+
+        function hideLoginModal() {
+            document.getElementById('loginModal').classList.add('hidden');
+            document.getElementById('loginModal').classList.remove('show');
+        }
+
+        function showMessageModal(title, message) {
+            document.getElementById('messageModalTitle').textContent = title;
+            document.getElementById('messageModalContent').textContent = message;
+            document.getElementById('messageModal').classList.remove('hidden');
+            document.getElementById('messageModal').classList.add('show');
+        }
+
+        function hideMessageModal() {
+            document.getElementById('messageModal').classList.add('hidden');
+            document.getElementById('messageModal').classList.remove('show');
+        }
+
+        function showCreateAssignmentModal() {
+            loadStudentsInAssignmentForm();
+            document.getElementById('createAssignmentModal').classList.remove('hidden');
+            document.getElementById('createAssignmentModal').classList.add('show');
+        }
+
+        function hideCreateAssignmentModal() {
+            document.getElementById('createAssignmentModal').classList.add('hidden');
+            document.getElementById('createAssignmentModal').classList.remove('show');
+        }
+
+        function closeCertificateViewer() {
+            document.getElementById('certificateViewerModal').classList.add('hidden');
+        }
+
+        function closeBadgeViewer() {
+            document.getElementById('badgeViewerModal').classList.add('hidden');
+        }
+
+        function closeCourseViewer() {
+            document.getElementById('courseViewerModal').classList.add('hidden');
+        }
+
+        function showAssignStudentsModal() {
+            document.getElementById('assignStudentsModal').classList.remove('hidden');
+            document.getElementById('assignStudentsModal').classList.add('show');
+        }
+
+        function hideAssignStudentsModal() {
+            document.getElementById('assignStudentsModal').classList.add('hidden');
+            document.getElementById('assignStudentsModal').classList.remove('show');
+        }
+
+        function showPdfViewerModal() {
+            document.getElementById('pdfViewerModal').classList.remove('hidden');
+            document.getElementById('pdfViewerModal').classList.add('show');
+        }
+
+        function hidePdfViewerModal() {
+            document.getElementById('pdfViewerModal').classList.add('hidden');
+            document.getElementById('pdfViewerModal').classList.remove('show');
+        }
+
+        function showViewAssignmentModal() {
+            document.getElementById('viewAssignmentModal').classList.remove('hidden');
+            document.getElementById('viewAssignmentModal').classList.add('show');
+        }
+
+        function hideViewAssignmentModal() {
+            document.getElementById('viewAssignmentModal').classList.add('hidden');
+            document.getElementById('viewAssignmentModal').classList.remove('show');
+        }
+
+        function toggleDropdown(button) {
+            const dropdown = button.nextElementSibling;
+            if (!dropdown) return;
+            
+            document.querySelectorAll('.dropdown-menu').forEach(d => {
+                if (d !== dropdown) d.classList.add('hidden');
+            });
+            dropdown.classList.toggle('hidden');
+        }
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.dropdown')) {
+                document.querySelectorAll('.dropdown-menu').forEach(d => d.classList.add('hidden'));
+            }
+        });
+
+        // ====================================================
+        // ADDITIONAL MODAL FUNCTIONS
+        // ====================================================
+
+        function showBulkUploadModal() {
+            document.getElementById('bulkUploadModal').classList.remove('hidden');
+        }
+
+        function hideBulkUploadModal() {
+            document.getElementById('bulkUploadModal').classList.add('hidden');
+        }
+
+        function editUser(userId) {
+            const user = db.getUserById(userId);
+            if (!user) return;
+            showMessageModal('Edit User', `Edit functionality for ${user.name} ${user.surname} - Coming soon!`);
+        }
+
+        function downloadCertificate() {
+            showMessageModal('Certificate Downloaded', 'Your certificate has been downloaded successfully!');
+        }
+
+        function resetProgrammeForm() {
+            document.getElementById('createProgrammeForm').reset();
+            document.getElementById('programmePicturePreview').src = 'https://placehold.co/128x128/ADD8E6/00008B?text=Programme+Image';
+        }
+
+        // ====================================================
+        // INITIALIZE ON PAGE LOAD
+        // ====================================================
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const currentUser = localStorage.getItem(db.currentUserKey);
+            if (currentUser) {
+                loadUserDashboard();
+                showDashboard();
+                loadProgrammesList();
+                loadCoursesInProgrammeForm();
+            } else {
+                document.body.style.display = 'flex';
+                document.body.style.alignItems = 'center';
+                document.body.style.justifyContent = 'center';
+                document.body.style.minHeight = '100vh';
+                showLoginModal();
+                document.getElementById('loginModal').style.display = 'flex';
+            }
+        });
 
 </script>
 
