@@ -920,31 +920,6 @@
                             </div>
                         </div>
                     </div>
-
-                    <!-- Student Programs/Enrollments Section -->
-                    <div class="bg-white rounded-lg shadow p-6 mt-6">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-lg font-semibold text-gray-800">Student Programs</h3>
-                            <a href="#" class="text-sm text-indigo-600 hover:underline">View all</a>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student Name</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enrolled Courses</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Hours</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200" id="studentProgramsList">
-                                    <tr>
-                                        <td colspan="4" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No student programs to display.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
                 </div>
                 
                 <!-- User Management Content -->
@@ -3948,9 +3923,6 @@
                     const studentsCount = allUsersData.filter(user => user.role === 'student').length;
                     totalStudentsElement.textContent = studentsCount;
                 }
-
-                // Load student programs
-                setTimeout(() => loadStudentPrograms(), 100);
             }
         }
 
@@ -4172,45 +4144,6 @@
                     </div>
                 `;
                 certificatesEarnedList.appendChild(certElement);
-            });
-        }
-
-        // Function to load student programs/enrollments
-        function loadStudentPrograms() {
-            const studentProgramsList = document.getElementById('studentProgramsList');
-            
-            if (!studentProgramsList) {
-                console.error('studentProgramsList element not found');
-                return;
-            }
-
-            // Filter students only
-            const students = allUsersData.filter(u => u.role === 'student');
-
-            if (students.length === 0) {
-                studentProgramsList.innerHTML = '<tr><td colspan="4" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No student programs to display.</td></tr>';
-                return;
-            }
-
-            studentProgramsList.innerHTML = '';
-            
-            students.forEach(student => {
-                const enrolledCount = student.coursesEnrolled ? student.coursesEnrolled.length : 0;
-                const totalHours = student.totalHoursSpent || 0;
-                const statusColor = student.status === 'active' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800';
-                
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${student.name} ${student.surname || ''}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${enrolledCount}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalHours.toFixed(1)}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">
-                        <span class="px-2 py-1 rounded-full text-xs font-medium ${statusColor}">
-                            ${student.status.charAt(0).toUpperCase() + student.status.slice(1)}
-                        </span>
-                    </td>
-                `;
-                studentProgramsList.appendChild(row);
             });
         }
 
