@@ -1909,7 +1909,45 @@
                     <div class="bg-white rounded-lg shadow p-6">
                         <h3 class="text-lg font-semibold text-gray-800 mb-4">Your Inbox</h3>
                         <div class="divide-y divide-gray-200" id="inboxMessagesList">
-                            <div class="p-4 text-gray-500 text-sm text-center">No messages in your inbox.</div>
+                            <div class="p-4 hover:bg-gray-50 transition cursor-pointer border-l-4 border-indigo-600">
+                                <div class="flex justify-between items-start mb-2">
+                                    <h4 class="font-semibold text-gray-800">Jane Manager</h4>
+                                    <span class="text-xs text-gray-500">Jan 20, 2:30 PM</span>
+                                </div>
+                                <p class="text-sm font-medium text-gray-700 mb-1">Assignment Submission Guidelines</p>
+                                <p class="text-sm text-gray-600">Please ensure all assignments are submitted before the deadline. Guidelines are available in the course materials section...</p>
+                                <span class="inline-block mt-2 px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded">Unread</span>
+                            </div>
+                            
+                            <div class="p-4 hover:bg-gray-50 transition cursor-pointer">
+                                <div class="flex justify-between items-start mb-2">
+                                    <h4 class="font-semibold text-gray-800">Admin User</h4>
+                                    <span class="text-xs text-gray-500">Jan 18, 10:15 AM</span>
+                                </div>
+                                <p class="text-sm font-medium text-gray-700 mb-1">System Maintenance Notice</p>
+                                <p class="text-sm text-gray-600">The system will undergo maintenance on Jan 25 from 11 PM to 1 AM. Please plan your activities accordingly...</p>
+                                <span class="inline-block mt-2 px-2 py-1 text-xs bg-green-100 text-green-700 rounded">Read</span>
+                            </div>
+                            
+                            <div class="p-4 hover:bg-gray-50 transition cursor-pointer border-l-4 border-indigo-600">
+                                <div class="flex justify-between items-start mb-2">
+                                    <h4 class="font-semibold text-gray-800">Jane Manager</h4>
+                                    <span class="text-xs text-gray-500">Jan 16, 3:45 PM</span>
+                                </div>
+                                <p class="text-sm font-medium text-gray-700 mb-1">Great Progress on Web Development Course!</p>
+                                <p class="text-sm text-gray-600">You're doing excellent in the Web Development course. Keep up the momentum and don't hesitate to reach out if you need help...</p>
+                                <span class="inline-block mt-2 px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded">Unread</span>
+                            </div>
+                            
+                            <div class="p-4 hover:bg-gray-50 transition cursor-pointer">
+                                <div class="flex justify-between items-start mb-2">
+                                    <h4 class="font-semibold text-gray-800">Admin User</h4>
+                                    <span class="text-xs text-gray-500">Jan 14, 9:00 AM</span>
+                                </div>
+                                <p class="text-sm font-medium text-gray-700 mb-1">Welcome to SkillsConnect LMS</p>
+                                <p class="text-sm text-gray-600">Welcome aboard! We're excited to have you as part of our learning community. Start exploring courses and begin your learning journey...</p>
+                                <span class="inline-block mt-2 px-2 py-1 text-xs bg-green-100 text-green-700 rounded">Read</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1918,8 +1956,102 @@
                 <div id="notificationsContent" class="content-section">
                     <h2 class="text-2xl font-semibold text-gray-800 mb-4">Notifications</h2>
                     <p class="text-gray-600 mb-6">View all your system notifications.</p>
-                    <div class="bg-white rounded-lg shadow p-6">
-                        <p class="text-gray-700">All system notifications will be listed here.</p>
+                    
+                    <div class="space-y-4">
+                        <!-- Important Notification -->
+                        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-red-500 hover:shadow-lg transition">
+                            <div class="flex justify-between items-start mb-3">
+                                <div class="flex items-start gap-4">
+                                    <div class="p-2 rounded-lg bg-red-100 text-red-600">
+                                        <i class="fas fa-exclamation-circle text-xl"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-semibold text-gray-800">Assignment Due Soon</h3>
+                                        <p class="text-sm text-gray-600">React Project assignment is due in 3 days</p>
+                                    </div>
+                                </div>
+                                <span class="text-xs text-gray-500">Jan 22, 2:15 PM</span>
+                            </div>
+                            <div class="ml-14">
+                                <button class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">View Assignment →</button>
+                            </div>
+                        </div>
+
+                        <!-- Success Notification -->
+                        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500 hover:shadow-lg transition">
+                            <div class="flex justify-between items-start mb-3">
+                                <div class="flex items-start gap-4">
+                                    <div class="p-2 rounded-lg bg-green-100 text-green-600">
+                                        <i class="fas fa-check-circle text-xl"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-semibold text-gray-800">Badge Earned!</h3>
+                                        <p class="text-sm text-gray-600">You've earned the "Quick Learner" badge</p>
+                                    </div>
+                                </div>
+                                <span class="text-xs text-gray-500">Jan 21, 5:30 PM</span>
+                            </div>
+                            <div class="ml-14">
+                                <span class="inline-block mt-2 px-2 py-1 text-xs bg-green-100 text-green-700 rounded">Achievement</span>
+                            </div>
+                        </div>
+
+                        <!-- Info Notification -->
+                        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500 hover:shadow-lg transition">
+                            <div class="flex justify-between items-start mb-3">
+                                <div class="flex items-start gap-4">
+                                    <div class="p-2 rounded-lg bg-blue-100 text-blue-600">
+                                        <i class="fas fa-info-circle text-xl"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-semibold text-gray-800">New Course Available</h3>
+                                        <p class="text-sm text-gray-600">Advanced Python Programming course is now available</p>
+                                    </div>
+                                </div>
+                                <span class="text-xs text-gray-500">Jan 20, 10:00 AM</span>
+                            </div>
+                            <div class="ml-14">
+                                <button class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">Enroll Now →</button>
+                            </div>
+                        </div>
+
+                        <!-- Grade Notification -->
+                        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500 hover:shadow-lg transition">
+                            <div class="flex justify-between items-start mb-3">
+                                <div class="flex items-start gap-4">
+                                    <div class="p-2 rounded-lg bg-yellow-100 text-yellow-600">
+                                        <i class="fas fa-star text-xl"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-semibold text-gray-800">Grade Posted</h3>
+                                        <p class="text-sm text-gray-600">Your grade for JavaScript Basics quiz has been posted (95%)</p>
+                                    </div>
+                                </div>
+                                <span class="text-xs text-gray-500">Jan 19, 3:20 PM</span>
+                            </div>
+                            <div class="ml-14">
+                                <button class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">View Grade →</button>
+                            </div>
+                        </div>
+
+                        <!-- Reminder Notification -->
+                        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-purple-500 hover:shadow-lg transition">
+                            <div class="flex justify-between items-start mb-3">
+                                <div class="flex items-start gap-4">
+                                    <div class="p-2 rounded-lg bg-purple-100 text-purple-600">
+                                        <i class="fas fa-bell text-xl"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-semibold text-gray-800">Course Enrollment Reminder</h3>
+                                        <p class="text-sm text-gray-600">You haven't started the "Data Analytics Basics" course yet</p>
+                                    </div>
+                                </div>
+                                <span class="text-xs text-gray-500">Jan 18, 1:45 PM</span>
+                            </div>
+                            <div class="ml-14">
+                                <button class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">Start Course →</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
