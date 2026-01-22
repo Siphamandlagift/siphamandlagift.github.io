@@ -52,8 +52,6 @@
             height: 100%;
             overflow: hidden;
             touch-action: none;
-            -webkit-user-zoom: fixed;
-            user-zoom: fixed;
         }
 
         body {
@@ -5121,6 +5119,16 @@
                 ]
               }
             ]
+          },
+          { 
+            id: 4, 
+            name: "Advanced Excel Skills", 
+            progress: 0,
+            type: 'pdf',
+            pdfUrl: 'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf20.pdf',
+            description: 'Master advanced Excel techniques for data analysis and reporting',
+            isRead: false,
+            sections: []
           }
 ];
 
@@ -5142,9 +5150,15 @@ function showStudentCourses(type) {
 
   container.innerHTML = "";
 
-  const filtered = studentCourses.filter(course =>
-    type === "completed" ? course.progress === 100 : course.progress < 100
-  );
+  const filtered = studentCourses.filter(course => {
+    if (course.type === 'pdf') {
+      // For PDF courses, use isRead status
+      return type === "completed" ? course.isRead : !course.isRead;
+    } else {
+      // For video courses, use progress
+      return type === "completed" ? course.progress === 100 : course.progress < 100;
+    }
+  });
 
   if (filtered.length === 0) {
     container.innerHTML = `
@@ -5155,39 +5169,111 @@ function showStudentCourses(type) {
   }
 
   filtered.forEach(course => {
-    container.innerHTML += `
+    let courseCard = `
       <div class="bg-white rounded-xl shadow hover:shadow-lg transition p-5">
-
         <div class="flex justify-between items-start mb-3">
-          <h3 class="font-semibold text-gray-800">${course.name}</h3>
-          <span class="text-xs px-2 py-1 rounded-full ${
-            course.progress === 100
-              ? "bg-green-100 text-green-700"
-              : "bg-indigo-100 text-indigo-700"
-          }">
+          <h3 class="font-semibold text-gray-800">${course.name}</h3>`;
+    
+    if (course.type === 'pdf') {
+      courseCard += `<span class="text-xs px-2 py-1 rounded-full ${course.isRead ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}">
+            ${course.isRead ? "Completed" : "Not Read"}
+          </span>`;
+    } else {
+      courseCard += `<span class="text-xs px-2 py-1 rounded-full ${course.progress === 100 ? "bg-green-100 text-green-700" : "bg-indigo-100 text-indigo-700"}">
             ${course.progress === 100 ? "Completed" : "In Progress"}
-          </span>
-        </div>
-
-        <!-- Progress Bar -->
+          </span>`;
+    }
+    
+    courseCard += `</div>`;
+    
+    // Progress bar for video courses only
+    if (course.type !== 'pdf') {
+      courseCard += `
         <div class="w-full bg-gray-200 rounded-full h-2 mb-3">
-          <div
-            class="${course.progress === 100 ? "bg-green-500" : "bg-indigo-600"} h-2 rounded-full"
-            style="width: ${course.progress}%">
-          </div>
+          <div class="${course.progress === 100 ? "bg-green-500" : "bg-indigo-600"} h-2 rounded-full"
+            style="width: ${course.progress}%"></div>
         </div>
-
         <p class="text-sm text-gray-600 mb-4">
           Progress: <span class="font-medium">${course.progress}%</span>
-        </p>
+        </p>`;
+    } else {
+      courseCard += `<p class="text-sm text-gray-600 mb-4">${course.description}</p>
+        <p class="text-xs text-gray-500 mb-4"><i class="fas fa-file-pdf mr-1 text-red-500"></i>PDF Document</p>`;
+    }
 
+    if (course.type === 'pdf') {
+      courseCard += `
+        <div class="flex gap-2">
+          <button onclick="viewPDFCourse(${course.id}, '${course.name}')" class="flex-1 text-sm bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 transition">
+            <i class="fas fa-eye mr-1"></i> Open PDF
+          </button>
+          <button onclick="markPDFAsRead(${course.id})" class="flex-1 text-sm ${course.isRead ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 hover:bg-gray-500'} text-white py-2 rounded-md transition">
+            <i class="fas ${course.isRead ? 'fa-check' : 'fa-times'} mr-1"></i> ${course.isRead ? 'Read' : 'Mark Read'}
+          </button>
+        </div>`;
+    } else {
+      courseCard += `
         <button onclick="viewStudentCourse(${course.id}, '${course.name}')" class="w-full text-sm bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 transition">
           View course
-        </button>
+        </button>`;
+    }
 
-      </div>
-    `;
+    courseCard += `</div>`;
+    container.innerHTML += courseCard;
   });
+}
+
+// Function to view student course with sections, video and questions
+function viewStudentCourse(courseId, courseName) {
+    const course = studentCourses.find(c => c.id === courseId);
+    if (!course || !course.sections || course.sections.length === 0) return;
+
+    document.getElementById('courseViewerTitle').textContent = course.name;
+    document.getElementById('courseViewerDescription').textContent = 'Learn about ' + course.name + '. This course covers essential concepts and practical skills.';
+    document.getElementById('courseViewerCourseId').textContent = 'COURSE-' + courseId;
+    document.getElementById('courseViewerProgress').textContent = course.progress;
+
+    // Create section tabs
+    loadSectionTabs(course);
+
+}
+
+// Function to view PDF course
+function viewPDFCourse(courseId, courseName) {
+    const course = studentCourses.find(c => c.id === courseId);
+    if (!course || course.type !== 'pdf') return;
+    
+    // Create a modal to view the PDF
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4';
+    modal.innerHTML = `
+        <div class="bg-white rounded-lg shadow-lg max-w-4xl w-full max-h-screen overflow-hidden flex flex-col">
+            <div class="flex justify-between items-center p-6 border-b border-gray-200">
+                <h2 class="text-2xl font-bold text-gray-800">${course.name}</h2>
+                <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700 text-2xl">×</button>
+            </div>
+            <div class="flex-1 overflow-hidden">
+                <iframe src="${course.pdfUrl}" class="w-full h-full" style="min-height: 500px;"></iframe>
+            </div>
+            <div class="p-6 border-t border-gray-200 flex justify-between items-center bg-gray-50">
+                <p class="text-sm text-gray-600"><i class="fas fa-file-pdf mr-2 text-red-500"></i>PDF Document</p>
+                <button onclick="markPDFAsRead(${courseId}); this.closest('.fixed').remove();" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
+                    <i class="fas fa-check mr-2"></i>Mark as Read & Close
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+// Function to mark PDF course as read
+function markPDFAsRead(courseId) {
+    const course = studentCourses.find(c => c.id === courseId);
+    if (!course || course.type !== 'pdf') return;
+    
+    course.isRead = !course.isRead;
+    showStudentCourses('inprogress');
+    showMessageModal('Success', course.isRead ? `"${course.name}" marked as read!` : `"${course.name}" marked as unread!`);
 }
 
 // Function to view student course with sections, video and questions
