@@ -956,19 +956,7 @@
                     </div>
 
                     <!-- Student Stats Cards (Hidden by default) -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6" id="studentStatsCards" style="display: none;">
-                        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500 hover:shadow-lg transition">
-                            <div class="flex items-center">
-                                <div class="p-3 rounded-lg bg-gradient-to-br from-green-100 to-green-50 text-green-600 mr-4">
-                                    <i class="fas fa-book text-xl"></i>
-                                </div>
-                                <div>
-                                    <p class="text-sm text-gray-600 font-medium">Enrolled Courses</p>
-                                    <h3 class="text-3xl font-bold text-gray-900" id="studentEnrolledCourses">0</h3>
-                                </div>
-                            </div>
-                        </div>
-                        
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6" id="studentStatsCards" style="display: none;">
                         <div class="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500 hover:shadow-lg transition">
                             <div class="flex items-center">
                                 <div class="p-3 rounded-lg bg-gradient-to-br from-blue-100 to-blue-50 text-blue-600 mr-4">
@@ -1026,13 +1014,32 @@
                     <div class="bg-white rounded-lg shadow p-6 mb-6" id="badgesEarnedSection" style="display: none;">
                         <div class="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
                             <div>
-                                <h3 class="text-lg font-bold text-gray-900">Badges Earned</h3>
-                                <p class="text-sm text-gray-600 mt-1">Your achievements</p>
+                                <h3 class="text-lg font-bold text-gray-900">Recent Badges Received</h3>
+                                <p class="text-sm text-gray-600 mt-1">Your latest achievements</p>
                             </div>
                             <a href="#" class="text-sm text-indigo-600 hover:text-indigo-700 font-medium transition">View all →</a>
                         </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4" id="badgesEarnedList">
-                            <p class="text-gray-500 text-sm col-span-full text-center py-4">No badges earned yet. Keep learning to earn badges!</p>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4" id="badgesEarnedList">
+                            <div class="text-center p-4 bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg border border-yellow-200">
+                                <div class="text-4xl mb-2">🏅</div>
+                                <p class="text-xs font-semibold text-gray-700">Quick Learner</p>
+                                <p class="text-xs text-gray-500">Jan 15</p>
+                            </div>
+                            <div class="text-center p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg border border-blue-200">
+                                <div class="text-4xl mb-2">⭐</div>
+                                <p class="text-xs font-semibold text-gray-700">Star Student</p>
+                                <p class="text-xs text-gray-500">Jan 10</p>
+                            </div>
+                            <div class="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200">
+                                <div class="text-4xl mb-2">🎯</div>
+                                <p class="text-xs font-semibold text-gray-700">Goal Setter</p>
+                                <p class="text-xs text-gray-500">Jan 5</p>
+                            </div>
+                            <div class="text-center p-4 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg border border-purple-200">
+                                <div class="text-4xl mb-2">🚀</div>
+                                <p class="text-xs font-semibold text-gray-700">Rising Star</p>
+                                <p class="text-xs text-gray-500">Dec 28</p>
+                            </div>
                         </div>
                     </div>
 
