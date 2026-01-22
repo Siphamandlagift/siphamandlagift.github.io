@@ -818,8 +818,10 @@
                         <i class="fas fa-medal mr-3"></i>
                         <span class="sidebar-text">My Badges</span>
                     </a>
-
-                </div>
+                    <a href="#" class="sidebar-item" data-section="calendar">
+                        <i class="fas fa-calendar-alt mr-3"></i>
+                        <span class="sidebar-text">Calendar</span>
+                    </a>
                 
                 <div class="p-6 text-xs uppercase text-indigo-300 font-bold sidebar-text tracking-wider border-t border-indigo-700/50 mt-4">Account</div>
                 <a href="#" class="sidebar-item" data-section="profile">
@@ -2078,6 +2080,73 @@
                             <div class="text-center py-12">
                                 <p class="text-gray-500">Start learning to earn badges!</p>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Student: Calendar Content -->
+                <div id="calendarContent" class="content-section">
+                    <div class="mb-6">
+                        <h2 class="text-2xl font-semibold text-gray-800">My Calendar</h2>
+                        <p class="text-gray-600">View all your assignments, tests, and exams in one place</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Calendar -->
+                        <div class="lg:col-span-2 bg-white rounded-lg shadow p-6">
+                            <div class="mb-4 flex items-center justify-between">
+                                <h3 class="text-lg font-semibold text-gray-800" id="calendarMonthYear"></h3>
+                                <div class="space-x-2">
+                                    <button class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded transition" onclick="previousMonth()">← Prev</button>
+                                    <button class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded transition" onclick="goToToday()">Today</button>
+                                    <button class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded transition" onclick="nextMonth()">Next →</button>
+                                </div>
+                            </div>
+                            
+                            <!-- Days of Week Header -->
+                            <div class="grid grid-cols-7 gap-2 mb-4">
+                                <div class="text-center font-semibold text-gray-600 text-sm">Sun</div>
+                                <div class="text-center font-semibold text-gray-600 text-sm">Mon</div>
+                                <div class="text-center font-semibold text-gray-600 text-sm">Tue</div>
+                                <div class="text-center font-semibold text-gray-600 text-sm">Wed</div>
+                                <div class="text-center font-semibold text-gray-600 text-sm">Thu</div>
+                                <div class="text-center font-semibold text-gray-600 text-sm">Fri</div>
+                                <div class="text-center font-semibold text-gray-600 text-sm">Sat</div>
+                            </div>
+                            
+                            <!-- Calendar Days -->
+                            <div class="grid grid-cols-7 gap-2" id="calendarDays"></div>
+                        </div>
+
+                        <!-- Upcoming Events Sidebar -->
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4">Upcoming Events</h3>
+                            <div id="upcomingEventsList" class="space-y-4">
+                                <!-- Events will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- All Events List -->
+                    <div class="mt-8 bg-white rounded-lg shadow overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                            <h3 class="text-lg font-semibold text-gray-800">All Events</h3>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="allEventsList" class="divide-y divide-gray-200">
+                                    <!-- Events will be populated here -->
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -5913,6 +5982,169 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // ====================================================
+        // CALENDAR FUNCTIONALITY FOR STUDENTS
+        // ====================================================
+
+        let currentCalendarDate = new Date();
+        let calendarEvents = [
+            { date: new Date(2026, 0, 25), title: 'JavaScript Assignment Due', type: 'assignment', color: 'blue' },
+            { date: new Date(2026, 0, 28), title: 'Web Development Test', type: 'test', color: 'orange' },
+            { date: new Date(2026, 1, 5), title: 'Mid-term Exam', type: 'exam', color: 'red' },
+            { date: new Date(2026, 1, 10), title: 'React Project Due', type: 'assignment', color: 'blue' },
+            { date: new Date(2026, 1, 15), title: 'CSS Quiz', type: 'test', color: 'orange' },
+            { date: new Date(2026, 1, 22), title: 'Final Exam', type: 'exam', color: 'red' },
+        ];
+
+        function getEventTypeColor(type) {
+            const colors = {
+                'assignment': 'bg-blue-100 text-blue-800 border-blue-300',
+                'test': 'bg-orange-100 text-orange-800 border-orange-300',
+                'exam': 'bg-red-100 text-red-800 border-red-300'
+            };
+            return colors[type] || 'bg-gray-100 text-gray-800 border-gray-300';
+        }
+
+        function getEventTypeIcon(type) {
+            const icons = {
+                'assignment': '📝',
+                'test': '✏️',
+                'exam': '📚'
+            };
+            return icons[type] || '📌';
+        }
+
+        function renderCalendar() {
+            const year = currentCalendarDate.getFullYear();
+            const month = currentCalendarDate.getMonth();
+            
+            // Set month/year display
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                              'July', 'August', 'September', 'October', 'November', 'December'];
+            document.getElementById('calendarMonthYear').textContent = monthNames[month] + ' ' + year;
+            
+            // Get first day of month and number of days
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const daysInPrevMonth = new Date(year, month, 0).getDate();
+            
+            let calendarDaysHTML = '';
+            
+            // Previous month's days
+            for (let i = firstDay - 1; i >= 0; i--) {
+                calendarDaysHTML += `<div class="p-2 text-center text-gray-400 bg-gray-50 rounded">${daysInPrevMonth - i}</div>`;
+            }
+            
+            // Current month's days
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, month, day);
+                const hasEvent = calendarEvents.some(e => 
+                    e.date.getDate() === day && 
+                    e.date.getMonth() === month && 
+                    e.date.getFullYear() === year
+                );
+                const isToday = date.toDateString() === new Date().toDateString();
+                
+                let dayHTML = `<div class="p-2 text-center rounded border-2 cursor-pointer hover:bg-indigo-50 transition`;
+                dayHTML += isToday ? ' bg-indigo-100 border-indigo-500' : hasEvent ? ' bg-blue-50 border-blue-300' : ' border-gray-200';
+                dayHTML += `" onclick="selectCalendarDate(new Date(${year}, ${month}, ${day}))">${day}`;
+                if (hasEvent) {
+                    dayHTML += '<span class="block text-xs text-blue-600 font-semibold mt-1">●</span>';
+                }
+                dayHTML += '</div>';
+                calendarDaysHTML += dayHTML;
+            }
+            
+            // Next month's days
+            const totalCells = calendarDaysHTML.match(/<div/g).length;
+            for (let day = 1; day <= (42 - totalCells - firstDay); day++) {
+                calendarDaysHTML += `<div class="p-2 text-center text-gray-400 bg-gray-50 rounded">${day}</div>`;
+            }
+            
+            document.getElementById('calendarDays').innerHTML = calendarDaysHTML;
+            
+            // Populate upcoming events
+            updateUpcomingEvents();
+            updateAllEventsList();
+        }
+
+        function updateUpcomingEvents() {
+            const today = new Date();
+            const upcoming = calendarEvents
+                .filter(e => e.date >= today)
+                .sort((a, b) => a.date - b.date)
+                .slice(0, 5);
+            
+            let html = '';
+            if (upcoming.length === 0) {
+                html = '<p class="text-gray-500 text-sm">No upcoming events</p>';
+            } else {
+                upcoming.forEach(event => {
+                    const dateStr = event.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    html += `
+                        <div class="p-3 rounded border-l-4 ${getEventTypeColor(event.type)} border-l-4">
+                            <p class="text-xs font-medium text-gray-600">${dateStr}</p>
+                            <p class="font-semibold text-sm">${getEventTypeIcon(event.type)} ${event.title}</p>
+                            <span class="inline-block mt-2 px-2 py-1 text-xs rounded bg-gray-200 text-gray-700">${event.type.charAt(0).toUpperCase() + event.type.slice(1)}</span>
+                        </div>
+                    `;
+                });
+            }
+            document.getElementById('upcomingEventsList').innerHTML = html;
+        }
+
+        function updateAllEventsList() {
+            let html = '';
+            const sortedEvents = [...calendarEvents]
+                .sort((a, b) => a.date - b.date);
+            
+            if (sortedEvents.length === 0) {
+                html = '<tr><td class="px-6 py-4 text-center text-gray-500" colspan="5">No events scheduled</td></tr>';
+            } else {
+                sortedEvents.forEach(event => {
+                    const dateStr = event.date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                    const isUpcoming = event.date >= new Date();
+                    const status = isUpcoming ? '<span class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">Upcoming</span>' 
+                                              : '<span class="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded">Completed</span>';
+                    
+                    html += `
+                        <tr class="hover:bg-gray-50 transition">
+                            <td class="px-6 py-4 text-sm">
+                                <span class="px-2 py-1 ${getEventTypeColor(event.type)} text-xs rounded font-medium">${event.type}</span>
+                            </td>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">${getEventTypeIcon(event.type)} ${event.title}</td>
+                            <td class="px-6 py-4 text-sm text-gray-600">${dateStr}</td>
+                            <td class="px-6 py-4 text-sm">${status}</td>
+                            <td class="px-6 py-4 text-sm">
+                                <button class="text-indigo-600 hover:text-indigo-900 font-semibold">View Details</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+            document.getElementById('allEventsList').innerHTML = html;
+        }
+
+        function selectCalendarDate(date) {
+            currentCalendarDate = new Date(date);
+            renderCalendar();
+        }
+
+        function previousMonth() {
+            currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+            renderCalendar();
+        }
+
+        function nextMonth() {
+            currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+            renderCalendar();
+        }
+
+        function goToToday() {
+            currentCalendarDate = new Date();
+            renderCalendar();
+        }
+
+        // ====================================================
         // PREVENT ZOOM & PINCH GESTURES
         // ====================================================
 
@@ -6051,6 +6283,9 @@ document.addEventListener("DOMContentLoaded", () => {
             if (firstSection) {
                 firstSection.classList.add('active');
             }
+            
+            // Initialize calendar for students
+            renderCalendar();
         });
 
 </script>
