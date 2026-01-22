@@ -5903,9 +5903,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         function editUser(userId) {
-            const user = db.getUserById(userId);
-            if (!user) return;
-            showMessageModal('Edit User', `Edit functionality for ${user.name} ${user.surname} - Coming soon!`);
+            showMessageModal('Edit User', `Edit functionality - Coming soon!`);
         }
 
         function downloadCertificate() {
@@ -6007,6 +6005,13 @@ document.addEventListener("DOMContentLoaded", () => {
             document.documentElement.style.zoom = 1;
             document.body.style.zoom = 1;
             
+            // Reset body display properties
+            document.body.style.display = '';
+            document.body.style.flexDirection = '';
+            document.body.style.alignItems = '';
+            document.body.style.justifyContent = '';
+            document.body.style.minHeight = '';
+            
             // Set default user info if not set
             const sidebarUsername = document.getElementById('sidebarUsername');
             const sidebarUserrole = document.getElementById('sidebarUserrole');
@@ -6020,16 +6025,23 @@ document.addEventListener("DOMContentLoaded", () => {
                 greetingName.textContent = 'Admin';
             }
             
-            // Show sidebar and content by default
-            document.getElementById('sidebar').style.display = 'flex';
-            document.getElementById('contentArea').style.display = 'flex';
-            document.querySelector('main').style.display = 'block';
-            document.body.style.display = 'flex';
+            // Ensure sidebar and content are visible
+            const sidebar = document.getElementById('sidebar');
+            const contentArea = document.getElementById('contentArea');
+            const main = document.querySelector('main');
+            
+            if (sidebar) sidebar.style.display = '';
+            if (contentArea) contentArea.style.display = '';
+            if (main) main.style.display = '';
             
             // Show admin nav by default
-            document.getElementById('adminNav').classList.remove('hidden');
-            document.getElementById('trainingManagerNav').classList.add('hidden');
-            document.getElementById('studentNav').classList.add('hidden');
+            const adminNav = document.getElementById('adminNav');
+            const trainingManagerNav = document.getElementById('trainingManagerNav');
+            const studentNav = document.getElementById('studentNav');
+            
+            if (adminNav) adminNav.classList.remove('hidden');
+            if (trainingManagerNav) trainingManagerNav.classList.add('hidden');
+            if (studentNav) studentNav.classList.add('hidden');
             
             // Hide login modal
             const loginModal = document.getElementById('loginModal');
