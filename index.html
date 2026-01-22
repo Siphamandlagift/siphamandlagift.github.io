@@ -6007,10 +6007,41 @@ document.addEventListener("DOMContentLoaded", () => {
             document.documentElement.style.zoom = 1;
             document.body.style.zoom = 1;
             
+            // Set default user info if not set
+            const sidebarUsername = document.getElementById('sidebarUsername');
+            const sidebarUserrole = document.getElementById('sidebarUserrole');
+            const topNavUsername = document.getElementById('topNavUsername');
+            const greetingName = document.getElementById('greetingName');
+            
+            if (!sidebarUsername.textContent) {
+                sidebarUsername.textContent = 'Admin User';
+                sidebarUserrole.textContent = 'Administrator';
+                topNavUsername.textContent = 'Admin User';
+                greetingName.textContent = 'Admin';
+            }
+            
             // Show sidebar and content by default
             document.getElementById('sidebar').style.display = 'flex';
             document.getElementById('contentArea').style.display = 'flex';
             document.querySelector('main').style.display = 'block';
+            document.body.style.display = 'flex';
+            
+            // Show admin nav by default
+            document.getElementById('adminNav').classList.remove('hidden');
+            document.getElementById('trainingManagerNav').classList.add('hidden');
+            document.getElementById('studentNav').classList.add('hidden');
+            
+            // Hide login modal
+            const loginModal = document.getElementById('loginModal');
+            if (loginModal) {
+                loginModal.classList.add('hidden');
+            }
+            
+            // Set first section as active
+            const firstSection = document.querySelector('.content-section');
+            if (firstSection) {
+                firstSection.classList.add('active');
+            }
         });
 
 </script>
