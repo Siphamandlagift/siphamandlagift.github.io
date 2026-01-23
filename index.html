@@ -5106,6 +5106,8 @@
             id: 1, 
             name: "Health & Safety", 
             progress: 40,
+            picture: "https://images.unsplash.com/photo-1576091160399-2b6ba8a7f0f0?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=60",
+            description: "Learn essential health and safety practices in the workplace",
             sections: [
               {
                 id: 101,
@@ -5174,6 +5176,8 @@
             id: 2, 
             name: "Fire Fighting", 
             progress: 100,
+            picture: "https://images.unsplash.com/photo-1559838106-d8493e3e4ffd?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=60",
+            description: "Comprehensive fire safety and firefighting procedures",
             sections: [
               {
                 id: 201,
@@ -5208,6 +5212,8 @@
             id: 3, 
             name: "First Aid", 
             progress: 75,
+            picture: "https://images.unsplash.com/photo-1576091160550-2173dba999ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=60",
+            description: "Master essential first aid techniques and emergency response",
             sections: [
               {
                 id: 301,
@@ -5256,6 +5262,8 @@
             id: 4, 
             name: "Advanced Excel Skills", 
             progress: 0,
+            picture: "https://images.unsplash.com/photo-1633356122544-f134324ef6db?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=60",
+            description: "Learn advanced Excel techniques for data analysis",
             type: 'pdf',
             pdfUrl: 'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf20.pdf',
             description: 'Master advanced Excel techniques for data analysis and reporting',
@@ -5301,56 +5309,49 @@ function showStudentCourses(type) {
   }
 
   filtered.forEach(course => {
+    const courseImage = course.picture || "https://placehold.co/400x200/E0E7FF/4F46E5?text=Course+Image";
+    const statusBadge = course.type === 'pdf' 
+      ? (course.isRead ? "Completed" : "Not Read")
+      : (course.progress === 100 ? "Completed" : "In Progress");
+    
+    const badgeClass = course.type === 'pdf' 
+      ? (course.isRead ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700")
+      : (course.progress === 100 ? "bg-green-100 text-green-700" : "bg-indigo-100 text-indigo-700");
+    
     let courseCard = `
-      <div class="bg-white rounded-xl shadow hover:shadow-lg transition p-5">
-        <div class="flex justify-between items-start mb-3">
-          <h3 class="font-semibold text-gray-800">${course.name}</h3>`;
-    
-    if (course.type === 'pdf') {
-      courseCard += `<span class="text-xs px-2 py-1 rounded-full ${course.isRead ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}">
-            ${course.isRead ? "Completed" : "Not Read"}
-          </span>`;
-    } else {
-      courseCard += `<span class="text-xs px-2 py-1 rounded-full ${course.progress === 100 ? "bg-green-100 text-green-700" : "bg-indigo-100 text-indigo-700"}">
-            ${course.progress === 100 ? "Completed" : "In Progress"}
-          </span>`;
-    }
-    
-    courseCard += `</div>`;
-    
-    // Progress bar for video courses only
-    if (course.type !== 'pdf') {
-      courseCard += `
-        <div class="w-full bg-gray-200 rounded-full h-2 mb-3">
-          <div class="${course.progress === 100 ? "bg-green-500" : "bg-indigo-600"} h-2 rounded-full"
-            style="width: ${course.progress}%"></div>
+      <div class="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden">
+        <div class="relative w-full h-40 overflow-hidden bg-gray-200">
+          <img src="${courseImage}" alt="${course.name}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-300">
+          <span class="absolute top-3 right-3 text-xs px-3 py-1 rounded-full font-medium ${badgeClass}">
+            ${statusBadge}
+          </span>
         </div>
-        <p class="text-sm text-gray-600 mb-4">
-          Progress: <span class="font-medium">${course.progress}%</span>
-        </p>`;
-    } else {
-      courseCard += `<p class="text-sm text-gray-600 mb-4">${course.description}</p>
-        <p class="text-xs text-gray-500 mb-4"><i class="fas fa-file-pdf mr-1 text-red-500"></i>PDF Document</p>`;
-    }
-
-    if (course.type === 'pdf') {
-      courseCard += `
-        <div class="flex gap-2">
-          <button onclick="viewPDFCourse(${course.id}, '${course.name}')" class="flex-1 text-sm bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 transition">
-            <i class="fas fa-eye mr-1"></i> Open PDF
-          </button>
-          <button onclick="markPDFAsRead(${course.id})" class="flex-1 text-sm ${course.isRead ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 hover:bg-gray-500'} text-white py-2 rounded-md transition">
-            <i class="fas ${course.isRead ? 'fa-check' : 'fa-times'} mr-1"></i> ${course.isRead ? 'Read' : 'Mark Read'}
-          </button>
-        </div>`;
-    } else {
-      courseCard += `
-        <button onclick="viewStudentCourse(${course.id}, '${course.name}')" class="w-full text-sm bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 transition">
-          View course
-        </button>`;
-    }
-
-    courseCard += `</div>`;
+        <div class="p-5">
+          <h3 class="font-semibold text-gray-800 mb-2">${course.name}</h3>
+          <p class="text-sm text-gray-600 mb-3">${course.description || "No description available"}</p>
+          ${course.type === 'pdf' 
+            ? `<p class="text-xs text-gray-500 mb-3"><i class="fas fa-file-pdf mr-1 text-red-500"></i>PDF Document</p>` 
+            : `<div class="w-full bg-gray-200 rounded-full h-2 mb-3">
+                <div class="${course.progress === 100 ? "bg-green-500" : "bg-indigo-600"} h-2 rounded-full" style="width: ${course.progress}%"></div>
+              </div>
+              <p class="text-sm text-gray-600 mb-3">Progress: <span class="font-medium">${course.progress}%</span></p>`
+          }
+          ${course.type === 'pdf'
+            ? `<div class="flex gap-2">
+                <button onclick="viewPDFCourse(${course.id}, '${course.name}')" class="flex-1 text-sm bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 transition">
+                  <i class="fas fa-eye mr-1"></i> Open PDF
+                </button>
+                <button onclick="markPDFAsRead(${course.id})" class="flex-1 text-sm ${course.isRead ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 hover:bg-gray-500'} text-white py-2 rounded-md transition">
+                  <i class="fas ${course.isRead ? 'fa-check' : 'fa-times'} mr-1"></i> ${course.isRead ? 'Read' : 'Mark Read'}
+                </button>
+              </div>`
+            : `<button onclick="viewStudentCourse(${course.id}, '${course.name}')" class="w-full text-sm bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 transition">
+                View course
+              </button>`
+          }
+        </div>
+      </div>
+    `;
     container.innerHTML += courseCard;
   });
 }
