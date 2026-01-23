@@ -5290,13 +5290,38 @@ function showStudentCourses(type) {
 
   container.innerHTML = "";
 
-  const filtered = studentCourses.filter(course => {
-    if (course.type === 'pdf') {
-      // For PDF courses, use isRead status
-      return type === "completed" ? course.isRead : !course.isRead;
+  // Get the logged-in user
+  const user = allUsersData.find(u => u.id === loggedInUser.id);
+  if (!user) {
+    container.innerHTML = `<p class="text-gray-500 text-sm col-span-full">Please log in to view courses.</p>`;
+    return;
+  }
+
+  // Get user's enrolled courses from allCoursesData
+  const userEnrolledCourses = user.coursesEnrolled ? user.coursesEnrolled.map(enrollment => {
+    const course = allCoursesData.find(c => c.id === enrollment.courseId);
+    if (course) {
+      return {
+        ...course,
+        hoursSpent: enrollment.hoursSpent || 0,
+        completionDate: enrollment.completionDate,
+        enrollmentDate: enrollment.enrollmentDate,
+        type: 'video' // Default type for allCoursesData courses
+      };
+    }
+    return null;
+  }).filter(c => c !== null) : [];
+
+  // Combine with demo studentCourses for now (can be removed later)
+  const allCourses = [...userEnrolledCourses, ...studentCourses];
+
+  const filtered = allCourses.filter(course => {
+    if (course.completionDate) {
+      // Course has completion date, it's completed
+      return type === "completed";
     } else {
-      // For video courses, use progress
-      return type === "completed" ? course.progress === 100 : course.progress < 100;
+      // Course doesn't have completion date, it's in progress
+      return type === "inprogress";
     }
   });
 
@@ -5310,18 +5335,14 @@ function showStudentCourses(type) {
 
   filtered.forEach(course => {
     const courseImage = course.picture || "https://placehold.co/400x200/E0E7FF/4F46E5?text=Course+Image";
-    const statusBadge = course.type === 'pdf' 
-      ? (course.isRead ? "Completed" : "Not Read")
-      : (course.progress === 100 ? "Completed" : "In Progress");
-    
-    const badgeClass = course.type === 'pdf' 
-      ? (course.isRead ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700")
-      : (course.progress === 100 ? "bg-green-100 text-green-700" : "bg-indigo-100 text-indigo-700");
+    const isCompleted = course.completionDate ? true : false;
+    const statusBadge = isCompleted ? "Completed" : "In Progress";
+    const badgeClass = isCompleted ? "bg-green-100 text-green-700" : "bg-indigo-100 text-indigo-700";
     
     let courseCard = `
       <div class="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden">
         <div class="relative w-full h-40 overflow-hidden bg-gray-200">
-          <img src="${courseImage}" alt="${course.name}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-300">
+          <img src="${courseImage}" alt="${course.name}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-300" onerror="this.src='https://placehold.co/400x200/E0E7FF/4F46E5?text=${encodeURIComponent(course.name)}'">
           <span class="absolute top-3 right-3 text-xs px-3 py-1 rounded-full font-medium ${badgeClass}">
             ${statusBadge}
           </span>
@@ -5329,26 +5350,16 @@ function showStudentCourses(type) {
         <div class="p-5">
           <h3 class="font-semibold text-gray-800 mb-2">${course.name}</h3>
           <p class="text-sm text-gray-600 mb-3">${course.description || "No description available"}</p>
-          ${course.type === 'pdf' 
-            ? `<p class="text-xs text-gray-500 mb-3"><i class="fas fa-file-pdf mr-1 text-red-500"></i>PDF Document</p>` 
-            : `<div class="w-full bg-gray-200 rounded-full h-2 mb-3">
-                <div class="${course.progress === 100 ? "bg-green-500" : "bg-indigo-600"} h-2 rounded-full" style="width: ${course.progress}%"></div>
+          ${!isCompleted 
+            ? `<div class="w-full bg-gray-200 rounded-full h-2 mb-3">
+                <div class="bg-indigo-600 h-2 rounded-full" style="width: ${course.hoursSpent || 0}%"></div>
               </div>
-              <p class="text-sm text-gray-600 mb-3">Progress: <span class="font-medium">${course.progress}%</span></p>`
+              <p class="text-sm text-gray-600 mb-3">Hours: <span class="font-medium">${course.hoursSpent || 0}</span></p>`
+            : `<p class="text-sm text-gray-600 mb-3">Completed on ${new Date(course.completionDate).toLocaleDateString()}</p>`
           }
-          ${course.type === 'pdf'
-            ? `<div class="flex gap-2">
-                <button onclick="viewPDFCourse(${course.id}, '${course.name}')" class="flex-1 text-sm bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 transition">
-                  <i class="fas fa-eye mr-1"></i> Open PDF
-                </button>
-                <button onclick="markPDFAsRead(${course.id})" class="flex-1 text-sm ${course.isRead ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 hover:bg-gray-500'} text-white py-2 rounded-md transition">
-                  <i class="fas ${course.isRead ? 'fa-check' : 'fa-times'} mr-1"></i> ${course.isRead ? 'Read' : 'Mark Read'}
-                </button>
-              </div>`
-            : `<button onclick="viewStudentCourse(${course.id}, '${course.name}')" class="w-full text-sm bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 transition">
-                View course
-              </button>`
-          }
+          <button onclick="viewStudentCourse(${course.id}, '${course.name}')" class="w-full text-sm bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 transition">
+            View course
+          </button>
         </div>
       </div>
     `;
