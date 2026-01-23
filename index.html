@@ -3184,7 +3184,7 @@
         let allCoursesData = [
             {
                 id: 101,
-                name: 'Company Induction Programme',
+                name: 'Induction Programme',
                 description: 'Welcome to our company! Learn about our mission, values, policies, and get started on your journey with us.',
                 videoFileName: 'company_induction.mp4',
                 pdfFileName: 'induction_handbook.pdf',
@@ -5609,13 +5609,17 @@ function markPDFAsRead(courseId) {
 
 // Function to view student course with sections, video and questions
 function viewStudentCourse(courseId, courseName) {
-    const course = studentCourses.find(c => c.id === courseId);
+    // First try to find in studentCourses, then in allCoursesData
+    let course = studentCourses.find(c => c.id === courseId);
+    if (!course) {
+        course = allCoursesData.find(c => c.id === courseId);
+    }
     if (!course || !course.sections || course.sections.length === 0) return;
 
     document.getElementById('courseViewerTitle').textContent = course.name;
     document.getElementById('courseViewerDescription').textContent = 'Learn about ' + course.name + '. This course covers essential concepts and practical skills.';
     document.getElementById('courseViewerCourseId').textContent = 'COURSE-' + courseId;
-    document.getElementById('courseViewerProgress').textContent = course.progress;
+    document.getElementById('courseViewerProgress').textContent = course.progress || 0;
 
     // Create section tabs
     loadSectionTabs(course);
@@ -5660,7 +5664,11 @@ function loadSectionTabs(course) {
 
 // Function to load a specific section
 function loadSection(sectionId, courseId) {
-    const course = studentCourses.find(c => c.id === courseId);
+    // First try to find in studentCourses, then in allCoursesData
+    let course = studentCourses.find(c => c.id === courseId);
+    if (!course) {
+        course = allCoursesData.find(c => c.id === courseId);
+    }
     if (!course) return;
 
     const section = course.sections.find(s => s.id === sectionId);
