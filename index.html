@@ -3184,44 +3184,231 @@
         let allCoursesData = [
             {
                 id: 101,
-                name: 'Introduction to Web Development',
-                description: 'Learn the basics of HTML, CSS, and JavaScript.',
-                videoFileName: 'intro_web_dev.mp4',
-                pdfFileName: 'web_dev_notes.pdf',
-                picture: 'https://placehold.co/128x128/E0E7FF/4F46E5?text=Web+Dev',
+                name: 'Company Induction Programme',
+                description: 'Welcome to our company! Learn about our mission, values, policies, and get started on your journey with us.',
+                videoFileName: 'company_induction.mp4',
+                pdfFileName: 'induction_handbook.pdf',
+                picture: 'https://images.unsplash.com/photo-1552664730-d307ca884978?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=60',
+                sections: [
+                    {
+                        id: 1011,
+                        title: "Welcome to the Team",
+                        videoDuration: "8 minutes",
+                        questions: [
+                            {
+                                id: 1,
+                                type: 'multiple-choice',
+                                question: 'Which of the following is one of our core company values?',
+                                options: ['Integrity', 'Deception', 'Indifference', 'Carelessness'],
+                                correctAnswer: 0,
+                                marks: 5
+                            },
+                            {
+                                id: 2,
+                                type: 'true-false',
+                                question: 'Company induction is mandatory for all new employees.',
+                                correctAnswer: true,
+                                marks: 5
+                            }
+                        ]
+                    },
+                    {
+                        id: 1012,
+                        title: "Company Policies and Procedures",
+                        videoDuration: "15 minutes",
+                        questions: [
+                            {
+                                id: 3,
+                                type: 'multiple-choice',
+                                question: 'What should you do if you witness a workplace violation?',
+                                options: ['Ignore it', 'Report it to management or HR', 'Handle it yourself', 'Tell your colleagues'],
+                                correctAnswer: 1,
+                                marks: 10
+                            },
+                            {
+                                id: 4,
+                                type: 'true-false',
+                                question: 'Punctuality is important in our company culture.',
+                                correctAnswer: true,
+                                marks: 5
+                            }
+                        ]
+                    },
+                    {
+                        id: 1013,
+                        title: "Employee Benefits and Support",
+                        videoDuration: "12 minutes",
+                        questions: [
+                            {
+                                id: 5,
+                                type: 'multiple-choice',
+                                question: 'Which of the following is typically included in employee benefits?',
+                                options: ['Health insurance', 'Free meals', 'Personal car', 'All of the above'],
+                                correctAnswer: 0,
+                                marks: 10
+                            }
+                        ]
+                    }
+                ],
                 questions: [
-                    { type: 'multiple-choice', text: 'What does HTML stand for?', options: ['Hyper Text Markup Language', 'Hyperlink and Text Markup Language', 'High Tech Modern Language'], correctAnswer: 0, marks: 10 },
-                    { type: 'true-false', text: 'CSS is used for styling web pages.', correctAnswer: true, marks: 5 }
+                    { type: 'multiple-choice', text: 'Which of the following is one of our core company values?', options: ['Integrity', 'Deception', 'Indifference', 'Carelessness'], correctAnswer: 0, marks: 5 },
+                    { type: 'true-false', text: 'Company induction is mandatory for all new employees.', correctAnswer: true, marks: 5 },
+                    { type: 'multiple-choice', text: 'What should you do if you witness a workplace violation?', options: ['Ignore it', 'Report it to management or HR', 'Handle it yourself', 'Tell your colleagues'], correctAnswer: 1, marks: 10 }
                 ],
                 readStatus: false,
-                creatorId: 2 // Created by Training Manager (Jane Trainer)
+                creatorId: 2
             },
             {
                 id: 102,
                 name: 'Data Science Fundamentals',
-                description: 'Explore data analysis, machine learning, and statistical modeling.',
+                description: 'Explore data analysis, machine learning, and statistical modeling to make data-driven decisions.',
                 videoFileName: 'data_science_intro.mp4',
                 pdfFileName: 'data_science_guide.pdf',
-                picture: 'https://placehold.co/128x128/D1FAE5/065F46?text=Data+Science',
+                picture: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=60',
+                sections: [
+                    {
+                        id: 1021,
+                        title: "Introduction to Data Science",
+                        videoDuration: "10 minutes",
+                        questions: [
+                            {
+                                id: 1,
+                                type: 'multiple-choice',
+                                question: 'What is the primary goal of data science?',
+                                options: ['To collect data', 'To extract insights from data', 'To store data', 'To ignore data'],
+                                correctAnswer: 1,
+                                marks: 10
+                            },
+                            {
+                                id: 2,
+                                type: 'true-false',
+                                question: 'Python is commonly used in data science.',
+                                correctAnswer: true,
+                                marks: 5
+                            }
+                        ]
+                    },
+                    {
+                        id: 1022,
+                        title: "Data Analysis Basics",
+                        videoDuration: "14 minutes",
+                        questions: [
+                            {
+                                id: 3,
+                                type: 'multiple-choice',
+                                question: 'Which language is commonly used in data science?',
+                                options: ['Java', 'Python', 'C++'],
+                                correctAnswer: 1,
+                                marks: 10
+                            },
+                            {
+                                id: 4,
+                                type: 'true-false',
+                                question: 'Statistics is an important part of data analysis.',
+                                correctAnswer: true,
+                                marks: 5
+                            }
+                        ]
+                    },
+                    {
+                        id: 1023,
+                        title: "Machine Learning Introduction",
+                        videoDuration: "16 minutes",
+                        questions: [
+                            {
+                                id: 5,
+                                type: 'multiple-choice',
+                                question: 'What does ML stand for in the context of data science?',
+                                options: ['Maximum Learning', 'Machine Learning', 'Multiple Logic', 'Model Language'],
+                                correctAnswer: 1,
+                                marks: 10
+                            }
+                        ]
+                    }
+                ],
                 questions: [
                     { type: 'multiple-choice', text: 'Which language is commonly used in data science?', options: ['Java', 'Python', 'C++'], correctAnswer: 1, marks: 10 },
-                    { type: 'matching', pairs: [{term: 'Regression', definition: 'Predicting continuous values'}, {term: 'Classification', definition: 'Categorizing data'}], marks: 20 }
+                    { type: 'true-false', text: 'Statistics is important in data analysis.', correctAnswer: true, marks: 5 },
+                    { type: 'multiple-choice', text: 'What does ML stand for?', options: ['Maximum Learning', 'Machine Learning', 'Multiple Logic'], correctAnswer: 1, marks: 10 }
                 ],
                 readStatus: false,
-                creatorId: 2 // Created by Training Manager (Jane Trainer)
+                creatorId: 2
             },
             {
                 id: 103,
                 name: 'Advanced Algorithms',
-                description: 'Deep dive into complex algorithms and data structures.',
+                description: 'Master complex algorithms and data structures for optimized problem-solving and efficient code.',
                 videoFileName: 'advanced_algo.mp4',
                 pdfFileName: 'algo_handbook.pdf',
-                picture: 'https://placehold.co/128x128/FFE4E6/E04C6C?text=Algorithms',
+                picture: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=60',
+                sections: [
+                    {
+                        id: 1031,
+                        title: "Algorithm Fundamentals",
+                        videoDuration: "12 minutes",
+                        questions: [
+                            {
+                                id: 1,
+                                type: 'multiple-choice',
+                                question: 'What does Big O notation describe?',
+                                options: ['Algorithm efficiency', 'Program size', 'Memory location', 'Variable name'],
+                                correctAnswer: 0,
+                                marks: 10
+                            },
+                            {
+                                id: 2,
+                                type: 'true-false',
+                                question: 'Big O notation describes the efficiency of an algorithm.',
+                                correctAnswer: true,
+                                marks: 5
+                            }
+                        ]
+                    },
+                    {
+                        id: 1032,
+                        title: "Data Structures",
+                        videoDuration: "18 minutes",
+                        questions: [
+                            {
+                                id: 3,
+                                type: 'multiple-choice',
+                                question: 'Which data structure uses LIFO (Last In First Out)?',
+                                options: ['Queue', 'Stack', 'Array', 'Tree'],
+                                correctAnswer: 1,
+                                marks: 10
+                            },
+                            {
+                                id: 4,
+                                type: 'true-false',
+                                question: 'Arrays provide O(1) access time to any element.',
+                                correctAnswer: true,
+                                marks: 5
+                            }
+                        ]
+                    },
+                    {
+                        id: 1033,
+                        title: "Sorting and Searching",
+                        videoDuration: "20 minutes",
+                        questions: [
+                            {
+                                id: 5,
+                                type: 'multiple-choice',
+                                question: 'Which sorting algorithm has the best average case time complexity?',
+                                options: ['Bubble Sort', 'Quick Sort', 'Insertion Sort', 'Selection Sort'],
+                                correctAnswer: 1,
+                                marks: 15
+                            }
+                        ]
+                    }
+                ],
                 questions: [
-                    { type: 'true-false', text: 'Big O notation describes the efficiency of an algorithm.', correctAnswer: true, marks: 15 }
+                    { type: 'true-false', text: 'Big O notation describes the efficiency of an algorithm.', correctAnswer: true, marks: 15 },
+                    { type: 'multiple-choice', text: 'Which data structure uses LIFO?', options: ['Queue', 'Stack', 'Array'], correctAnswer: 1, marks: 10 },
+                    { type: 'multiple-choice', text: 'Which sorting algorithm has the best average case?', options: ['Bubble Sort', 'Quick Sort', 'Insertion Sort'], correctAnswer: 1, marks: 15 }
                 ],
                 readStatus: false,
-                creatorId: 2 // Created by Training Manager (Jane Trainer)
+                creatorId: 2
             }
         ];
         let currentCourseQuestions = [];
