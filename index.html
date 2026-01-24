@@ -495,18 +495,27 @@
 
     <!-- FIX: Create Assignment Modal (for Training Manager) -->
     <div id="createAssignmentModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
-        <div class="bg-white rounded-lg p-6 shadow-xl max-w-lg w-full transform transition-all duration-300 scale-100 opacity-100">
+        <div class="bg-white rounded-lg p-6 shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-100 opacity-100">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Create New Assignment</h3>
             <form id="createAssignmentForm">
                 <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-medium mb-2" for="assignToStudentSelect">Assign to Student</label>
-                    <select id="assignToStudentSelect" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentTypeSelect">Assignment Type</label>
+                    <select id="assignmentTypeSelect" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="regular">Regular Assignment</option>
+                        <option value="mark-as-read">Mark as Read (Document/Policy)</option>
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">Mark as Read: Student confirms they've read a policy/document</p>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-medium mb-2" for="assignToStudentSelect">Assign to Student(s)</label>
+                    <select id="assignToStudentSelect" multiple class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 h-32">
                         <!-- Students will be populated here by JS -->
                     </select>
+                    <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple students</p>
                 </div>
                 <div class="mb-4">
                     <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentTitleInput">Assignment Title</label>
-                    <input id="assignmentTitleInput" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., Chapter 1 Review">
+                    <input id="assignmentTitleInput" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., Chapter 1 Review or Safety Policy Review">
                 </div>
                  <div class="mb-4">
                     <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentDueDateInput">Due Date</label>
@@ -517,8 +526,8 @@
                     <textarea id="assignmentInstructionsTextarea" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" rows="4" placeholder="Provide clear instructions for the student..."></textarea>
                 </div>
                 <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentDocumentInput">Upload Document (Word, PDF)</label>
-                    <input type="file" id="assignmentDocumentInput" accept=".pdf,.doc,.docx" class="block w-full text-sm text-gray-500
+                    <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentDocumentInput">Upload Document (PDF, PPT, Word) <span class="text-red-500">*</span></label>
+                    <input type="file" id="assignmentDocumentInput" accept=".pdf,.doc,.docx,.ppt,.pptx" class="block w-full text-sm text-gray-500
                         file:mr-4 file:py-2 file:px-4
                         file:rounded-md file:border-0
                         file:text-sm file:font-semibold
@@ -526,9 +535,10 @@
                         hover:file:bg-indigo-100"/>
                     <p id="assignmentDocFileName" class="text-xs text-gray-500 mt-1 hidden"></p>
                 </div>
-                <div class="mb-6">
+                <div class="mb-6" id="assignmentMarksContainer">
                     <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentMarksInput">Total Marks</label>
                     <input id="assignmentMarksInput" type="number" class="w-28 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., 100" min="0">
+                    <p class="text-xs text-gray-500 mt-1">Leave 0 for Mark as Read assignments</p>
                 </div>
                 <div class="flex justify-end space-x-3">
                     <button type="button" onclick="hideCreateAssignmentModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none">
@@ -5325,7 +5335,7 @@
         // Populate student dropdown in the assignment modal
         function populateStudentAssignmentDropdown() {
             const select = document.getElementById('assignToStudentSelect');
-            select.innerHTML = '<option value="">-- Select a Student --</option>';
+            select.innerHTML = '';
             const students = allUsersData.filter(u => u.role === 'student' && u.status === 'active');
             
             if (students.length === 0) {
@@ -5333,7 +5343,10 @@
             } else {
                 students.forEach(student => {
                     const fullName = `${student.name}${student.surname ? ' ' + student.surname : ''}`;
-                    select.innerHTML += `<option value="${student.id}">${fullName}</option>`;
+                    const option = document.createElement('option');
+                    option.value = student.id;
+                    option.textContent = `${fullName} (${student.email})`;
+                    select.appendChild(option);
                 });
             }
         }
@@ -5352,38 +5365,69 @@
             }
         });
 
+        // Handle assignment type change
+        document.getElementById('assignmentTypeSelect').addEventListener('change', function() {
+            const marksContainer = document.getElementById('assignmentMarksContainer');
+            const marksInput = document.getElementById('assignmentMarksInput');
+            if (this.value === 'mark-as-read') {
+                marksInput.value = 0;
+                marksInput.disabled = true;
+                marksContainer.querySelector('p').textContent = 'Mark as Read assignments have no marks';
+            } else {
+                marksInput.disabled = false;
+                marksContainer.querySelector('p').textContent = 'Leave 0 for Mark as Read assignments';
+            }
+        });
+
         // Handle the creation of a new assignment
         createAssignmentForm.addEventListener('submit', function(e) {
             e.preventDefault();
-            const studentId = parseInt(document.getElementById('assignToStudentSelect').value, 10);
+            const assignmentType = document.getElementById('assignmentTypeSelect').value;
+            const selectedOptions = Array.from(document.getElementById('assignToStudentSelect').selectedOptions);
+            const studentIds = selectedOptions.map(opt => parseInt(opt.value, 10)).filter(id => !isNaN(id));
             const title = document.getElementById('assignmentTitleInput').value.trim();
             const instructions = document.getElementById('assignmentInstructionsTextarea').value.trim();
             const dueDate = document.getElementById('assignmentDueDateInput').value;
-            const totalMarks = parseInt(document.getElementById('assignmentMarksInput').value, 10);
+            const totalMarks = parseInt(document.getElementById('assignmentMarksInput').value, 10) || 0;
             const documentFile = assignmentDocumentInput.files[0];
 
-            if (!studentId || !title || !instructions || !totalMarks || !dueDate) {
-                showMessageModal('Input Error', 'Please fill all fields: student, title, instructions, due date, and marks.');
+            if (studentIds.length === 0 || !title || !instructions || !dueDate) {
+                showMessageModal('Input Error', 'Please fill all required fields: at least one student, title, instructions, and due date.');
                 return;
             }
 
-            const newAssignment = {
-                id: Date.now(),
-                title,
-                instructions,
-                dueDate,
-                documentFileName: documentFile ? documentFile.name : null,
-                documentFileUrl: documentFile ? URL.createObjectURL(documentFile) : null,
-                totalMarks,
-                assignedStudentId: studentId,
-                creatorId: loggedInUser.id,
-                status: 'Assigned', // Initial status
-                submissionDate: null,
-                creationDate: new Date().toISOString().slice(0, 10)
-            };
-            allAssignmentsData.push(newAssignment);
+            if (!documentFile) {
+                showMessageModal('Input Error', 'Please upload a document (PDF, PPT, or Word).');
+                return;
+            }
+
+            // Create assignment for each selected student
+            let createdCount = 0;
+            studentIds.forEach(studentId => {
+                    const newAssignment = {
+                    id: Date.now() + studentId + Math.floor(Math.random() * 1000),
+                    type: assignmentType,
+                    title,
+                    instructions,
+                    dueDate,
+                    documentFileName: documentFile.name,
+                    documentFileUrl: URL.createObjectURL(documentFile),
+                    documentType: documentFile.name.split('.').pop().toUpperCase(),
+                    totalMarks,
+                    assignedStudentId: studentId,
+                    creatorId: loggedInUser.id,
+                    status: assignmentType === 'mark-as-read' ? 'Pending Read' : 'Assigned',
+                    submissionDate: null,
+                    markedAsRead: false,
+                    readDate: null,
+                    creationDate: new Date().toISOString().slice(0, 10)
+                };
+                allAssignmentsData.push(newAssignment);
+                createdCount++;
+            });
+            
             renderTMAssignmentsTable();
-            showMessageModal('Success', `Assignment "${title}" has been created and assigned.`);
+            showMessageModal('Success', `Assignment "${title}" created and assigned to ${createdCount} student(s).`);
             hideCreateAssignmentModal();
         });
 
@@ -5405,14 +5449,23 @@
                 let statusColor = 'bg-blue-100 text-blue-800';
                 if (assignment.status === 'Submitted') statusColor = 'bg-green-100 text-green-800';
                 if (assignment.status === 'Graded') statusColor = 'bg-purple-100 text-purple-800';
+                if (assignment.status === 'Pending Read') statusColor = 'bg-yellow-100 text-yellow-800';
+                if (assignment.status === 'Read') statusColor = 'bg-green-100 text-green-800';
+
+                const typeIcon = assignment.type === 'mark-as-read' 
+                    ? '<i class="fas fa-clipboard-check mr-1 text-indigo-600"></i>' 
+                    : '<i class="fas fa-tasks mr-1 text-gray-600"></i>';
 
                 const newRow = tableBody.insertRow();
                 newRow.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${assignment.title}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ${typeIcon}${assignment.title}
+                        ${assignment.documentType ? '<span class="ml-2 text-xs text-gray-400">(' + assignment.documentType + ')</span>' : ''}
+                    </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${studentName}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${assignment.dueDate}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}">${assignment.status}</span></td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${assignment.totalMarks}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${assignment.totalMarks || 'N/A'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <a href="#" class="text-indigo-600 hover:text-indigo-900">View/Grade</a>
                     </td>
@@ -5434,17 +5487,26 @@
             myAssignments.forEach(assignment => {
                 let statusColor = 'bg-blue-100 text-blue-800';
                 if (assignment.status === 'Submitted') statusColor = 'bg-green-100 text-green-800';
+                if (assignment.status === 'Pending Read') statusColor = 'bg-yellow-100 text-yellow-800';
+                if (assignment.status === 'Read') statusColor = 'bg-green-100 text-green-800';
+                
+                const typeIcon = assignment.type === 'mark-as-read' 
+                    ? '<i class="fas fa-clipboard-check mr-2 text-indigo-600"></i>' 
+                    : '<i class="fas fa-tasks mr-2 text-gray-600"></i>';
                 
                 const card = document.createElement('div');
-                card.className = 'bg-white rounded-lg shadow p-4 flex justify-between items-center';
+                card.className = 'bg-white rounded-lg shadow p-4 flex justify-between items-center hover:shadow-md transition';
                 card.innerHTML = `
-                    <div>
-                        <h4 class="font-semibold text-gray-800">${assignment.title}</h4>
-                        <p class="text-sm text-gray-500">Due: ${assignment.dueDate}</p>
+                    <div class="flex-1">
+                        <h4 class="font-semibold text-gray-800">${typeIcon}${assignment.title}</h4>
+                        <p class="text-sm text-gray-500">Due: ${assignment.dueDate}${assignment.type === 'mark-as-read' ? ' | Mark as Read Required' : ' | Marks: ' + (assignment.totalMarks || 0)}</p>
+                        ${assignment.documentFileName ? '<p class="text-xs text-gray-400 mt-1"><i class="fas fa-paperclip mr-1"></i>' + assignment.documentFileName + '</p>' : ''}
                     </div>
                     <div class="flex items-center space-x-4">
                          <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}">${assignment.status}</span>
-                         <button class="view-assignment-btn bg-indigo-600 text-white px-3 py-1 rounded-md text-sm hover:bg-indigo-700" data-assignment-id="${assignment.id}">View</button>
+                         <button class="view-assignment-btn bg-indigo-600 text-white px-3 py-1 rounded-md text-sm hover:bg-indigo-700" data-assignment-id="${assignment.id}">
+                            ${assignment.type === 'mark-as-read' ? 'View & Confirm' : 'View'}
+                         </button>
                     </div>
                 `;
                 container.appendChild(card);
@@ -5458,7 +5520,7 @@
             
             document.getElementById('viewAssignmentTitle').textContent = assignment.title;
             document.getElementById('viewAssignmentDueDate').textContent = assignment.dueDate;
-            document.getElementById('viewAssignmentTotalMarks').textContent = assignment.totalMarks;
+            document.getElementById('viewAssignmentTotalMarks').textContent = assignment.totalMarks || 'N/A';
             document.getElementById('viewAssignmentInstructions').textContent = assignment.instructions;
 
             const docSection = document.getElementById('viewAssignmentDocumentSection');
@@ -5470,21 +5532,37 @@
                 docSection.classList.add('hidden');
             }
             
-            // Handle submit button state
+            // Handle submit button state based on assignment type
             const submitBtn = document.getElementById('submitAssignmentBtn');
-            submitBtn.dataset.assignmentId = assignmentId; // Store id on button
-            if (assignment.status === 'Submitted') {
-                submitBtn.disabled = true;
-                submitBtn.textContent = 'Submitted';
-                submitBtn.classList.replace('bg-green-600', 'bg-gray-400');
-                submitBtn.classList.add('cursor-not-allowed');
+            submitBtn.dataset.assignmentId = assignmentId;
+            
+            if (assignment.type === 'mark-as-read') {
+                // Mark as Read assignment
+                if (assignment.markedAsRead) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="fas fa-check-circle mr-2"></i>Already Read';
+                    submitBtn.classList.replace('bg-green-600', 'bg-gray-400');
+                    submitBtn.classList.add('cursor-not-allowed');
+                } else {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-clipboard-check mr-2"></i>Confirm I Have Read This';
+                    submitBtn.classList.replace('bg-gray-400', 'bg-green-600');
+                    submitBtn.classList.remove('cursor-not-allowed');
+                }
             } else {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = `<i class="fas fa-check-circle mr-2"></i>Mark as Submitted`;
-                submitBtn.classList.replace('bg-gray-400', 'bg-green-600');
-                submitBtn.classList.remove('cursor-not-allowed');
+                // Regular assignment
+                if (assignment.status === 'Submitted') {
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = 'Submitted';
+                    submitBtn.classList.replace('bg-green-600', 'bg-gray-400');
+                    submitBtn.classList.add('cursor-not-allowed');
+                } else {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = `<i class="fas fa-check-circle mr-2"></i>Mark as Submitted`;
+                    submitBtn.classList.replace('bg-gray-400', 'bg-green-600');
+                    submitBtn.classList.remove('cursor-not-allowed');
+                }
             }
-
 
             viewAssignmentModal.classList.remove('hidden');
             viewAssignmentModal.classList.add('show');
@@ -5508,12 +5586,21 @@
             const assignmentId = parseInt(this.dataset.assignmentId, 10);
             const assignment = allAssignmentsData.find(a => a.id === assignmentId);
             if (assignment) {
-                assignment.status = 'Submitted';
-                assignment.submissionDate = new Date().toISOString().slice(0, 10);
-                showMessageModal('Submitted', `Assignment "${assignment.title}" has been marked as submitted.`);
+                if (assignment.type === 'mark-as-read') {
+                    // Mark as Read confirmation
+                    assignment.markedAsRead = true;
+                    assignment.readDate = new Date().toISOString().slice(0, 10);
+                    assignment.status = 'Read';
+                    showMessageModal('Confirmed', `You have confirmed reading: "${assignment.title}". This has been recorded.`);
+                } else {
+                    // Regular assignment submission
+                    assignment.status = 'Submitted';
+                    assignment.submissionDate = new Date().toISOString().slice(0, 10);
+                    showMessageModal('Submitted', `Assignment "${assignment.title}" has been marked as submitted.`);
+                }
                 hideViewAssignmentModal();
-                renderStudentAssignmentsList(); // Refresh the student list to show new status
-                renderTMAssignmentsTable(); // Refresh TM list to show new status
+                renderStudentAssignmentsList();
+                renderTMAssignmentsTable();
             }
         });
 
