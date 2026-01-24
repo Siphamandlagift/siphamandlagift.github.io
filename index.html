@@ -645,46 +645,77 @@
                     </div>
                 </div>
 
-                <!-- Section/Chapter Tabs -->
+                <!-- Main Tabs: Videos vs Documents -->
                 <div class="mb-6 border-b border-gray-200">
-                    <div class="flex overflow-x-auto space-x-4 pb-3" id="sectionTabsContainer">
-                        <!-- Section tabs will be inserted here -->
+                    <div class="flex space-x-4 pb-3" id="mainTabsContainer">
+                        <button onclick="switchCourseTab('videos')" class="px-4 py-2 font-medium text-gray-600 hover:text-gray-800 border-b-2 border-transparent hover:border-indigo-600 transition cursor-pointer" id="videosTabBtn">
+                            <i class="fas fa-video mr-2"></i>Videos
+                        </button>
+                        <button onclick="switchCourseTab('documents')" class="px-4 py-2 font-medium text-gray-600 hover:text-gray-800 border-b-2 border-transparent hover:border-indigo-600 transition cursor-pointer" id="documentsTabBtn">
+                            <i class="fas fa-file-alt mr-2"></i>Documents
+                        </button>
                     </div>
                 </div>
 
-                <!-- Video Placeholder -->
-                <div class="mb-6">
-                    <div id="videoPlayer" class="bg-black rounded-lg overflow-hidden flex items-center justify-center h-96 mb-4 relative group cursor-pointer">
-                        <div class="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center">
-                            <i class="fas fa-play-circle text-6xl text-white mb-4 group-hover:scale-110 transition"></i>
-                            <p class="text-white text-lg">Video Player</p>
-                            <p class="text-gray-400 text-sm mt-2">Click to play section video</p>
+                <!-- Videos Tab Content -->
+                <div id="videosContent" class="block">
+                    <!-- Section/Chapter Tabs -->
+                    <div class="mb-6 border-b border-gray-200">
+                        <div class="flex overflow-x-auto space-x-4 pb-3" id="sectionTabsContainer">
+                            <!-- Section tabs will be inserted here -->
                         </div>
                     </div>
-                    <div class="bg-gray-100 p-3 rounded text-sm text-gray-600">
-                        <p><strong>Video Duration:</strong> <span id="courseVideoDuration">15 minutes</span></p>
+
+                    <!-- Video Placeholder -->
+                    <div class="mb-6">
+                        <div id="videoPlayer" class="bg-black rounded-lg overflow-hidden flex items-center justify-center h-96 mb-4 relative group cursor-pointer">
+                            <div class="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center">
+                                <i class="fas fa-play-circle text-6xl text-white mb-4 group-hover:scale-110 transition"></i>
+                                <p class="text-white text-lg">Video Player</p>
+                                <p class="text-gray-400 text-sm mt-2">Click to play section video</p>
+                            </div>
+                        </div>
+                        <div class="bg-gray-100 p-3 rounded text-sm text-gray-600">
+                            <p><strong>Video Duration:</strong> <span id="courseVideoDuration">15 minutes</span></p>
+                        </div>
+                    </div>
+
+                    <!-- Section Title -->
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4" id="sectionTitle">Section Title</h3>
+
+                    <!-- Questions Section -->
+                    <div class="border-t pt-6">
+                        <h3 class="text-xl font-semibold text-gray-800 mb-4">Section Questions</h3>
+                        <div id="courseQuestionsContainer" class="space-y-4">
+                            <p class="text-gray-500 text-center py-8">Loading questions...</p>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex justify-between mt-8 pt-6 border-t border-gray-200">
+                        <button onclick="closeCourseViewer()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none">
+                            Close
+                        </button>
+                        <button id="submitCourseAnswersBtn" class="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none">
+                            <i class="fas fa-check mr-2"></i>Submit Answers
+                        </button>
                     </div>
                 </div>
 
-                <!-- Section Title -->
-                <h3 class="text-lg font-semibold text-gray-800 mb-4" id="sectionTitle">Section Title</h3>
-
-                <!-- Questions Section -->
-                <div class="border-t pt-6">
-                    <h3 class="text-xl font-semibold text-gray-800 mb-4">Section Questions</h3>
-                    <div id="courseQuestionsContainer" class="space-y-4">
-                        <p class="text-gray-500 text-center py-8">Loading questions...</p>
+                <!-- Documents Tab Content -->
+                <div id="documentsContent" class="hidden">
+                    <div class="space-y-4">
+                        <div id="courseDocumentsContainer">
+                            <p class="text-gray-500 text-center py-8">Loading documents...</p>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Action Buttons -->
-                <div class="flex justify-between mt-8 pt-6 border-t border-gray-200">
-                    <button onclick="closeCourseViewer()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none">
-                        Close
-                    </button>
-                    <button id="submitCourseAnswersBtn" class="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none">
-                        <i class="fas fa-check mr-2"></i>Submit Answers
-                    </button>
+                    <!-- Action Buttons -->
+                    <div class="flex justify-between mt-8 pt-6 border-t border-gray-200">
+                        <button onclick="closeCourseViewer()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none">
+                            Close
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -3285,6 +3316,44 @@
                     { type: 'true-false', text: 'Company induction is mandatory for all new employees.', correctAnswer: true, marks: 5 },
                     { type: 'multiple-choice', text: 'What should you do if you witness a workplace violation?', options: ['Ignore it', 'Report it to management or HR', 'Handle it yourself', 'Tell your colleagues'], correctAnswer: 1, marks: 10 }
                 ],
+                documents: [
+                    {
+                        id: 1001,
+                        title: 'Company Induction Presentation',
+                        type: 'ppt',
+                        fileName: 'company_induction.ppt',
+                        description: 'PowerPoint presentation covering company overview, mission, values, and initial onboarding steps.',
+                        icon: 'fas fa-file-powerpoint',
+                        color: 'orange',
+                        isRead: false,
+                        createdDate: '2024-01-10',
+                        fileSize: '3.5 MB'
+                    },
+                    {
+                        id: 1002,
+                        title: 'Company Policies & Procedures',
+                        type: 'pdf',
+                        fileName: 'company_policies.pdf',
+                        description: 'Comprehensive PDF document outlining all company policies, code of conduct, and operational procedures.',
+                        icon: 'fas fa-file-pdf',
+                        color: 'red',
+                        isRead: false,
+                        createdDate: '2024-01-10',
+                        fileSize: '2.1 MB'
+                    },
+                    {
+                        id: 1003,
+                        title: 'Employee Handbook',
+                        type: 'pdf',
+                        fileName: 'employee_handbook.pdf',
+                        description: 'Complete employee handbook with benefits, leave policies, and workplace expectations.',
+                        icon: 'fas fa-file-pdf',
+                        color: 'red',
+                        isRead: false,
+                        createdDate: '2024-01-10',
+                        fileSize: '1.8 MB'
+                    }
+                ],
                 readStatus: false,
                 creatorId: 2
             },
@@ -3361,6 +3430,32 @@
                     { type: 'true-false', text: 'Statistics is important in data analysis.', correctAnswer: true, marks: 5 },
                     { type: 'multiple-choice', text: 'What does ML stand for?', options: ['Maximum Learning', 'Machine Learning', 'Multiple Logic'], correctAnswer: 1, marks: 10 }
                 ],
+                documents: [
+                    {
+                        id: 2001,
+                        title: 'Data Science Fundamentals Guide',
+                        type: 'ppt',
+                        fileName: 'data_science_guide.ppt',
+                        description: 'Comprehensive PowerPoint guide introducing data science concepts, tools, and best practices.',
+                        icon: 'fas fa-file-powerpoint',
+                        color: 'orange',
+                        isRead: false,
+                        createdDate: '2024-01-15',
+                        fileSize: '4.2 MB'
+                    },
+                    {
+                        id: 2002,
+                        title: 'Data Safety & Privacy Policy',
+                        type: 'pdf',
+                        fileName: 'data_safety_policy.pdf',
+                        description: 'Important PDF document on data safety, privacy regulations, and compliance requirements.',
+                        icon: 'fas fa-file-pdf',
+                        color: 'red',
+                        isRead: false,
+                        createdDate: '2024-01-15',
+                        fileSize: '2.5 MB'
+                    }
+                ],
                 readStatus: false,
                 creatorId: 2
             },
@@ -3436,6 +3531,32 @@
                     { type: 'true-false', text: 'Big O notation describes the efficiency of an algorithm.', correctAnswer: true, marks: 15 },
                     { type: 'multiple-choice', text: 'Which data structure uses LIFO?', options: ['Queue', 'Stack', 'Array'], correctAnswer: 1, marks: 10 },
                     { type: 'multiple-choice', text: 'Which sorting algorithm has the best average case?', options: ['Bubble Sort', 'Quick Sort', 'Insertion Sort'], correctAnswer: 1, marks: 15 }
+                ],
+                documents: [
+                    {
+                        id: 3001,
+                        title: 'Algorithm Design Guide',
+                        type: 'ppt',
+                        fileName: 'algorithms_design.ppt',
+                        description: 'PowerPoint covering algorithm design paradigms, Big O analysis, and optimization techniques.',
+                        icon: 'fas fa-file-powerpoint',
+                        color: 'orange',
+                        isRead: false,
+                        createdDate: '2024-01-20',
+                        fileSize: '5.1 MB'
+                    },
+                    {
+                        id: 3002,
+                        title: 'Code of Conduct & Ethics',
+                        type: 'pdf',
+                        fileName: 'code_of_conduct.pdf',
+                        description: 'PDF document covering ethical programming practices and professional conduct guidelines.',
+                        icon: 'fas fa-file-pdf',
+                        color: 'red',
+                        isRead: false,
+                        createdDate: '2024-01-20',
+                        fileSize: '1.9 MB'
+                    }
                 ],
                 readStatus: false,
                 creatorId: 2
@@ -5391,7 +5512,37 @@
           },
           { 
             id: 2, 
-            name: "Fire Fighting", 
+                        name: "Fire Fighting",
+                        documents: [
+                            {
+                                id: 4003,
+                                title: 'Fire Safety Training',
+                                type: 'ppt',
+                                fileName: 'fire_safety_training.ppt',
+                                description: 'Comprehensive PowerPoint on fire detection, prevention, and emergency procedures.',
+                                icon: 'fas fa-file-powerpoint',
+                                color: 'orange',
+                                isRead: true,
+                                createdDate: '2023-12-20',
+                                fileSize: '3.2 MB'
+                            },
+                            {
+                                id: 4004,
+                                title: 'Fire Safety Policy',
+                                type: 'pdf',
+                                fileName: 'fire_safety_policy.pdf',
+                                description: 'PDF document outlining fire safety policies and procedures.',
+                                icon: 'fas fa-file-pdf',
+                                color: 'red',
+                                isRead: true,
+                                createdDate: '2023-12-20',
+                                fileSize: '2.0 MB'
+                            }
+                        ]
+                    },
+                    { 
+                        id: 2, 
+                        name: "Fire Fighting",
             progress: 100,
             picture: "https://images.unsplash.com/photo-1559838106-d8493e3e4ffd?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=60",
             description: "Comprehensive fire safety and firefighting procedures",
@@ -5572,6 +5723,58 @@ function showStudentCourses(type) {
   });
 }
 
+                        documents: [
+                            {
+                                id: 4005,
+                                title: 'First Aid Procedures',
+                                type: 'ppt',
+                                fileName: 'first_aid_procedures.ppt',
+                                description: 'PowerPoint covering emergency response protocols and first aid techniques.',
+                                icon: 'fas fa-file-powerpoint',
+                                color: 'orange',
+                                isRead: false,
+                                createdDate: '2024-01-12',
+                                fileSize: '3.7 MB'
+                            },
+                            {
+                                id: 4006,
+                                title: 'Medical Emergency Guidelines',
+                                type: 'pdf',
+                                fileName: 'medical_emergency_guidelines.pdf',
+                                description: 'PDF with detailed medical emergency guidelines and response procedures.',
+                                icon: 'fas fa-file-pdf',
+                                color: 'red',
+                                isRead: false,
+                                createdDate: '2024-01-12',
+                                fileSize: '2.2 MB'
+                            }
+                        ]
+                        documents: [
+                            {
+                                id: 4001,
+                                title: 'Health & Safety Overview',
+                                type: 'ppt',
+                                fileName: 'health_safety_overview.ppt',
+                                description: 'PowerPoint presentation on workplace health and safety fundamentals.',
+                                icon: 'fas fa-file-powerpoint',
+                                color: 'orange',
+                                isRead: false,
+                                createdDate: '2024-01-05',
+                                fileSize: '2.8 MB'
+                            },
+                            {
+                                id: 4002,
+                                title: 'Safety Rules & Compliance',
+                                type: 'pdf',
+                                fileName: 'safety_rules.pdf',
+                                description: 'Complete PDF document with all safety rules and compliance requirements.',
+                                icon: 'fas fa-file-pdf',
+                                color: 'red',
+                                isRead: false,
+                                createdDate: '2024-01-05',
+                                fileSize: '1.6 MB'
+                            }
+                        ]
 // Function to view student course with sections, video and questions
 function viewStudentCourse(courseId, courseName) {
     const course = studentCourses.find(c => c.id === courseId);
@@ -5639,11 +5842,30 @@ function viewStudentCourse(courseId, courseName) {
     document.getElementById('courseViewerCourseId').textContent = 'COURSE-' + courseId;
     document.getElementById('courseViewerProgress').textContent = course.progress || 0;
 
+    // Store current course ID for later use
+    window.currentViewingCourseId = courseId;
+
     // Create section tabs
     loadSectionTabs(course);
 
     // Load first section by default
     loadSection(course.sections[0].id, courseId);
+
+    // Reset to Videos tab
+    const videosContent = document.getElementById('videosContent');
+    const documentsContent = document.getElementById('documentsContent');
+    const videosTabBtn = document.getElementById('videosTabBtn');
+    const documentsTabBtn = document.getElementById('documentsTabBtn');
+    
+    videosContent.classList.remove('hidden');
+    videosContent.classList.add('block');
+    documentsContent.classList.add('hidden');
+    documentsContent.classList.remove('block');
+    
+    videosTabBtn.classList.add('border-b-2', 'border-indigo-600', 'text-indigo-600');
+    videosTabBtn.classList.remove('border-transparent', 'text-gray-600');
+    documentsTabBtn.classList.remove('border-b-2', 'border-indigo-600', 'text-indigo-600');
+    documentsTabBtn.classList.add('border-transparent', 'text-gray-600');
 
     // Show the modal
     document.getElementById('courseViewerModal').classList.remove('hidden');
@@ -5772,6 +5994,173 @@ function closeCourseViewer() {
     document.getElementById('courseViewerModal').classList.add('hidden');
     document.getElementById('courseViewerModal').classList.remove('show');
 }
+
+// Function to switch between Videos and Documents tabs
+function switchCourseTab(tabName) {
+    const videosContent = document.getElementById('videosContent');
+    const documentsContent = document.getElementById('documentsContent');
+    const videosTabBtn = document.getElementById('videosTabBtn');
+    const documentsTabBtn = document.getElementById('documentsTabBtn');
+    
+    if (tabName === 'videos') {
+        videosContent.classList.remove('hidden');
+        videosContent.classList.add('block');
+        documentsContent.classList.remove('block');
+        documentsContent.classList.add('hidden');
+        
+        videosTabBtn.classList.add('border-b-2', 'border-indigo-600', 'text-indigo-600');
+        videosTabBtn.classList.remove('border-transparent', 'text-gray-600');
+        documentsTabBtn.classList.remove('border-b-2', 'border-indigo-600', 'text-indigo-600');
+        documentsTabBtn.classList.add('border-transparent', 'text-gray-600');
+    } else if (tabName === 'documents') {
+        documentsContent.classList.remove('hidden');
+        documentsContent.classList.add('block');
+        videosContent.classList.remove('block');
+        videosContent.classList.add('hidden');
+        
+        documentsTabBtn.classList.add('border-b-2', 'border-indigo-600', 'text-indigo-600');
+        documentsTabBtn.classList.remove('border-transparent', 'text-gray-600');
+        videosTabBtn.classList.remove('border-b-2', 'border-indigo-600', 'text-indigo-600');
+        videosTabBtn.classList.add('border-transparent', 'text-gray-600');
+        
+        // Load documents for current course
+        if (window.currentViewingCourseId) {
+            loadCourseDocuments(window.currentViewingCourseId);
+        }
+    }
+}
+
+// Function to load and display course documents
+function loadCourseDocuments(courseId) {
+    const course = allCoursesData.find(c => c.id === courseId);
+    const container = document.getElementById('courseDocumentsContainer');
+    
+    if (!container) return;
+    
+    if (!course || !course.documents || course.documents.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-8">No documents available for this course.</p>';
+        return;
+    }
+    
+    let html = '<div class="space-y-4">';
+    course.documents.forEach(doc => {
+        const readBadge = doc.isRead 
+            ? '<span class="inline-block px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full ml-2"><i class="fas fa-check mr-1"></i>Read</span>'
+            : '<span class="inline-block px-3 py-1 bg-yellow-100 text-yellow-700 text-xs font-medium rounded-full ml-2"><i class="fas fa-exclamation-circle mr-1"></i>Not Read</span>';
+        
+        html += `
+            <div class="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-md transition">
+                <div class="flex items-start justify-between">
+                    <div class="flex items-start flex-1">
+                        <div class="p-3 rounded-lg bg-${doc.color}-50 text-${doc.color}-600 mr-4 flex-shrink-0">
+                            <i class="${doc.icon} text-2xl"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex items-center">
+                                <h4 class="text-lg font-semibold text-gray-800">${doc.title}</h4>
+                                ${readBadge}
+                            </div>
+                            <p class="text-sm text-gray-600 mt-1">${doc.description}</p>
+                            <div class="flex items-center space-x-4 mt-3 text-xs text-gray-500">
+                                <span><i class="fas fa-calendar mr-1"></i>${doc.createdDate}</span>
+                                <span><i class="fas fa-database mr-1"></i>${doc.fileSize}</span>
+                                <span class="uppercase font-medium">${doc.type}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex space-x-2 flex-shrink-0 ml-4">
+                        <button onclick="viewDocument(${courseId}, ${doc.id})" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition">
+                            <i class="fas fa-eye mr-1"></i>View
+                        </button>
+                        <button onclick="markDocumentAsRead(${courseId}, ${doc.id})" class="px-4 py-2 ${doc.isRead ? 'bg-gray-400' : 'bg-green-600'} text-white text-sm rounded-md ${!doc.isRead ? 'hover:bg-green-700' : 'cursor-not-allowed'} transition">
+                            <i class="fas fa-check mr-1"></i>${doc.isRead ? 'Read' : 'Mark as Read'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// Function to view a document (PDF or PPT)
+function viewDocument(courseId, docId) {
+    const course = allCoursesData.find(c => c.id === courseId);
+    if (!course) return;
+    
+    const doc = course.documents.find(d => d.id === docId);
+    if (!doc) return;
+    
+    // Create a modal to view the document
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-[9999] flex items-center justify-center p-4 overflow-y-auto';
+    modal.innerHTML = `
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-5xl m-4">
+            <div class="flex justify-between items-center p-6 border-b border-gray-200 sticky top-0 bg-white rounded-t-lg">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-800">${doc.title}</h2>
+                    <p class="text-sm text-gray-600 mt-1">${doc.type.toUpperCase()} • ${doc.fileSize}</p>
+                </div>
+                <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700 text-3xl font-light">×</button>
+            </div>
+            <div class="flex-1 bg-gray-100 p-6 max-h-[70vh] overflow-y-auto">
+                <div class="bg-white rounded-lg p-8 text-center">
+                    <div class="mb-6">
+                        <i class="${doc.icon} text-6xl text-${doc.color}-500 mb-4"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-2">${doc.title}</h3>
+                    <p class="text-gray-600 mb-6">${doc.description}</p>
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                        <p class="text-sm text-blue-800">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            This is a simulated document viewer. In a production environment, this would display the actual ${doc.type.toUpperCase()} file content.
+                        </p>
+                    </div>
+                    <div class="space-y-3 text-gray-600 text-sm">
+                        <p><strong>File Name:</strong> ${doc.fileName}</p>
+                        <p><strong>Type:</strong> ${doc.type === 'ppt' ? 'PowerPoint Presentation' : 'PDF Document'}</p>
+                        <p><strong>File Size:</strong> ${doc.fileSize}</p>
+                        <p><strong>Created:</strong> ${doc.createdDate}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6 border-t border-gray-200 bg-gray-50 flex justify-between items-center rounded-b-lg sticky bottom-0">
+                <p class="text-sm text-gray-600"><i class="fas fa-file-${doc.type === 'ppt' ? 'powerpoint text-orange-500' : 'pdf text-red-500'} mr-2"></i>${doc.type === 'ppt' ? 'PowerPoint File' : 'PDF File'}</p>
+                <div class="flex space-x-3">
+                    <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 transition">
+                        Close
+                    </button>
+                    <button onclick="markDocumentAsRead(${courseId}, ${docId}); this.closest('.fixed').remove();" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
+                        <i class="fas fa-check mr-2"></i>Mark as Read & Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+// Function to mark a document as read
+function markDocumentAsRead(courseId, docId) {
+    const course = allCoursesData.find(c => c.id === courseId);
+    if (!course) return;
+    
+    const doc = course.documents.find(d => d.id === docId);
+    if (!doc) return;
+    
+    doc.isRead = !doc.isRead;
+    
+    // Reload the documents display
+    loadCourseDocuments(courseId);
+    
+    // Show confirmation message
+    showMessageModal('Success', doc.isRead 
+        ? `"${doc.title}" has been marked as read!` 
+        : `"${doc.title}" has been marked as unread!`
+    );
+}
+
 
 // Handle course answer submission
 document.addEventListener('DOMContentLoaded', function() {
