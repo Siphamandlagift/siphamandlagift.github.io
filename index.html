@@ -2764,6 +2764,15 @@
                     return;
                 }
                 
+                // Show sidebar and content area after successful login
+                const sidebar = document.getElementById('sidebar');
+                const contentArea = document.getElementById('contentArea');
+                const main = document.querySelector('main');
+                
+                if (sidebar) sidebar.style.display = '';
+                if (contentArea) contentArea.style.display = '';
+                if (main) main.style.display = '';
+                
                 // Set the logged-in user data from the dummy data
                 loggedInUser.id = userLoggedIn.id;
                 loggedInUser.name = userLoggedIn.name;
@@ -2832,6 +2841,15 @@
             localStorage.removeItem('loggedInUser');
             showMessageModal('Logged Out', 'You have been successfully logged out.');
             document.getElementById('loginModal').classList.remove('hidden');
+            
+            // Hide sidebar and content area
+            const sidebar = document.getElementById('sidebar');
+            const contentArea = document.getElementById('contentArea');
+            const main = document.querySelector('main');
+            
+            if (sidebar) sidebar.style.display = 'none';
+            if (contentArea) contentArea.style.display = 'none';
+            if (main) main.style.display = 'none';
             
             // Reset UI
             document.getElementById('sidebarUsername').textContent = '';
@@ -6675,28 +6693,28 @@ document.addEventListener("DOMContentLoaded", () => {
                 greetingName.textContent = 'Admin';
             }
             
-            // Ensure sidebar and content are visible
+            // Hide sidebar and content initially - show only after login
             const sidebar = document.getElementById('sidebar');
             const contentArea = document.getElementById('contentArea');
             const main = document.querySelector('main');
             
-            if (sidebar) sidebar.style.display = '';
-            if (contentArea) contentArea.style.display = '';
-            if (main) main.style.display = '';
+            if (sidebar) sidebar.style.display = 'none';
+            if (contentArea) contentArea.style.display = 'none';
+            if (main) main.style.display = 'none';
             
-            // Show admin nav by default
+            // Hide nav sections by default
             const adminNav = document.getElementById('adminNav');
             const trainingManagerNav = document.getElementById('trainingManagerNav');
             const studentNav = document.getElementById('studentNav');
             
-            if (adminNav) adminNav.classList.remove('hidden');
+            if (adminNav) adminNav.classList.add('hidden');
             if (trainingManagerNav) trainingManagerNav.classList.add('hidden');
             if (studentNav) studentNav.classList.add('hidden');
             
-            // Hide login modal
+            // Show login modal - requires authentication
             const loginModal = document.getElementById('loginModal');
             if (loginModal) {
-                loginModal.classList.add('hidden');
+                loginModal.classList.remove('hidden');
             }
             
             // Set first section as active
