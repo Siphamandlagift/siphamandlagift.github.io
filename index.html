@@ -571,6 +571,43 @@
         </div>
     </div>
 
+    <!-- Roll Out Documents Modal (Training Manager) -->
+    <div id="rollOutDocumentsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 shadow-xl max-w-3xl w-full transform transition-all duration-300">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold text-gray-900">Roll Out Documents</h3>
+                <button type="button" onclick="hideRollOutDocumentsModal()" class="text-gray-500 hover:text-gray-700 text-2xl">×</button>
+            </div>
+            <p class="text-sm text-gray-600 mb-6">Select documents from the course and the students to roll them out to. Students will see them as required and can mark them as read.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Documents list -->
+                <div>
+                    <h4 class="text-md font-semibold text-gray-800 mb-2">Course Documents</h4>
+                    <div id="rolloutDocumentsList" class="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-md p-3">
+                        <p class="text-gray-500 text-sm text-center py-4">No documents found for this course.</p>
+                    </div>
+                </div>
+                <!-- Students list -->
+                <div>
+                    <h4 class="text-md font-semibold text-gray-800 mb-2">Select Students</h4>
+                    <div id="rolloutStudentsList" class="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded-md p-3">
+                        <p class="text-gray-500 text-sm text-center py-4">No students available.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3 mt-6">
+                <button type="button" onclick="hideRollOutDocumentsModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none">
+                    Cancel
+                </button>
+                <button type="button" onclick="saveRolloutDocuments()" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none">
+                    Roll Out
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Certificate Viewer Modal -->
     <div id="certificateViewerModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-lg p-6 shadow-xl max-w-2xl w-full transform transition-all duration-300 scale-100 opacity-100">
@@ -824,6 +861,10 @@
                     <a href="#" class="sidebar-item" data-section="badges-created">
                         <i class="fas fa-medal mr-3"></i>
                         <span class="sidebar-text">Badges</span>
+                    </a>
+                    <a href="#" class="sidebar-item" data-section="document-rollouts">
+                        <i class="fas fa-clipboard-check mr-3"></i>
+                        <span class="sidebar-text">Rollout Tracking</span>
                     </a>
                 </div>
                 
@@ -1649,6 +1690,47 @@
                         </div>
                         <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
                             <div class="text-sm text-gray-500">Showing <span class="font-medium" id="myCoursesShowingCount">0</span> to <span class="font-medium" id="myCoursesTotalCountDisplay">0</span> of <span class="font-medium" id="myCoursesTotalCount">0</span> results</div>
+                            <div class="flex space-x-2">
+                                <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>Previous</button>
+                                <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>1</button>
+                                <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>Next</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Document Rollouts Content (Training Manager) -->
+                <div id="document-rolloutsContent" class="content-section">
+                    <div class="mb-6">
+                        <h2 class="text-2xl font-semibold text-gray-800">Document Rollouts</h2>
+                        <p class="text-gray-600">Track assigned documents (PPT/PDF) per student and course.</p>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-gray-800">Rollout Assignments</h3>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Document</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Date</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Read Status</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Read Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="documentRolloutsTableBody">
+                                    <tr>
+                                        <td colspan="6" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No rollouts yet. Use "Roll Out Docs" under My Courses.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                            <div class="text-sm text-gray-500">Showing <span class="font-medium" id="rolloutsShowingCount">0</span> to <span class="font-medium" id="rolloutsTotalCountDisplay">0</span> of <span class="font-medium" id="rolloutsTotalCount">0</span> results</div>
                             <div class="flex space-x-2">
                                 <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>Previous</button>
                                 <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>1</button>
@@ -4050,6 +4132,9 @@
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalMarks}</td>`;
                     newRow.insertCell().outerHTML = `
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button class="text-indigo-600 hover:text-indigo-900 mr-4" onclick="openRolloutDocuments(${course.id})">
+                                <i class="fas fa-bullhorn mr-1"></i> Roll Out Docs
+                            </button>
                             <a href="#" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</a>
                             <a href="#" class="text-red-600 hover:text-red-900">Delete</a>
                         </td>
@@ -4061,6 +4146,157 @@
             document.getElementById('myCoursesTotalCount').textContent = currentCoursesCount;
             document.getElementById('myCoursesShowingCount').textContent = currentCoursesCount > 0 ? 1 : 0;
             document.getElementById('myCoursesTotalCountDisplay').textContent = currentCoursesCount;
+        }
+
+        // Open Roll Out Documents modal for a course
+        function openRolloutDocuments(courseId) {
+            const course = allCoursesData.find(c => c.id === courseId);
+            if (!course) {
+                showMessageModal('Not Found', 'Could not find the selected course.');
+                return;
+            }
+            window.rolloutCourseId = courseId;
+
+            // Populate documents list
+            const docsContainer = document.getElementById('rolloutDocumentsList');
+            docsContainer.innerHTML = '';
+            if (!course.documents || course.documents.length === 0) {
+                docsContainer.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">No documents found for this course.</p>';
+            } else {
+                course.documents.forEach(doc => {
+                    const wrapper = document.createElement('label');
+                    wrapper.className = 'flex items-center p-2 rounded hover:bg-gray-50 cursor-pointer';
+                    wrapper.innerHTML = `
+                        <input type="checkbox" class="rollout-doc-checkbox mr-3" value="${doc.id}">
+                        <span class="text-sm text-gray-800">${doc.title} <span class="ml-2 text-xs text-gray-500">(${doc.type.toUpperCase()}, ${doc.fileSize})</span></span>
+                    `;
+                    docsContainer.appendChild(wrapper);
+                });
+            }
+
+            // Populate students list
+            const studentsContainer = document.getElementById('rolloutStudentsList');
+            studentsContainer.innerHTML = '';
+            const students = allUsersData.filter(u => u.role === 'student');
+            if (students.length === 0) {
+                studentsContainer.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">No students available. Add students via User Management first.</p>';
+            } else {
+                students.forEach(stu => {
+                    const wrapper = document.createElement('label');
+                    wrapper.className = 'flex items-center p-2 rounded hover:bg-gray-50 cursor-pointer';
+                    wrapper.innerHTML = `
+                        <input type="checkbox" class="rollout-student-checkbox mr-3" value="${stu.id}">
+                        <span class="text-sm text-gray-800">${stu.name}${stu.surname ? ' ' + stu.surname : ''} <span class="ml-2 text-xs text-gray-500">${stu.email}</span></span>
+                    `;
+                    studentsContainer.appendChild(wrapper);
+                });
+            }
+
+            // Show modal
+            const modal = document.getElementById('rollOutDocumentsModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('show');
+        }
+
+        function hideRollOutDocumentsModal() {
+            const modal = document.getElementById('rollOutDocumentsModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('show');
+            window.rolloutCourseId = null;
+        }
+
+        function saveRolloutDocuments() {
+            const courseId = window.rolloutCourseId;
+            if (!courseId) {
+                showMessageModal('Error', 'No course selected.');
+                return;
+            }
+            const selectedDocIds = Array.from(document.querySelectorAll('.rollout-doc-checkbox:checked')).map(el => parseInt(el.value));
+            const selectedStudentIds = Array.from(document.querySelectorAll('.rollout-student-checkbox:checked')).map(el => parseInt(el.value));
+
+            if (selectedDocIds.length === 0 || selectedStudentIds.length === 0) {
+                showMessageModal('Missing Selection', 'Please select at least one document and one student.');
+                return;
+            }
+
+            let createdCount = 0;
+            selectedStudentIds.forEach(studentId => {
+                selectedDocIds.forEach(documentId => {
+                    const exists = documentRollouts.some(r => r.courseId === courseId && r.documentId === documentId && r.studentId === studentId);
+                    if (!exists) {
+                        documentRollouts.push({
+                            id: Date.now() + Math.floor(Math.random()*1000),
+                            courseId,
+                            documentId,
+                            studentId,
+                            assignedBy: loggedInUser.id,
+                            assignedDate: new Date().toISOString(),
+                            isRead: false,
+                            readDate: null
+                        });
+                        createdCount++;
+                    }
+                });
+            });
+
+            hideRollOutDocumentsModal();
+            showMessageModal('Rolled Out', `Assigned ${selectedDocIds.length} document(s) to ${selectedStudentIds.length} student(s). ${createdCount} new assignment(s) created.`);
+        }
+
+        // Render Training Manager Document Rollouts Table
+        function renderDocumentRolloutsTable() {
+            const tbody = document.getElementById('documentRolloutsTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            if (!documentRollouts || documentRollouts.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No rollouts yet. Use "Roll Out Docs" under My Courses.</td>
+                    </tr>
+                `;
+            } else {
+                documentRollouts.forEach(r => {
+                    const course = allCoursesData.find(c => c.id === r.courseId);
+                    const courseName = course ? course.name : 'Unknown Course';
+                    let docTitle = 'Unknown Document';
+                    let docType = '';
+                    if (course && Array.isArray(course.documents)) {
+                        const doc = course.documents.find(d => d.id === r.documentId);
+                        if (doc) {
+                            docTitle = doc.title;
+                            docType = doc.type ? doc.type.toUpperCase() : '';
+                        }
+                    }
+                    const student = allUsersData.find(u => u.id === r.studentId);
+                    const studentName = student ? `${student.name}${student.surname ? ' ' + student.surname : ''}` : 'Unknown Student';
+                    const assignedDateStr = r.assignedDate ? new Date(r.assignedDate).toLocaleString() : '-';
+                    const readStatusBadge = r.isRead
+                        ? '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Read</span>'
+                        : '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Not Read</span>';
+                    const readDateStr = r.readDate ? new Date(r.readDate).toLocaleString() : '-';
+
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${courseName}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${docTitle}${docType ? ' <span class="ml-2 text-xs text-gray-400">(' + docType + ')</span>' : ''}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${studentName}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${assignedDateStr}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">${readStatusBadge}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${readDateStr}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+
+            const total = documentRollouts ? documentRollouts.length : 0;
+            const showing = total > 0 ? 1 : 0;
+            const showingEl = document.getElementById('rolloutsShowingCount');
+            const totalEl = document.getElementById('rolloutsTotalCount');
+            const totalDispEl = document.getElementById('rolloutsTotalCountDisplay');
+            if (showingEl) showingEl.textContent = showing;
+            if (totalEl) totalEl.textContent = total;
+            if (totalDispEl) totalDispEl.textContent = total;
         }
 
         // Render ALL Existing Courses Table (for Admin overview)
@@ -5440,6 +5676,8 @@
                 renderCertificateTemplatesTable();
             } else if (e.target.getAttribute('data-section') === 'certificates-management') {
                 renderAllCertificatesTable();
+            } else if (e.target.getAttribute('data-section') === 'document-rollouts') {
+                renderDocumentRolloutsTable();
             }
         });
 
@@ -6050,9 +6288,23 @@ function loadCourseDocuments(courseId) {
     
     let html = '<div class="space-y-4">';
     course.documents.forEach(doc => {
-        const readBadge = doc.isRead 
+        // Determine per-student read status if rollout exists
+        let isAssigned = false;
+        let isReadForStudent = false;
+        if (typeof loggedInUser !== 'undefined' && loggedInUser && loggedInUser.role === 'student') {
+            const rollout = documentRollouts.find(r => r.courseId === courseId && r.documentId === doc.id && r.studentId === loggedInUser.id);
+            if (rollout) {
+                isAssigned = true;
+                isReadForStudent = !!rollout.isRead;
+            }
+        }
+
+        const readBadge = (isAssigned ? isReadForStudent : doc.isRead) 
             ? '<span class="inline-block px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full ml-2"><i class="fas fa-check mr-1"></i>Read</span>'
             : '<span class="inline-block px-3 py-1 bg-yellow-100 text-yellow-700 text-xs font-medium rounded-full ml-2"><i class="fas fa-exclamation-circle mr-1"></i>Not Read</span>';
+        const requiredBadge = isAssigned 
+            ? '<span class="inline-block px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-medium rounded-full ml-2"><i class="fas fa-clipboard-check mr-1"></i>Required</span>'
+            : '';
         
         html += `
             <div class="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-md transition">
@@ -6062,9 +6314,10 @@ function loadCourseDocuments(courseId) {
                             <i class="${doc.icon} text-2xl"></i>
                         </div>
                         <div class="flex-1">
-                            <div class="flex items-center">
-                                <h4 class="text-lg font-semibold text-gray-800">${doc.title}</h4>
+                            <div class="flex items-center flex-wrap">
+                                <h4 class="text-lg font-semibold text-gray-800 mr-2">${doc.title}</h4>
                                 ${readBadge}
+                                ${requiredBadge}
                             </div>
                             <p class="text-sm text-gray-600 mt-1">${doc.description}</p>
                             <div class="flex items-center space-x-4 mt-3 text-xs text-gray-500">
@@ -6078,8 +6331,8 @@ function loadCourseDocuments(courseId) {
                         <button onclick="viewDocument(${courseId}, ${doc.id})" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition">
                             <i class="fas fa-eye mr-1"></i>View
                         </button>
-                        <button onclick="markDocumentAsRead(${courseId}, ${doc.id})" class="px-4 py-2 ${doc.isRead ? 'bg-gray-400' : 'bg-green-600'} text-white text-sm rounded-md ${!doc.isRead ? 'hover:bg-green-700' : 'cursor-not-allowed'} transition">
-                            <i class="fas fa-check mr-1"></i>${doc.isRead ? 'Read' : 'Mark as Read'}
+                        <button onclick="markDocumentAsRead(${courseId}, ${doc.id})" class="px-4 py-2 ${ (isAssigned ? isReadForStudent : doc.isRead) ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700' } text-white text-sm rounded-md transition">
+                            <i class="fas fa-check mr-1"></i>${ (isAssigned ? isReadForStudent : doc.isRead) ? 'Read' : 'Mark as Read' }
                         </button>
                     </div>
                 </div>
@@ -6151,18 +6404,43 @@ function viewDocument(courseId, docId) {
 function markDocumentAsRead(courseId, docId) {
     const course = allCoursesData.find(c => c.id === courseId);
     if (!course) return;
-    
+
     const doc = course.documents.find(d => d.id === docId);
     if (!doc) return;
-    
+
+    // If a student is logged in, update rollout record instead of global doc
+    if (typeof loggedInUser !== 'undefined' && loggedInUser && loggedInUser.role === 'student') {
+        let rollout = documentRollouts.find(r => r.courseId === courseId && r.documentId === docId && r.studentId === loggedInUser.id);
+        if (!rollout) {
+            // Not previously assigned, create an ad-hoc record so we can track
+            rollout = {
+                id: Date.now(),
+                courseId,
+                documentId: docId,
+                studentId: loggedInUser.id,
+                assignedBy: null,
+                assignedDate: new Date().toISOString(),
+                isRead: false,
+                readDate: null
+            };
+            documentRollouts.push(rollout);
+        }
+        rollout.isRead = !rollout.isRead;
+        rollout.readDate = rollout.isRead ? new Date().toISOString() : null;
+
+        loadCourseDocuments(courseId);
+        showMessageModal('Success', rollout.isRead
+            ? `"${doc.title}" has been marked as read!`
+            : `"${doc.title}" has been marked as unread!`
+        );
+        return;
+    }
+
+    // Fallback: toggle global doc read (e.g., admin preview)
     doc.isRead = !doc.isRead;
-    
-    // Reload the documents display
     loadCourseDocuments(courseId);
-    
-    // Show confirmation message
-    showMessageModal('Success', doc.isRead 
-        ? `"${doc.title}" has been marked as read!` 
+    showMessageModal('Success', doc.isRead
+        ? `"${doc.title}" has been marked as read!`
         : `"${doc.title}" has been marked as unread!`
     );
 }
@@ -6407,6 +6685,10 @@ document.addEventListener("DOMContentLoaded", () => {
             { studentId: 3, badgeId: 2, earnedDate: '2024-02-20' },
             { studentId: 4, badgeId: 1, earnedDate: '2024-02-10' }
         ];
+
+        // Rollout assignments: documents required to be read by students
+        // Each entry: { id, courseId, documentId, studentId, assignedBy, assignedDate, isRead, readDate }
+        let documentRollouts = [];
 
         // Function to create a new badge
         function createNewBadge(name, hoursRequired, description, icon) {
