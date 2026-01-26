@@ -474,10 +474,28 @@
 
     <!-- Assign Students Modal -->
     <div id="assignStudentsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
-        <div class="bg-white rounded-lg p-6 shadow-xl max-w-md w-full transform transition-all duration-300 scale-100 opacity-100">
+        <div class="bg-white rounded-lg p-6 shadow-xl max-w-2xl w-full transform transition-all duration-300 scale-100 opacity-100">
             <h3 class="text-lg font-semibold text-gray-900 mb-4" id="assignStudentsModalTitle">Assign Students to Programme</h3>
-            <div class="mb-4 max-h-60 overflow-y-auto border border-gray-300 rounded-md p-2">
+            
+            <!-- Search and Bulk Actions -->
+            <div class="mb-4 space-y-3">
+                <input type="text" id="assignStudentsSearch" placeholder="Search students by name or email..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" oninput="filterAssignStudentsList()">
+                <div class="flex justify-between items-center">
+                    <div class="space-x-2">
+                        <button type="button" onclick="selectAllStudents()" class="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 focus:outline-none">
+                            <i class="fas fa-check-double mr-1"></i> Select All
+                        </button>
+                        <button type="button" onclick="deselectAllStudents()" class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 focus:outline-none">
+                            <i class="fas fa-times mr-1"></i> Deselect All
+                        </button>
+                    </div>
+                    <span id="selectedStudentsCount" class="text-sm text-gray-600">0 students selected</span>
+                </div>
+            </div>
+
+            <div class="mb-4 max-h-96 overflow-y-auto border border-gray-300 rounded-md p-3">
                 <p id="noStudentsAvailable" class="text-gray-500 text-sm text-center py-4 hidden">No students available. Add students via User Management first.</p>
+                <p id="noStudentsMatchFilter" class="text-gray-500 text-sm text-center py-4 hidden">No students match your search.</p>
                 <div id="assignStudentsList" class="space-y-2">
                     <!-- Student checkboxes will be loaded here -->
                 </div>
@@ -855,6 +873,10 @@
                     <a href="#" class="sidebar-item" data-section="user-programme-assignment">
                         <i class="fas fa-user-tag mr-3"></i>
                         <span class="sidebar-text">Assign Students</span>
+                    </a>
+                    <a href="#" class="sidebar-item" data-section="assignment-overview">
+                        <i class="fas fa-chart-pie mr-3"></i>
+                        <span class="sidebar-text">Assignment Overview</span>
                     </a>
                     <a href="#" class="sidebar-item" data-section="assignments">
                         <i class="fas fa-tasks mr-3"></i>
@@ -1358,6 +1380,147 @@
                                 <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>1</button>
                                 <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>Next</button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Assignment Overview Dashboard (Training Manager) -->
+                <div id="assignment-overviewContent" class="content-section">
+                    <div class="mb-6">
+                        <h2 class="text-2xl font-semibold text-gray-800">Assignment Overview</h2>
+                        <p class="text-gray-600">Comprehensive view of student assignments and enrollment status.</p>
+                    </div>
+
+                    <!-- Summary Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600 font-medium">Total Students</p>
+                                    <h3 class="text-3xl font-bold text-gray-900" id="overviewTotalStudents">0</h3>
+                                </div>
+                                <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                                    <i class="fas fa-users text-2xl"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600 font-medium">Assigned Students</p>
+                                    <h3 class="text-3xl font-bold text-green-600" id="overviewAssignedStudents">0</h3>
+                                </div>
+                                <div class="p-3 rounded-full bg-green-100 text-green-600">
+                                    <i class="fas fa-user-check text-2xl"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600 font-medium">Unassigned Students</p>
+                                    <h3 class="text-3xl font-bold text-orange-600" id="overviewUnassignedStudents">0</h3>
+                                </div>
+                                <div class="p-3 rounded-full bg-orange-100 text-orange-600">
+                                    <i class="fas fa-user-times text-2xl"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-lg shadow p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600 font-medium">Active Programmes</p>
+                                    <h3 class="text-3xl font-bold text-indigo-600" id="overviewActiveProgrammes">0</h3>
+                                </div>
+                                <div class="p-3 rounded-full bg-indigo-100 text-indigo-600">
+                                    <i class="fas fa-sitemap text-2xl"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Unassigned Students Section -->
+                    <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+                        <div class="px-6 py-4 border-b border-gray-200 bg-orange-50">
+                            <h3 class="text-lg font-semibold text-gray-800">
+                                <i class="fas fa-exclamation-triangle text-orange-600 mr-2"></i>
+                                Students Not Assigned to Any Programme
+                            </h3>
+                            <p class="text-sm text-gray-600 mt-1">These students are not enrolled in any programme yet</p>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registration Date</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="unassignedStudentsTableBody">
+                                    <tr>
+                                        <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">All students are assigned to programmes.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Programme Assignment Details -->
+                    <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+                        <div class="px-6 py-4 border-b border-gray-200 bg-indigo-50">
+                            <h3 class="text-lg font-semibold text-gray-800">
+                                <i class="fas fa-sitemap text-indigo-600 mr-2"></i>
+                                Programme Assignment Details
+                            </h3>
+                            <p class="text-sm text-gray-600 mt-1">View student distribution across programmes</p>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Programme Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Linked Courses</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Students Enrolled</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completion Rate</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="programmeDetailsTableBody">
+                                    <tr>
+                                        <td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500">No programmes available.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Courses Without Students -->
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-200 bg-yellow-50">
+                            <h3 class="text-lg font-semibold text-gray-800">
+                                <i class="fas fa-book text-yellow-600 mr-2"></i>
+                                Courses Without Enrolled Students
+                            </h3>
+                            <p class="text-sm text-gray-600 mt-1">These courses have no students enrolled yet</p>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Marks</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="coursesWithoutStudentsTableBody">
+                                    <tr>
+                                        <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">All courses have enrolled students.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -2846,6 +3009,9 @@
             }
             if (sectionId === 'user-programme-assignmentContent') {
                 renderProgrammesForAssignmentTable();
+            }
+            if (sectionId === 'assignment-overviewContent') {
+                renderAssignmentOverview();
             }
             if (sectionId === 'system-settingsContent') {
                 loadSystemSettings();
@@ -4541,28 +4707,54 @@
                 return;
             }
             assignStudentsModalTitle.textContent = `Assign Students to: ${programme.name}`;
+            
+            // Clear search input
+            document.getElementById('assignStudentsSearch').value = '';
+            
             assignStudentsList.innerHTML = ''; // Clear previous list
 
             const students = allUsersData.filter(user => user.role === 'student');
 
             if (students.length === 0) {
                 noStudentsAvailableMsg.classList.remove('hidden');
+                document.getElementById('noStudentsMatchFilter').classList.add('hidden');
             } else {
                 noStudentsAvailableMsg.classList.add('hidden');
+                document.getElementById('noStudentsMatchFilter').classList.add('hidden');
                 students.forEach(student => {
                     // Check if student is already assigned to THIS programme
                     const isAssignedToThisProgramme = programme.assignedStudentIds.includes(student.id);
+                    
+                    // Calculate student's completion/progress for this programme
+                    const enrolledCourses = student.coursesEnrolled.filter(enr => 
+                        programme.linkedCourseIds.includes(enr.courseId)
+                    );
+                    const completedCourses = enrolledCourses.filter(enr => enr.completionDate).length;
+                    const totalCourses = programme.linkedCourseIds.length;
+                    const progressText = totalCourses > 0 ? `${completedCourses}/${totalCourses} courses completed` : 'No courses';
+                    
                     const checkboxDiv = document.createElement('div');
-                    checkboxDiv.classList.add('flex', 'items-center', 'py-1');
+                    checkboxDiv.classList.add('flex', 'items-center', 'justify-between', 'py-2', 'px-2', 'hover:bg-gray-50', 'rounded', 'student-item');
                     const fullName = `${student.name}${student.surname ? ' ' + student.surname : ''}`;
+                    checkboxDiv.dataset.studentName = fullName.toLowerCase();
+                    checkboxDiv.dataset.studentEmail = student.email.toLowerCase();
                     checkboxDiv.innerHTML = `
-                        <input type="checkbox" id="assignStudent_${student.id}" value="${student.id}" class="assign-student-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" ${isAssignedToThisProgramme ? 'checked' : ''}>
-                        <label for="assignStudent_${student.id}" class="ml-2 text-sm text-gray-700">${fullName} (${student.email})</label>
+                        <div class="flex items-center flex-1">
+                            <input type="checkbox" id="assignStudent_${student.id}" value="${student.id}" class="assign-student-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" ${isAssignedToThisProgramme ? 'checked' : ''} onchange="updateSelectedCount()">
+                            <label for="assignStudent_${student.id}" class="ml-3 flex-1">
+                                <div class="text-sm font-medium text-gray-700">${fullName}</div>
+                                <div class="text-xs text-gray-500">${student.email}</div>
+                            </label>
+                        </div>
+                        <div class="text-xs text-gray-600 ml-2">
+                            ${isAssignedToThisProgramme ? `<span class="text-blue-600">${progressText}</span>` : ''}
+                        </div>
                     `;
                     assignStudentsList.appendChild(checkboxDiv);
                 });
             }
 
+            updateSelectedCount();
             assignStudentsModal.classList.remove('hidden');
             assignStudentsModal.classList.add('show');
         }
@@ -4622,11 +4814,65 @@
                     showMessageModal('Success', `Student assignments for "${programme.name}" updated.`);
                     renderExistingProgramsTable(); // Re-render programme table
                     renderProgrammesForAssignmentTable(); // Re-render assignment table
+                    renderAssignmentOverview(); // Update assignment overview
                     updateDashboardStats(); // Refresh dashboard counts
                 }
             }
             hideAssignStudentsModal();
         });
+
+        // Helper functions for assignment modal
+        function updateSelectedCount() {
+            const checkedBoxes = document.querySelectorAll('.assign-student-checkbox:checked');
+            const visibleCheckedBoxes = Array.from(checkedBoxes).filter(cb => 
+                cb.closest('.student-item').style.display !== 'none'
+            );
+            document.getElementById('selectedStudentsCount').textContent = `${visibleCheckedBoxes.length} students selected`;
+        }
+
+        function selectAllStudents() {
+            const visibleCheckboxes = Array.from(document.querySelectorAll('.assign-student-checkbox')).filter(cb => 
+                cb.closest('.student-item').style.display !== 'none'
+            );
+            visibleCheckboxes.forEach(checkbox => checkbox.checked = true);
+            updateSelectedCount();
+        }
+
+        function deselectAllStudents() {
+            const visibleCheckboxes = Array.from(document.querySelectorAll('.assign-student-checkbox')).filter(cb => 
+                cb.closest('.student-item').style.display !== 'none'
+            );
+            visibleCheckboxes.forEach(checkbox => checkbox.checked = false);
+            updateSelectedCount();
+        }
+
+        function filterAssignStudentsList() {
+            const searchTerm = document.getElementById('assignStudentsSearch').value.toLowerCase();
+            const studentItems = document.querySelectorAll('.student-item');
+            const noMatchMsg = document.getElementById('noStudentsMatchFilter');
+            let visibleCount = 0;
+
+            studentItems.forEach(item => {
+                const name = item.dataset.studentName;
+                const email = item.dataset.studentEmail;
+                
+                if (name.includes(searchTerm) || email.includes(searchTerm)) {
+                    item.style.display = '';
+                    visibleCount++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+
+            // Show/hide no match message
+            if (visibleCount === 0 && studentItems.length > 0) {
+                noMatchMsg.classList.remove('hidden');
+            } else {
+                noMatchMsg.classList.add('hidden');
+            }
+
+            updateSelectedCount();
+        }
 
         // New function to render the table in the "User Assignment to Programmes" section
         function renderProgrammesForAssignmentTable() {
@@ -4678,6 +4924,194 @@
                     showAssignStudentsModal(programmeId);
                 });
             });
+        }
+
+        // Assignment Overview Dashboard Functions
+        function renderAssignmentOverview() {
+            const students = allUsersData.filter(user => user.role === 'student');
+            const totalStudents = students.length;
+            
+            // Find students assigned to at least one programme
+            const assignedStudentIds = new Set();
+            allProgramsData.forEach(programme => {
+                programme.assignedStudentIds.forEach(id => assignedStudentIds.add(id));
+            });
+            const assignedStudents = assignedStudentIds.size;
+            const unassignedStudents = totalStudents - assignedStudents;
+            
+            // Update summary cards
+            document.getElementById('overviewTotalStudents').textContent = totalStudents;
+            document.getElementById('overviewAssignedStudents').textContent = assignedStudents;
+            document.getElementById('overviewUnassignedStudents').textContent = unassignedStudents;
+            document.getElementById('overviewActiveProgrammes').textContent = allProgramsData.length;
+            
+            // Render unassigned students table
+            renderUnassignedStudentsTable(students, assignedStudentIds);
+            
+            // Render programme details table
+            renderProgrammeDetailsTable();
+            
+            // Render courses without students
+            renderCoursesWithoutStudentsTable();
+        }
+
+        function renderUnassignedStudentsTable(students, assignedStudentIds) {
+            const tableBody = document.getElementById('unassignedStudentsTableBody');
+            tableBody.innerHTML = '';
+            
+            const unassignedStudents = students.filter(s => !assignedStudentIds.has(s.id));
+            
+            if (unassignedStudents.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="px-6 py-4 text-center text-sm text-green-600">
+                            <i class="fas fa-check-circle mr-2"></i>All students are assigned to programmes.
+                        </td>
+                    </tr>
+                `;
+            } else {
+                unassignedStudents.forEach(student => {
+                    const fullName = `${student.name}${student.surname ? ' ' + student.surname : ''}`;
+                    const registrationDate = student.registrationDate || 'N/A';
+                    
+                    const row = tableBody.insertRow();
+                    row.innerHTML = `
+                        <td class="px-6 py-4 text-sm font-medium text-gray-900">${fullName}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${student.email}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${registrationDate}</td>
+                        <td class="px-6 py-4 text-sm font-medium">
+                            <button onclick="showQuickAssignModal(${student.id})" class="text-indigo-600 hover:text-indigo-900">
+                                <i class="fas fa-user-plus mr-1"></i>Assign Now
+                            </button>
+                        </td>
+                    `;
+                });
+            }
+        }
+
+        function renderProgrammeDetailsTable() {
+            const tableBody = document.getElementById('programmeDetailsTableBody');
+            tableBody.innerHTML = '';
+            
+            if (allProgramsData.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500">No programmes available.</td>
+                    </tr>
+                `;
+            } else {
+                allProgramsData.forEach(programme => {
+                    const linkedCoursesNames = programme.linkedCourseIds.map(id => {
+                        const course = allCoursesData.find(c => c.id === id);
+                        return course ? course.name : 'Unknown';
+                    }).join(', ') || 'None';
+                    
+                    const enrolledCount = programme.assignedStudentIds.length;
+                    
+                    // Calculate completion rate
+                    let completionRate = 0;
+                    if (enrolledCount > 0 && programme.linkedCourseIds.length > 0) {
+                        let totalCompletedCourses = 0;
+                        programme.assignedStudentIds.forEach(studentId => {
+                            const student = allUsersData.find(u => u.id === studentId);
+                            if (student) {
+                                const completedInProgramme = student.coursesEnrolled.filter(enr => 
+                                    programme.linkedCourseIds.includes(enr.courseId) && enr.completionDate
+                                ).length;
+                                totalCompletedCourses += completedInProgramme;
+                            }
+                        });
+                        const totalPossible = enrolledCount * programme.linkedCourseIds.length;
+                        completionRate = totalPossible > 0 ? Math.round((totalCompletedCourses / totalPossible) * 100) : 0;
+                    }
+                    
+                    const row = tableBody.insertRow();
+                    row.innerHTML = `
+                        <td class="px-6 py-4 text-sm font-medium text-gray-900">${programme.name}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${programme.linkedCourseIds.length} course(s)</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${enrolledCount} student(s)</td>
+                        <td class="px-6 py-4 text-sm">
+                            <div class="flex items-center">
+                                <div class="w-full bg-gray-200 rounded-full h-2 mr-2">
+                                    <div class="bg-green-600 h-2 rounded-full" style="width: ${completionRate}%"></div>
+                                </div>
+                                <span class="text-xs font-medium text-gray-600">${completionRate}%</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-sm font-medium">
+                            <button onclick="showAssignStudentsModal(${programme.id})" class="text-blue-600 hover:text-blue-900">
+                                <i class="fas fa-users mr-1"></i>Manage
+                            </button>
+                        </td>
+                    `;
+                });
+            }
+        }
+
+        function renderCoursesWithoutStudentsTable() {
+            const tableBody = document.getElementById('coursesWithoutStudentsTableBody');
+            tableBody.innerHTML = '';
+            
+            // Find courses that are not linked to any programme or linked to programmes with no students
+            const coursesWithoutStudents = allCoursesData.filter(course => {
+                // Check if course is linked to any programme
+                const linkedProgrammes = allProgramsData.filter(p => p.linkedCourseIds.includes(course.id));
+                
+                if (linkedProgrammes.length === 0) {
+                    return true; // Not linked to any programme
+                }
+                
+                // Check if any linked programme has students
+                const hasStudents = linkedProgrammes.some(p => p.assignedStudentIds.length > 0);
+                return !hasStudents;
+            });
+            
+            if (coursesWithoutStudents.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="px-6 py-4 text-center text-sm text-green-600">
+                            <i class="fas fa-check-circle mr-2"></i>All courses have enrolled students.
+                        </td>
+                    </tr>
+                `;
+            } else {
+                coursesWithoutStudents.forEach(course => {
+                    const row = tableBody.insertRow();
+                    const totalMarks = course.questions.reduce((sum, q) => sum + (q.marks || 0), 0);
+                    
+                    row.innerHTML = `
+                        <td class="px-6 py-4 text-sm font-medium text-gray-900">${course.name}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${course.description || 'N/A'}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500">${totalMarks}</td>
+                        <td class="px-6 py-4 text-sm font-medium">
+                            <button onclick="navigateToCourseProgramme(${course.id})" class="text-indigo-600 hover:text-indigo-900">
+                                <i class="fas fa-link mr-1"></i>Link to Programme
+                            </button>
+                        </td>
+                    `;
+                });
+            }
+        }
+
+        function showQuickAssignModal(studentId) {
+            // Show message with available programmes
+            const student = allUsersData.find(u => u.id === studentId);
+            if (!student) return;
+            
+            if (allProgramsData.length === 0) {
+                showMessageModal('No Programmes', 'Please create programmes first before assigning students.');
+                return;
+            }
+            
+            // Navigate to assignment section
+            showSection('user-programme-assignmentContent');
+            showMessageModal('Quick Assign', `Please select a programme below to assign ${student.name} ${student.surname || ''}.`);
+        }
+
+        function navigateToCourseProgramme(courseId) {
+            // Navigate to programme management
+            showSection('programme-managementContent');
+            showMessageModal('Link Course', 'Please edit or create a programme and link this course to it.');
         }
 
         // System Settings Logic
