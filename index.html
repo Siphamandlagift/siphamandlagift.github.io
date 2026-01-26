@@ -186,17 +186,42 @@
         }
 
         /* Message Modal specific styles */
-        #messageModal, #addUserModal, #pdfViewerModal, #assignStudentsModal, #createAssignmentModal, #viewAssignmentModal {
+        #messageModal, #addUserModal, #pdfViewerModal, #assignStudentsModal, #assignStudentsToCoursesModal, #createAssignmentModal, #viewAssignmentModal {
             transition: opacity 0.3s ease, transform 0.3s ease;
             transform: translateY(20px);
         }
-        #messageModal.show, #addUserModal.show, #pdfViewerModal.show, #assignStudentsModal.show, #createAssignmentModal.show, #viewAssignmentModal.show {
+        #messageModal.show, #addUserModal.show, #pdfViewerModal.show, #assignStudentsModal.show, #assignStudentsToCoursesModal.show, #createAssignmentModal.show, #viewAssignmentModal.show {
             opacity: 1;
             transform: translateY(0);
         }
-        #messageModal.hidden, #addUserModal.hidden, #pdfViewerModal.hidden, #assignStudentsModal.hidden, #createAssignmentModal.hidden, #viewAssignmentModal.hidden {
+        #messageModal.hidden, #addUserModal.hidden, #pdfViewerModal.hidden, #assignStudentsModal.hidden, #assignStudentsToCoursesModal.hidden, #createAssignmentModal.hidden, #viewAssignmentModal.hidden {
             opacity: 0;
             pointer-events: none;
+        }
+        
+        /* Assignment Tab Styles */
+        .assignment-tab {
+            transition: all 0.3s ease;
+        }
+        
+        .assignment-tab.active {
+            color: #4F46E5;
+            border-color: #4F46E5;
+        }
+        
+        .assignment-tab-content {
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
         
         /* Enhanced Card Styling */
@@ -897,6 +922,7 @@
                         <i class="fas fa-tachometer-alt mr-3"></i>
                         <span class="sidebar-text">Dashboard</span>
                     </a>
+                    <div class="p-6 text-xs uppercase text-indigo-300 font-bold sidebar-text tracking-wider">Content</div>
                     <a href="#" class="sidebar-item" data-section="my-courses">
                         <i class="fas fa-book mr-3"></i>
                         <span class="sidebar-text">My Courses</span>
@@ -905,30 +931,20 @@
                         <i class="fas fa-sitemap mr-3"></i>
                         <span class="sidebar-text">Programmes</span>
                     </a>
-                    <a href="#" class="sidebar-item" data-section="course-content">
-                        <i class="fas fa-file-upload mr-3"></i>
-                        <span class="sidebar-text">Course Overview</span>
-                    </a>
-                    <a href="#" class="sidebar-item" data-section="user-programme-assignment">
-                        <i class="fas fa-user-tag mr-3"></i>
-                        <span class="sidebar-text">Assign Students</span>
-                    </a>
-                    <a href="#" class="sidebar-item" data-section="course-assignment">
-                        <i class="fas fa-book-open mr-3"></i>
-                        <span class="sidebar-text">Assign Courses</span>
-                    </a>
+                    <div class="p-6 text-xs uppercase text-indigo-300 font-bold sidebar-text tracking-wider">Student Management</div>
                     <a href="#" class="sidebar-item" data-section="assignment-overview">
-                        <i class="fas fa-chart-pie mr-3"></i>
-                        <span class="sidebar-text">Assignment Overview</span>
+                        <i class="fas fa-users-cog mr-3"></i>
+                        <span class="sidebar-text">Student Assignments</span>
                     </a>
                     <a href="#" class="sidebar-item" data-section="assignments">
                         <i class="fas fa-tasks mr-3"></i>
-                        <span class="sidebar-text">Assignments</span>
+                        <span class="sidebar-text">Tasks & Homework</span>
                     </a>
                     <a href="#" class="sidebar-item" data-section="grades">
                         <i class="fas fa-graduation-cap mr-3"></i>
                         <span class="sidebar-text">Gradebook</span>
                     </a>
+                    <div class="p-6 text-xs uppercase text-indigo-300 font-bold sidebar-text tracking-wider">Recognition</div>
                     <a href="#" class="sidebar-item" data-section="certificate-templates">
                         <i class="fas fa-certificate mr-3"></i>
                         <span class="sidebar-text">Certificates</span>
@@ -937,9 +953,10 @@
                         <i class="fas fa-medal mr-3"></i>
                         <span class="sidebar-text">Badges</span>
                     </a>
+                    <div class="p-6 text-xs uppercase text-indigo-300 font-bold sidebar-text tracking-wider">Tracking</div>
                     <a href="#" class="sidebar-item" data-section="document-rollouts">
                         <i class="fas fa-clipboard-check mr-3"></i>
-                        <span class="sidebar-text">Rollout Tracking</span>
+                        <span class="sidebar-text">Document Rollouts</span>
                     </a>
                 </div>
                 
@@ -1388,204 +1405,127 @@
                     </div>
                 </div>
 
-                <!-- User Assignment to Programmes Content (New Section) -->
-                <div id="user-programme-assignmentContent" class="content-section">
-                    <div class="mb-6">
-                        <h2 class="text-2xl font-semibold text-gray-800">Assign Students to Programmes</h2>
-                        <p class="text-gray-600">Assign students to existing learning programmes.</p>
-                    </div>
+                <!-- Course Assignment section removed - now integrated in Student Assignments hub -->
 
-                    <div class="bg-white rounded-lg shadow overflow-hidden">
-                        <div class="px-6 py-4 border-b border-gray-200">
-                            <h3 class="text-lg font-semibold text-gray-800">Available Programmes for Assignment</h3>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Programme Name</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Linked Courses</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Students</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200" id="programmesForAssignmentTableBody">
-                                    <tr>
-                                        <td colspan="4" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No programmes available for assignment. Create programmes first.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-                            <div class="text-sm text-gray-500">Showing <span class="font-medium" id="assignProgrammesShowingCount">0</span> to <span class="font-medium" id="assignProgrammesTotalCountDisplay">0</span> of <span class="font-medium" id="assignProgrammesTotalCount">0</span> results</div>
-                            <div class="flex space-x-2">
-                                <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>Previous</button>
-                                <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>1</button>
-                                <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>Next</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Course Assignment (Direct Student Enrollment) -->
-                <div id="course-assignmentContent" class="content-section">
-                    <div class="mb-6">
-                        <h2 class="text-2xl font-semibold text-gray-800">Assign Students to Courses</h2>
-                        <p class="text-gray-600">Directly assign students to individual courses without using programmes.</p>
-                    </div>
-
-                    <!-- Info Alert -->
-                    <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
-                        <div class="flex">
-                            <div class="flex-shrink-0">
-                                <i class="fas fa-info-circle text-blue-400"></i>
-                            </div>
-                            <div class="ml-3">
-                                <p class="text-sm text-blue-700">
-                                    <strong>Tip:</strong> Use this section to assign individual courses to students. For bulk enrollment, use 
-                                    <a href="#" onclick="showSection('user-programme-assignmentContent'); return false;" class="underline font-medium">Programmes</a> instead.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bg-white rounded-lg shadow overflow-hidden">
-                        <div class="px-6 py-4 border-b border-gray-200">
-                            <h3 class="text-lg font-semibold text-gray-800">Available Courses for Assignment</h3>
-                            <p class="text-sm text-gray-600 mt-1">Select a course to assign or manage student enrollments</p>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Name</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Marks</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enrolled Students</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200" id="coursesForAssignmentTableBody">
-                                    <tr>
-                                        <td colspan="6" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No courses available for assignment. Create courses first.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-                            <div class="text-sm text-gray-500">Showing <span class="font-medium" id="assignCoursesShowingCount">0</span> to <span class="font-medium" id="assignCoursesTotalCountDisplay">0</span> of <span class="font-medium" id="assignCoursesTotalCount">0</span> results</div>
-                            <div class="flex space-x-2">
-                                <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>Previous</button>
-                                <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>1</button>
-                                <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>Next</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Assignment Overview Dashboard (Training Manager) -->
+                <!-- Assignment Overview Dashboard (Training Manager) - Consolidated Hub -->
                 <div id="assignment-overviewContent" class="content-section">
                     <div class="mb-6">
-                        <h2 class="text-2xl font-semibold text-gray-800">Assignment Overview</h2>
-                        <p class="text-gray-600">Comprehensive view of student assignments and enrollment status.</p>
+                        <h2 class="text-2xl font-semibold text-gray-800">Student Assignments</h2>
+                        <p class="text-gray-600">Manage all student enrollments - programmes, courses, and track progress.</p>
                     </div>
 
-                    <!-- Summary Cards -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-                        <div class="bg-white rounded-lg shadow p-6">
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <p class="text-sm text-gray-600 font-medium">Total Students</p>
-                                    <h3 class="text-3xl font-bold text-gray-900" id="overviewTotalStudents">0</h3>
-                                </div>
-                                <div class="p-3 rounded-full bg-blue-100 text-blue-600">
-                                    <i class="fas fa-users text-2xl"></i>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow p-6">
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <p class="text-sm text-gray-600 font-medium">Assigned Students</p>
-                                    <h3 class="text-3xl font-bold text-green-600" id="overviewAssignedStudents">0</h3>
-                                </div>
-                                <div class="p-3 rounded-full bg-green-100 text-green-600">
-                                    <i class="fas fa-user-check text-2xl"></i>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow p-6">
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <p class="text-sm text-gray-600 font-medium">Unassigned Students</p>
-                                    <h3 class="text-3xl font-bold text-orange-600" id="overviewUnassignedStudents">0</h3>
-                                </div>
-                                <div class="p-3 rounded-full bg-orange-100 text-orange-600">
-                                    <i class="fas fa-user-times text-2xl"></i>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow p-6">
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <p class="text-sm text-gray-600 font-medium">Active Programmes</p>
-                                    <h3 class="text-3xl font-bold text-indigo-600" id="overviewActiveProgrammes">0</h3>
-                                </div>
-                                <div class="p-3 rounded-full bg-indigo-100 text-indigo-600">
-                                    <i class="fas fa-sitemap text-2xl"></i>
-                                </div>
-                            </div>
-                        </div>
+                    <!-- Tab Navigation -->
+                    <div class="mb-6 border-b border-gray-200">
+                        <nav class="-mb-px flex space-x-8">
+                            <button onclick="switchAssignmentTab('overview')" id="tab-overview" class="assignment-tab active border-b-2 border-indigo-500 py-4 px-1 text-sm font-medium text-indigo-600">
+                                <i class="fas fa-chart-pie mr-2"></i>Overview
+                            </button>
+                            <button onclick="switchAssignmentTab('programmes')" id="tab-programmes" class="assignment-tab border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                                <i class="fas fa-sitemap mr-2"></i>Assign to Programmes
+                            </button>
+                            <button onclick="switchAssignmentTab('courses')" id="tab-courses" class="assignment-tab border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                                <i class="fas fa-book-open mr-2"></i>Assign to Courses
+                            </button>
+                        </nav>
                     </div>
 
-                    <!-- Unassigned Students Section -->
-                    <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
-                        <div class="px-6 py-4 border-b border-gray-200 bg-orange-50">
-                            <h3 class="text-lg font-semibold text-gray-800">
-                                <i class="fas fa-exclamation-triangle text-orange-600 mr-2"></i>
-                                Students Not Assigned to Any Programme
-                            </h3>
-                            <p class="text-sm text-gray-600 mt-1">These students are not enrolled in any programme yet</p>
+                    <!-- Overview Tab Content -->
+                    <div id="assignment-tab-overview" class="assignment-tab-content">
+                        <!-- Summary Cards -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                            <div class="bg-white rounded-lg shadow p-6">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-sm text-gray-600 font-medium">Total Students</p>
+                                        <h3 class="text-3xl font-bold text-gray-900" id="overviewTotalStudents">0</h3>
+                                    </div>
+                                    <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                                        <i class="fas fa-users text-2xl"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow p-6">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-sm text-gray-600 font-medium">Assigned Students</p>
+                                        <h3 class="text-3xl font-bold text-green-600" id="overviewAssignedStudents">0</h3>
+                                    </div>
+                                    <div class="p-3 rounded-full bg-green-100 text-green-600">
+                                        <i class="fas fa-user-check text-2xl"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow p-6">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-sm text-gray-600 font-medium">Unassigned Students</p>
+                                        <h3 class="text-3xl font-bold text-orange-600" id="overviewUnassignedStudents">0</h3>
+                                    </div>
+                                    <div class="p-3 rounded-full bg-orange-100 text-orange-600">
+                                        <i class="fas fa-user-times text-2xl"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow p-6">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-sm text-gray-600 font-medium">Active Programmes</p>
+                                        <h3 class="text-3xl font-bold text-indigo-600" id="overviewActiveProgrammes">0</h3>
+                                    </div>
+                                    <div class="p-3 rounded-full bg-indigo-100 text-indigo-600">
+                                        <i class="fas fa-sitemap text-2xl"></i>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student Name</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registration Date</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200" id="unassignedStudentsTableBody">
-                                    <tr>
-                                        <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">All students are assigned to programmes.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
 
-                    <!-- Programme Assignment Details -->
-                    <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
-                        <div class="px-6 py-4 border-b border-gray-200 bg-indigo-50">
-                            <h3 class="text-lg font-semibold text-gray-800">
-                                <i class="fas fa-sitemap text-indigo-600 mr-2"></i>
-                                Programme Assignment Details
-                            </h3>
-                            <p class="text-sm text-gray-600 mt-1">View student distribution across programmes</p>
+                        <!-- Unassigned Students Section -->
+                        <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+                            <div class="px-6 py-4 border-b border-gray-200 bg-orange-50">
+                                <h3 class="text-lg font-semibold text-gray-800">
+                                    <i class="fas fa-exclamation-triangle text-orange-600 mr-2"></i>
+                                    Students Not Assigned to Any Programme
+                                </h3>
+                                <p class="text-sm text-gray-600 mt-1">These students are not enrolled in any programme yet</p>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student Name</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registration Date</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200" id="unassignedStudentsTableBody">
+                                        <tr>
+                                            <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">All students are assigned to programmes.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Programme Name</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Linked Courses</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Students Enrolled</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completion Rate</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                    </tr>
+
+                        <!-- Programme Assignment Details -->
+                        <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+                            <div class="px-6 py-4 border-b border-gray-200 bg-indigo-50">
+                                <h3 class="text-lg font-semibold text-gray-800">
+                                    <i class="fas fa-sitemap text-indigo-600 mr-2"></i>
+                                    Programme Enrollment Summary
+                                </h3>
+                                <p class="text-sm text-gray-600 mt-1">View student distribution across programmes</p>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Programme Name</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Linked Courses</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Students Enrolled</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completion Rate</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200" id="programmeDetailsTableBody">
                                     <tr>
@@ -1623,7 +1563,98 @@
                             </table>
                         </div>
                     </div>
+
+                    <!-- Courses Without Students -->
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-200 bg-yellow-50">
+                            <h3 class="text-lg font-semibold text-gray-800">
+                                <i class="fas fa-book text-yellow-600 mr-2"></i>
+                                Courses Without Enrolled Students
+                            </h3>
+                            <p class="text-sm text-gray-600 mt-1">These courses have no students enrolled yet</p>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Marks</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="coursesWithoutStudentsTableBody">
+                                    <tr>
+                                        <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">All courses have enrolled students.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Programmes Tab Content -->
+                <div id="assignment-tab-programmes" class="assignment-tab-content hidden">
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-gray-800">Assign Students to Programmes</h3>
+                            <p class="text-sm text-gray-600 mt-1">Select a programme to assign or manage student enrollments</p>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Programme Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Linked Courses</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Students</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="programmesForAssignmentTableBody">
+                                    <tr>
+                                        <td colspan="4" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No programmes available for assignment. Create programmes first.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                            <div class="text-sm text-gray-500">Showing <span class="font-medium" id="assignProgrammesShowingCount">0</span> to <span class="font-medium" id="assignProgrammesTotalCountDisplay">0</span> of <span class="font-medium" id="assignProgrammesTotalCount">0</span> results</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Courses Tab Content -->
+                <div id="assignment-tab-courses" class="assignment-tab-content hidden">
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-gray-800">Assign Students to Individual Courses</h3>
+                            <p class="text-sm text-gray-600 mt-1">Select a course to assign or manage student enrollments</p>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Marks</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enrolled Students</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="coursesForAssignmentTableBody">
+                                    <tr>
+                                        <td colspan="6" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No courses available for assignment. Create courses first.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                            <div class="text-sm text-gray-500">Showing <span class="font-medium" id="assignCoursesShowingCount">0</span> to <span class="font-medium" id="assignCoursesTotalCountDisplay">0</span> of <span class="font-medium" id="assignCoursesTotalCount">0</span> results</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
 
                 <!-- Course Content & Creation Content (for Admin Overview) -->
@@ -3075,8 +3106,8 @@
                         pageTitle.textContent = 'Course Content Overview';
                     } else if (sectionId === 'programme-managementContent') {
                         pageTitle.textContent = 'Programme Management';
-                    } else if (sectionId === 'user-programme-assignmentContent') {
-                        pageTitle.textContent = 'Assign Students to Programmes';
+                    } else if (sectionId === 'assignment-overviewContent') {
+                        pageTitle.textContent = 'Student Assignments';
                     } else if (sectionId === 'profileContent') {
                         pageTitle.textContent = 'User Profile';
                     } else if (sectionId === 'reportsContent') {
@@ -3107,14 +3138,9 @@
                 populateLinkedCoursesSelection();
                 renderExistingProgramsTable();
             }
-            if (sectionId === 'user-programme-assignmentContent') {
-                renderProgrammesForAssignmentTable();
-            }
-            if (sectionId === 'course-assignmentContent') {
-                renderCoursesForAssignmentTable();
-            }
             if (sectionId === 'assignment-overviewContent') {
-                renderAssignmentOverview();
+                // Default to overview tab
+                switchAssignmentTab('overview');
             }
             if (sectionId === 'system-settingsContent') {
                 loadSystemSettings();
@@ -5258,6 +5284,42 @@
             document.getElementById('assignCoursesTotalCountDisplay').textContent = allCoursesData.length;
         }
 
+        // Tab Switching Function for Assignment Overview
+        function switchAssignmentTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.assignment-tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.assignment-tab').forEach(tab => {
+                tab.classList.remove('active', 'border-indigo-500', 'text-indigo-600');
+                tab.classList.add('border-transparent', 'text-gray-500');
+            });
+            
+            // Show selected tab content
+            const selectedContent = document.getElementById(`assignment-tab-${tabName}`);
+            if (selectedContent) {
+                selectedContent.classList.remove('hidden');
+            }
+            
+            // Activate selected tab
+            const selectedTab = document.getElementById(`tab-${tabName}`);
+            if (selectedTab) {
+                selectedTab.classList.add('active', 'border-indigo-500', 'text-indigo-600');
+                selectedTab.classList.remove('border-transparent', 'text-gray-500');
+            }
+            
+            // Load data for the selected tab
+            if (tabName === 'overview') {
+                renderAssignmentOverview();
+            } else if (tabName === 'programmes') {
+                renderProgrammesForAssignmentTable();
+            } else if (tabName === 'courses') {
+                renderCoursesForAssignmentTable();
+            }
+        }
+
         // Assignment Overview Dashboard Functions
         function renderAssignmentOverview() {
             const students = allUsersData.filter(user => user.role === 'student');
@@ -5435,8 +5497,9 @@
                 return;
             }
             
-            // Navigate to assignment section
-            showSection('user-programme-assignmentContent');
+            // Navigate to assignment section - programmes tab
+            showSection('assignment-overviewContent');
+            switchAssignmentTab('programmes');
             showMessageModal('Quick Assign', `Please select a programme below to assign ${student.name} ${student.surname || ''}.`);
         }
 
