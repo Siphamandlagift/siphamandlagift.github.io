@@ -575,38 +575,50 @@
         </div>
     </div>
 
-    <!-- FIX: Create Assignment Modal (for Training Manager) -->
+    <!-- Enhanced Create Assignment Modal (for Training Manager) -->
     <div id="createAssignmentModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
-        <div class="bg-white rounded-lg p-6 shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-100 opacity-100">
+        <div class="bg-white rounded-lg p-6 shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-100 opacity-100">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">Create New Assignment</h3>
             <form id="createAssignmentForm">
+                <!-- Assignment Type and Course -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentTypeSelect">Assignment Type</label>
+                        <select id="assignmentTypeSelect" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="regular">Regular Assignment</option>
+                            <option value="mark-as-read">Mark as Read (Document/Policy)</option>
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">Choose assignment type</p>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentCourseSelect">Related Course (Optional)</label>
+                        <select id="assignmentCourseSelect" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="">-- No specific course --</option>
+                            <!-- Courses will be populated here -->
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">Link to a course</p>
+                    </div>
+                </div>
+
+                <!-- Assignment Title and Due Date -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentTitleInput">Assignment Title <span class="text-red-500">*</span></label>
+                        <input id="assignmentTitleInput" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., Chapter 1 Review" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentDueDateInput">Due Date <span class="text-red-500">*</span></label>
+                        <input id="assignmentDueDateInput" type="date" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                    </div>
+                </div>
+
+                <!-- Instructions -->
                 <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentTypeSelect">Assignment Type</label>
-                    <select id="assignmentTypeSelect" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <option value="regular">Regular Assignment</option>
-                        <option value="mark-as-read">Mark as Read (Document/Policy)</option>
-                    </select>
-                    <p class="text-xs text-gray-500 mt-1">Mark as Read: Student confirms they've read a policy/document</p>
+                    <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentInstructionsTextarea">Instructions <span class="text-red-500">*</span></label>
+                    <textarea id="assignmentInstructionsTextarea" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" rows="3" placeholder="Provide clear instructions for the student..." required></textarea>
                 </div>
-                <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-medium mb-2" for="assignToStudentSelect">Assign to Student(s)</label>
-                    <select id="assignToStudentSelect" multiple class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 h-32">
-                        <!-- Students will be populated here by JS -->
-                    </select>
-                    <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple students</p>
-                </div>
-                <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentTitleInput">Assignment Title</label>
-                    <input id="assignmentTitleInput" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., Chapter 1 Review or Safety Policy Review">
-                </div>
-                 <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentDueDateInput">Due Date</label>
-                    <input id="assignmentDueDateInput" type="date" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                </div>
-                <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentInstructionsTextarea">Instructions</label>
-                    <textarea id="assignmentInstructionsTextarea" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" rows="4" placeholder="Provide clear instructions for the student..."></textarea>
-                </div>
+
+                <!-- Document Upload -->
                 <div class="mb-4">
                     <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentDocumentInput">Upload Document (PDF, PPT, Word) <span class="text-red-500">*</span></label>
                     <input type="file" id="assignmentDocumentInput" accept=".pdf,.doc,.docx,.ppt,.pptx" class="block w-full text-sm text-gray-500
@@ -617,17 +629,51 @@
                         hover:file:bg-indigo-100"/>
                     <p id="assignmentDocFileName" class="text-xs text-gray-500 mt-1 hidden"></p>
                 </div>
-                <div class="mb-6" id="assignmentMarksContainer">
+
+                <!-- Total Marks -->
+                <div class="mb-4" id="assignmentMarksContainer">
                     <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentMarksInput">Total Marks</label>
-                    <input id="assignmentMarksInput" type="number" class="w-28 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., 100" min="0">
-                    <p class="text-xs text-gray-500 mt-1">Leave 0 for Mark as Read assignments</p>
+                    <input id="assignmentMarksInput" type="number" class="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="100" min="0" value="100">
+                    <p class="text-xs text-gray-500 mt-1">Set to 0 for Mark as Read assignments</p>
                 </div>
-                <div class="flex justify-end space-x-3">
+
+                <!-- Student Selection -->
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-medium mb-2">Assign to Students <span class="text-red-500">*</span></label>
+                    
+                    <!-- Search and Bulk Actions -->
+                    <div class="mb-2 space-y-2">
+                        <input type="text" id="assignmentStudentSearch" placeholder="Search students by name or email..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" oninput="filterAssignmentStudentsList()">
+                        <div class="flex justify-between items-center">
+                            <div class="space-x-2">
+                                <button type="button" onclick="selectAllAssignmentStudents()" class="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 focus:outline-none">
+                                    <i class="fas fa-check-double mr-1"></i> Select All
+                                </button>
+                                <button type="button" onclick="deselectAllAssignmentStudents()" class="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 focus:outline-none">
+                                    <i class="fas fa-times mr-1"></i> Deselect All
+                                </button>
+                            </div>
+                            <span id="selectedAssignmentStudentsCount" class="text-xs text-gray-600">0 students selected</span>
+                        </div>
+                    </div>
+
+                    <!-- Student List -->
+                    <div class="border border-gray-300 rounded-md p-3 max-h-60 overflow-y-auto bg-gray-50">
+                        <p id="noStudentsForAssignment" class="text-gray-500 text-sm text-center py-4 hidden">No active students available.</p>
+                        <p id="noStudentsMatchAssignmentFilter" class="text-gray-500 text-sm text-center py-4 hidden">No students match your search.</p>
+                        <div id="assignmentStudentsList" class="space-y-2">
+                            <!-- Students will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
                     <button type="button" onclick="hideCreateAssignmentModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none">
-                        Cancel
+                        <i class="fas fa-times mr-1"></i> Cancel
                     </button>
                     <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none">
-                        Create & Assign
+                        <i class="fas fa-check mr-1"></i> Create & Assign
                     </button>
                 </div>
             </form>
@@ -6148,9 +6194,12 @@
 
         // Show the create assignment modal
         function showCreateAssignmentModal() {
-            populateStudentAssignmentDropdown();
+            populateAssignmentStudentsList();
+            populateAssignmentCourseSelect();
             createAssignmentForm.reset();
             document.getElementById('assignmentDocFileName').classList.add('hidden');
+            document.getElementById('assignmentStudentSearch').value = '';
+            updateAssignmentSelectedCount();
             createAssignmentModal.classList.remove('hidden');
             createAssignmentModal.classList.add('show');
         }
@@ -6161,23 +6210,107 @@
             createAssignmentModal.classList.add('hidden');
         }
 
-        // Populate student dropdown in the assignment modal
-        function populateStudentAssignmentDropdown() {
-            const select = document.getElementById('assignToStudentSelect');
-            select.innerHTML = '';
+        // Populate course dropdown for assignment
+        function populateAssignmentCourseSelect() {
+            const select = document.getElementById('assignmentCourseSelect');
+            select.innerHTML = '<option value="">-- No specific course --</option>';
+            
+            // Get courses created by the logged-in training manager
+            const myCourses = allCoursesData.filter(c => c.createdBy === loggedInUser.id);
+            
+            myCourses.forEach(course => {
+                const option = document.createElement('option');
+                option.value = course.id;
+                option.textContent = course.name;
+                select.appendChild(option);
+            });
+        }
+
+        // Populate student checkboxes list for assignment
+        function populateAssignmentStudentsList() {
+            const container = document.getElementById('assignmentStudentsList');
+            const noStudentsMsg = document.getElementById('noStudentsForAssignment');
+            container.innerHTML = '';
+            
             const students = allUsersData.filter(u => u.role === 'student' && u.status === 'active');
             
             if (students.length === 0) {
-                 select.innerHTML = '<option value="" disabled>No active students available</option>';
+                noStudentsMsg.classList.remove('hidden');
+                document.getElementById('noStudentsMatchAssignmentFilter').classList.add('hidden');
             } else {
+                noStudentsMsg.classList.add('hidden');
                 students.forEach(student => {
                     const fullName = `${student.name}${student.surname ? ' ' + student.surname : ''}`;
-                    const option = document.createElement('option');
-                    option.value = student.id;
-                    option.textContent = `${fullName} (${student.email})`;
-                    select.appendChild(option);
+                    const checkboxDiv = document.createElement('div');
+                    checkboxDiv.classList.add('flex', 'items-center', 'py-1', 'px-2', 'hover:bg-gray-100', 'rounded', 'assignment-student-item');
+                    checkboxDiv.dataset.studentName = fullName.toLowerCase();
+                    checkboxDiv.dataset.studentEmail = student.email.toLowerCase();
+                    checkboxDiv.innerHTML = `
+                        <input type="checkbox" id="assignmentStudent_${student.id}" value="${student.id}" class="assignment-student-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" onchange="updateAssignmentSelectedCount()">
+                        <label for="assignmentStudent_${student.id}" class="ml-2 flex-1 cursor-pointer">
+                            <div class="text-sm font-medium text-gray-700">${fullName}</div>
+                            <div class="text-xs text-gray-500">${student.email}</div>
+                        </label>
+                    `;
+                    container.appendChild(checkboxDiv);
                 });
             }
+        }
+
+        // Update selected students count
+        function updateAssignmentSelectedCount() {
+            const checkedBoxes = document.querySelectorAll('.assignment-student-checkbox:checked');
+            const visibleChecked = Array.from(checkedBoxes).filter(cb => 
+                cb.closest('.assignment-student-item').style.display !== 'none'
+            );
+            document.getElementById('selectedAssignmentStudentsCount').textContent = `${visibleChecked.length} students selected`;
+        }
+
+        // Select all visible students
+        function selectAllAssignmentStudents() {
+            const visibleCheckboxes = Array.from(document.querySelectorAll('.assignment-student-checkbox')).filter(cb => 
+                cb.closest('.assignment-student-item').style.display !== 'none'
+            );
+            visibleCheckboxes.forEach(checkbox => checkbox.checked = true);
+            updateAssignmentSelectedCount();
+        }
+
+        // Deselect all visible students
+        function deselectAllAssignmentStudents() {
+            const visibleCheckboxes = Array.from(document.querySelectorAll('.assignment-student-checkbox')).filter(cb => 
+                cb.closest('.assignment-student-item').style.display !== 'none'
+            );
+            visibleCheckboxes.forEach(checkbox => checkbox.checked = false);
+            updateAssignmentSelectedCount();
+        }
+
+        // Filter students list
+        function filterAssignmentStudentsList() {
+            const searchTerm = document.getElementById('assignmentStudentSearch').value.toLowerCase();
+            const studentItems = document.querySelectorAll('.assignment-student-item');
+            const noMatchMsg = document.getElementById('noStudentsMatchAssignmentFilter');
+            let visibleCount = 0;
+
+            studentItems.forEach(item => {
+                const name = item.dataset.studentName;
+                const email = item.dataset.studentEmail;
+                
+                if (name.includes(searchTerm) || email.includes(searchTerm)) {
+                    item.style.display = '';
+                    visibleCount++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+
+            // Show/hide no match message
+            if (visibleCount === 0 && studentItems.length > 0) {
+                noMatchMsg.classList.remove('hidden');
+            } else {
+                noMatchMsg.classList.add('hidden');
+            }
+
+            updateAssignmentSelectedCount();
         }
 
         // Listener for the main "Create Assignment" button
@@ -6212,33 +6345,49 @@
         createAssignmentForm.addEventListener('submit', function(e) {
             e.preventDefault();
             const assignmentType = document.getElementById('assignmentTypeSelect').value;
-            const selectedOptions = Array.from(document.getElementById('assignToStudentSelect').selectedOptions);
-            const studentIds = selectedOptions.map(opt => parseInt(opt.value, 10)).filter(id => !isNaN(id));
+            const courseId = document.getElementById('assignmentCourseSelect').value;
+            const selectedCheckboxes = Array.from(document.querySelectorAll('.assignment-student-checkbox:checked'));
+            const studentIds = selectedCheckboxes.map(cb => parseInt(cb.value, 10));
             const title = document.getElementById('assignmentTitleInput').value.trim();
             const instructions = document.getElementById('assignmentInstructionsTextarea').value.trim();
             const dueDate = document.getElementById('assignmentDueDateInput').value;
             const totalMarks = parseInt(document.getElementById('assignmentMarksInput').value, 10) || 0;
             const documentFile = assignmentDocumentInput.files[0];
 
-            if (studentIds.length === 0 || !title || !instructions || !dueDate) {
-                showMessageModal('Input Error', 'Please fill all required fields: at least one student, title, instructions, and due date.');
+            // Validation
+            if (studentIds.length === 0) {
+                showMessageModal('Selection Required', 'Please select at least one student to assign this to.');
+                return;
+            }
+
+            if (!title || !instructions || !dueDate) {
+                showMessageModal('Input Error', 'Please fill all required fields: title, instructions, and due date.');
                 return;
             }
 
             if (!documentFile) {
-                showMessageModal('Input Error', 'Please upload a document (PDF, PPT, or Word).');
+                showMessageModal('Document Required', 'Please upload a document (PDF, PPT, or Word).');
                 return;
+            }
+
+            // Get course name if linked
+            let courseName = null;
+            if (courseId) {
+                const course = allCoursesData.find(c => c.id === parseInt(courseId));
+                courseName = course ? course.name : null;
             }
 
             // Create assignment for each selected student
             let createdCount = 0;
             studentIds.forEach(studentId => {
-                    const newAssignment = {
+                const newAssignment = {
                     id: Date.now() + studentId + Math.floor(Math.random() * 1000),
                     type: assignmentType,
                     title,
                     instructions,
                     dueDate,
+                    courseId: courseId ? parseInt(courseId) : null,
+                    courseName: courseName,
                     documentFileName: documentFile.name,
                     documentFileUrl: URL.createObjectURL(documentFile),
                     documentType: documentFile.name.split('.').pop().toUpperCase(),
@@ -6249,6 +6398,8 @@
                     submissionDate: null,
                     markedAsRead: false,
                     readDate: null,
+                    score: null,
+                    feedback: null,
                     creationDate: new Date().toISOString().slice(0, 10)
                 };
                 allAssignmentsData.push(newAssignment);
@@ -6256,7 +6407,8 @@
             });
             
             renderTMAssignmentsTable();
-            showMessageModal('Success', `Assignment "${title}" created and assigned to ${createdCount} student(s).`);
+            const courseInfo = courseName ? ` for course "${courseName}"` : '';
+            showMessageModal('Success', `Assignment "${title}"${courseInfo} created and assigned to ${createdCount} student(s).`);
             hideCreateAssignmentModal();
         });
 
@@ -6286,10 +6438,15 @@
                     : '<i class="fas fa-tasks mr-1 text-gray-600"></i>';
 
                 const newRow = tableBody.insertRow();
+                
+                // Build course info display
+                const courseInfo = assignment.courseName ? `<div class="text-xs text-gray-500 mt-1"><i class="fas fa-book mr-1"></i>${assignment.courseName}</div>` : '';
+                
                 newRow.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        ${typeIcon}${assignment.title}
-                        ${assignment.documentType ? '<span class="ml-2 text-xs text-gray-400">(' + assignment.documentType + ')</span>' : ''}
+                    <td class="px-6 py-4 text-sm font-medium text-gray-900">
+                        <div>${typeIcon}${assignment.title}</div>
+                        ${courseInfo}
+                        ${assignment.documentType ? '<span class="text-xs text-gray-400">(' + assignment.documentType + ' attached)</span>' : ''}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${studentName}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${assignment.dueDate}</td>
