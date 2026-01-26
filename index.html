@@ -3090,6 +3090,8 @@
                 document.getElementById('uploadProgressText').textContent = `${index + 1}/${total}`;
             });
 
+            saveToLocalStorage(); // Save bulk imported users
+            
             // Show results
             progressDiv.classList.add('hidden');
             resultsDiv.classList.remove('hidden');
@@ -3262,6 +3264,8 @@
                 loggedInUser.fullName = `${userLoggedIn.name}${userLoggedIn.surname ? ' ' + userLoggedIn.surname : ''}`;
                 loggedInUser.email = userLoggedIn.email;
                 loggedInUser.picture = userLoggedIn.picture;
+                
+                saveToLocalStorage(); // Save logged in user
 
                 // Update display usernames and role
                 document.getElementById('sidebarUsername').textContent = loggedInUser.fullName;
@@ -3320,7 +3324,17 @@
 
         // Logout functionality
         function handleLogout() {
-            localStorage.removeItem('loggedInUser');
+            loggedInUser = {
+                id: null,
+                name: '',
+                role: '',
+                fullName: '',
+                email: '',
+                contact: '',
+                address: '',
+                picture: 'https://placehold.co/96x96/ADD8E6/00008B?text=P'
+            };
+            saveToLocalStorage(); // Clear logged in user
             showMessageModal('Logged Out', 'You have been successfully logged out.');
             document.getElementById('loginModal').classList.remove('hidden');
             
@@ -3360,6 +3374,84 @@
         document.getElementById('logoutBtn').addEventListener('click', handleLogout);
         document.getElementById('topLogoutBtn').addEventListener('click', handleLogout);
 
+        // ==================== LOCAL STORAGE PERSISTENCE ====================
+        // Save data to localStorage
+        function saveToLocalStorage() {
+            try {
+                localStorage.setItem('allUsersData', JSON.stringify(allUsersData));
+                localStorage.setItem('allCoursesData', JSON.stringify(allCoursesData));
+                localStorage.setItem('allProgramsData', JSON.stringify(allProgramsData));
+                localStorage.setItem('allAssignmentsData', JSON.stringify(allAssignmentsData));
+                localStorage.setItem('allCertificatesData', JSON.stringify(allCertificatesData));
+                localStorage.setItem('allBadgesData', JSON.stringify(allBadgesData));
+                localStorage.setItem('studentBadgesData', JSON.stringify(studentBadgesData));
+                localStorage.setItem('documentRollouts', JSON.stringify(documentRollouts));
+                localStorage.setItem('loggedInUser', JSON.stringify(loggedInUser));
+                console.log('Data saved to localStorage successfully');
+            } catch (error) {
+                console.error('Error saving to localStorage:', error);
+            }
+        }
+
+        // Load data from localStorage
+        function loadFromLocalStorage() {
+            try {
+                const users = localStorage.getItem('allUsersData');
+                const courses = localStorage.getItem('allCoursesData');
+                const programs = localStorage.getItem('allProgramsData');
+                const assignments = localStorage.getItem('allAssignmentsData');
+                const certificates = localStorage.getItem('allCertificatesData');
+                const badges = localStorage.getItem('allBadgesData');
+                const studentBadges = localStorage.getItem('studentBadgesData');
+                const rollouts = localStorage.getItem('documentRollouts');
+                const savedUser = localStorage.getItem('loggedInUser');
+
+                if (users) allUsersData = JSON.parse(users);
+                if (courses) allCoursesData = JSON.parse(courses);
+                if (programs) allProgramsData = JSON.parse(programs);
+                if (assignments) allAssignmentsData = JSON.parse(assignments);
+                if (certificates) allCertificatesData = JSON.parse(certificates);
+                if (badges) allBadgesData = JSON.parse(badges);
+                if (studentBadges) studentBadgesData = JSON.parse(studentBadges);
+                if (rollouts) documentRollouts = JSON.parse(rollouts);
+                if (savedUser) {
+                    const parsedUser = JSON.parse(savedUser);
+                    // Only restore user if they have an id (logged in)
+                    if (parsedUser && parsedUser.id) {
+                        loggedInUser = parsedUser;
+                    }
+                }
+
+                console.log('Data loaded from localStorage successfully');
+                return true;
+            } catch (error) {
+                console.error('Error loading from localStorage:', error);
+                return false;
+            }
+        }
+
+        // Initialize data - load from localStorage or use defaults
+        function initializeData() {
+            const loaded = loadFromLocalStorage();
+            
+            // If nothing in localStorage, populate with default data
+            if (!loaded || allUsersData.length === 0) {
+                console.log('No data in localStorage, using default dummy data');
+                initializeDefaultData();
+                saveToLocalStorage();
+            }
+        }
+
+        // Default dummy data initialization
+        function initializeDefaultData() {
+            allUsersData = getDefaultUsers();
+            allCoursesData = getDefaultCourses();
+            allProgramsData = [];
+            allAssignmentsData = getDefaultAssignments();
+            allCertificatesData = getDefaultCertificates();
+            allBadgesData = getDefaultBadges();
+        }
+
         // Dummy logged in user data (will be populated on successful login)
         let loggedInUser = {
             id: null, // Will be set on login
@@ -3373,7 +3465,11 @@
         };
 
         // Global array to store user data
-        let allUsersData = [
+        let allUsersData = [];
+        
+        // Function to get default users
+        function getDefaultUsers() {
+            return [
             // Dummy Administrator
             {
                 id: 1,
@@ -3460,6 +3556,7 @@
                 totalHoursSpent: 5
             }
         ];
+        }
 
         // Add User Button Listener
         document.getElementById('addUserBtn').addEventListener('click', showAddUserModal);
@@ -3521,6 +3618,7 @@
                 totalHoursSpent: 0
             };
             allUsersData.push(newUser); // Add new user to the global array
+            saveToLocalStorage(); // Save to localStorage
 
             renderUserTable(); // Re-render the user table to include the new user
             updateDashboardStats(); // Update dashboard stats after adding user
@@ -3608,6 +3706,7 @@
                             button.textContent = 'Deactivated';
                             button.classList.remove('bg-green-100', 'text-green-800');
                             button.classList.add('bg-red-100', 'text-red-800');
+                            saveToLocalStorage(); // Save changes
                             showMessageModal('User Status', `User ${userToUpdate.name} status changed to Deactivated.`);
                         } else {
                             userToUpdate.status = 'active';
@@ -3615,6 +3714,7 @@
                             button.textContent = 'Active';
                             button.classList.remove('bg-red-100', 'text-red-800');
                             button.classList.add('bg-green-100', 'text-green-800');
+                            saveToLocalStorage(); // Save changes
                             showMessageModal('User Status', `User ${userToUpdate.name} status changed to Active.`);
                         }
                         updateDashboardStats(); // Update dashboard stats after status change
@@ -3672,16 +3772,71 @@
         });
 
 
-        // Show login modal on page load
+        // Show login modal on page load and initialize data
         document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('loginModal').classList.remove('hidden');
+            initializeData(); // Load data from localStorage or use defaults
+            
+            // Check if user was logged in from previous session
+            if (loggedInUser && loggedInUser.id) {
+                // User was logged in, show the app
+                const loginModalElement = document.getElementById('loginModal');
+                if (loginModalElement) {
+                    loginModalElement.classList.add('hidden');
+                }
+                
+                const sidebar = document.getElementById('sidebar');
+                const contentArea = document.getElementById('contentArea');
+                const main = document.querySelector('main');
+                
+                if (sidebar) sidebar.style.display = '';
+                if (contentArea) contentArea.style.display = '';
+                if (main) main.style.display = '';
+                
+                // Update display
+                document.getElementById('sidebarUsername').textContent = loggedInUser.fullName;
+                document.getElementById('sidebarUserrole').textContent = loggedInUser.role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+                document.getElementById('topNavUsername').textContent = loggedInUser.fullName;
+                document.getElementById('greetingName').textContent = loggedInUser.name;
+                document.querySelector('#sidebar .user-info img').src = loggedInUser.picture;
+                document.querySelector('header .dropdown img').src = loggedInUser.picture;
+                
+                // Show appropriate navigation
+                document.querySelectorAll('.nav-section').forEach(section => {
+                    section.classList.add('hidden');
+                });
+                
+                const role = loggedInUser.role;
+                let navSectionToShowId = '';
+                if (role === 'administrator') {
+                    navSectionToShowId = 'adminNav';
+                } else if (role === 'training_manager') {
+                    navSectionToShowId = 'trainingManagerNav';
+                } else if (role === 'student') {
+                    navSectionToShowId = 'studentNav';
+                }
+                const navSectionElement = document.getElementById(navSectionToShowId);
+                if (navSectionElement) {
+                    navSectionElement.classList.remove('hidden');
+                }
+                
+                showSection('dashboardContent');
+                updateDashboardStats();
+            } else {
+                // Show login modal
+                document.getElementById('loginModal').classList.remove('hidden');
+            }
+            
             renderUserTable(); // Initial render of the user table with dummy data
             renderAllExistingCoursesTable(); // Initial render of the admin courses table
         });
 
 
         // Course Management Specific Logic
-        let allCoursesData = [
+        let allCoursesData = [];
+        
+        // Function to get default courses
+        function getDefaultCourses() {
+            return [
             {
                 id: 101,
                 name: 'Induction Programme',
@@ -4001,6 +4156,7 @@
                 creatorId: 2
             }
         ];
+        }
         let currentCourseQuestions = [];
         let currentVideoFileName = '';
         let currentCoursePdfFileName = '';
@@ -4444,6 +4600,7 @@
                 creatorId: loggedInUser.id // Assign creator ID
             };
             allCoursesData.push(newCourse);
+            saveToLocalStorage(); // Save to localStorage
 
             renderTrainingManagerCoursesTable(); // Re-render the Training Manager's courses table
             renderAllExistingCoursesTable(); // Re-render the Admin's courses table
@@ -4590,6 +4747,7 @@
                 });
             });
 
+            saveToLocalStorage(); // Save document rollouts
             hideRollOutDocumentsModal();
             showMessageModal('Rolled Out', `Assigned ${selectedDocIds.length} document(s) to ${selectedStudentIds.length} student(s). ${createdCount} new assignment(s) created.`);
         }
@@ -4818,6 +4976,7 @@
                 assignedStudentIds: [] // Initially no students assigned
             };
             allProgramsData.push(newProgramme);
+            saveToLocalStorage(); // Save to localStorage
             
             renderExistingProgramsTable();
             renderProgrammesForAssignmentTable(); // Update the new assignment table
@@ -4986,6 +5145,7 @@
                         }
                     });
                     
+                    saveToLocalStorage(); // Save to localStorage
                     showMessageModal('Success', `Student assignments for "${programme.name}" updated.`);
                     renderExistingProgramsTable(); // Re-render programme table
                     renderProgrammesForAssignmentTable(); // Re-render assignment table
@@ -5215,6 +5375,7 @@
                         }
                     });
                     
+                    saveToLocalStorage(); // Save to localStorage
                     showMessageModal('Success', `Student assignments for "${course.name}" updated.`);
                     renderCoursesForAssignmentTable(); // Re-render courses table
                     renderAssignmentOverview(); // Update assignment overview
@@ -6171,21 +6332,25 @@
         // --- FIX: ASSIGNMENT FUNCTIONALITY START ---
         let allAssignmentsData = [];
         
-        // Add Health & Safety Case Study Assignment for Alice
-        allAssignmentsData.push({
-            id: Date.now(),
-            title: 'Health and Safety Case Study - TechNow Solutions',
-            instructions: 'Read the comprehensive case study about a fire incident at TechNow Solutions and complete all 8 questions. This assignment tests your understanding of workplace health and safety principles including hazard identification, risk assessment, and control measures implementation.',
-            dueDate: '2026-02-21',
-            documentFileName: 'Health-Safety-Case-Study.html',
-            documentFileUrl: 'health-safety-assignment.html',
-            totalMarks: 100,
-            assignedStudentId: 3,
-            creatorId: 1,
-            status: 'Assigned',
-            submissionDate: null,
-            creationDate: '2026-01-21'
-        });
+        // Function to get default assignments
+        function getDefaultAssignments() {
+            return [
+                {
+                    id: Date.now(),
+                    title: 'Health and Safety Case Study - TechNow Solutions',
+                    instructions: 'Read the comprehensive case study about a fire incident at TechNow Solutions and complete all 8 questions. This assignment tests your understanding of workplace health and safety principles including hazard identification, risk assessment, and control measures implementation.',
+                    dueDate: '2026-02-21',
+                    documentFileName: 'Health-Safety-Case-Study.html',
+                    documentFileUrl: 'health-safety-assignment.html',
+                    totalMarks: 100,
+                    assignedStudentId: 3,
+                    creatorId: 1,
+                    status: 'Assigned',
+                    submissionDate: null,
+                    creationDate: '2026-01-21'
+                }
+            ];
+        }
         
         const createAssignmentModal = document.getElementById('createAssignmentModal');
         const createAssignmentForm = document.getElementById('createAssignmentForm');
@@ -6406,6 +6571,7 @@
                 createdCount++;
             });
             
+            saveToLocalStorage(); // Save to localStorage
             renderTMAssignmentsTable();
             const courseInfo = courseName ? ` for course "${courseName}"` : '';
             showMessageModal('Success', `Assignment "${title}"${courseInfo} created and assigned to ${createdCount} student(s).`);
@@ -7501,6 +7667,7 @@ function markDocumentAsRead(courseId, docId) {
         rollout.isRead = !rollout.isRead;
         rollout.readDate = rollout.isRead ? new Date().toISOString() : null;
 
+        saveToLocalStorage(); // Save document read status
         loadCourseDocuments(courseId);
         showMessageModal('Success', rollout.isRead
             ? `"${doc.title}" has been marked as read!`
@@ -7570,7 +7737,11 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
         // --- CERTIFICATE FEATURE ---
-        let allCertificatesData = [
+        let allCertificatesData = [];
+        
+        // Function to get default certificates
+        function getDefaultCertificates() {
+            return [
             // Certificates for completed courses
             {
                 id: 'CERT-001',
@@ -7593,6 +7764,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 status: 'Active'
             }
         ];
+        }
 
         // Function to issue certificate to student
         function issueCertificateToStudent(studentId, courseId, courseName) {
@@ -7611,6 +7783,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 status: 'Active'
             };
             allCertificatesData.push(certificate);
+            saveToLocalStorage(); // Save to localStorage
             showMessageModal('Success', `Certificate issued to ${student.name} for completing ${courseName}.`);
         }
 
@@ -7721,7 +7894,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // --- BADGES FEATURE ---
-        let allBadgesData = [
+        let allBadgesData = [];
+        
+        // Function to get default badges
+        function getDefaultBadges() {
+            return [
             {
                 id: 1,
                 name: 'Quick Learner',
@@ -7753,6 +7930,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 timesEarned: 0
             }
         ];
+        }
         let studentBadgesData = [
             { studentId: 3, badgeId: 1, earnedDate: '2024-01-15' },
             { studentId: 3, badgeId: 2, earnedDate: '2024-02-20' },
@@ -7776,6 +7954,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 timesEarned: 0
             };
             allBadgesData.push(badge);
+            saveToLocalStorage(); // Save to localStorage
             return badge;
         }
 
