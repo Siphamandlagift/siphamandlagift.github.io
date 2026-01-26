@@ -511,6 +511,45 @@
         </div>
     </div>
 
+    <!-- Assign Students to Courses Modal (Direct Course Assignment) -->
+    <div id="assignStudentsToCoursesModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 shadow-xl max-w-2xl w-full transform transition-all duration-300 scale-100 opacity-100">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4" id="assignStudentsToCoursesModalTitle">Assign Students to Course</h3>
+            
+            <!-- Search and Bulk Actions -->
+            <div class="mb-4 space-y-3">
+                <input type="text" id="assignStudentsToCoursesSearch" placeholder="Search students by name or email..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" oninput="filterCourseAssignStudentsList()">
+                <div class="flex justify-between items-center">
+                    <div class="space-x-2">
+                        <button type="button" onclick="selectAllCourseStudents()" class="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 focus:outline-none">
+                            <i class="fas fa-check-double mr-1"></i> Select All
+                        </button>
+                        <button type="button" onclick="deselectAllCourseStudents()" class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 focus:outline-none">
+                            <i class="fas fa-times mr-1"></i> Deselect All
+                        </button>
+                    </div>
+                    <span id="selectedCourseStudentsCount" class="text-sm text-gray-600">0 students selected</span>
+                </div>
+            </div>
+
+            <div class="mb-4 max-h-96 overflow-y-auto border border-gray-300 rounded-md p-3">
+                <p id="noStudentsAvailableForCourse" class="text-gray-500 text-sm text-center py-4 hidden">No students available. Add students via User Management first.</p>
+                <p id="noStudentsMatchCourseFilter" class="text-gray-500 text-sm text-center py-4 hidden">No students match your search.</p>
+                <div id="assignStudentsToCouresList" class="space-y-2">
+                    <!-- Student checkboxes will be loaded here -->
+                </div>
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="hideAssignStudentsToCoursesModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none">
+                    Cancel
+                </button>
+                <button type="button" id="saveAssignedCourseStudentsBtn" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none">
+                    Save Assignments
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- FIX: Create Assignment Modal (for Training Manager) -->
     <div id="createAssignmentModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-lg p-6 shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-100 opacity-100">
@@ -873,6 +912,10 @@
                     <a href="#" class="sidebar-item" data-section="user-programme-assignment">
                         <i class="fas fa-user-tag mr-3"></i>
                         <span class="sidebar-text">Assign Students</span>
+                    </a>
+                    <a href="#" class="sidebar-item" data-section="course-assignment">
+                        <i class="fas fa-book-open mr-3"></i>
+                        <span class="sidebar-text">Assign Courses</span>
                     </a>
                     <a href="#" class="sidebar-item" data-section="assignment-overview">
                         <i class="fas fa-chart-pie mr-3"></i>
@@ -1375,6 +1418,63 @@
                         </div>
                         <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
                             <div class="text-sm text-gray-500">Showing <span class="font-medium" id="assignProgrammesShowingCount">0</span> to <span class="font-medium" id="assignProgrammesTotalCountDisplay">0</span> of <span class="font-medium" id="assignProgrammesTotalCount">0</span> results</div>
+                            <div class="flex space-x-2">
+                                <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>Previous</button>
+                                <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>1</button>
+                                <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>Next</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Course Assignment (Direct Student Enrollment) -->
+                <div id="course-assignmentContent" class="content-section">
+                    <div class="mb-6">
+                        <h2 class="text-2xl font-semibold text-gray-800">Assign Students to Courses</h2>
+                        <p class="text-gray-600">Directly assign students to individual courses without using programmes.</p>
+                    </div>
+
+                    <!-- Info Alert -->
+                    <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-info-circle text-blue-400"></i>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm text-blue-700">
+                                    <strong>Tip:</strong> Use this section to assign individual courses to students. For bulk enrollment, use 
+                                    <a href="#" onclick="showSection('user-programme-assignmentContent'); return false;" class="underline font-medium">Programmes</a> instead.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-gray-800">Available Courses for Assignment</h3>
+                            <p class="text-sm text-gray-600 mt-1">Select a course to assign or manage student enrollments</p>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Marks</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enrolled Students</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="coursesForAssignmentTableBody">
+                                    <tr>
+                                        <td colspan="6" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No courses available for assignment. Create courses first.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                            <div class="text-sm text-gray-500">Showing <span class="font-medium" id="assignCoursesShowingCount">0</span> to <span class="font-medium" id="assignCoursesTotalCountDisplay">0</span> of <span class="font-medium" id="assignCoursesTotalCount">0</span> results</div>
                             <div class="flex space-x-2">
                                 <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>Previous</button>
                                 <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>1</button>
@@ -3009,6 +3109,9 @@
             }
             if (sectionId === 'user-programme-assignmentContent') {
                 renderProgrammesForAssignmentTable();
+            }
+            if (sectionId === 'course-assignmentContent') {
+                renderCoursesForAssignmentTable();
             }
             if (sectionId === 'assignment-overviewContent') {
                 renderAssignmentOverview();
@@ -4924,6 +5027,235 @@
                     showAssignStudentsModal(programmeId);
                 });
             });
+        }
+
+        // Direct Course Assignment Functions
+        const assignStudentsToCoursesModal = document.getElementById('assignStudentsToCoursesModal');
+        const assignStudentsToCoursesModalTitle = document.getElementById('assignStudentsToCoursesModalTitle');
+        const assignStudentsToCoursesList = document.getElementById('assignStudentsToCouresList');
+        const noStudentsAvailableForCourse = document.getElementById('noStudentsAvailableForCourse');
+        let currentCourseIdToAssign = null;
+
+        function showAssignStudentsToCoursesModal(courseId) {
+            currentCourseIdToAssign = courseId;
+            const course = allCoursesData.find(c => c.id === courseId);
+            if (!course) {
+                showMessageModal('Error', 'Course not found.');
+                return;
+            }
+            assignStudentsToCoursesModalTitle.textContent = `Assign Students to: ${course.name}`;
+            
+            // Clear search input
+            document.getElementById('assignStudentsToCoursesSearch').value = '';
+            
+            assignStudentsToCoursesList.innerHTML = ''; // Clear previous list
+
+            const students = allUsersData.filter(user => user.role === 'student');
+
+            if (students.length === 0) {
+                noStudentsAvailableForCourse.classList.remove('hidden');
+                document.getElementById('noStudentsMatchCourseFilter').classList.add('hidden');
+            } else {
+                noStudentsAvailableForCourse.classList.add('hidden');
+                document.getElementById('noStudentsMatchCourseFilter').classList.add('hidden');
+                students.forEach(student => {
+                    // Check if student is already enrolled in THIS course
+                    const isEnrolledInThisCourse = student.coursesEnrolled.some(enr => enr.courseId === courseId);
+                    
+                    // Get enrollment details if enrolled
+                    const enrollment = student.coursesEnrolled.find(enr => enr.courseId === courseId);
+                    const enrollmentDate = enrollment ? enrollment.enrollmentDate : '';
+                    const completionDate = enrollment ? enrollment.completionDate : null;
+                    const statusText = completionDate ? 
+                        `<span class="text-green-600"><i class="fas fa-check-circle mr-1"></i>Completed ${completionDate}</span>` : 
+                        (isEnrolledInThisCourse ? `<span class="text-blue-600"><i class="fas fa-clock mr-1"></i>In Progress</span>` : '');
+                    
+                    const checkboxDiv = document.createElement('div');
+                    checkboxDiv.classList.add('flex', 'items-center', 'justify-between', 'py-2', 'px-2', 'hover:bg-gray-50', 'rounded', 'course-student-item');
+                    const fullName = `${student.name}${student.surname ? ' ' + student.surname : ''}`;
+                    checkboxDiv.dataset.studentName = fullName.toLowerCase();
+                    checkboxDiv.dataset.studentEmail = student.email.toLowerCase();
+                    checkboxDiv.innerHTML = `
+                        <div class="flex items-center flex-1">
+                            <input type="checkbox" id="assignCourseStudent_${student.id}" value="${student.id}" class="assign-course-student-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" ${isEnrolledInThisCourse ? 'checked' : ''} onchange="updateCourseSelectedCount()">
+                            <label for="assignCourseStudent_${student.id}" class="ml-3 flex-1">
+                                <div class="text-sm font-medium text-gray-700">${fullName}</div>
+                                <div class="text-xs text-gray-500">${student.email}</div>
+                            </label>
+                        </div>
+                        <div class="text-xs ml-2">
+                            ${statusText}
+                        </div>
+                    `;
+                    assignStudentsToCoursesList.appendChild(checkboxDiv);
+                });
+            }
+
+            updateCourseSelectedCount();
+            assignStudentsToCoursesModal.classList.remove('hidden');
+            assignStudentsToCoursesModal.classList.add('show');
+        }
+
+        function hideAssignStudentsToCoursesModal() {
+            assignStudentsToCoursesModal.classList.remove('show');
+            assignStudentsToCoursesModal.classList.add('hidden');
+            currentCourseIdToAssign = null;
+        }
+
+        document.getElementById('saveAssignedCourseStudentsBtn').addEventListener('click', function() {
+            if (currentCourseIdToAssign) {
+                const course = allCoursesData.find(c => c.id === currentCourseIdToAssign);
+                if (course) {
+                    const newlySelectedStudentIds = Array.from(document.querySelectorAll('.assign-course-student-checkbox:checked'))
+                                                      .map(checkbox => parseInt(checkbox.value));
+                    
+                    const students = allUsersData.filter(user => user.role === 'student');
+                    
+                    students.forEach(student => {
+                        const isCurrentlyEnrolled = student.coursesEnrolled.some(enr => enr.courseId === currentCourseIdToAssign);
+                        const shouldBeEnrolled = newlySelectedStudentIds.includes(student.id);
+                        
+                        if (!isCurrentlyEnrolled && shouldBeEnrolled) {
+                            // Add course to student's enrolled list
+                            student.coursesEnrolled.push({
+                                courseId: currentCourseIdToAssign,
+                                enrollmentDate: new Date().toISOString().slice(0, 10),
+                                completionDate: null,
+                                hoursSpent: 0
+                            });
+                            student.totalHoursSpent = student.coursesEnrolled.reduce((sum, c) => sum + (c.hoursSpent || 0), 0);
+                        } else if (isCurrentlyEnrolled && !shouldBeEnrolled) {
+                            // Remove course from student's enrolled list (only if not from a programme)
+                            // Check if this course is part of any programme the student is in
+                            const isFromProgramme = allProgramsData.some(prog => 
+                                prog.assignedStudentIds.includes(student.id) && 
+                                prog.linkedCourseIds.includes(currentCourseIdToAssign)
+                            );
+                            
+                            if (!isFromProgramme) {
+                                student.coursesEnrolled = student.coursesEnrolled.filter(enr => enr.courseId !== currentCourseIdToAssign);
+                                student.totalHoursSpent = student.coursesEnrolled.reduce((sum, c) => sum + (c.hoursSpent || 0), 0);
+                            } else {
+                                // Show warning that course is from a programme
+                                const studentName = `${student.name}${student.surname ? ' ' + student.surname : ''}`;
+                                showMessageModal('Warning', `Cannot remove ${studentName} from this course as it's assigned through a programme. Remove from the programme instead.`);
+                            }
+                        }
+                    });
+                    
+                    showMessageModal('Success', `Student assignments for "${course.name}" updated.`);
+                    renderCoursesForAssignmentTable(); // Re-render courses table
+                    renderAssignmentOverview(); // Update assignment overview
+                    updateDashboardStats(); // Refresh dashboard counts
+                }
+            }
+            hideAssignStudentsToCoursesModal();
+        });
+
+        // Helper functions for course assignment modal
+        function updateCourseSelectedCount() {
+            const checkedBoxes = document.querySelectorAll('.assign-course-student-checkbox:checked');
+            const visibleCheckedBoxes = Array.from(checkedBoxes).filter(cb => 
+                cb.closest('.course-student-item').style.display !== 'none'
+            );
+            document.getElementById('selectedCourseStudentsCount').textContent = `${visibleCheckedBoxes.length} students selected`;
+        }
+
+        function selectAllCourseStudents() {
+            const visibleCheckboxes = Array.from(document.querySelectorAll('.assign-course-student-checkbox')).filter(cb => 
+                cb.closest('.course-student-item').style.display !== 'none'
+            );
+            visibleCheckboxes.forEach(checkbox => checkbox.checked = true);
+            updateCourseSelectedCount();
+        }
+
+        function deselectAllCourseStudents() {
+            const visibleCheckboxes = Array.from(document.querySelectorAll('.assign-course-student-checkbox')).filter(cb => 
+                cb.closest('.course-student-item').style.display !== 'none'
+            );
+            visibleCheckboxes.forEach(checkbox => checkbox.checked = false);
+            updateCourseSelectedCount();
+        }
+
+        function filterCourseAssignStudentsList() {
+            const searchTerm = document.getElementById('assignStudentsToCoursesSearch').value.toLowerCase();
+            const studentItems = document.querySelectorAll('.course-student-item');
+            const noMatchMsg = document.getElementById('noStudentsMatchCourseFilter');
+            let visibleCount = 0;
+
+            studentItems.forEach(item => {
+                const name = item.dataset.studentName;
+                const email = item.dataset.studentEmail;
+                
+                if (name.includes(searchTerm) || email.includes(searchTerm)) {
+                    item.style.display = '';
+                    visibleCount++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+
+            // Show/hide no match message
+            if (visibleCount === 0 && studentItems.length > 0) {
+                noMatchMsg.classList.remove('hidden');
+            } else {
+                noMatchMsg.classList.add('hidden');
+            }
+
+            updateCourseSelectedCount();
+        }
+
+        // Render courses for direct assignment table
+        function renderCoursesForAssignmentTable() {
+            const tableBody = document.getElementById('coursesForAssignmentTableBody');
+            tableBody.innerHTML = '';
+
+            if (allCoursesData.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No courses available for assignment. Create courses first.</td>
+                    </tr>
+                `;
+            } else {
+                allCoursesData.forEach(course => {
+                    const row = tableBody.insertRow();
+                    row.classList.add('hover:bg-gray-50');
+
+                    // Count enrolled students
+                    const enrolledStudents = allUsersData.filter(user => 
+                        user.role === 'student' && 
+                        user.coursesEnrolled.some(enr => enr.courseId === course.id)
+                    );
+                    const enrolledCount = enrolledStudents.length;
+                    
+                    // Get enrolled student names
+                    const enrolledNames = enrolledStudents.map(s => 
+                        `${s.name}${s.surname ? ' ' + s.surname : ''}`
+                    ).join(', ') || 'None';
+
+                    const totalMarks = course.questions.reduce((sum, q) => sum + (q.marks || 0), 0);
+                    const description = course.description || 'N/A';
+                    const truncatedDesc = description.length > 50 ? description.substring(0, 50) + '...' : description;
+
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap"><img src="${course.picture}" alt="Course" class="h-10 w-10 rounded-md object-cover"></td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${course.name}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500" title="${description}">${truncatedDesc}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalMarks}</td>
+                        <td class="px-6 py-4 text-sm text-gray-500" title="${enrolledNames}">${enrolledCount} student(s)</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button class="text-blue-600 hover:text-blue-900" onclick="showAssignStudentsToCoursesModal(${course.id})">
+                                <i class="fas fa-users mr-1"></i>Assign/View Students
+                            </button>
+                        </td>
+                    `;
+                });
+            }
+
+            // Update course counts
+            document.getElementById('assignCoursesTotalCount').textContent = allCoursesData.length;
+            document.getElementById('assignCoursesShowingCount').textContent = allCoursesData.length > 0 ? 1 : 0;
+            document.getElementById('assignCoursesTotalCountDisplay').textContent = allCoursesData.length;
         }
 
         // Assignment Overview Dashboard Functions
