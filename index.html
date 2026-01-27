@@ -942,11 +942,7 @@
             <nav class="flex-1 overflow-y-auto">
                 <div id="adminNav" class="nav-section">
                     <div class="p-6 text-xs uppercase text-indigo-300 font-bold sidebar-text tracking-wider">Administration</div>
-                    <a href="#" class="sidebar-item active" data-section="dashboard">
-                        <i class="fas fa-tachometer-alt mr-3"></i>
-                        <span class="sidebar-text">Dashboard</span>
-                    </a>
-                    <a href="#" class="sidebar-item" data-section="user-management">
+                    <a href="#" class="sidebar-item active" data-section="user-management">
                         <i class="fas fa-users mr-3"></i>
                         <span class="sidebar-text">User Management</span>
                     </a>
@@ -3352,7 +3348,9 @@
 
                 // Show appropriate default section based on role
                 let defaultSectionId = 'dashboardContent';
-                if (role === 'training_manager') {
+                if (role === 'administrator') {
+                    defaultSectionId = 'user-managementContent'; // Admin starts with User Management
+                } else if (role === 'training_manager') {
                     defaultSectionId = 'dashboardContent';
                 } else if (role === 'student') {
                     defaultSectionId = 'dashboardContent'; // Students also see dashboard
