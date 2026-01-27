@@ -297,10 +297,18 @@
         <div class="bg-white rounded-lg p-6 shadow-xl max-w-sm w-full transform transition-all duration-300 scale-100 opacity-100">
             <h3 class="text-lg font-semibold text-gray-900 mb-4" id="messageModalTitle">Notification</h3>
             <p class="text-gray-700 mb-6" id="messageModalContent"></p>
-            <div class="flex justify-end">
+            <div class="flex justify-end gap-2">
                 <button
+                    id="messageModalCancelBtn"
                     onclick="hideMessageModal()"
-                    class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition ease-in-out duration-150"
+                    class="modal-cancel-btn hidden px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 transition ease-in-out duration-150"
+                >
+                    No
+                </button>
+                <button
+                    id="messageModalOkBtn"
+                    onclick="hideMessageModal()"
+                    class="modal-ok-btn px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition ease-in-out duration-150"
                 >
                     Close
                 </button>
@@ -2916,9 +2924,37 @@
         const messageModalTitle = document.getElementById('messageModalTitle');
         const messageModalContent = document.getElementById('messageModalContent');
 
-        function showMessageModal(title, content) {
+        function showMessageModal(title, content, onConfirm, isConfirmation) {
             messageModalTitle.textContent = title;
             messageModalContent.textContent = content;
+            
+            const okBtn = document.getElementById('messageModalOkBtn');
+            const cancelBtn = document.getElementById('messageModalCancelBtn');
+            
+            // Reset previous event listeners by cloning
+            const newOkBtn = okBtn.cloneNode(true);
+            okBtn.parentNode.replaceChild(newOkBtn, okBtn);
+            
+            if (isConfirmation && onConfirm) {
+                // Show both buttons for confirmation
+                newOkBtn.textContent = 'Yes';
+                cancelBtn.classList.remove('hidden');
+                
+                newOkBtn.addEventListener('click', function() {
+                    hideMessageModal();
+                    onConfirm();
+                });
+            } else {
+                // Show only OK button for simple messages
+                newOkBtn.textContent = 'Close';
+                cancelBtn.classList.add('hidden');
+                
+                newOkBtn.addEventListener('click', function() {
+                    hideMessageModal();
+                    if (onConfirm) onConfirm();
+                });
+            }
+            
             messageModal.classList.remove('hidden');
             messageModal.classList.add('show');
         }
@@ -4596,6 +4632,7 @@
                 pdfFileName: currentCoursePdfFileName,
                 picture: coursePicture,
                 questions: [...currentCourseQuestions],
+                documents: [], // Initialize empty documents array
                 readStatus: false,
                 creatorId: loggedInUser.id // Assign creator ID
             };
@@ -4606,10 +4643,21 @@
             renderAllExistingCoursesTable(); // Re-render the Admin's courses table
             populateLinkedCoursesSelection(); // Update courses available for programmes
             populateReportCourseSelect(); // Update courses available in reports dropdown
+            renderCoursesForAssignmentTable(); // Update assignment table with new course
 
             updateDashboardStats(); // Update dashboard stats after adding course
 
-            showMessageModal('Course Created', `Course "${courseName}" has been successfully created with ${currentCourseQuestions.length} questions.`);
+            // Store the new course ID for assignment
+            const newCourseId = newCourse.id;
+            
+            showMessageModal('Course Created Successfully', 
+                `Course "${courseName}" has been created with ${currentCourseQuestions.length} questions. Would you like to assign students to this course now?`,
+                function() {
+                    // On confirm, show the assignment modal
+                    showAssignStudentsToCoursesModal(newCourseId);
+                },
+                true // Show as confirmation with Yes/No buttons
+            );
             resetCourseForm();
         });
 
