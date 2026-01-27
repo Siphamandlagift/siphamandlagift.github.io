@@ -1962,14 +1962,25 @@
                                 <p class="text-xs text-gray-500 mt-1">PNG, JPG, up to 5MB</p>
                             </div>
                             <div class="mb-4">
-                                <label class="block text-gray-700 text-sm font-medium mb-2" for="courseVideoInput">Upload Course Video (Optional)</label>
-                                <input type="file" id="courseVideoInput" accept="video/*" class="block w-full text-sm text-gray-500
-                                    file:mr-4 file:py-2 file:px-4
-                                    file:rounded-md file:border-0
-                                    file:text-sm file:font-semibold
-                                    file:bg-indigo-50 file:text-indigo-700
-                                    hover:file:bg-indigo-100"/>
-                                <p id="courseVideoFileName" class="text-xs text-gray-500 mt-1 hidden"></p>
+                                <h4 class="text-md font-semibold text-gray-800 mb-3">Add Course Videos</h4>
+                                <div class="bg-gray-50 p-4 rounded-lg space-y-3">
+                                    <div>
+                                        <label class="block text-gray-700 text-sm font-medium mb-2" for="videoTitleInput">Video Title</label>
+                                        <input type="text" id="videoTitleInput" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., Introduction to Safety">
+                                    </div>
+                                    <div>
+                                        <label class="block text-gray-700 text-sm font-medium mb-2" for="videoDurationInput">Duration</label>
+                                        <input type="text" id="videoDurationInput" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., 10:30">
+                                    </div>
+                                    <div>
+                                        <label class="block text-gray-700 text-sm font-medium mb-2" for="videoUrlInput">Video URL (YouTube or Vimeo)</label>
+                                        <input type="url" id="videoUrlInput" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="https://www.youtube.com/watch?v=...">
+                                    </div>
+                                    <button type="button" id="addVideoBtn" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                        <i class="fas fa-plus mr-2"></i>Add Video
+                                    </button>
+                                </div>
+                                <div id="courseVideosList" class="mt-4 space-y-2"></div>
                             </div>
                             <div class="mb-4">
                                 <label class="block text-gray-700 text-sm font-medium mb-2" for="coursePdfInput">Upload Course Document (PDF, PPT, Optional)</label>
@@ -4199,7 +4210,6 @@
         ];
         }
         let currentCourseQuestions = [];
-        let currentVideoFileName = '';
         let currentCoursePdfFileName = '';
         const coursePicturePreview = document.getElementById('coursePicturePreview');
         const coursePictureInput = document.getElementById('coursePictureInput');
@@ -4548,20 +4558,6 @@
             });
         }
 
-        // Handle video file name display
-        document.getElementById('courseVideoInput').addEventListener('change', function() {
-            const fileNameDisplay = document.getElementById('courseVideoFileName');
-            if (this.files.length > 0) {
-                fileNameDisplay.textContent = `Selected: ${this.files[0].name}`;
-                fileNameDisplay.classList.remove('hidden');
-                currentVideoFileName = this.files[0].name; // Store file name for display
-            } else {
-                fileNameDisplay.textContent = '';
-                fileNameDisplay.classList.add('hidden');
-                currentVideoFileName = '';
-            }
-        });
-
         // Handle PDF file name display
         coursePdfInput.addEventListener('change', function() {
             if (this.files.length > 0) {
@@ -4597,14 +4593,86 @@
             renderQuestionInputArea('');
             currentCourseQuestions = [];
             updateCourseQuestionsList();
-            currentVideoFileName = '';
+            currentCourseVideos = [];
+            renderCourseVideosList();
             currentCoursePdfFileName = '';
-            document.getElementById('courseVideoFileName').classList.add('hidden');
             coursePdfFileNameDisplay.classList.add('hidden');
             coursePicturePreview.src = "https://placehold.co/128x128/E0E7FF/4F46E5?text=Course+Image"; // Reset course picture preview
             document.getElementById('addQuestionBtn').disabled = true;
             showMessageModal('Form Reset', 'The course creation form has been cleared.');
         }
+
+        // Video Management for Course Creation
+        let currentCourseVideos = [];
+
+        function addVideoToCourse() {
+            const title = document.getElementById('videoTitleInput').value.trim();
+            const duration = document.getElementById('videoDurationInput').value.trim();
+            const url = document.getElementById('videoUrlInput').value.trim();
+
+            if (!title || !duration || !url) {
+                showMessageModal('Input Error', 'Please fill in all video fields.');
+                return;
+            }
+
+            // Basic URL validation
+            try {
+                new URL(url);
+            } catch (e) {
+                showMessageModal('Invalid URL', 'Please enter a valid video URL.');
+                return;
+            }
+
+            const video = {
+                id: Date.now(),
+                title: title,
+                duration: duration,
+                url: url
+            };
+
+            currentCourseVideos.push(video);
+            renderCourseVideosList();
+
+            // Clear inputs
+            document.getElementById('videoTitleInput').value = '';
+            document.getElementById('videoDurationInput').value = '';
+            document.getElementById('videoUrlInput').value = '';
+        }
+
+        function renderCourseVideosList() {
+            const container = document.getElementById('courseVideosList');
+            if (currentCourseVideos.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="bg-white border border-gray-200 rounded-lg p-3">
+                    <h5 class="text-sm font-semibold text-gray-700 mb-2">Added Videos (${currentCourseVideos.length})</h5>
+                    <div class="space-y-2">
+                        ${currentCourseVideos.map((video, index) => `
+                            <div class="flex items-center justify-between bg-gray-50 p-2 rounded">
+                                <div class="flex-1">
+                                    <div class="text-sm font-medium text-gray-900">${video.title}</div>
+                                    <div class="text-xs text-gray-500">${video.duration} • ${video.url.substring(0, 50)}...</div>
+                                </div>
+                                <button type="button" onclick="removeCourseVideo(${index})" class="text-red-600 hover:text-red-900 ml-2">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function removeCourseVideo(index) {
+            currentCourseVideos.splice(index, 1);
+            renderCourseVideosList();
+        }
+
+        // Add event listener for Add Video button
+        document.getElementById('addVideoBtn').addEventListener('click', addVideoToCourse);
 
         // Handle Create Course Form Submission
         document.getElementById('createCourseForm').addEventListener('submit', function(e) {
@@ -4633,7 +4701,7 @@
                 id: Date.now(),
                 name: courseName,
                 description: courseDescription,
-                videoFileName: currentVideoFileName,
+                videos: [...currentCourseVideos], // Save videos array
                 pdfFileName: currentCoursePdfFileName,
                 picture: coursePicture,
                 questions: [...currentCourseQuestions],
@@ -4656,7 +4724,7 @@
             const newCourseId = newCourse.id;
             
             showMessageModal('Course Created Successfully', 
-                `Course "${courseName}" has been created with ${currentCourseQuestions.length} questions. Would you like to assign students to this course now?`,
+                `Course "${courseName}" has been created with ${currentCourseVideos.length} video(s) and ${currentCourseQuestions.length} questions. Would you like to assign students to this course now?`,
                 function() {
                     // On confirm, show the assignment modal
                     showAssignStudentsToCoursesModal(newCourseId);
@@ -4688,7 +4756,7 @@
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><img src="${course.picture}" alt="Course" class="h-10 w-10 rounded-md object-cover"></td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${course.name}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.description.substring(0, 50)}${course.description.length > 50 ? '...' : ''}</td>`;
-                    newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.videoFileName || 'N/A'}</td>`;
+                    newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.videos ? course.videos.length + ' video(s)' : (course.videoFileName ? '1 video' : 'N/A')}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.pdfFileName || 'N/A'}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalMarks}</td>`;
                     newRow.insertCell().outerHTML = `
@@ -4885,7 +4953,7 @@
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><img src="${course.picture}" alt="Course" class="h-10 w-10 rounded-md object-cover"></td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${course.name}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.description.substring(0, 50)}${course.description.length > 50 ? '...' : ''}</td>`;
-                    newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.videoFileName || 'N/A'}</td>`;
+                    newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.videos ? course.videos.length + ' video(s)' : (course.videoFileName ? '1 video' : 'N/A')}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.pdfFileName || 'N/A'}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalMarks}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${creatorName}</td>`;
