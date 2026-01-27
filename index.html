@@ -7327,10 +7327,15 @@ function showStudentCourses(type) {
     const statusBadge = isCompleted ? "Completed" : "In Progress";
     const badgeClass = isCompleted ? "bg-green-100 text-green-700" : "bg-indigo-100 text-indigo-700";
     
+    // Check if course was recently assigned (within last 7 days)
+    const isNewlyAssigned = course.enrollmentDate && 
+      (new Date() - new Date(course.enrollmentDate)) < (7 * 24 * 60 * 60 * 1000);
+    
     let courseCard = `
-      <div class="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden">
+      <div class="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden ${isNewlyAssigned ? 'ring-2 ring-blue-400' : ''}">
         <div class="relative w-full h-40 overflow-hidden bg-gray-200">
           <img src="${courseImage}" alt="${course.name}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-300" onerror="this.src='https://placehold.co/400x200/E0E7FF/4F46E5?text=${encodeURIComponent(course.name)}'">
+          ${isNewlyAssigned ? '<span class="absolute top-3 left-3 text-xs px-3 py-1 rounded-full font-medium bg-blue-600 text-white animate-pulse"><i class="fas fa-sparkles mr-1"></i>NEW</span>' : ''}
           <span class="absolute top-3 right-3 text-xs px-3 py-1 rounded-full font-medium ${badgeClass}">
             ${statusBadge}
           </span>
@@ -7346,7 +7351,7 @@ function showStudentCourses(type) {
             : `<p class="text-sm text-gray-600 mb-3">Completed on ${new Date(course.completionDate).toLocaleDateString()}</p>`
           }
           <button onclick="viewStudentCourse(${course.id}, '${course.name}')" class="w-full text-sm bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 transition">
-            View course
+            ${isNewlyAssigned ? '<i class="fas fa-play-circle mr-1"></i>Start Course' : 'View course'}
           </button>
         </div>
       </div>
@@ -7462,15 +7467,37 @@ function markPDFAsRead(courseId) {
 
 // Function to view student course with sections, video and questions
 function viewStudentCourse(courseId, courseName) {
-    // First try to find in studentCourses, then in allCoursesData
-    let course = studentCourses.find(c => c.id === courseId);
+    // First try to find in allCoursesData (real assigned courses), then in studentCourses (demo)
+    let course = allCoursesData.find(c => c.id === courseId);
+    let isRealCourse = !!course;
+    
     if (!course) {
-        course = allCoursesData.find(c => c.id === courseId);
+        course = studentCourses.find(c => c.id === courseId);
     }
-    if (!course || !course.sections || course.sections.length === 0) return;
+    
+    if (!course) {
+        showMessageModal('Error', 'Course not found. Please try again.');
+        return;
+    }
+    
+    // If this is a real course from allCoursesData, create sections from questions
+    if (isRealCourse && (!course.sections || course.sections.length === 0)) {
+        // Create a default section structure for courses from allCoursesData
+        course.sections = [{
+            id: courseId * 10 + 1,
+            title: course.name,
+            videoDuration: "N/A",
+            questions: course.questions || []
+        }];
+    }
+    
+    if (!course.sections || course.sections.length === 0) {
+        showMessageModal('Error', 'This course has no content available yet.');
+        return;
+    }
 
     document.getElementById('courseViewerTitle').textContent = course.name;
-    document.getElementById('courseViewerDescription').textContent = 'Learn about ' + course.name + '. This course covers essential concepts and practical skills.';
+    document.getElementById('courseViewerDescription').textContent = course.description || 'Learn about ' + course.name + '. This course covers essential concepts and practical skills.';
     document.getElementById('courseViewerCourseId').textContent = 'COURSE-' + courseId;
     document.getElementById('courseViewerProgress').textContent = course.progress || 0;
 
@@ -7489,15 +7516,19 @@ function viewStudentCourse(courseId, courseName) {
     const videosTabBtn = document.getElementById('videosTabBtn');
     const documentsTabBtn = document.getElementById('documentsTabBtn');
     
-    videosContent.classList.remove('hidden');
-    videosContent.classList.add('block');
-    documentsContent.classList.add('hidden');
-    documentsContent.classList.remove('block');
+    if (videosContent && documentsContent) {
+        videosContent.classList.remove('hidden');
+        videosContent.classList.add('block');
+        documentsContent.classList.add('hidden');
+        documentsContent.classList.remove('block');
+    }
     
-    videosTabBtn.classList.add('border-b-2', 'border-indigo-600', 'text-indigo-600');
-    videosTabBtn.classList.remove('border-transparent', 'text-gray-600');
-    documentsTabBtn.classList.remove('border-b-2', 'border-indigo-600', 'text-indigo-600');
-    documentsTabBtn.classList.add('border-transparent', 'text-gray-600');
+    if (videosTabBtn && documentsTabBtn) {
+        videosTabBtn.classList.add('border-b-2', 'border-indigo-600', 'text-indigo-600');
+        videosTabBtn.classList.remove('border-transparent', 'text-gray-600');
+        documentsTabBtn.classList.remove('border-b-2', 'border-indigo-600', 'text-indigo-600');
+        documentsTabBtn.classList.add('border-transparent', 'text-gray-600');
+    }
 
     // Show the modal
     document.getElementById('courseViewerModal').classList.remove('hidden');
@@ -7536,12 +7567,22 @@ function loadSectionTabs(course) {
 
 // Function to load a specific section
 function loadSection(sectionId, courseId) {
-    // First try to find in studentCourses, then in allCoursesData
-    let course = studentCourses.find(c => c.id === courseId);
+    // First try to find in allCoursesData, then in studentCourses
+    let course = allCoursesData.find(c => c.id === courseId);
     if (!course) {
-        course = allCoursesData.find(c => c.id === courseId);
+        course = studentCourses.find(c => c.id === courseId);
     }
     if (!course) return;
+    
+    // Ensure sections exist
+    if (!course.sections || course.sections.length === 0) {
+        course.sections = [{
+            id: courseId * 10 + 1,
+            title: course.name,
+            videoDuration: "N/A",
+            questions: course.questions || []
+        }];
+    }
 
     const section = course.sections.find(s => s.id === sectionId);
     if (!section) return;
