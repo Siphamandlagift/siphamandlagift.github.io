@@ -471,7 +471,7 @@
                 <div class="flex items-center justify-between text-sm text-gray-600 pt-2">
                     <a href="#" class="text-indigo-600 hover:text-indigo-700 font-medium transition">Forgot password?</a>
                     <span class="text-gray-400">•</span>
-                    <span class="text-gray-500">Test users: admin, jane, alice, bob</span>
+                    <span class=\"text-gray-500\">Test users: admin, jane, alice, bob, charlie, diana, ethan, fiona</span>
                 </div>
             </form>
         </div>
@@ -3618,6 +3618,32 @@
                 console.log('No data in localStorage, using default dummy data');
                 initializeDefaultData();
                 saveToLocalStorage();
+            } else {
+                // Ensure default users (especially students) exist even if localStorage has data
+                ensureDefaultStudentsExist();
+            }
+        }
+
+        // Ensure default students exist (add them if missing)
+        function ensureDefaultStudentsExist() {
+            const defaultUsers = getDefaultUsers();
+            const defaultStudents = defaultUsers.filter(u => u.role === 'student');
+            
+            defaultStudents.forEach(defaultStudent => {
+                // Check if this default student exists
+                const exists = allUsersData.some(u => u.email === defaultStudent.email);
+                if (!exists) {
+                    // Find next available ID
+                    const maxId = allUsersData.length > 0 ? Math.max(...allUsersData.map(u => u.id)) : 0;
+                    defaultStudent.id = maxId + 1;
+                    allUsersData.push(defaultStudent);
+                    console.log(`Added missing default student: ${defaultStudent.name}`);
+                }
+            });
+            
+            // Save if we added any students
+            if (allUsersData.length !== defaultUsers.length) {
+                saveToLocalStorage();
             }
         }
 
@@ -3685,12 +3711,12 @@
             {
                 id: 3,
                 name: 'Alice',
-                surname: '', // Changed to empty string
+                surname: 'Johnson',
                 email: 'alice@skillsconnect.com',
                 idNumber: 'STD001',
                 company: 'Global Corp',
                 role: 'student',
-                picture: 'https://placehold.co/40x40/F1C40F/FFFFFF?text=A',
+                picture: 'https://placehold.co/40x40/F1C40F/FFFFFF?text=AJ',
                 status: 'active',
                 enrollmentDate: '2023-03-01',
                 endDate: null,
@@ -3703,12 +3729,12 @@
             {
                 id: 4,
                 name: 'Bob',
-                surname: '', // Changed to empty string
+                surname: 'Smith',
                 email: 'bob@skillsconnect.com',
                 idNumber: 'STD002',
                 company: 'Local Business',
                 role: 'student',
-                picture: 'https://placehold.co/40x40/FF6347/FFFFFF?text=B',
+                picture: 'https://placehold.co/40x40/FF6347/FFFFFF?text=BS',
                 status: 'active',
                 enrollmentDate: '2023-03-05',
                 endDate: null,
@@ -3720,19 +3746,62 @@
             {
                 id: 5,
                 name: 'Charlie',
-                surname: '', // Changed to empty string
+                surname: 'Brown',
                 email: 'charlie@skillsconnect.com',
                 idNumber: 'STD003',
                 company: 'Tech Solutions',
                 role: 'student',
-                picture: 'https://placehold.co/40x40/A9A9A9/FFFFFF?text=C',
-                status: 'deactivated', // Inactive user
-                enrollmentDate: '2023-01-10',
-                endDate: '2023-02-01',
-                coursesEnrolled: [
-                    { courseId: 103, enrollmentDate: '2023-01-10', completionDate: null, hoursSpent: 5 }
-                ],
-                totalHoursSpent: 5
+                picture: 'https://placehold.co/40x40/9B59B6/FFFFFF?text=CB',
+                status: 'active',
+                enrollmentDate: '2023-04-10',
+                endDate: null,
+                coursesEnrolled: [],
+                totalHoursSpent: 0
+            },
+            {
+                id: 6,
+                name: 'Diana',
+                surname: 'Prince',
+                email: 'diana@skillsconnect.com',
+                idNumber: 'STD004',
+                company: 'Innovation Hub',
+                role: 'student',
+                picture: 'https://placehold.co/40x40/E74C3C/FFFFFF?text=DP',
+                status: 'active',
+                enrollmentDate: '2023-04-15',
+                endDate: null,
+                coursesEnrolled: [],
+                totalHoursSpent: 0
+            },
+            {
+                id: 7,
+                name: 'Ethan',
+                surname: 'Hunt',
+                email: 'ethan@skillsconnect.com',
+                idNumber: 'STD005',
+                company: 'Global Corp',
+                role: 'student',
+                picture: 'https://placehold.co/40x40/3498DB/FFFFFF?text=EH',
+                status: 'active',
+                enrollmentDate: '2023-04-20',
+                endDate: null,
+                coursesEnrolled: [],
+                totalHoursSpent: 0
+            },
+            {
+                id: 8,
+                name: 'Fiona',
+                surname: 'Clark',
+                email: 'fiona@skillsconnect.com',
+                idNumber: 'STD006',
+                company: 'Local Business',
+                role: 'student',
+                picture: 'https://placehold.co/40x40/1ABC9C/FFFFFF?text=FC',
+                status: 'active',
+                enrollmentDate: '2023-05-01',
+                endDate: null,
+                coursesEnrolled: [],
+                totalHoursSpent: 0
             }
         ];
         }
