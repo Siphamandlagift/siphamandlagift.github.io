@@ -4627,20 +4627,6 @@
             });
         }
 
-        // Handle video file name display
-        document.getElementById('courseVideoInput').addEventListener('change', function() {
-            const fileNameDisplay = document.getElementById('courseVideoFileName');
-            if (this.files.length > 0) {
-                fileNameDisplay.textContent = `Selected: ${this.files[0].name}`;
-                fileNameDisplay.classList.remove('hidden');
-                currentVideoFileName = this.files[0].name; // Store file name for display
-            } else {
-                fileNameDisplay.textContent = '';
-                fileNameDisplay.classList.add('hidden');
-                currentVideoFileName = '';
-            }
-        });
-
         // Handle PDF file name display
         coursePdfInput.addEventListener('change', function() {
             if (this.files.length > 0) {
@@ -4766,11 +4752,13 @@
                     newRow.classList.add('cursor-pointer', 'hover:bg-gray-50');
 
                     const totalMarks = course.questions.reduce((sum, q) => sum + (q.marks || 0), 0);
+                    const videoCount = course.videos ? course.videos.length : 0;
+                    const videoDisplay = videoCount > 0 ? `${videoCount} video${videoCount > 1 ? 's' : ''}` : (course.videoFileName || 'N/A');
 
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><img src="${course.picture}" alt="Course" class="h-10 w-10 rounded-md object-cover"></td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${course.name}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.description.substring(0, 50)}${course.description.length > 50 ? '...' : ''}</td>`;
-                    newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.videoFileName || 'N/A'}</td>`;
+                    newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${videoDisplay}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.pdfFileName || 'N/A'}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalMarks}</td>`;
                     newRow.insertCell().outerHTML = `
@@ -7494,20 +7482,6 @@ function showStudentCourses(type) {
                                 fileSize: '1.6 MB'
                             }
                         ]
-// Function to view student course with sections, video and questions
-function viewStudentCourse(courseId, courseName) {
-    const course = studentCourses.find(c => c.id === courseId);
-    if (!course || !course.sections || course.sections.length === 0) return;
-
-    document.getElementById('courseViewerTitle').textContent = course.name;
-    document.getElementById('courseViewerDescription').textContent = 'Learn about ' + course.name + '. This course covers essential concepts and practical skills.';
-    document.getElementById('courseViewerCourseId').textContent = 'COURSE-' + courseId;
-    document.getElementById('courseViewerProgress').textContent = course.progress;
-
-    // Create section tabs
-    loadSectionTabs(course);
-
-}
 
 // Function to view PDF course
 function viewPDFCourse(courseId, courseName) {
@@ -7768,131 +7742,6 @@ function loadCourseQuestions(course) {
                                 </select>
                             </div>
                         `).join('') : ''}
-                    </div>
-                </div>
-            `;
-        }
-
-        questionsContainer.innerHTML += questionHtml;
-    });
-
-    // Store questions for submission
-    window.currentSectionQuestions = questions;
-}
-
-
-// Function to create section tabs
-function loadSectionTabs(course) {
-    const tabsContainer = document.getElementById('sectionTabsContainer');
-    tabsContainer.innerHTML = '';
-
-    course.sections.forEach((section, index) => {
-        const tab = document.createElement('button');
-        tab.className = `px-4 py-2 rounded-md text-sm font-medium transition ${
-            index === 0 
-            ? 'bg-indigo-600 text-white' 
-            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-        }`;
-        tab.textContent = section.title;
-        tab.onclick = () => loadSection(section.id, course.id);
-        
-        // Update active tab styling on click
-        tab.addEventListener('click', function() {
-            document.querySelectorAll('#sectionTabsContainer button').forEach(btn => {
-                btn.className = 'px-4 py-2 rounded-md text-sm font-medium transition bg-gray-100 text-gray-700 hover:bg-gray-200';
-            });
-            this.className = 'px-4 py-2 rounded-md text-sm font-medium transition bg-indigo-600 text-white';
-        });
-
-        tabsContainer.appendChild(tab);
-    });
-}
-
-// Function to load a specific section
-function loadSection(sectionId, courseId) {
-    // First try to find in allCoursesData, then in studentCourses
-    let course = allCoursesData.find(c => c.id === courseId);
-    if (!course) {
-        course = studentCourses.find(c => c.id === courseId);
-    }
-    if (!course) return;
-    
-    // Ensure sections exist
-    if (!course.sections || course.sections.length === 0) {
-        course.sections = [{
-            id: courseId * 10 + 1,
-            title: course.name,
-            videoDuration: "N/A",
-            questions: course.questions || []
-        }];
-    }
-
-    const section = course.sections.find(s => s.id === sectionId);
-    if (!section) return;
-
-    // Update section title
-    document.getElementById('sectionTitle').textContent = section.title;
-
-    // Update video duration
-    document.getElementById('courseVideoDuration').textContent = section.videoDuration;
-
-    // Load section questions
-    loadSectionQuestions(section.questions);
-
-    // Store current section for submission
-    window.currentSection = section;
-}
-
-// Function to load and display section questions
-function loadSectionQuestions(questions) {
-    const questionsContainer = document.getElementById('courseQuestionsContainer');
-    questionsContainer.innerHTML = '';
-
-    if (!questions || questions.length === 0) {
-        questionsContainer.innerHTML = '<p class="text-gray-500 text-center py-8">No questions for this section.</p>';
-        return;
-    }
-
-    questions.forEach((q, index) => {
-        let questionHtml = '';
-
-        if (q.type === 'multiple-choice') {
-            questionHtml = `
-                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <div class="flex items-start mb-3">
-                        <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3">
-                            ${index + 1}
-                        </span>
-                        <h4 class="text-lg font-semibold text-gray-800">${q.question}</h4>
-                    </div>
-                    <div class="space-y-2 ml-11">
-                        ${q.options.map((option, optIndex) => `
-                            <label class="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer">
-                                <input type="radio" name="question-${q.id}" value="${optIndex}" class="w-4 h-4 text-indigo-600">
-                                <span class="ml-3 text-gray-700">${option}</span>
-                            </label>
-                        `).join('')}
-                    </div>
-                </div>
-            `;
-        } else if (q.type === 'true-false') {
-            questionHtml = `
-                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <div class="flex items-start mb-3">
-                        <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3">
-                            ${index + 1}
-                        </span>
-                        <h4 class="text-lg font-semibold text-gray-800">${q.question}</h4>
-                    </div>
-                    <div class="space-y-2 ml-11">
-                        <label class="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer">
-                            <input type="radio" name="question-${q.id}" value="true" class="w-4 h-4 text-indigo-600">
-                            <span class="ml-3 text-gray-700">True</span>
-                        </label>
-                        <label class="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer">
-                            <input type="radio" name="question-${q.id}" value="false" class="w-4 h-4 text-indigo-600">
-                            <span class="ml-3 text-gray-700">False</span>
-                        </label>
                     </div>
                 </div>
             `;
@@ -8719,10 +8568,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         function closeBadgeViewer() {
             document.getElementById('badgeViewerModal').classList.add('hidden');
-        }
-
-        function closeCourseViewer() {
-            document.getElementById('courseViewerModal').classList.add('hidden');
         }
 
         function showAssignStudentsModal() {
