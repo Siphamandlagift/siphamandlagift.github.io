@@ -7523,6 +7523,26 @@ function viewStudentCourse(courseId, courseName) {
         return;
     }
     
+    // Handle backward compatibility: If course has sections but no questions array, extract questions
+    if (!course.questions && course.sections && course.sections.length > 0) {
+        course.questions = [];
+        course.sections.forEach(section => {
+            if (section.questions && section.questions.length > 0) {
+                course.questions = course.questions.concat(section.questions);
+            }
+        });
+    }
+    
+    // Ensure questions array exists
+    if (!course.questions) {
+        course.questions = [];
+    }
+    
+    // Ensure videos array exists for new courses
+    if (!course.videos) {
+        course.videos = [];
+    }
+    
     document.getElementById('courseViewerTitle').textContent = course.name;
     document.getElementById('courseViewerDescription').textContent = course.description || 'Learn about ' + course.name + '. This course covers essential concepts and practical skills.';
     document.getElementById('courseViewerCourseId').textContent = 'COURSE-' + courseId;
