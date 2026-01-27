@@ -1939,97 +1939,149 @@
                     </div>
 
                     <!-- Create New Course Section -->
-                    <div class="bg-white rounded-lg shadow p-6 mb-6">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-4">Create New Course</h3>
+                    <div class="bg-white rounded-lg shadow-lg p-8 mb-6">
+                        <div class="flex items-center mb-6">
+                            <i class="fas fa-graduation-cap text-3xl text-indigo-600 mr-3"></i>
+                            <h3 class="text-2xl font-bold text-gray-800">Create New Course</h3>
+                        </div>
                         <form id="createCourseForm">
-                            <div class="mb-4">
-                                <label class="block text-gray-700 text-sm font-medium mb-2" for="courseNameInput">Course Name</label>
-                                <input id="courseNameInput" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., Advanced Algebra">
+                            <!-- Basic Information -->
+                            <div class="bg-gradient-to-r from-indigo-50 to-purple-50 p-5 rounded-lg mb-6">
+                                <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                    <i class="fas fa-info-circle text-indigo-600 mr-2"></i>
+                                    Basic Information <span class="text-red-500 ml-1">*</span>
+                                </h4>
+                                <div class="grid grid-cols-1 gap-4">
+                                    <div>
+                                        <label class="block text-gray-700 text-sm font-medium mb-2" for="courseNameInput">
+                                            <i class="fas fa-bookmark text-gray-500 mr-1"></i> Course Name <span class="text-red-500">*</span>
+                                        </label>
+                                        <input id="courseNameInput" type="text" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="e.g., Advanced Safety Training">
+                                    </div>
+                                    <div>
+                                        <label class="block text-gray-700 text-sm font-medium mb-2" for="courseDescriptionInput">
+                                            <i class="fas fa-align-left text-gray-500 mr-1"></i> Course Description <span class="text-red-500">*</span>
+                                        </label>
+                                        <textarea id="courseDescriptionInput" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" rows="3" placeholder="Provide a clear description of what students will learn in this course..."></textarea>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="mb-4">
-                                <label class="block text-gray-700 text-sm font-medium mb-2" for="courseDescriptionInput">Course Description</label>
-                                <textarea id="courseDescriptionInput" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" rows="3" placeholder="Brief description of the course content."></textarea>
-                            </div>
-                            <div class="mb-4 text-center">
-                                <label class="block text-gray-700 text-sm font-medium mb-2">Course Picture (Optional)</label>
-                                <img id="coursePicturePreview" class="inline-block h-32 w-32 rounded-lg mb-3 object-cover border border-gray-300" src="https://placehold.co/128x128/E0E7FF/4F46E5?text=Course+Image" alt="Course Image">
+                            <!-- Course Picture -->
+                            <div class="bg-white border-2 border-dashed border-gray-300 rounded-lg p-5 mb-6 text-center hover:border-indigo-400 transition">
+                                <label class="block text-gray-700 text-sm font-medium mb-3">
+                                    <i class="fas fa-image text-gray-500 mr-1"></i> Course Picture <span class="text-gray-400 text-xs">(Optional)</span>
+                                </label>
+                                <img id="coursePicturePreview" class="inline-block h-40 w-40 rounded-lg mb-3 object-cover border-2 border-gray-200 shadow-sm" src="https://placehold.co/128x128/E0E7FF/4F46E5?text=Course+Image" alt="Course Image">
                                 <input type="file" id="coursePictureInput" accept="image/*" class="block w-full text-sm text-gray-500
-                                    file:mr-4 file:py-2 file:px-4
-                                    file:rounded-md file:border-0
+                                    file:mr-4 file:py-3 file:px-6
+                                    file:rounded-lg file:border-0
                                     file:text-sm file:font-semibold
-                                    file:bg-indigo-50 file:text-indigo-700
-                                    hover:file:bg-indigo-100"/>
-                                <p class="text-xs text-gray-500 mt-1">PNG, JPG, up to 5MB</p>
+                                    file:bg-indigo-600 file:text-white
+                                    hover:file:bg-indigo-700 file:cursor-pointer"/>
+                                <p class="text-xs text-gray-500 mt-2"><i class="fas fa-info-circle mr-1"></i>PNG or JPG, up to 5MB</p>
                             </div>
-                            <div class="mb-4">
-                                <h4 class="text-md font-semibold text-gray-800 mb-3">Add Course Videos</h4>
-                                <div class="bg-gray-50 p-4 rounded-lg space-y-3">
-                                    <div>
-                                        <label class="block text-gray-700 text-sm font-medium mb-2" for="videoTitleInput">Video Title</label>
-                                        <input type="text" id="videoTitleInput" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., Introduction to Safety">
+                            <!-- Course Videos -->
+                            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-5 rounded-lg mb-6">
+                                <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                    <i class="fas fa-video text-blue-600 mr-2"></i>
+                                    Course Videos <span class="text-gray-400 text-sm ml-2">(Optional)</span>
+                                </h4>
+                                <div class="bg-white p-5 rounded-lg shadow-sm space-y-4">
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div class="md:col-span-2">
+                                            <label class="block text-gray-700 text-sm font-medium mb-2" for="videoTitleInput">
+                                                <i class="fas fa-heading text-gray-500 mr-1"></i> Video Title
+                                            </label>
+                                            <input type="text" id="videoTitleInput" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="e.g., Introduction to Safety Procedures">
+                                        </div>
+                                        <div>
+                                            <label class="block text-gray-700 text-sm font-medium mb-2" for="videoDurationInput">
+                                                <i class="fas fa-clock text-gray-500 mr-1"></i> Duration
+                                            </label>
+                                            <input type="text" id="videoDurationInput" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="e.g., 10:30">
+                                        </div>
+                                        <div>
+                                            <label class="block text-gray-700 text-sm font-medium mb-2" for="videoUrlInput">
+                                                <i class="fas fa-link text-gray-500 mr-1"></i> Video URL
+                                            </label>
+                                            <input type="url" id="videoUrlInput" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="https://www.youtube.com/watch?v=...">
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label class="block text-gray-700 text-sm font-medium mb-2" for="videoDurationInput">Duration</label>
-                                        <input type="text" id="videoDurationInput" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., 10:30">
-                                    </div>
-                                    <div>
-                                        <label class="block text-gray-700 text-sm font-medium mb-2" for="videoUrlInput">Video URL (YouTube or Vimeo)</label>
-                                        <input type="url" id="videoUrlInput" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="https://www.youtube.com/watch?v=...">
-                                    </div>
-                                    <button type="button" id="addVideoBtn" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                                        <i class="fas fa-plus mr-2"></i>Add Video
+                                    <button type="button" id="addVideoBtn" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-6 rounded-lg hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium shadow-md transition">
+                                        <i class="fas fa-plus-circle mr-2"></i>Add Video to Course
                                     </button>
                                 </div>
                                 <div id="courseVideosList" class="mt-4 space-y-2"></div>
                             </div>
-                            <div class="mb-4">
-                                <label class="block text-gray-700 text-sm font-medium mb-2" for="coursePdfInput">Upload Course Document (PDF, PPT, Optional)</label>
-                                <input type="file" id="coursePdfInput" accept=".pdf,.ppt,.pptx" class="block w-full text-sm text-gray-500
-                                    file:mr-4 file:py-2 file:px-4
-                                    file:rounded-md file:border-0
+                            <!-- Course Documents -->
+                            <div class="bg-white border-2 border-gray-200 rounded-lg p-5 mb-6">
+                                <label class="block text-gray-700 text-sm font-medium mb-3" for="coursePdfInput">
+                                    <i class="fas fa-file-pdf text-red-500 mr-1"></i> Upload Course Document <span class="text-gray-400 text-xs">(PDF, PPT - Optional)</span>
+                                </label>
+                                <input type="file" id="coursePdfInput" accept=".pdf,.ppt,.pptx" class="block w-full text-sm text-gray-700
+                                    file:mr-4 file:py-3 file:px-6
+                                    file:rounded-lg file:border-0
                                     file:text-sm file:font-semibold
-                                    file:bg-indigo-50 file:text-indigo-700
-                                    hover:file:bg-indigo-100"/>
-                                <p id="coursePdfFileName" class="text-xs text-gray-500 mt-1 hidden"></p>
+                                    file:bg-gradient-to-r file:from-purple-600 file:to-indigo-600 file:text-white
+                                    hover:file:from-purple-700 hover:file:to-indigo-700 file:cursor-pointer file:shadow-md"/>
+                                <p id="coursePdfFileName" class="text-xs text-green-600 mt-2 hidden flex items-center"><i class="fas fa-check-circle mr-1"></i></p>
                             </div>
 
-                            <hr class="my-6 border-gray-200">
+                            <!-- Assessment Section -->
+                            <div class="bg-gradient-to-r from-green-50 to-teal-50 p-5 rounded-lg mb-6">
+                                <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                    <i class="fas fa-clipboard-list text-green-600 mr-2"></i>
+                                    Course Assessment <span class="text-gray-400 text-sm ml-2">(Optional)</span>
+                                </h4>
+                                <div class="bg-white p-5 rounded-lg shadow-sm">
+                                    <div class="mb-4">
+                                        <label class="block text-gray-700 text-sm font-medium mb-2" for="questionTypeSelect">
+                                            <i class="fas fa-question-circle text-gray-500 mr-1"></i> Question Type
+                                        </label>
+                                        <select id="questionTypeSelect" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white">
+                                            <option value="">Select a question type</option>
+                                            <option value="multiple-choice">📝 Multiple Choice</option>
+                                            <option value="true-false">✓ True/False</option>
+                                            <option value="matching">🔗 Matching</option>
+                                            <option value="long-answer">📄 Long Answer</option>
+                                        </select>
+                                    </div>
 
-                            <h4 class="text-md font-semibold text-gray-800 mb-3">Add Questions to Course</h4>
-                            <div class="mb-4">
-                                <label class="block text-gray-700 text-sm font-medium mb-2" for="questionTypeSelect">Question Type</label>
-                                <select id="questionTypeSelect" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                                    <option value="">Select a question type</option>
-                                    <option value="multiple-choice">Multiple Choice</option>
-                                    <option value="true-false">True/False</option>
-                                    <option value="matching">Matching</option>
-                                    <option value="long-answer">Long Answer</option>
-                                </select>
+                                    <!-- Question Input Area (Dynamic) -->
+                                    <div id="questionInputArea" class="space-y-4 mb-4">
+                                        <!-- Content will be dynamically loaded here based on question type -->
+                                    </div>
+
+                                    <button type="button" id="addQuestionBtn" class="bg-gradient-to-r from-green-600 to-teal-600 text-white px-6 py-3 rounded-lg text-sm font-medium hover:from-green-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-green-500 shadow-md transition ease-in-out duration-150" disabled>
+                                        <i class="fas fa-plus-circle mr-2"></i> Add Question to Course
+                                    </button>
+
+                                    <div class="mt-6">
+                                        <h5 class="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                                            <i class="fas fa-list-ul text-green-600 mr-2"></i> Questions Added:
+                                        </h5>
+                                        <ul id="courseQuestionsList" class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50 max-h-64 overflow-y-auto">
+                                            <li class="text-gray-400 text-sm italic flex items-center justify-center py-4">
+                                                <i class="fas fa-info-circle mr-2"></i>No questions added yet
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
                             </div>
 
-                            <!-- Question Input Area (Dynamic) -->
-                            <div id="questionInputArea" class="space-y-4 mb-4">
-                                <!-- Content will be dynamically loaded here based on question type -->
-                            </div>
-
-                            <button type="button" id="addQuestionBtn" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-md text-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 transition ease-in-out duration-150" disabled>
-                                <i class="fas fa-plus mr-1"></i> Add Question
-                            </button>
-
-                            <div class="mt-6">
-                                <h4 class="text-md font-semibold text-gray-800 mb-3">Questions for this Course:</h4>
-                                <ul id="courseQuestionsList" class="border border-gray-200 rounded-md p-4 bg-gray-50 max-h-48 overflow-y-auto">
-                                    <li class="text-gray-500 text-sm italic">No questions added yet.</li>
-                                </ul>
-                            </div>
-
-                            <div class="flex justify-end mt-6 space-x-3">
-                                <button type="button" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 transition ease-in-out duration-150" onclick="resetCourseForm()">
-                                    Reset Form
-                                </button>
-                                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition ease-in-out duration-150">
-                                    Create Course
-                                </button>
+                            <!-- Form Actions -->
+                            <div class="flex justify-between items-center mt-8 pt-6 border-t-2 border-gray-200">
+                                <p class="text-sm text-gray-500">
+                                    <i class="fas fa-asterisk text-red-500 text-xs mr-1"></i> Required fields
+                                </p>
+                                <div class="flex space-x-3">
+                                    <button type="button" class="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 font-medium transition ease-in-out duration-150 border border-gray-300" onclick="resetCourseForm()">
+                                        <i class="fas fa-redo mr-2"></i>Reset Form
+                                    </button>
+                                    <button type="submit" class="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold shadow-lg transition ease-in-out duration-150">
+                                        <i class="fas fa-check-circle mr-2"></i>Create Course
+                                    </button>
+                                </div>
                             </div>
                         </form>
                     </div>
@@ -4686,10 +4738,6 @@
                 return;
             }
 
-            if (currentCourseQuestions.length === 0) {
-                showMessageModal('Input Error', 'Please add at least one question to the course.');
-                return;
-            }
             if (!loggedInUser.id) {
                 showMessageModal('Authentication Error', 'Please log in as a Training Manager to create a course.');
                 return;
@@ -4720,16 +4768,12 @@
 
             updateDashboardStats(); // Update dashboard stats after adding course
 
-            // Store the new course ID for assignment
-            const newCourseId = newCourse.id;
+            // Show success message
+            const videoText = currentCourseVideos.length > 0 ? `${currentCourseVideos.length} video(s)` : 'no videos';
+            const questionText = currentCourseQuestions.length > 0 ? `${currentCourseQuestions.length} question(s)` : 'no questions';
             
-            showMessageModal('Course Created Successfully', 
-                `Course "${courseName}" has been created with ${currentCourseVideos.length} video(s) and ${currentCourseQuestions.length} questions. Would you like to assign students to this course now?`,
-                function() {
-                    // On confirm, show the assignment modal
-                    showAssignStudentsToCoursesModal(newCourseId);
-                },
-                true // Show as confirmation with Yes/No buttons
+            showMessageModal('Course Created Successfully! 🎉', 
+                `Course "${courseName}" has been created with ${videoText} and ${questionText}. You can assign students to this course anytime from the assignment section.`
             );
             resetCourseForm();
         });
