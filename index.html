@@ -6855,14 +6855,24 @@
             select.innerHTML = '<option value="">-- No specific course --</option>';
             
             // Get courses created by the logged-in training manager
-            const myCourses = allCoursesData.filter(c => c.createdBy === loggedInUser.id);
+            const myCourses = allCoursesData.filter(c => c.creatorId === loggedInUser.id);
             
-            myCourses.forEach(course => {
+            if (myCourses.length === 0) {
                 const option = document.createElement('option');
-                option.value = course.id;
-                option.textContent = course.name;
+                option.value = '';
+                option.textContent = '-- No courses created yet --';
+                option.disabled = true;
                 select.appendChild(option);
-            });
+            } else {
+                myCourses.forEach(course => {
+                    const option = document.createElement('option');
+                    option.value = course.id;
+                    const videoCount = course.videos ? course.videos.length : 0;
+                    const questionCount = course.questions ? course.questions.length : 0;
+                    option.textContent = `${course.name} (${videoCount} videos, ${questionCount} questions)`;
+                    select.appendChild(option);
+                });
+            }
         }
 
         // Populate student checkboxes list for assignment
@@ -6959,7 +6969,15 @@
         assignmentDocumentInput.addEventListener('change', function() {
             const fileNameDisplay = document.getElementById('assignmentDocFileName');
             if(this.files.length > 0) {
-                fileNameDisplay.textContent = `Selected: ${this.files[0].name}`;
+                const file = this.files[0];
+                const fileSize = (file.size / 1024).toFixed(2); // KB
+                const fileExt = file.name.split('.').pop().toUpperCase();
+                let icon = 'fa-file';
+                if (fileExt === 'PDF') icon = 'fa-file-pdf';
+                else if (fileExt === 'PPT' || fileExt === 'PPTX') icon = 'fa-file-powerpoint';
+                else if (fileExt === 'DOC' || fileExt === 'DOCX') icon = 'fa-file-word';
+                
+                fileNameDisplay.innerHTML = `<i class="fas ${icon} mr-1 text-indigo-600"></i>Selected: <strong>${file.name}</strong> (${fileSize} KB)`;
                 fileNameDisplay.classList.remove('hidden');
             } else {
                 fileNameDisplay.classList.add('hidden');
@@ -6995,17 +7013,17 @@
 
             // Validation
             if (studentIds.length === 0) {
-                showMessageModal('Selection Required', 'Please select at least one student to assign this to.');
+                showMessageModal('Selection Required ⚠️', 'Please select at least one student to assign this assignment to.');
                 return;
             }
 
             if (!title || !instructions || !dueDate) {
-                showMessageModal('Input Error', 'Please fill all required fields: title, instructions, and due date.');
+                showMessageModal('Input Error ⚠️', 'Please fill all required fields:\n• Assignment Title\n• Instructions\n• Due Date');
                 return;
             }
 
             if (!documentFile) {
-                showMessageModal('Document Required', 'Please upload a document (PDF, PPT, or Word).');
+                showMessageModal('Document Required ⚠️', 'Please upload a document (PDF, PPT, or Word file) for this assignment.');
                 return;
             }
 
@@ -7018,7 +7036,13 @@
 
             // Create assignment for each selected student
             let createdCount = 0;
+            const assignedStudentNames = [];
             studentIds.forEach(studentId => {
+                const student = allUsersData.find(u => u.id === studentId);
+                if (student) {
+                    assignedStudentNames.push(`${student.name}${student.surname ? ' ' + student.surname : ''}`);
+                }
+                
                 const newAssignment = {
                     id: Date.now() + studentId + Math.floor(Math.random() * 1000),
                     type: assignmentType,
@@ -7047,8 +7071,16 @@
             
             saveToLocalStorage(); // Save to localStorage
             renderTMAssignmentsTable();
-            const courseInfo = courseName ? ` for course "${courseName}"` : '';
-            showMessageModal('Success', `Assignment "${title}"${courseInfo} created and assigned to ${createdCount} student(s).`);
+            
+            // Build detailed success message
+            const courseInfo = courseName ? ` linked to course "${courseName}"` : '';
+            const studentList = assignedStudentNames.length <= 3 
+                ? assignedStudentNames.join(', ')
+                : `${assignedStudentNames.slice(0, 3).join(', ')} and ${assignedStudentNames.length - 3} more`;
+            const typeInfo = assignmentType === 'mark-as-read' ? '(Mark as Read)' : `(${totalMarks} marks)`;
+            
+            showMessageModal('Assignment Created Successfully! 🎉', 
+                `Assignment "${title}" ${typeInfo}${courseInfo} has been created and assigned to:\n\n👥 ${studentList}\n\n📅 Due Date: ${new Date(dueDate).toLocaleDateString()}\n📎 Document: ${documentFile.name}`);
             hideCreateAssignmentModal();
         });
 
