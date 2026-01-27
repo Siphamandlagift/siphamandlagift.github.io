@@ -1234,10 +1234,12 @@
                     <div class="bg-white rounded-lg shadow p-6 mb-6" id="recentNotificationsSection" style="display: none;">
                         <div class="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
                             <div>
-                                <h3 class="text-lg font-bold text-gray-900">Recent Notifications</h3>
+                                <h3 class="text-lg font-bold text-gray-900">Recent Notifications 
+                                    <span id="unreadNotificationsCount" class="hidden ml-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full"></span>
+                                </h3>
                                 <p class="text-sm text-gray-600 mt-1">Stay updated with latest news</p>
                             </div>
-                            <a href="#" class="text-sm text-indigo-600 hover:text-indigo-700 font-medium transition">Mark all as read →</a>
+                            <a href="#" onclick="markAllNotificationsAsRead(); return false;" class="text-sm text-indigo-600 hover:text-indigo-700 font-medium transition">Mark all as read →</a>
                         </div>
                         <div class="space-y-3" id="recentNotificationsList">
                             <p class="text-gray-500 text-sm text-center py-4">No notifications to display.</p>
@@ -3422,6 +3424,7 @@
                 localStorage.setItem('allBadgesData', JSON.stringify(allBadgesData));
                 localStorage.setItem('studentBadgesData', JSON.stringify(studentBadgesData));
                 localStorage.setItem('documentRollouts', JSON.stringify(documentRollouts));
+                localStorage.setItem('studentNotifications', JSON.stringify(studentNotifications));
                 localStorage.setItem('loggedInUser', JSON.stringify(loggedInUser));
                 console.log('Data saved to localStorage successfully');
             } catch (error) {
@@ -3440,6 +3443,7 @@
                 const badges = localStorage.getItem('allBadgesData');
                 const studentBadges = localStorage.getItem('studentBadgesData');
                 const rollouts = localStorage.getItem('documentRollouts');
+                const notifications = localStorage.getItem('studentNotifications');
                 const savedUser = localStorage.getItem('loggedInUser');
 
                 if (users) allUsersData = JSON.parse(users);
@@ -3450,6 +3454,7 @@
                 if (badges) allBadgesData = JSON.parse(badges);
                 if (studentBadges) studentBadgesData = JSON.parse(studentBadges);
                 if (rollouts) documentRollouts = JSON.parse(rollouts);
+                if (notifications) studentNotifications = JSON.parse(notifications);
                 if (savedUser) {
                     const parsedUser = JSON.parse(savedUser);
                     // Only restore user if they have an id (logged in)
@@ -5189,11 +5194,34 @@
                                     });
                                 }
                             });
-                             student.totalHoursSpent = student.coursesEnrolled.reduce((sum, c) => sum + (c.hoursSpent || 0), 0);
+                            student.totalHoursSpent = student.coursesEnrolled.reduce((sum, c) => sum + (c.hoursSpent || 0), 0);
+                            
+                            // Create notification for student about programme enrollment
+                            studentNotifications.push({
+                                id: Date.now() + Math.random(),
+                                studentId: student.id,
+                                title: 'Enrolled in Programme',
+                                message: `You have been enrolled in the programme "${programme.name}" with ${programmeLinkedCourses.length} course(s). Check your courses to start learning!`,
+                                type: 'success',
+                                timestamp: new Date().toISOString(),
+                                read: false,
+                                programmeId: programme.id
+                            });
                         }
                     });
                     
                     saveToLocalStorage(); // Save to localStorage
+                    
+                    // Update logged in user if they are affected
+                    if (loggedInUser && loggedInUser.id) {
+                        const updatedUser = allUsersData.find(u => u.id === loggedInUser.id);
+                        if (updatedUser) {
+                            loggedInUser.coursesEnrolled = updatedUser.coursesEnrolled;
+                            loggedInUser.totalHoursSpent = updatedUser.totalHoursSpent;
+                            localStorage.setItem('loggedInUser', JSON.stringify(loggedInUser));
+                        }
+                    }
+                    
                     showMessageModal('Success', `Student assignments for "${programme.name}" updated.`);
                     renderExistingProgramsTable(); // Re-render programme table
                     renderProgrammesForAssignmentTable(); // Re-render assignment table
@@ -5404,6 +5432,18 @@
                                 hoursSpent: 0
                             });
                             student.totalHoursSpent = student.coursesEnrolled.reduce((sum, c) => sum + (c.hoursSpent || 0), 0);
+                            
+                            // Create notification for student
+                            studentNotifications.push({
+                                id: Date.now() + Math.random(),
+                                studentId: student.id,
+                                title: 'New Course Assigned',
+                                message: `You have been assigned to the course "${course.name}". Start learning now!`,
+                                type: 'info',
+                                timestamp: new Date().toISOString(),
+                                read: false,
+                                courseId: currentCourseIdToAssign
+                            });
                         } else if (isCurrentlyEnrolled && !shouldBeEnrolled) {
                             // Remove course from student's enrolled list (only if not from a programme)
                             // Check if this course is part of any programme the student is in
@@ -5424,6 +5464,17 @@
                     });
                     
                     saveToLocalStorage(); // Save to localStorage
+                    
+                    // Update logged in user if they are affected
+                    if (loggedInUser && loggedInUser.id) {
+                        const updatedUser = allUsersData.find(u => u.id === loggedInUser.id);
+                        if (updatedUser) {
+                            loggedInUser.coursesEnrolled = updatedUser.coursesEnrolled;
+                            loggedInUser.totalHoursSpent = updatedUser.totalHoursSpent;
+                            localStorage.setItem('loggedInUser', JSON.stringify(loggedInUser));
+                        }
+                    }
+                    
                     showMessageModal('Success', `Student assignments for "${course.name}" updated.`);
                     renderCoursesForAssignmentTable(); // Re-render courses table
                     renderAssignmentOverview(); // Update assignment overview
@@ -5924,18 +5975,21 @@
                 if (badgesEarnedSection) badgesEarnedSection.style.display = 'block';
                 if (certificatesEarnedSection) certificatesEarnedSection.style.display = 'block';
 
+                // Get the latest user data from allUsersData for accurate stats
+                const currentUser = allUsersData.find(u => u.id === loggedInUser.id);
+                
                 // Update student stats - with null checks
                 const enrolledCoursesElement = document.getElementById('studentEnrolledCourses');
                 const totalHoursElement = document.getElementById('studentTotalHours');
                 const badgesElement = document.getElementById('studentBadgesCount');
 
-                if (enrolledCoursesElement) {
-                    const enrolledCoursesCount = loggedInUser.coursesEnrolled ? loggedInUser.coursesEnrolled.length : 0;
+                if (enrolledCoursesElement && currentUser) {
+                    const enrolledCoursesCount = currentUser.coursesEnrolled ? currentUser.coursesEnrolled.length : 0;
                     enrolledCoursesElement.textContent = enrolledCoursesCount;
                 }
 
-                if (totalHoursElement) {
-                    const totalHours = loggedInUser.totalHoursSpent || 0;
+                if (totalHoursElement && currentUser) {
+                    const totalHours = currentUser.totalHoursSpent || 0;
                     totalHoursElement.textContent = totalHours.toFixed(1);
                 }
 
@@ -5984,8 +6038,28 @@
             
             console.log('Loading notifications for student:', studentId);
             
+            // Get student's notifications from the array
+            const userNotifications = studentNotifications.filter(n => n.studentId === studentId);
+            
+            // Sort by timestamp (newest first)
+            userNotifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            
+            // Combine with sample notifications for demo purposes
+            const sampleNotifications = [
+                {
+                    id: 999,
+                    title: 'Welcome to SkillsConnect',
+                    message: 'Start your learning journey by exploring your assigned courses!',
+                    type: 'info',
+                    timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
+                    read: true
+                }
+            ];
+            
+            const notifications = [...userNotifications, ...sampleNotifications];
+            
             // Sample notifications - in a real system these would come from a database
-            const notifications = [
+            const oldNotifications = [
                 {
                     id: 1,
                     title: 'Course Completion Reminder',
@@ -6050,11 +6124,24 @@
             }
 
             notificationsList.innerHTML = '';
+            
+            // Count unread notifications
+            const unreadCount = notifications.filter(n => !n.read).length;
+            const unreadBadge = document.getElementById('unreadNotificationsCount');
+            if (unreadBadge) {
+                if (unreadCount > 0) {
+                    unreadBadge.textContent = unreadCount;
+                    unreadBadge.classList.remove('hidden');
+                } else {
+                    unreadBadge.classList.add('hidden');
+                }
+            }
+            
             notifications.forEach(notification => {
                 const notificationElement = document.createElement('div');
                 notificationElement.className = `p-4 rounded-lg border-l-4 ${getNotificationStyles(notification.type)} ${notification.read ? 'bg-gray-50' : 'bg-white'}`;
                 
-                const timeAgo = getTimeAgo(notification.timestamp);
+                const timeAgo = getTimeAgo(new Date(notification.timestamp));
                 
                 notificationElement.innerHTML = `
                     <div class="flex justify-between items-start">
@@ -6104,6 +6191,20 @@
                 }
             }
             return 'Just now';
+        }
+
+        // Function to mark all notifications as read
+        function markAllNotificationsAsRead() {
+            if (loggedInUser && loggedInUser.id) {
+                studentNotifications.forEach(notification => {
+                    if (notification.studentId === loggedInUser.id) {
+                        notification.read = true;
+                    }
+                });
+                saveToLocalStorage();
+                loadStudentNotifications(loggedInUser.id);
+                showMessageModal('Success', 'All notifications marked as read.');
+            }
         }
 
         // Function to load and display student badges earned
@@ -7988,6 +8089,9 @@ document.addEventListener("DOMContentLoaded", () => {
         // Rollout assignments: documents required to be read by students
         // Each entry: { id, courseId, documentId, studentId, assignedBy, assignedDate, isRead, readDate }
         let documentRollouts = [];
+        
+        // Student notifications system
+        let studentNotifications = [];
 
         // Function to create a new badge
         function createNewBadge(name, hoursRequired, description, icon) {
