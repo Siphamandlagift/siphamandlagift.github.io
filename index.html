@@ -913,8 +913,7 @@
         </div>
     </div>
 
-
-    <div class="flex h-screen overflow-hidden">
+    <div id="appWrapper" class="flex h-screen overflow-hidden" style="display: none;">
         <!-- Sidebar -->
         <div id="sidebar" class="sidebar bg-gradient-to-b from-indigo-800 to-indigo-900 text-white flex flex-col">
             <!-- Logo -->
@@ -3306,14 +3305,9 @@
                     return;
                 }
                 
-                // Show sidebar and content area after successful login
-                const sidebar = document.getElementById('sidebar');
-                const contentArea = document.getElementById('contentArea');
-                const main = document.querySelector('main');
-                
-                if (sidebar) sidebar.style.display = '';
-                if (contentArea) contentArea.style.display = '';
-                if (main) main.style.display = '';
+                // Show app wrapper after successful login
+                const appWrapper = document.getElementById('appWrapper');
+                if (appWrapper) appWrapper.style.display = '';
                 
                 // Set the logged-in user data from the dummy data
                 loggedInUser.id = userLoggedIn.id;
@@ -3396,14 +3390,9 @@
             showMessageModal('Logged Out', 'You have been successfully logged out.');
             document.getElementById('loginModal').classList.remove('hidden');
             
-            // Hide sidebar and content area
-            const sidebar = document.getElementById('sidebar');
-            const contentArea = document.getElementById('contentArea');
-            const main = document.querySelector('main');
-            
-            if (sidebar) sidebar.style.display = 'none';
-            if (contentArea) contentArea.style.display = 'none';
-            if (main) main.style.display = 'none';
+            // Hide app wrapper
+            const appWrapper = document.getElementById('appWrapper');
+            if (appWrapper) appWrapper.style.display = 'none';
             
             // Reset UI
             document.getElementById('sidebarUsername').textContent = '';
@@ -8915,14 +8904,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 greetingName.textContent = 'Admin';
             }
             
-            // Hide sidebar and content initially - show only after login
-            const sidebar = document.getElementById('sidebar');
-            const contentArea = document.getElementById('contentArea');
-            const main = document.querySelector('main');
-            
-            if (sidebar) sidebar.style.display = 'none';
-            if (contentArea) contentArea.style.display = 'none';
-            if (main) main.style.display = 'none';
+            // App wrapper is already hidden via inline style
+            // It will be shown after successful login
             
             // Hide nav sections by default
             const adminNav = document.getElementById('adminNav');
