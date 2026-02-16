@@ -629,17 +629,17 @@
                 <!-- Document Upload -->
                 <div class="mb-4 bg-blue-50 border border-blue-200 rounded-md p-4">
                     <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentDocumentInput">
-                        <i class="fas fa-file-upload mr-2 text-indigo-600"></i>Upload Assignment Document <span class="text-red-500">*</span>
+                        <i class="fas fa-file-upload mr-2 text-indigo-600"></i>Upload Assignment Documents <span class="text-red-500">*</span> <span class="text-gray-500 text-xs">(Multiple files allowed)</span>
                     </label>
                     <p class="text-xs text-gray-600 mb-2">Accepted formats: PDF, PowerPoint (.ppt, .pptx), Word (.doc, .docx)</p>
-                    <input type="file" id="assignmentDocumentInput" accept=".pdf,.doc,.docx,.ppt,.pptx" class="block w-full text-sm text-gray-500
+                    <input type="file" id="assignmentDocumentInput" accept=".pdf,.doc,.docx,.ppt,.pptx" multiple class="block w-full text-sm text-gray-500
                         file:mr-4 file:py-2 file:px-4
                         file:rounded-md file:border-0
                         file:text-sm file:font-semibold
                         file:bg-indigo-600 file:text-white
                         hover:file:bg-indigo-700
                         cursor-pointer"/>
-                    <p id="assignmentDocFileName" class="text-xs text-green-600 font-medium mt-2 hidden"></p>
+                    <div id="assignmentDocFilesList" class="mt-2 space-y-1"></div>
                 </div>
 
                 <!-- Total Marks and Questions Section -->
@@ -725,10 +725,10 @@
             </div>
             
              <div class="mb-6 border-t pt-4" id="viewAssignmentDocumentSection">
-                <h4 class="text-md font-semibold text-gray-800 mb-2">Attached Document:</h4>
-                <a href="#" id="viewAssignmentDownloadLink" target="_blank" class="text-indigo-600 hover:text-indigo-800 hover:underline">
-                    <i class="fas fa-file-download mr-2"></i><span id="viewAssignmentDocName">document.pdf</span>
-                </a>
+                <h4 class="text-md font-semibold text-gray-800 mb-3">Attached Documents:</h4>
+                <div id="viewAssignmentDocumentsList" class="space-y-2">
+                    <!-- Documents will be populated here -->
+                </div>
             </div>
 
             <!-- Questions Section -->
@@ -2220,16 +2220,16 @@
 
                                     <div class="mb-4 bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg p-4">
                                         <label class="block text-gray-700 text-sm font-medium mb-2" for="courseAssignmentDocumentInput">
-                                            <i class="fas fa-file-upload text-purple-600 mr-1"></i> Assignment Document
+                                            <i class="fas fa-file-upload text-purple-600 mr-1"></i> Assignment Documents <span class="text-gray-500 text-xs">(Multiple files allowed)</span>
                                         </label>
                                         <p class="text-xs text-gray-600 mb-2">Accepted: PDF, PowerPoint (.ppt, .pptx), Word (.doc, .docx)</p>
-                                        <input type="file" id="courseAssignmentDocumentInput" accept=".pdf,.doc,.docx,.ppt,.pptx" class="block w-full text-sm text-gray-700
+                                        <input type="file" id="courseAssignmentDocumentInput" accept=".pdf,.doc,.docx,.ppt,.pptx" multiple class="block w-full text-sm text-gray-700
                                             file:mr-4 file:py-2 file:px-4
                                             file:rounded-lg file:border-0
                                             file:text-sm file:font-semibold
                                             file:bg-purple-600 file:text-white
                                             hover:file:bg-purple-700 file:cursor-pointer"/>
-                                        <p id="courseAssignmentDocFileName" class="text-xs text-green-600 mt-2 hidden flex items-center"><i class="fas fa-check-circle mr-1"></i></p>
+                                        <div id="courseAssignmentDocFilesList" class="mt-2 space-y-1"></div>
                                     </div>
 
                                     <button type="button" id="addCourseAssignmentBtn" class="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 px-6 rounded-lg hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium shadow-md transition">
@@ -4932,25 +4932,27 @@
         // Course Assignments Management
         let currentCourseAssignments = [];
 
-        // Show selected document file name for course assignment
+        // Show selected document files for course assignment
         const courseAssignmentDocInput = document.getElementById('courseAssignmentDocumentInput');
-        const courseAssignmentDocFileName = document.getElementById('courseAssignmentDocFileName');
+        const courseAssignmentDocFilesList = document.getElementById('courseAssignmentDocFilesList');
         
         if (courseAssignmentDocInput) {
             courseAssignmentDocInput.addEventListener('change', function() {
+                courseAssignmentDocFilesList.innerHTML = '';
                 if (this.files.length > 0) {
-                    const file = this.files[0];
-                    const fileSize = (file.size / 1024).toFixed(2); // KB
-                    const fileExt = file.name.split('.').pop().toUpperCase();
-                    let icon = 'fa-file';
-                    if (fileExt === 'PDF') icon = 'fa-file-pdf';
-                    else if (fileExt === 'PPT' || fileExt === 'PPTX') icon = 'fa-file-powerpoint';
-                    else if (fileExt === 'DOC' || fileExt === 'DOCX') icon = 'fa-file-word';
-                    
-                    courseAssignmentDocFileName.innerHTML = `<i class="fas ${icon} mr-1 text-purple-600"></i>Selected: <strong>${file.name}</strong> (${fileSize} KB)`;
-                    courseAssignmentDocFileName.classList.remove('hidden');
-                } else {
-                    courseAssignmentDocFileName.classList.add('hidden');
+                    Array.from(this.files).forEach(file => {
+                        const fileSize = (file.size / 1024).toFixed(2); // KB
+                        const fileExt = file.name.split('.').pop().toUpperCase();
+                        let icon = 'fa-file';
+                        if (fileExt === 'PDF') icon = 'fa-file-pdf';
+                        else if (fileExt === 'PPT' || fileExt === 'PPTX') icon = 'fa-file-powerpoint';
+                        else if (fileExt === 'DOC' || fileExt === 'DOCX') icon = 'fa-file-word';
+                        
+                        const fileItem = document.createElement('p');
+                        fileItem.className = 'text-xs text-green-600 font-medium flex items-center';
+                        fileItem.innerHTML = `<i class="fas ${icon} mr-1 text-purple-600"></i><strong>${file.name}</strong> (${fileSize} KB)`;
+                        courseAssignmentDocFilesList.appendChild(fileItem);
+                    });
                 }
             });
         }
@@ -4964,17 +4966,25 @@
                 const type = document.getElementById('courseAssignmentTypeSelect').value;
                 const instructions = document.getElementById('courseAssignmentInstructionsInput').value.trim();
                 const marks = parseInt(document.getElementById('courseAssignmentMarksInput').value) || 0;
-                const docFile = courseAssignmentDocInput.files[0];
+                const docFiles = courseAssignmentDocInput.files;
 
                 if (!title || !dueDate || !instructions) {
                     showMessageModal('Input Error', 'Please fill in Title, Due Date, and Instructions for the assignment.');
                     return;
                 }
 
-                if (!docFile) {
-                    showMessageModal('Document Required', 'Please upload a document for the assignment.');
+                if (!docFiles || docFiles.length === 0) {
+                    showMessageModal('Document Required', 'Please upload at least one document for the assignment.');
                     return;
                 }
+
+                // Create documents array from uploaded files
+                const documents = Array.from(docFiles).map(file => ({
+                    fileName: file.name,
+                    fileUrl: URL.createObjectURL(file),
+                    fileType: file.name.split('.').pop().toUpperCase(),
+                    fileSize: (file.size / 1024).toFixed(2) + ' KB'
+                }));
 
                 const assignment = {
                     id: Date.now(),
@@ -4983,9 +4993,7 @@
                     type,
                     instructions,
                     totalMarks: marks,
-                    documentFileName: docFile.name,
-                    documentFileUrl: URL.createObjectURL(docFile),
-                    documentType: docFile.name.split('.').pop().toUpperCase()
+                    documents: documents
                 };
 
                 currentCourseAssignments.push(assignment);
@@ -4997,9 +5005,9 @@
                 document.getElementById('courseAssignmentInstructionsInput').value = '';
                 document.getElementById('courseAssignmentMarksInput').value = '100';
                 courseAssignmentDocInput.value = '';
-                courseAssignmentDocFileName.classList.add('hidden');
+                courseAssignmentDocFilesList.innerHTML = '';
 
-                showMessageModal('Assignment Added', `Assignment "${title}" has been added to the course.`);
+                showMessageModal('Assignment Added', `Assignment "${title}" has been added to the course with ${documents.length} document(s).`);
             });
         }
 
@@ -5023,6 +5031,7 @@
                             const typeBadge = assignment.type === 'mark-as-read' ? 
                                 '<span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">Mark as Read</span>' : 
                                 '<span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">Regular</span>';
+                            const docCount = assignment.documents ? assignment.documents.length : 0;
                             
                             return `
                             <div class="flex items-center justify-between bg-gradient-to-r from-gray-50 to-purple-50 p-3 rounded-lg border border-gray-200">
@@ -5033,6 +5042,7 @@
                                     <div class="text-xs text-gray-600 mt-1 flex items-center gap-3">
                                         <span><i class="fas fa-calendar text-gray-500 mr-1"></i>Due: ${new Date(assignment.dueDate).toLocaleDateString()}</span>
                                         <span><i class="fas fa-star text-amber-500 mr-1"></i>${assignment.totalMarks} marks</span>
+                                        <span><i class="fas fa-paperclip text-indigo-500 mr-1"></i>${docCount} doc(s)</span>
                                         ${typeBadge}
                                     </div>
                                 </div>
@@ -6079,9 +6089,7 @@
                                         dueDate: assignmentTemplate.dueDate,
                                         courseId: currentCourseIdToAssign,
                                         courseName: course.name,
-                                        documentFileName: assignmentTemplate.documentFileName,
-                                        documentFileUrl: assignmentTemplate.documentFileUrl,
-                                        documentType: assignmentTemplate.documentType,
+                                        documents: assignmentTemplate.documents || [],
                                         totalMarks: assignmentTemplate.totalMarks,
                                         questions: assignmentTemplate.questions || [],
                                         assignedStudentId: student.id,
