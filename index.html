@@ -2043,6 +2043,13 @@
                                         </label>
                                         <textarea id="courseDescriptionInput" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" rows="3" placeholder="Provide a clear description of what students will learn in this course..."></textarea>
                                     </div>
+                                    <div>
+                                        <label class="block text-gray-700 text-sm font-medium mb-2" for="courseCompletionDeadlineInput">
+                                            <i class="fas fa-calendar-alt text-gray-500 mr-1"></i> Completion Deadline <span class="text-gray-400 text-xs">(Optional)</span>
+                                        </label>
+                                        <input id="courseCompletionDeadlineInput" type="date" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                                        <p class="text-xs text-gray-500 mt-1"><i class="fas fa-info-circle mr-1"></i>Set a deadline for students to complete this course</p>
+                                    </div>
                                 </div>
                             </div>
                             <!-- Course Picture -->
@@ -4979,6 +4986,7 @@
             }
 
             const coursePicture = coursePicturePreview.src;
+            const completionDeadline = document.getElementById('courseCompletionDeadlineInput').value;
 
             const newCourse = {
                 id: Date.now(),
@@ -4990,7 +4998,8 @@
                 questions: [...currentCourseQuestions],
                 documents: [], // Initialize empty documents array
                 readStatus: false,
-                creatorId: loggedInUser.id // Assign creator ID
+                creatorId: loggedInUser.id, // Assign creator ID
+                completionDeadline: completionDeadline || null // Save deadline if provided
             };
             allCoursesData.push(newCourse);
             saveToLocalStorage(); // Save to localStorage
@@ -5013,6 +5022,50 @@
             resetCourseForm();
         });
 
+        // Course Deadline Helper Function
+        function getCourseDeadlineInfo(course) {
+            if (!course.completionDeadline) {
+                return { badge: '', daysRemaining: null, status: 'none' };
+            }
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const deadline = new Date(course.completionDeadline);
+            deadline.setHours(0, 0, 0, 0);
+            const daysRemaining = Math.ceil((deadline - today) / (1000 * 60 * 60 * 24));
+
+            let badge = '';
+            let status = '';
+
+            if (daysRemaining < 0) {
+                // Overdue
+                badge = ` <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800 border border-red-300"><i class="fas fa-exclamation-triangle mr-1"></i>Overdue</span>`;
+                status = 'overdue';
+            } else if (daysRemaining === 0) {
+                // Due today
+                badge = ` <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800 border border-red-300"><i class="fas fa-calendar-day mr-1"></i>Due Today</span>`;
+                status = 'today';
+            } else if (daysRemaining === 1) {
+                // Due tomorrow
+                badge = ` <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300"><i class="fas fa-calendar-alt mr-1"></i>Due Tomorrow</span>`;
+                status = 'tomorrow';
+            } else if (daysRemaining <= 3) {
+                // Due within 3 days
+                badge = ` <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300"><i class="fas fa-hourglass-half mr-1"></i>${daysRemaining} days</span>`;
+                status = 'urgent';
+            } else if (daysRemaining <= 7) {
+                // Due within 7 days
+                badge = ` <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 border border-blue-300"><i class="fas fa-clock mr-1"></i>${daysRemaining} days</span>`;
+                status = 'upcoming';
+            } else {
+                // More than 7 days
+                badge = ` <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-700 border border-gray-300"><i class="fas fa-calendar-check mr-1"></i>${daysRemaining} days</span>`;
+                status = 'normal';
+            }
+
+            return { badge, daysRemaining, status };
+        }
+
         // Render Training Manager's Courses Table
         function renderTrainingManagerCoursesTable() {
             const tableBody = document.getElementById('trainingManagerCoursesTableBody');
@@ -5031,9 +5084,10 @@
                     newRow.classList.add('cursor-pointer', 'hover:bg-gray-50');
 
                     const totalMarks = course.questions.reduce((sum, q) => sum + (q.marks || 0), 0);
+                    const deadlineInfo = getCourseDeadlineInfo(course);
 
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><img src="${course.picture}" alt="Course" class="h-10 w-10 rounded-md object-cover"></td>`;
-                    newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${course.name}</td>`;
+                    newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${course.name}${deadlineInfo.badge}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.description.substring(0, 50)}${course.description.length > 50 ? '...' : ''}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.videos ? course.videos.length + ' video(s)' : (course.videoFileName ? '1 video' : 'N/A')}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.pdfFileName || 'N/A'}</td>`;
@@ -5228,9 +5282,10 @@
                     newRow.classList.add('cursor-pointer', 'hover:bg-gray-50');
 
                     const totalMarks = course.questions.reduce((sum, q) => sum + (q.marks || 0), 0);
+                    const deadlineInfo = getCourseDeadlineInfo(course);
 
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><img src="${course.picture}" alt="Course" class="h-10 w-10 rounded-md object-cover"></td>`;
-                    newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${course.name}</td>`;
+                    newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${course.name}${deadlineInfo.badge}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.description.substring(0, 50)}${course.description.length > 50 ? '...' : ''}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.videos ? course.videos.length + ' video(s)' : (course.videoFileName ? '1 video' : 'N/A')}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.pdfFileName || 'N/A'}</td>`;
@@ -7801,12 +7856,15 @@ function showStudentCourses(type) {
     const statusBadge = isCompleted ? "Completed" : "In Progress";
     const badgeClass = isCompleted ? "bg-green-100 text-green-700" : "bg-indigo-100 text-indigo-700";
     
+    // Get deadline information
+    const deadlineInfo = getCourseDeadlineInfo(course);
+    
     // Check if course was recently assigned (within last 7 days)
     const isNewlyAssigned = course.enrollmentDate && 
       (new Date() - new Date(course.enrollmentDate)) < (7 * 24 * 60 * 60 * 1000);
     
     let courseCard = `
-      <div class="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden ${isNewlyAssigned ? 'ring-2 ring-blue-400' : ''}">
+      <div class="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden ${isNewlyAssigned ? 'ring-2 ring-blue-400' : ''} ${deadlineInfo.status === 'overdue' || deadlineInfo.status === 'today' ? 'ring-2 ring-red-400' : deadlineInfo.status === 'tomorrow' || deadlineInfo.status === 'urgent' ? 'ring-2 ring-yellow-400' : ''}">
         <div class="relative w-full h-40 overflow-hidden bg-gray-200">
           <img src="${courseImage}" alt="${course.name}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-300" onerror="this.src='https://placehold.co/400x200/E0E7FF/4F46E5?text=${encodeURIComponent(course.name)}'">
           ${isNewlyAssigned ? '<span class="absolute top-3 left-3 text-xs px-3 py-1 rounded-full font-medium bg-blue-600 text-white animate-pulse"><i class="fas fa-sparkles mr-1"></i>NEW</span>' : ''}
@@ -7817,6 +7875,7 @@ function showStudentCourses(type) {
         <div class="p-5">
           <h3 class="font-semibold text-gray-800 mb-2">${course.name}</h3>
           <p class="text-sm text-gray-600 mb-3">${course.description || "No description available"}</p>
+          ${deadlineInfo.badge ? `<div class="mb-3 text-sm">${deadlineInfo.badge}</div>` : ''}
           ${!isCompleted 
             ? `<div class="w-full bg-gray-200 rounded-full h-2 mb-3">
                 <div class="bg-indigo-600 h-2 rounded-full" style="width: ${course.hoursSpent || 0}%"></div>
