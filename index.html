@@ -627,22 +627,47 @@
                 </div>
 
                 <!-- Document Upload -->
-                <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentDocumentInput">Upload Document (PDF, PPT, Word) <span class="text-red-500">*</span></label>
+                <div class="mb-4 bg-blue-50 border border-blue-200 rounded-md p-4">
+                    <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentDocumentInput">
+                        <i class="fas fa-file-upload mr-2 text-indigo-600"></i>Upload Assignment Document <span class="text-red-500">*</span>
+                    </label>
+                    <p class="text-xs text-gray-600 mb-2">Accepted formats: PDF, PowerPoint (.ppt, .pptx), Word (.doc, .docx)</p>
                     <input type="file" id="assignmentDocumentInput" accept=".pdf,.doc,.docx,.ppt,.pptx" class="block w-full text-sm text-gray-500
                         file:mr-4 file:py-2 file:px-4
                         file:rounded-md file:border-0
                         file:text-sm file:font-semibold
-                        file:bg-indigo-50 file:text-indigo-700
-                        hover:file:bg-indigo-100"/>
-                    <p id="assignmentDocFileName" class="text-xs text-gray-500 mt-1 hidden"></p>
+                        file:bg-indigo-600 file:text-white
+                        hover:file:bg-indigo-700
+                        cursor-pointer"/>
+                    <p id="assignmentDocFileName" class="text-xs text-green-600 font-medium mt-2 hidden"></p>
                 </div>
 
-                <!-- Total Marks -->
-                <div class="mb-4" id="assignmentMarksContainer">
-                    <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentMarksInput">Total Marks</label>
-                    <input id="assignmentMarksInput" type="number" class="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="100" min="0" value="100">
-                    <p class="text-xs text-gray-500 mt-1">Set to 0 for Mark as Read assignments</p>
+                <!-- Total Marks and Questions Section -->
+                <div class="mb-4 bg-amber-50 border border-amber-200 rounded-md p-4" id="assignmentMarksContainer">
+                    <div class="flex items-center justify-between mb-3">
+                        <label class="block text-gray-700 text-sm font-medium" for="assignmentMarksInput">
+                            <i class="fas fa-star mr-2 text-amber-600"></i>Total Marks <span class="text-red-500">*</span>
+                        </label>
+                        <input id="assignmentMarksInput" type="number" class="w-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 text-center font-bold text-lg" placeholder="100" min="0" value="100">
+                    </div>
+                    <p class="text-xs text-gray-600 mb-3">Set to 0 for Mark as Read assignments</p>
+                    
+                    <!-- Assignment Questions Section -->
+                    <div id="questionsSection" class="mt-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="block text-gray-700 text-sm font-medium">
+                                <i class="fas fa-list-ol mr-2 text-indigo-600"></i>Assignment Questions (Optional)
+                            </label>
+                            <button type="button" onclick="addAssignmentQuestion()" class="px-3 py-1 text-xs bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none">
+                                <i class="fas fa-plus mr-1"></i> Add Question
+                            </button>
+                        </div>
+                        <p class="text-xs text-gray-500 mb-3">Add questions with individual marks allocation (optional, for reference)</p>
+                        <div id="assignmentQuestionsList" class="space-y-2 max-h-60 overflow-y-auto">
+                            <!-- Questions will be added here dynamically -->
+                        </div>
+                        <div id="noQuestionsMessage" class="text-xs text-gray-400 text-center py-2">No questions added yet</div>
+                    </div>
                 </div>
 
                 <!-- Student Selection -->
@@ -690,7 +715,7 @@
     
     <!-- FIX: View Assignment Modal (for Student) -->
     <div id="viewAssignmentModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
-        <div class="bg-white rounded-lg p-6 shadow-xl max-w-xl w-full transform transition-all duration-300 scale-100 opacity-100">
+        <div class="bg-white rounded-lg p-6 shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-100 opacity-100">
             <h3 class="text-2xl font-semibold text-gray-900 mb-2" id="viewAssignmentTitle">Assignment Title</h3>
             <p class="text-sm text-gray-500 mb-4">Due: <span id="viewAssignmentDueDate"></span> | Total Marks: <span id="viewAssignmentTotalMarks" class="font-bold"></span></p>
             
@@ -704,6 +729,16 @@
                 <a href="#" id="viewAssignmentDownloadLink" target="_blank" class="text-indigo-600 hover:text-indigo-800 hover:underline">
                     <i class="fas fa-file-download mr-2"></i><span id="viewAssignmentDocName">document.pdf</span>
                 </a>
+            </div>
+
+            <!-- Questions Section -->
+            <div class="mb-6 border-t pt-4" id="viewAssignmentQuestionsSection" style="display: none;">
+                <h4 class="text-md font-semibold text-gray-800 mb-3">
+                    <i class="fas fa-question-circle text-amber-500 mr-2"></i>Questions:
+                </h4>
+                <div id="viewAssignmentQuestionsList" class="space-y-3">
+                    <!-- Questions will be populated here -->
+                </div>
             </div>
 
             <div class="flex justify-between items-center">
@@ -6923,6 +6958,7 @@
             createAssignmentForm.reset();
             document.getElementById('assignmentDocFileName').classList.add('hidden');
             document.getElementById('assignmentStudentSearch').value = '';
+            clearAssignmentQuestions();
             updateAssignmentSelectedCount();
             createAssignmentModal.classList.remove('hidden');
             createAssignmentModal.classList.add('show');
@@ -6934,6 +6970,113 @@
             if (!createAssignmentModal) return;
             createAssignmentModal.classList.remove('show');
             createAssignmentModal.classList.add('hidden');
+            clearAssignmentQuestions();
+        }
+
+        // Assignment Questions Management
+        let assignmentQuestions = [];
+
+        function addAssignmentQuestion() {
+            const questionNumber = assignmentQuestions.length + 1;
+            const questionId = Date.now() + Math.random();
+            
+            const question = {
+                id: questionId,
+                number: questionNumber,
+                text: '',
+                marks: 0
+            };
+            
+            assignmentQuestions.push(question);
+            renderAssignmentQuestions();
+        }
+
+        function removeAssignmentQuestion(questionId) {
+            assignmentQuestions = assignmentQuestions.filter(q => q.id !== questionId);
+            // Renumber questions
+            assignmentQuestions.forEach((q, index) => {
+                q.number = index + 1;
+            });
+            renderAssignmentQuestions();
+        }
+
+        function updateQuestionText(questionId, text) {
+            const question = assignmentQuestions.find(q => q.id === questionId);
+            if (question) {
+                question.text = text;
+            }
+        }
+
+        function updateQuestionMarks(questionId, marks) {
+            const question = assignmentQuestions.find(q => q.id === questionId);
+            if (question) {
+                question.marks = parseInt(marks) || 0;
+            }
+            updateTotalMarksFromQuestions();
+        }
+
+        function updateTotalMarksFromQuestions() {
+            if (assignmentQuestions.length > 0) {
+                const totalFromQuestions = assignmentQuestions.reduce((sum, q) => sum + q.marks, 0);
+                const marksInput = document.getElementById('assignmentMarksInput');
+                if (marksInput && totalFromQuestions > 0) {
+                    marksInput.value = totalFromQuestions;
+                }
+            }
+        }
+
+        function clearAssignmentQuestions() {
+            assignmentQuestions = [];
+            renderAssignmentQuestions();
+        }
+
+        function renderAssignmentQuestions() {
+            const container = document.getElementById('assignmentQuestionsList');
+            const noQuestionsMsg = document.getElementById('noQuestionsMessage');
+            
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            if (assignmentQuestions.length === 0) {
+                if (noQuestionsMsg) noQuestionsMsg.classList.remove('hidden');
+                return;
+            }
+            
+            if (noQuestionsMsg) noQuestionsMsg.classList.add('hidden');
+            
+            assignmentQuestions.forEach(question => {
+                const questionDiv = document.createElement('div');
+                questionDiv.className = 'bg-white border border-gray-200 rounded-md p-3';
+                questionDiv.innerHTML = `
+                    <div class="flex items-start gap-2">
+                        <div class="flex-shrink-0 w-8 h-8 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-bold text-sm">
+                            ${question.number}
+                        </div>
+                        <div class="flex-1">
+                            <input type="text" 
+                                placeholder="Enter question text (e.g., What are the key safety procedures?)" 
+                                value="${question.text}"
+                                onchange="updateQuestionText(${question.id}, this.value)"
+                                class="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 mb-2">
+                            <div class="flex items-center gap-2">
+                                <label class="text-xs text-gray-600">Marks:</label>
+                                <input type="number" 
+                                    min="0" 
+                                    value="${question.marks}"
+                                    onchange="updateQuestionMarks(${question.id}, this.value)"
+                                    class="w-16 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500 text-center">
+                            </div>
+                        </div>
+                        <button type="button" 
+                            onclick="removeAssignmentQuestion(${question.id})" 
+                            class="flex-shrink-0 text-red-500 hover:text-red-700 focus:outline-none">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(questionDiv);
+            });
         }
 
         // Populate course dropdown for assignment
@@ -7128,6 +7271,21 @@
                         return;
                     }
 
+                    // Validate questions if added
+                    if (assignmentQuestions.length > 0) {
+                        const invalidQuestion = assignmentQuestions.find(q => !q.text.trim());
+                        if (invalidQuestion) {
+                            showMessageModal('Question Error ⚠️', `Question ${invalidQuestion.number} is empty. Please enter question text or remove it.`);
+                            return;
+                        }
+                        
+                        const totalQuestionMarks = assignmentQuestions.reduce((sum, q) => sum + q.marks, 0);
+                        if (totalQuestionMarks !== totalMarks && totalMarks > 0) {
+                            showMessageModal('Marks Mismatch ⚠️', `Total question marks (${totalQuestionMarks}) must equal assignment total marks (${totalMarks}).`);
+                            return;
+                        }
+                    }
+
                     // Get course name if linked
                     let courseName = null;
                     if (courseId) {
@@ -7156,6 +7314,7 @@
                             documentFileUrl: URL.createObjectURL(documentFile),
                             documentType: documentFile.name.split('.').pop().toUpperCase(),
                             totalMarks,
+                            questions: assignmentQuestions.map(q => ({...q})), // Save questions
                             assignedStudentId: studentId,
                             creatorId: loggedInUser.id,
                             status: assignmentType === 'mark-as-read' ? 'Pending Read' : 'Assigned',
@@ -7179,9 +7338,10 @@
                         ? assignedStudentNames.join(', ')
                         : `${assignedStudentNames.slice(0, 3).join(', ')} and ${assignedStudentNames.length - 3} more`;
                     const typeInfo = assignmentType === 'mark-as-read' ? '(Mark as Read)' : `(${totalMarks} marks)`;
+                    const questionsInfo = assignmentQuestions.length > 0 ? `\n❓ Questions: ${assignmentQuestions.length}` : '';
                     
                     showMessageModal('Assignment Created Successfully! 🎉', 
-                        `Assignment "${title}" ${typeInfo}${courseInfo} has been created and assigned to:\n\n👥 ${studentList}\n\n📅 Due Date: ${new Date(dueDate).toLocaleDateString()}\n📎 Document: ${documentFile.name}`);
+                        `Assignment "${title}" ${typeInfo}${courseInfo} has been created and assigned to:\n\n👥 ${studentList}\n\n📅 Due Date: ${new Date(dueDate).toLocaleDateString()}\n📎 Document: ${documentFile.name}${questionsInfo}`);
                     hideCreateAssignmentModal();
                 });
             }
@@ -9048,7 +9208,60 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById('pdfViewerModal').classList.remove('show');
         }
 
-        function showViewAssignmentModal() {
+        function showViewAssignmentModal(assignmentId) {
+            const assignment = allAssignmentsData.find(a => a.id === assignmentId);
+            if (!assignment) return;
+
+            document.getElementById('viewAssignmentTitle').textContent = assignment.title;
+            document.getElementById('viewAssignmentDueDate').textContent = new Date(assignment.dueDate).toLocaleDateString();
+            document.getElementById('viewAssignmentTotalMarks').textContent = assignment.totalMarks || 0;
+            document.getElementById('viewAssignmentInstructions').textContent = assignment.instructions;
+            
+            // Document link
+            const downloadLink = document.getElementById('viewAssignmentDownloadLink');
+            const docName = document.getElementById('viewAssignmentDocName');
+            if (assignment.documentFileUrl && assignment.documentFileName) {
+                downloadLink.href = assignment.documentFileUrl;
+                docName.textContent = assignment.documentFileName;
+            }
+            
+            // Display questions if they exist
+            const questionsSection = document.getElementById('viewAssignmentQuestionsSection');
+            const questionsList = document.getElementById('viewAssignmentQuestionsList');
+            
+            if (assignment.questions && assignment.questions.length > 0) {
+                questionsList.innerHTML = '';
+                assignment.questions.forEach(question => {
+                    const questionDiv = document.createElement('div');
+                    questionDiv.className = 'bg-gray-50 border border-gray-200 rounded-md p-3';
+                    questionDiv.innerHTML = `
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="flex-shrink-0 w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-bold text-xs">
+                                        ${question.number}
+                                    </span>
+                                    <span class="text-sm font-medium text-gray-900">${question.text}</span>
+                                </div>
+                            </div>
+                            <div class="ml-3 flex-shrink-0">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                    <i class="fas fa-star text-xs mr-1"></i>${question.marks} marks
+                                </span>
+                            </div>
+                        </div>
+                    `;
+                    questionsList.appendChild(questionDiv);
+                });
+                questionsSection.style.display = 'block';
+            } else {
+                questionsSection.style.display = 'none';
+            }
+            
+            // Store assignmentId on submit button
+            const submitBtn = document.getElementById('submitAssignmentBtn');
+            submitBtn.dataset.assignmentId = assignmentId;
+            
             document.getElementById('viewAssignmentModal').classList.remove('hidden');
             document.getElementById('viewAssignmentModal').classList.add('show');
         }
