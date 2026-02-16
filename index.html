@@ -869,7 +869,7 @@
                     </div>
                 </div>
 
-                <!-- Main Tabs: Videos vs Documents -->
+                <!-- Main Tabs: Videos vs Documents vs Assignments -->
                 <div class="mb-6 border-b border-gray-200">
                     <div class="flex space-x-4 pb-3" id="mainTabsContainer">
                         <button onclick="switchCourseTab('videos')" class="px-4 py-2 font-medium text-gray-600 hover:text-gray-800 border-b-2 border-transparent hover:border-indigo-600 transition cursor-pointer" id="videosTabBtn">
@@ -877,6 +877,9 @@
                         </button>
                         <button onclick="switchCourseTab('documents')" class="px-4 py-2 font-medium text-gray-600 hover:text-gray-800 border-b-2 border-transparent hover:border-indigo-600 transition cursor-pointer" id="documentsTabBtn">
                             <i class="fas fa-file-alt mr-2"></i>Documents
+                        </button>
+                        <button onclick="switchCourseTab('assignments')" class="px-4 py-2 font-medium text-gray-600 hover:text-gray-800 border-b-2 border-transparent hover:border-indigo-600 transition cursor-pointer" id="assignmentsTabBtn">
+                            <i class="fas fa-tasks mr-2"></i>Assignments
                         </button>
                     </div>
                 </div>
@@ -931,6 +934,22 @@
                     <div class="space-y-4">
                         <div id="courseDocumentsContainer">
                             <p class="text-gray-500 text-center py-8">Loading documents...</p>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex justify-between mt-8 pt-6 border-t border-gray-200">
+                        <button onclick="closeCourseViewer()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none">
+                            Close
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Assignments Tab Content -->
+                <div id="assignmentsContent" class="hidden">
+                    <div class="space-y-4">
+                        <div id="courseAssignmentsContainer">
+                            <p class="text-gray-500 text-center py-8">Loading assignments...</p>
                         </div>
                     </div>
 
@@ -8679,33 +8698,49 @@ function closeCourseViewer() {
 function switchCourseTab(tabName) {
     const videosContent = document.getElementById('videosContent');
     const documentsContent = document.getElementById('documentsContent');
+    const assignmentsContent = document.getElementById('assignmentsContent');
     const videosTabBtn = document.getElementById('videosTabBtn');
     const documentsTabBtn = document.getElementById('documentsTabBtn');
+    const assignmentsTabBtn = document.getElementById('assignmentsTabBtn');
+    
+    // Hide all content
+    videosContent.classList.add('hidden');
+    videosContent.classList.remove('block');
+    documentsContent.classList.add('hidden');
+    documentsContent.classList.remove('block');
+    assignmentsContent.classList.add('hidden');
+    assignmentsContent.classList.remove('block');
+    
+    // Reset all tab styles
+    [videosTabBtn, documentsTabBtn, assignmentsTabBtn].forEach(btn => {
+        btn.classList.remove('border-b-2', 'border-indigo-600', 'text-indigo-600');
+        btn.classList.add('border-transparent', 'text-gray-600');
+    });
     
     if (tabName === 'videos') {
         videosContent.classList.remove('hidden');
         videosContent.classList.add('block');
-        documentsContent.classList.remove('block');
-        documentsContent.classList.add('hidden');
-        
         videosTabBtn.classList.add('border-b-2', 'border-indigo-600', 'text-indigo-600');
         videosTabBtn.classList.remove('border-transparent', 'text-gray-600');
-        documentsTabBtn.classList.remove('border-b-2', 'border-indigo-600', 'text-indigo-600');
-        documentsTabBtn.classList.add('border-transparent', 'text-gray-600');
     } else if (tabName === 'documents') {
         documentsContent.classList.remove('hidden');
         documentsContent.classList.add('block');
-        videosContent.classList.remove('block');
-        videosContent.classList.add('hidden');
-        
         documentsTabBtn.classList.add('border-b-2', 'border-indigo-600', 'text-indigo-600');
         documentsTabBtn.classList.remove('border-transparent', 'text-gray-600');
-        videosTabBtn.classList.remove('border-b-2', 'border-indigo-600', 'text-indigo-600');
-        videosTabBtn.classList.add('border-transparent', 'text-gray-600');
         
         // Load documents for current course
         if (window.currentViewingCourseId) {
             loadCourseDocuments(window.currentViewingCourseId);
+        }
+    } else if (tabName === 'assignments') {
+        assignmentsContent.classList.remove('hidden');
+        assignmentsContent.classList.add('block');
+        assignmentsTabBtn.classList.add('border-b-2', 'border-indigo-600', 'text-indigo-600');
+        assignmentsTabBtn.classList.remove('border-transparent', 'text-gray-600');
+        
+        // Load assignments for current course
+        if (window.currentViewingCourseId) {
+            loadCourseAssignments(window.currentViewingCourseId);
         }
     }
 }
@@ -8771,6 +8806,109 @@ function loadCourseDocuments(courseId) {
                             <i class="fas fa-check mr-1"></i>${ (isAssigned ? isReadForStudent : doc.isRead) ? 'Read' : 'Mark as Read' }
                         </button>
                     </div>
+                </div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// Function to load and display course assignments
+function loadCourseAssignments(courseId) {
+    const container = document.getElementById('courseAssignmentsContainer');
+    
+    if (!container) return;
+    
+    // Get assignments for this course and current user
+    let courseAssignments = [];
+    
+    if (typeof loggedInUser !== 'undefined' && loggedInUser && loggedInUser.role === 'student') {
+        courseAssignments = allAssignmentsData.filter(a => 
+            a.courseId === courseId && a.assignedStudentId === loggedInUser.id
+        );
+    }
+    
+    if (courseAssignments.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-8">No assignments available for this course.</p>';
+        return;
+    }
+    
+    let html = '<div class="space-y-4">';
+    courseAssignments.forEach(assignment => {
+        // Determine status badge
+        let statusBadge = '';
+        let statusClass = '';
+        
+        if (assignment.status === 'Submitted' || assignment.status === 'Read') {
+            statusBadge = '<span class="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full"><i class="fas fa-paper-plane mr-1"></i>Submitted</span>';
+            statusClass = 'border-blue-200 bg-blue-50';
+        } else if (assignment.status === 'Graded') {
+            statusBadge = '<span class="px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full"><i class="fas fa-check-circle mr-1"></i>Graded</span>';
+            statusClass = 'border-green-200 bg-green-50';
+        } else {
+            // Check if overdue
+            const today = new Date();
+            const dueDate = new Date(assignment.dueDate);
+            if (dueDate < today) {
+                statusBadge = '<span class="px-3 py-1 bg-red-100 text-red-700 text-xs font-semibold rounded-full"><i class="fas fa-exclamation-triangle mr-1"></i>Overdue</span>';
+                statusClass = 'border-red-200 bg-red-50';
+            } else {
+                statusBadge = '<span class="px-3 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded-full"><i class="fas fa-clock mr-1"></i>Pending</span>';
+                statusClass = 'border-yellow-200 bg-yellow-50';
+            }
+        }
+        
+        // Get document count
+        const docCount = assignment.documents ? assignment.documents.length : 0;
+        const questionCount = assignment.questions ? assignment.questions.length : 0;
+        
+        html += `
+            <div class="bg-white border-2 ${statusClass} rounded-lg p-5 hover:shadow-lg transition">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-3 mb-2">
+                            <h4 class="text-lg font-semibold text-gray-800">${assignment.title}</h4>
+                            ${statusBadge}
+                        </div>
+                        <p class="text-sm text-gray-600 mb-3">${assignment.instructions}</p>
+                        <div class="flex flex-wrap items-center gap-4 text-xs text-gray-500">
+                            <span><i class="fas fa-calendar-alt mr-1 text-indigo-500"></i>Due: ${new Date(assignment.dueDate).toLocaleDateString()}</span>
+                            <span><i class="fas fa-star mr-1 text-amber-500"></i>${assignment.totalMarks} marks</span>
+                            ${docCount > 0 ? `<span><i class="fas fa-paperclip mr-1 text-blue-500"></i>${docCount} document(s)</span>` : ''}
+                            ${questionCount > 0 ? `<span><i class="fas fa-question-circle mr-1 text-purple-500"></i>${questionCount} question(s)</span>` : ''}
+                            ${assignment.type === 'mark-as-read' ? '<span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full">Mark as Read</span>' : ''}
+                        </div>
+                    </div>
+                </div>
+                
+                ${assignment.documents && assignment.documents.length > 0 ? `
+                    <div class="mt-4 pt-4 border-t border-gray-200">
+                        <h5 class="text-sm font-semibold text-gray-700 mb-2"><i class="fas fa-folder-open mr-2"></i>Attached Documents:</h5>
+                        <div class="space-y-2">
+                            ${assignment.documents.map(doc => {
+                                let icon = 'fa-file';
+                                if (doc.fileType === 'PDF') icon = 'fa-file-pdf';
+                                else if (doc.fileType === 'PPT' || doc.fileType === 'PPTX') icon = 'fa-file-powerpoint';
+                                else if (doc.fileType === 'DOC' || doc.fileType === 'DOCX') icon = 'fa-file-word';
+                                
+                                return `
+                                    <a href="${doc.fileUrl}" target="_blank" class="flex items-center gap-2 p-2 bg-gray-50 rounded-md hover:bg-gray-100 transition text-sm">
+                                        <i class="fas ${icon} text-indigo-600"></i>
+                                        <span class="flex-1 text-gray-700">${doc.fileName}</span>
+                                        <span class="text-xs text-gray-500">${doc.fileSize}</span>
+                                        <i class="fas fa-external-link-alt text-gray-400 text-xs"></i>
+                                    </a>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                <div class="mt-4 flex justify-end gap-2">
+                    <button onclick="showViewAssignmentModal(${assignment.id})" class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 transition">
+                        <i class="fas fa-eye mr-1"></i>View Details
+                    </button>
                 </div>
             </div>
         `;
