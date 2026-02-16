@@ -6963,10 +6963,14 @@
         }
 
         // Listener for the main "Create Assignment" button
-        document.getElementById('createAssignmentBtn').addEventListener('click', showCreateAssignmentModal);
+        const createAssignmentBtn = document.getElementById('createAssignmentBtn');
+        if (createAssignmentBtn) {
+            createAssignmentBtn.addEventListener('click', showCreateAssignmentModal);
+        }
 
         // Show selected document name
-        assignmentDocumentInput.addEventListener('change', function() {
+        if (assignmentDocumentInput) {
+            assignmentDocumentInput.addEventListener('change', function() {
             const fileNameDisplay = document.getElementById('assignmentDocFileName');
             if(this.files.length > 0) {
                 const file = this.files[0];
@@ -6983,9 +6987,12 @@
                 fileNameDisplay.classList.add('hidden');
             }
         });
+        }
 
         // Handle assignment type change
-        document.getElementById('assignmentTypeSelect').addEventListener('change', function() {
+        const assignmentTypeSelect = document.getElementById('assignmentTypeSelect');
+        if (assignmentTypeSelect) {
+            assignmentTypeSelect.addEventListener('change', function() {
             const marksContainer = document.getElementById('assignmentMarksContainer');
             const marksInput = document.getElementById('assignmentMarksInput');
             if (this.value === 'mark-as-read') {
@@ -6997,9 +7004,11 @@
                 marksContainer.querySelector('p').textContent = 'Leave 0 for Mark as Read assignments';
             }
         });
+        }
 
         // Handle the creation of a new assignment
-        createAssignmentForm.addEventListener('submit', function(e) {
+        if (createAssignmentForm) {
+            createAssignmentForm.addEventListener('submit', function(e) {
             e.preventDefault();
             const assignmentType = document.getElementById('assignmentTypeSelect').value;
             const courseId = document.getElementById('assignmentCourseSelect').value;
@@ -7083,6 +7092,7 @@
                 `Assignment "${title}" ${typeInfo}${courseInfo} has been created and assigned to:\n\n👥 ${studentList}\n\n📅 Due Date: ${new Date(dueDate).toLocaleDateString()}\n📎 Document: ${documentFile.name}`);
             hideCreateAssignmentModal();
         });
+        }
 
         // Helper function to calculate days remaining until deadline
         function getDaysUntilDeadline(dueDate) {
@@ -7344,15 +7354,20 @@
         }
         
         // Event delegation for student's "View" buttons
-        document.getElementById('studentAssignmentsList').addEventListener('click', function(e) {
-            if(e.target.classList.contains('view-assignment-btn')) {
-                const assignmentId = parseInt(e.target.dataset.assignmentId, 10);
-                showViewAssignmentModal(assignmentId);
-            }
-        });
+        const studentAssignmentsList = document.getElementById('studentAssignmentsList');
+        if (studentAssignmentsList) {
+            studentAssignmentsList.addEventListener('click', function(e) {
+                if(e.target.classList.contains('view-assignment-btn')) {
+                    const assignmentId = parseInt(e.target.dataset.assignmentId, 10);
+                    showViewAssignmentModal(assignmentId);
+                }
+            });
+        }
 
         // Handle student's submission click
-        document.getElementById('submitAssignmentBtn').addEventListener('click', function() {
+        const submitAssignmentBtn = document.getElementById('submitAssignmentBtn');
+        if (submitAssignmentBtn) {
+            submitAssignmentBtn.addEventListener('click', function() {
             const assignmentId = parseInt(this.dataset.assignmentId, 10);
             const assignment = allAssignmentsData.find(a => a.id === assignmentId);
             if (assignment) {
@@ -7373,11 +7388,7 @@
                 renderTMAssignmentsTable();
             }
         });
-
-        // --- FIX: ASSIGNMENT FUNCTIONALITY END ---
-
-        // --- CERTIFICATE FUNCTIONALITY ---
-        let allCertificateTemplatesData = [];
+        }
 
         // Render student certificates table
         function renderStudentCertificatesTable() {
