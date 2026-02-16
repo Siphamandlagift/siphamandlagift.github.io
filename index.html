@@ -8526,8 +8526,8 @@ function viewStudentCourse(courseId, courseName) {
     }
     
     // If this is a real course from allCoursesData, create sections from questions
-    if (isRealCourse && (!course.sections || course.sections.length === 0)) {
-        // Create a default section structure for courses from allCoursesData
+    if (isRealCourse && course.videos && course.videos.length > 0 && (!course.sections || course.sections.length === 0)) {
+        // Create a default section structure for courses with videos
         course.sections = [{
             id: courseId * 10 + 1,
             title: course.name,
@@ -8536,10 +8536,7 @@ function viewStudentCourse(courseId, courseName) {
         }];
     }
     
-    if (!course.sections || course.sections.length === 0) {
-        showMessageModal('Error', 'This course has no content available yet.');
-        return;
-    }
+    // Note: We no longer require sections - course might only have documents or assignments
 
     document.getElementById('courseViewerTitle').textContent = course.name;
     document.getElementById('courseViewerDescription').textContent = course.description || 'Learn about ' + course.name + '. This course covers essential concepts and practical skills.';
@@ -8549,31 +8546,50 @@ function viewStudentCourse(courseId, courseName) {
     // Store current course ID for later use
     window.currentViewingCourseId = courseId;
 
-    // Create section tabs
-    loadSectionTabs(course);
+    // Check what content exists in the course
+    const hasVideos = course.videos && course.videos.length > 0;
+    const hasDocuments = course.documents && course.documents.length > 0;
+    const hasAssignments = allAssignmentsData && allAssignmentsData.some(a => 
+        a.courseId === courseId && a.assignedStudentId === loggedInUser.id
+    );
 
-    // Load first section by default
-    loadSection(course.sections[0].id, courseId);
-
-    // Reset to Videos tab
-    const videosContent = document.getElementById('videosContent');
-    const documentsContent = document.getElementById('documentsContent');
+    // Get tab elements
     const videosTabBtn = document.getElementById('videosTabBtn');
     const documentsTabBtn = document.getElementById('documentsTabBtn');
-    
-    if (videosContent && documentsContent) {
-        videosContent.classList.remove('hidden');
-        videosContent.classList.add('block');
-        documentsContent.classList.add('hidden');
-        documentsContent.classList.remove('block');
+    const assignmentsTabBtn = document.getElementById('assignmentsTabBtn');
+    const videosContent = document.getElementById('videosContent');
+    const documentsContent = document.getElementById('documentsContent');
+    const assignmentsContent = document.getElementById('assignmentsContent');
+
+    // Show/Hide tabs based on available content
+    if (videosTabBtn) videosTabBtn.style.display = hasVideos ? 'block' : 'none';
+    if (documentsTabBtn) documentsTabBtn.style.display = hasDocuments ? 'block' : 'none';
+    if (assignmentsTabBtn) assignmentsTabBtn.style.display = hasAssignments ? 'block' : 'none';
+
+    // Determine which tab to show first
+    let firstTab = null;
+    if (hasVideos) {
+        firstTab = 'videos';
+    } else if (hasDocuments) {
+        firstTab = 'documents';
+    } else if (hasAssignments) {
+        firstTab = 'assignments';
     }
-    
-    if (videosTabBtn && documentsTabBtn) {
-        videosTabBtn.classList.add('border-b-2', 'border-indigo-600', 'text-indigo-600');
-        videosTabBtn.classList.remove('border-transparent', 'text-gray-600');
-        documentsTabBtn.classList.remove('border-b-2', 'border-indigo-600', 'text-indigo-600');
-        documentsTabBtn.classList.add('border-transparent', 'text-gray-600');
+
+    // If no content at all, show message
+    if (!firstTab) {
+        showMessageModal('No Content', 'This course has no content available yet.');
+        return;
     }
+
+    // Create section tabs (for videos)
+    if (hasVideos) {
+        loadSectionTabs(course);
+        loadSection(course.sections[0].id, courseId);
+    }
+
+    // Show the first available tab
+    switchCourseTab(firstTab);
 
     // Show the modal
     document.getElementById('courseViewerModal').classList.remove('hidden');
