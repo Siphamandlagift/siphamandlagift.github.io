@@ -6825,14 +6825,13 @@
                 }
             ];
         }
-        
-        const createAssignmentModal = document.getElementById('createAssignmentModal');
-        const createAssignmentForm = document.getElementById('createAssignmentForm');
-        const assignmentDocumentInput = document.getElementById('assignmentDocumentInput');
-        const viewAssignmentModal = document.getElementById('viewAssignmentModal');
 
         // Show the create assignment modal
         function showCreateAssignmentModal() {
+            const createAssignmentModal = document.getElementById('createAssignmentModal');
+            const createAssignmentForm = document.getElementById('createAssignmentForm');
+            if (!createAssignmentModal || !createAssignmentForm) return;
+            
             populateAssignmentStudentsList();
             populateAssignmentCourseSelect();
             createAssignmentForm.reset();
@@ -6845,6 +6844,8 @@
 
         // Hide the create assignment modal
         function hideCreateAssignmentModal() {
+            const createAssignmentModal = document.getElementById('createAssignmentModal');
+            if (!createAssignmentModal) return;
             createAssignmentModal.classList.remove('show');
             createAssignmentModal.classList.add('hidden');
         }
@@ -6969,10 +6970,11 @@
         }
 
         // Show selected document name
+        const assignmentDocumentInput = document.getElementById('assignmentDocumentInput');
         if (assignmentDocumentInput) {
             assignmentDocumentInput.addEventListener('change', function() {
-            const fileNameDisplay = document.getElementById('assignmentDocFileName');
-            if(this.files.length > 0) {
+                const fileNameDisplay = document.getElementById('assignmentDocFileName');
+                if(this.files.length > 0) {
                 const file = this.files[0];
                 const fileSize = (file.size / 1024).toFixed(2); // KB
                 const fileExt = file.name.split('.').pop().toUpperCase();
@@ -6993,8 +6995,8 @@
         const assignmentTypeSelect = document.getElementById('assignmentTypeSelect');
         if (assignmentTypeSelect) {
             assignmentTypeSelect.addEventListener('change', function() {
-            const marksContainer = document.getElementById('assignmentMarksContainer');
-            const marksInput = document.getElementById('assignmentMarksInput');
+                const marksContainer = document.getElementById('assignmentMarksContainer');
+                const marksInput = document.getElementById('assignmentMarksInput');
             if (this.value === 'mark-as-read') {
                 marksInput.value = 0;
                 marksInput.disabled = true;
@@ -7003,95 +7005,97 @@
                 marksInput.disabled = false;
                 marksContainer.querySelector('p').textContent = 'Leave 0 for Mark as Read assignments';
             }
-        });
+            });
         }
 
         // Handle the creation of a new assignment
+        const createAssignmentForm = document.getElementById('createAssignmentForm');
         if (createAssignmentForm) {
             createAssignmentForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const assignmentType = document.getElementById('assignmentTypeSelect').value;
-            const courseId = document.getElementById('assignmentCourseSelect').value;
-            const selectedCheckboxes = Array.from(document.querySelectorAll('.assignment-student-checkbox:checked'));
-            const studentIds = selectedCheckboxes.map(cb => parseInt(cb.value, 10));
-            const title = document.getElementById('assignmentTitleInput').value.trim();
-            const instructions = document.getElementById('assignmentInstructionsTextarea').value.trim();
-            const dueDate = document.getElementById('assignmentDueDateInput').value;
-            const totalMarks = parseInt(document.getElementById('assignmentMarksInput').value, 10) || 0;
-            const documentFile = assignmentDocumentInput.files[0];
+                e.preventDefault();
+                const assignmentDocumentInput = document.getElementById('assignmentDocumentInput');
+                const assignmentType = document.getElementById('assignmentTypeSelect').value;
+                const courseId = document.getElementById('assignmentCourseSelect').value;
+                const selectedCheckboxes = Array.from(document.querySelectorAll('.assignment-student-checkbox:checked'));
+                const studentIds = selectedCheckboxes.map(cb => parseInt(cb.value, 10));
+                const title = document.getElementById('assignmentTitleInput').value.trim();
+                const instructions = document.getElementById('assignmentInstructionsTextarea').value.trim();
+                const dueDate = document.getElementById('assignmentDueDateInput').value;
+                const totalMarks = parseInt(document.getElementById('assignmentMarksInput').value, 10) || 0;
+                const documentFile = assignmentDocumentInput.files[0];
 
-            // Validation
-            if (studentIds.length === 0) {
-                showMessageModal('Selection Required ⚠️', 'Please select at least one student to assign this assignment to.');
-                return;
-            }
-
-            if (!title || !instructions || !dueDate) {
-                showMessageModal('Input Error ⚠️', 'Please fill all required fields:\n• Assignment Title\n• Instructions\n• Due Date');
-                return;
-            }
-
-            if (!documentFile) {
-                showMessageModal('Document Required ⚠️', 'Please upload a document (PDF, PPT, or Word file) for this assignment.');
-                return;
-            }
-
-            // Get course name if linked
-            let courseName = null;
-            if (courseId) {
-                const course = allCoursesData.find(c => c.id === parseInt(courseId));
-                courseName = course ? course.name : null;
-            }
-
-            // Create assignment for each selected student
-            let createdCount = 0;
-            const assignedStudentNames = [];
-            studentIds.forEach(studentId => {
-                const student = allUsersData.find(u => u.id === studentId);
-                if (student) {
-                    assignedStudentNames.push(`${student.name}${student.surname ? ' ' + student.surname : ''}`);
+                // Validation
+                if (studentIds.length === 0) {
+                    showMessageModal('Selection Required ⚠️', 'Please select at least one student to assign this assignment to.');
+                    return;
                 }
+
+                if (!title || !instructions || !dueDate) {
+                    showMessageModal('Input Error ⚠️', 'Please fill all required fields:\n• Assignment Title\n• Instructions\n• Due Date');
+                    return;
+                }
+
+                if (!documentFile) {
+                    showMessageModal('Document Required ⚠️', 'Please upload a document (PDF, PPT, or Word file) for this assignment.');
+                    return;
+                }
+
+                // Get course name if linked
+                let courseName = null;
+                if (courseId) {
+                    const course = allCoursesData.find(c => c.id === parseInt(courseId));
+                    courseName = course ? course.name : null;
+                }
+
+                // Create assignment for each selected student
+                let createdCount = 0;
+                const assignedStudentNames = [];
+                studentIds.forEach(studentId => {
+                    const student = allUsersData.find(u => u.id === studentId);
+                    if (student) {
+                        assignedStudentNames.push(`${student.name}${student.surname ? ' ' + student.surname : ''}`);
+                    }
+                    
+                    const newAssignment = {
+                        id: Date.now() + studentId + Math.floor(Math.random() * 1000),
+                        type: assignmentType,
+                        title,
+                        instructions,
+                        dueDate,
+                        courseId: courseId ? parseInt(courseId) : null,
+                        courseName: courseName,
+                        documentFileName: documentFile.name,
+                        documentFileUrl: URL.createObjectURL(documentFile),
+                        documentType: documentFile.name.split('.').pop().toUpperCase(),
+                        totalMarks,
+                        assignedStudentId: studentId,
+                        creatorId: loggedInUser.id,
+                        status: assignmentType === 'mark-as-read' ? 'Pending Read' : 'Assigned',
+                        submissionDate: null,
+                        markedAsRead: false,
+                        readDate: null,
+                        score: null,
+                        feedback: null,
+                        creationDate: new Date().toISOString().slice(0, 10)
+                    };
+                    allAssignmentsData.push(newAssignment);
+                    createdCount++;
+                });
                 
-                const newAssignment = {
-                    id: Date.now() + studentId + Math.floor(Math.random() * 1000),
-                    type: assignmentType,
-                    title,
-                    instructions,
-                    dueDate,
-                    courseId: courseId ? parseInt(courseId) : null,
-                    courseName: courseName,
-                    documentFileName: documentFile.name,
-                    documentFileUrl: URL.createObjectURL(documentFile),
-                    documentType: documentFile.name.split('.').pop().toUpperCase(),
-                    totalMarks,
-                    assignedStudentId: studentId,
-                    creatorId: loggedInUser.id,
-                    status: assignmentType === 'mark-as-read' ? 'Pending Read' : 'Assigned',
-                    submissionDate: null,
-                    markedAsRead: false,
-                    readDate: null,
-                    score: null,
-                    feedback: null,
-                    creationDate: new Date().toISOString().slice(0, 10)
-                };
-                allAssignmentsData.push(newAssignment);
-                createdCount++;
+                saveToLocalStorage(); // Save to localStorage
+                renderTMAssignmentsTable();
+                
+                // Build detailed success message
+                const courseInfo = courseName ? ` linked to course "${courseName}"` : '';
+                const studentList = assignedStudentNames.length <= 3 
+                    ? assignedStudentNames.join(', ')
+                    : `${assignedStudentNames.slice(0, 3).join(', ')} and ${assignedStudentNames.length - 3} more`;
+                const typeInfo = assignmentType === 'mark-as-read' ? '(Mark as Read)' : `(${totalMarks} marks)`;
+                
+                showMessageModal('Assignment Created Successfully! 🎉', 
+                    `Assignment "${title}" ${typeInfo}${courseInfo} has been created and assigned to:\n\n👥 ${studentList}\n\n📅 Due Date: ${new Date(dueDate).toLocaleDateString()}\n📎 Document: ${documentFile.name}`);
+                hideCreateAssignmentModal();
             });
-            
-            saveToLocalStorage(); // Save to localStorage
-            renderTMAssignmentsTable();
-            
-            // Build detailed success message
-            const courseInfo = courseName ? ` linked to course "${courseName}"` : '';
-            const studentList = assignedStudentNames.length <= 3 
-                ? assignedStudentNames.join(', ')
-                : `${assignedStudentNames.slice(0, 3).join(', ')} and ${assignedStudentNames.length - 3} more`;
-            const typeInfo = assignmentType === 'mark-as-read' ? '(Mark as Read)' : `(${totalMarks} marks)`;
-            
-            showMessageModal('Assignment Created Successfully! 🎉', 
-                `Assignment "${title}" ${typeInfo}${courseInfo} has been created and assigned to:\n\n👥 ${studentList}\n\n📅 Due Date: ${new Date(dueDate).toLocaleDateString()}\n📎 Document: ${documentFile.name}`);
-            hideCreateAssignmentModal();
-        });
         }
 
         // Helper function to calculate days remaining until deadline
@@ -7344,13 +7348,19 @@
                 }
             }
 
-            viewAssignmentModal.classList.remove('hidden');
-            viewAssignmentModal.classList.add('show');
+            const viewAssignmentModal = document.getElementById('viewAssignmentModal');
+            if (viewAssignmentModal) {
+                viewAssignmentModal.classList.remove('hidden');
+                viewAssignmentModal.classList.add('show');
+            }
         }
 
         function hideViewAssignmentModal() {
-            viewAssignmentModal.classList.remove('show');
-            viewAssignmentModal.classList.add('hidden');
+            const viewAssignmentModal = document.getElementById('viewAssignmentModal');
+            if (viewAssignmentModal) {
+                viewAssignmentModal.classList.remove('show');
+                viewAssignmentModal.classList.add('hidden');
+            }
         }
         
         // Event delegation for student's "View" buttons
@@ -7368,26 +7378,26 @@
         const submitAssignmentBtn = document.getElementById('submitAssignmentBtn');
         if (submitAssignmentBtn) {
             submitAssignmentBtn.addEventListener('click', function() {
-            const assignmentId = parseInt(this.dataset.assignmentId, 10);
-            const assignment = allAssignmentsData.find(a => a.id === assignmentId);
-            if (assignment) {
-                if (assignment.type === 'mark-as-read') {
-                    // Mark as Read confirmation
-                    assignment.markedAsRead = true;
-                    assignment.readDate = new Date().toISOString().slice(0, 10);
-                    assignment.status = 'Read';
-                    showMessageModal('Confirmed', `You have confirmed reading: "${assignment.title}". This has been recorded.`);
-                } else {
-                    // Regular assignment submission
-                    assignment.status = 'Submitted';
-                    assignment.submissionDate = new Date().toISOString().slice(0, 10);
-                    showMessageModal('Submitted', `Assignment "${assignment.title}" has been marked as submitted.`);
+                const assignmentId = parseInt(this.dataset.assignmentId, 10);
+                const assignment = allAssignmentsData.find(a => a.id === assignmentId);
+                if (assignment) {
+                    if (assignment.type === 'mark-as-read') {
+                        // Mark as Read confirmation
+                        assignment.markedAsRead = true;
+                        assignment.readDate = new Date().toISOString().slice(0, 10);
+                        assignment.status = 'Read';
+                        showMessageModal('Confirmed', `You have confirmed reading: "${assignment.title}". This has been recorded.`);
+                    } else {
+                        // Regular assignment submission
+                        assignment.status = 'Submitted';
+                        assignment.submissionDate = new Date().toISOString().slice(0, 10);
+                        showMessageModal('Submitted', `Assignment "${assignment.title}" has been marked as submitted.`);
+                    }
+                    hideViewAssignmentModal();
+                    renderStudentAssignmentsList();
+                    renderTMAssignmentsTable();
                 }
-                hideViewAssignmentModal();
-                renderStudentAssignmentsList();
-                renderTMAssignmentsTable();
-            }
-        });
+            });
         }
 
         // Render student certificates table
