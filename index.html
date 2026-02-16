@@ -4076,6 +4076,9 @@
             
             renderUserTable(); // Initial render of the user table with dummy data
             renderAllExistingCoursesTable(); // Initial render of the admin courses table
+            
+            // Initialize assignment event listeners
+            initializeAssignmentEventListeners();
         });
 
 
@@ -6963,441 +6966,179 @@
             updateAssignmentSelectedCount();
         }
 
-        // Listener for the main "Create Assignment" button
-        const createAssignmentBtn = document.getElementById('createAssignmentBtn');
-        if (createAssignmentBtn) {
-            createAssignmentBtn.addEventListener('click', showCreateAssignmentModal);
-        }
-
-        // Show selected document name
-        const assignmentDocumentInput = document.getElementById('assignmentDocumentInput');
-        if (assignmentDocumentInput) {
-            assignmentDocumentInput.addEventListener('change', function() {
-                const fileNameDisplay = document.getElementById('assignmentDocFileName');
-                if(this.files.length > 0) {
-                const file = this.files[0];
-                const fileSize = (file.size / 1024).toFixed(2); // KB
-                const fileExt = file.name.split('.').pop().toUpperCase();
-                let icon = 'fa-file';
-                if (fileExt === 'PDF') icon = 'fa-file-pdf';
-                else if (fileExt === 'PPT' || fileExt === 'PPTX') icon = 'fa-file-powerpoint';
-                else if (fileExt === 'DOC' || fileExt === 'DOCX') icon = 'fa-file-word';
-                
-                fileNameDisplay.innerHTML = `<i class="fas ${icon} mr-1 text-indigo-600"></i>Selected: <strong>${file.name}</strong> (${fileSize} KB)`;
-                fileNameDisplay.classList.remove('hidden');
-            } else {
-                fileNameDisplay.classList.add('hidden');
-            }
-        });
-        }
-
-        // Handle assignment type change
-        const assignmentTypeSelect = document.getElementById('assignmentTypeSelect');
-        if (assignmentTypeSelect) {
-            assignmentTypeSelect.addEventListener('change', function() {
-                const marksContainer = document.getElementById('assignmentMarksContainer');
-                const marksInput = document.getElementById('assignmentMarksInput');
-            if (this.value === 'mark-as-read') {
-                marksInput.value = 0;
-                marksInput.disabled = true;
-                marksContainer.querySelector('p').textContent = 'Mark as Read assignments have no marks';
-            } else {
-                marksInput.disabled = false;
-                marksContainer.querySelector('p').textContent = 'Leave 0 for Mark as Read assignments';
-            }
-            });
-        }
-
-        // Handle the creation of a new assignment
-        const createAssignmentForm = document.getElementById('createAssignmentForm');
-        if (createAssignmentForm) {
-            createAssignmentForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                const assignmentDocumentInput = document.getElementById('assignmentDocumentInput');
-                const assignmentType = document.getElementById('assignmentTypeSelect').value;
-                const courseId = document.getElementById('assignmentCourseSelect').value;
-                const selectedCheckboxes = Array.from(document.querySelectorAll('.assignment-student-checkbox:checked'));
-                const studentIds = selectedCheckboxes.map(cb => parseInt(cb.value, 10));
-                const title = document.getElementById('assignmentTitleInput').value.trim();
-                const instructions = document.getElementById('assignmentInstructionsTextarea').value.trim();
-                const dueDate = document.getElementById('assignmentDueDateInput').value;
-                const totalMarks = parseInt(document.getElementById('assignmentMarksInput').value, 10) || 0;
-                const documentFile = assignmentDocumentInput.files[0];
-
-                // Validation
-                if (studentIds.length === 0) {
-                    showMessageModal('Selection Required ⚠️', 'Please select at least one student to assign this assignment to.');
-                    return;
-                }
-
-                if (!title || !instructions || !dueDate) {
-                    showMessageModal('Input Error ⚠️', 'Please fill all required fields:\n• Assignment Title\n• Instructions\n• Due Date');
-                    return;
-                }
-
-                if (!documentFile) {
-                    showMessageModal('Document Required ⚠️', 'Please upload a document (PDF, PPT, or Word file) for this assignment.');
-                    return;
-                }
-
-                // Get course name if linked
-                let courseName = null;
-                if (courseId) {
-                    const course = allCoursesData.find(c => c.id === parseInt(courseId));
-                    courseName = course ? course.name : null;
-                }
-
-                // Create assignment for each selected student
-                let createdCount = 0;
-                const assignedStudentNames = [];
-                studentIds.forEach(studentId => {
-                    const student = allUsersData.find(u => u.id === studentId);
-                    if (student) {
-                        assignedStudentNames.push(`${student.name}${student.surname ? ' ' + student.surname : ''}`);
-                    }
-                    
-                    const newAssignment = {
-                        id: Date.now() + studentId + Math.floor(Math.random() * 1000),
-                        type: assignmentType,
-                        title,
-                        instructions,
-                        dueDate,
-                        courseId: courseId ? parseInt(courseId) : null,
-                        courseName: courseName,
-                        documentFileName: documentFile.name,
-                        documentFileUrl: URL.createObjectURL(documentFile),
-                        documentType: documentFile.name.split('.').pop().toUpperCase(),
-                        totalMarks,
-                        assignedStudentId: studentId,
-                        creatorId: loggedInUser.id,
-                        status: assignmentType === 'mark-as-read' ? 'Pending Read' : 'Assigned',
-                        submissionDate: null,
-                        markedAsRead: false,
-                        readDate: null,
-                        score: null,
-                        feedback: null,
-                        creationDate: new Date().toISOString().slice(0, 10)
-                    };
-                    allAssignmentsData.push(newAssignment);
-                    createdCount++;
-                });
-                
-                saveToLocalStorage(); // Save to localStorage
-                renderTMAssignmentsTable();
-                
-                // Build detailed success message
-                const courseInfo = courseName ? ` linked to course "${courseName}"` : '';
-                const studentList = assignedStudentNames.length <= 3 
-                    ? assignedStudentNames.join(', ')
-                    : `${assignedStudentNames.slice(0, 3).join(', ')} and ${assignedStudentNames.length - 3} more`;
-                const typeInfo = assignmentType === 'mark-as-read' ? '(Mark as Read)' : `(${totalMarks} marks)`;
-                
-                showMessageModal('Assignment Created Successfully! 🎉', 
-                    `Assignment "${title}" ${typeInfo}${courseInfo} has been created and assigned to:\n\n👥 ${studentList}\n\n📅 Due Date: ${new Date(dueDate).toLocaleDateString()}\n📎 Document: ${documentFile.name}`);
-                hideCreateAssignmentModal();
-            });
-        }
-
-        // Helper function to calculate days remaining until deadline
-        function getDaysUntilDeadline(dueDate) {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const deadline = new Date(dueDate);
-            deadline.setHours(0, 0, 0, 0);
-            const diffTime = deadline - today;
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            return diffDays;
-        }
-
-        // Helper function to get deadline status and styling
-        function getDeadlineStatus(dueDate) {
-            const daysRemaining = getDaysUntilDeadline(dueDate);
-            
-            if (daysRemaining < 0) {
-                return {
-                    text: `Overdue by ${Math.abs(daysRemaining)} day${Math.abs(daysRemaining) !== 1 ? 's' : ''}`,
-                    color: 'text-red-600',
-                    bgColor: 'bg-red-50',
-                    icon: 'fas fa-exclamation-triangle',
-                    badge: 'bg-red-100 text-red-800',
-                    priority: 'high'
-                };
-            } else if (daysRemaining === 0) {
-                return {
-                    text: 'Due Today',
-                    color: 'text-orange-600',
-                    bgColor: 'bg-orange-50',
-                    icon: 'fas fa-clock',
-                    badge: 'bg-orange-100 text-orange-800',
-                    priority: 'high'
-                };
-            } else if (daysRemaining === 1) {
-                return {
-                    text: 'Due Tomorrow',
-                    color: 'text-yellow-600',
-                    bgColor: 'bg-yellow-50',
-                    icon: 'fas fa-bell',
-                    badge: 'bg-yellow-100 text-yellow-800',
-                    priority: 'medium'
-                };
-            } else if (daysRemaining <= 3) {
-                return {
-                    text: `${daysRemaining} days left`,
-                    color: 'text-yellow-600',
-                    bgColor: 'bg-yellow-50',
-                    icon: 'fas fa-hourglass-half',
-                    badge: 'bg-yellow-100 text-yellow-800',
-                    priority: 'medium'
-                };
-            } else if (daysRemaining <= 7) {
-                return {
-                    text: `${daysRemaining} days left`,
-                    color: 'text-blue-600',
-                    bgColor: 'bg-blue-50',
-                    icon: 'fas fa-calendar-day',
-                    badge: 'bg-blue-100 text-blue-800',
-                    priority: 'low'
-                };
-            } else {
-                return {
-                    text: `${daysRemaining} days left`,
-                    color: 'text-gray-600',
-                    bgColor: 'bg-gray-50',
-                    icon: 'fas fa-calendar',
-                    badge: 'bg-gray-100 text-gray-800',
-                    priority: 'low'
-                };
-            }
-        }
-
-        // Render assignments table for Training Manager
-        function renderTMAssignmentsTable() {
-            const tableBody = document.getElementById('tmAssignmentsTableBody');
-            const myAssignments = allAssignmentsData.filter(a => a.creatorId === loggedInUser.id);
-            tableBody.innerHTML = '';
-            
-            if(myAssignments.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="6" class="p-6 text-gray-500 text-sm text-center">No assignments created yet.</td></tr>`;
-                return;
+        // Initialize all assignment-related event listeners
+        function initializeAssignmentEventListeners() {
+            // Listener for the main "Create Assignment" button
+            const createAssignmentBtn = document.getElementById('createAssignmentBtn');
+            if (createAssignmentBtn) {
+                createAssignmentBtn.addEventListener('click', showCreateAssignmentModal);
             }
 
-            myAssignments.forEach(assignment => {
-                const student = allUsersData.find(u => u.id === assignment.assignedStudentId);
-                const studentName = student ? `${student.name}${student.surname ? ' ' + student.surname : ''}` : 'Unknown Student';
-                
-                let statusColor = 'bg-blue-100 text-blue-800';
-                if (assignment.status === 'Submitted') statusColor = 'bg-green-100 text-green-800';
-                if (assignment.status === 'Graded') statusColor = 'bg-purple-100 text-purple-800';
-                if (assignment.status === 'Pending Read') statusColor = 'bg-yellow-100 text-yellow-800';
-                if (assignment.status === 'Read') statusColor = 'bg-green-100 text-green-800';
-
-                const typeIcon = assignment.type === 'mark-as-read' 
-                    ? '<i class="fas fa-clipboard-check mr-1 text-indigo-600"></i>' 
-                    : '<i class="fas fa-tasks mr-1 text-gray-600"></i>';
-
-                const newRow = tableBody.insertRow();
-                
-                // Build course info display
-                const courseInfo = assignment.courseName ? `<div class="text-xs text-gray-500 mt-1"><i class="fas fa-book mr-1"></i>${assignment.courseName}</div>` : '';
-                
-                // Get deadline status for assignments not yet completed
-                const deadlineStatus = getDeadlineStatus(assignment.dueDate);
-                const deadlineIndicator = (assignment.status !== 'Submitted' && assignment.status !== 'Graded' && assignment.status !== 'Read') 
-                    ? `<div class="text-xs ${deadlineStatus.color} font-semibold mt-1"><i class="${deadlineStatus.icon} mr-1"></i>${deadlineStatus.text}</div>` 
-                    : '';
-                
-                newRow.innerHTML = `
-                    <td class="px-6 py-4 text-sm font-medium text-gray-900">
-                        <div>${typeIcon}${assignment.title}</div>
-                        ${courseInfo}
-                        ${assignment.documentType ? '<span class="text-xs text-gray-400">(' + assignment.documentType + ' attached)</span>' : ''}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${studentName}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">
-                        <div class="text-gray-700">${assignment.dueDate}</div>
-                        ${deadlineIndicator}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}">${assignment.status}</span></td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${assignment.totalMarks || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <a href="#" class="text-indigo-600 hover:text-indigo-900">View/Grade</a>
-                    </td>
-                `;
-            });
-        }
-
-        // Render assignments list for Student
-        function renderStudentAssignmentsList() {
-            const container = document.getElementById('studentAssignmentsList');
-            const myAssignments = allAssignmentsData.filter(a => a.assignedStudentId === loggedInUser.id);
-            container.innerHTML = '';
-
-            if (myAssignments.length === 0) {
-                container.innerHTML = `<div class="p-6 bg-white rounded-lg shadow text-gray-500 text-sm text-center">You have no assignments.</div>`;
-                return;
-            }
-
-            // Sort assignments by deadline urgency (overdue first, then by date)
-            myAssignments.sort((a, b) => {
-                const aDeadline = getDeadlineStatus(a.dueDate);
-                const bDeadline = getDeadlineStatus(b.dueDate);
-                
-                // Priority order: high > medium > low
-                const priorityOrder = { high: 0, medium: 1, low: 2 };
-                
-                if (priorityOrder[aDeadline.priority] !== priorityOrder[bDeadline.priority]) {
-                    return priorityOrder[aDeadline.priority] - priorityOrder[bDeadline.priority];
-                }
-                
-                // If same priority, sort by date (earliest first)
-                return new Date(a.dueDate) - new Date(b.dueDate);
-            });
-
-            myAssignments.forEach(assignment => {
-                let statusColor = 'bg-blue-100 text-blue-800';
-                if (assignment.status === 'Submitted') statusColor = 'bg-green-100 text-green-800';
-                if (assignment.status === 'Pending Read') statusColor = 'bg-yellow-100 text-yellow-800';
-                if (assignment.status === 'Read') statusColor = 'bg-green-100 text-green-800';
-                
-                const typeIcon = assignment.type === 'mark-as-read' 
-                    ? '<i class="fas fa-clipboard-check mr-2 text-indigo-600"></i>' 
-                    : '<i class="fas fa-tasks mr-2 text-gray-600"></i>';
-                
-                // Get deadline status
-                const deadlineStatus = getDeadlineStatus(assignment.dueDate);
-                const showDeadlineAlert = (assignment.status !== 'Submitted' && assignment.status !== 'Graded' && assignment.status !== 'Read');
-                
-                const card = document.createElement('div');
-                // Add border color based on deadline urgency
-                const borderClass = showDeadlineAlert && deadlineStatus.priority === 'high' ? 'border-l-4 border-red-500' : 
-                                   showDeadlineAlert && deadlineStatus.priority === 'medium' ? 'border-l-4 border-yellow-500' : '';
-                card.className = `bg-white rounded-lg shadow p-4 flex justify-between items-center hover:shadow-md transition ${borderClass}`;
-                
-                const deadlineWarning = showDeadlineAlert && deadlineStatus.priority !== 'low' 
-                    ? `<div class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${deadlineStatus.badge} mt-1">
-                         <i class="${deadlineStatus.icon} mr-1"></i>${deadlineStatus.text}
-                       </div>` 
-                    : '';
-                
-                card.innerHTML = `
-                    <div class="flex-1">
-                        <h4 class="font-semibold text-gray-800">${typeIcon}${assignment.title}</h4>
-                        <p class="text-sm text-gray-500">Due: ${assignment.dueDate}${assignment.type === 'mark-as-read' ? ' | Mark as Read Required' : ' | Marks: ' + (assignment.totalMarks || 0)}</p>
-                        ${deadlineWarning}
-                        ${assignment.documentFileName ? '<p class="text-xs text-gray-400 mt-1"><i class="fas fa-paperclip mr-1"></i>' + assignment.documentFileName + '</p>' : ''}
-                    </div>
-                    <div class="flex items-center space-x-4">
-                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}">${assignment.status}</span>
-                         <button class="view-assignment-btn bg-indigo-600 text-white px-3 py-1 rounded-md text-sm hover:bg-indigo-700" data-assignment-id="${assignment.id}">
-                            ${assignment.type === 'mark-as-read' ? 'View & Confirm' : 'View'}
-                         </button>
-                    </div>
-                `;
-                container.appendChild(card);
-            });
-        }
-
-        // Show the student view assignment modal
-        function showViewAssignmentModal(assignmentId) {
-            const assignment = allAssignmentsData.find(a => a.id === assignmentId);
-            if (!assignment) return;
-            
-            document.getElementById('viewAssignmentTitle').textContent = assignment.title;
-            document.getElementById('viewAssignmentDueDate').textContent = assignment.dueDate;
-            document.getElementById('viewAssignmentTotalMarks').textContent = assignment.totalMarks || 'N/A';
-            document.getElementById('viewAssignmentInstructions').textContent = assignment.instructions;
-
-            const docSection = document.getElementById('viewAssignmentDocumentSection');
-            if (assignment.documentFileName) {
-                docSection.classList.remove('hidden');
-                document.getElementById('viewAssignmentDocName').textContent = assignment.documentFileName;
-                document.getElementById('viewAssignmentDownloadLink').href = assignment.documentFileUrl;
-            } else {
-                docSection.classList.add('hidden');
-            }
-            
-            // Handle submit button state based on assignment type
-            const submitBtn = document.getElementById('submitAssignmentBtn');
-            submitBtn.dataset.assignmentId = assignmentId;
-            
-            if (assignment.type === 'mark-as-read') {
-                // Mark as Read assignment
-                if (assignment.markedAsRead) {
-                    submitBtn.disabled = true;
-                    submitBtn.innerHTML = '<i class="fas fa-check-circle mr-2"></i>Already Read';
-                    submitBtn.classList.replace('bg-green-600', 'bg-gray-400');
-                    submitBtn.classList.add('cursor-not-allowed');
-                } else {
-                    submitBtn.disabled = false;
-                    submitBtn.innerHTML = '<i class="fas fa-clipboard-check mr-2"></i>Confirm I Have Read This';
-                    submitBtn.classList.replace('bg-gray-400', 'bg-green-600');
-                    submitBtn.classList.remove('cursor-not-allowed');
-                }
-            } else {
-                // Regular assignment
-                if (assignment.status === 'Submitted') {
-                    submitBtn.disabled = true;
-                    submitBtn.textContent = 'Submitted';
-                    submitBtn.classList.replace('bg-green-600', 'bg-gray-400');
-                    submitBtn.classList.add('cursor-not-allowed');
-                } else {
-                    submitBtn.disabled = false;
-                    submitBtn.innerHTML = `<i class="fas fa-check-circle mr-2"></i>Mark as Submitted`;
-                    submitBtn.classList.replace('bg-gray-400', 'bg-green-600');
-                    submitBtn.classList.remove('cursor-not-allowed');
-                }
-            }
-
-            const viewAssignmentModal = document.getElementById('viewAssignmentModal');
-            if (viewAssignmentModal) {
-                viewAssignmentModal.classList.remove('hidden');
-                viewAssignmentModal.classList.add('show');
-            }
-        }
-
-        function hideViewAssignmentModal() {
-            const viewAssignmentModal = document.getElementById('viewAssignmentModal');
-            if (viewAssignmentModal) {
-                viewAssignmentModal.classList.remove('show');
-                viewAssignmentModal.classList.add('hidden');
-            }
-        }
-        
-        // Event delegation for student's "View" buttons
-        const studentAssignmentsList = document.getElementById('studentAssignmentsList');
-        if (studentAssignmentsList) {
-            studentAssignmentsList.addEventListener('click', function(e) {
-                if(e.target.classList.contains('view-assignment-btn')) {
-                    const assignmentId = parseInt(e.target.dataset.assignmentId, 10);
-                    showViewAssignmentModal(assignmentId);
-                }
-            });
-        }
-
-        // Handle student's submission click
-        const submitAssignmentBtn = document.getElementById('submitAssignmentBtn');
-        if (submitAssignmentBtn) {
-            submitAssignmentBtn.addEventListener('click', function() {
-                const assignmentId = parseInt(this.dataset.assignmentId, 10);
-                const assignment = allAssignmentsData.find(a => a.id === assignmentId);
-                if (assignment) {
-                    if (assignment.type === 'mark-as-read') {
-                        // Mark as Read confirmation
-                        assignment.markedAsRead = true;
-                        assignment.readDate = new Date().toISOString().slice(0, 10);
-                        assignment.status = 'Read';
-                        showMessageModal('Confirmed', `You have confirmed reading: "${assignment.title}". This has been recorded.`);
+            // Show selected document name
+            const assignmentDocumentInput = document.getElementById('assignmentDocumentInput');
+            if (assignmentDocumentInput) {
+                assignmentDocumentInput.addEventListener('change', function() {
+                    const fileNameDisplay = document.getElementById('assignmentDocFileName');
+                    if(this.files.length > 0) {
+                        const file = this.files[0];
+                        const fileSize = (file.size / 1024).toFixed(2); // KB
+                        const fileExt = file.name.split('.').pop().toUpperCase();
+                        let icon = 'fa-file';
+                        if (fileExt === 'PDF') icon = 'fa-file-pdf';
+                        else if (fileExt === 'PPT' || fileExt === 'PPTX') icon = 'fa-file-powerpoint';
+                        else if (fileExt === 'DOC' || fileExt === 'DOCX') icon = 'fa-file-word';
+                        
+                        fileNameDisplay.innerHTML = `<i class="fas ${icon} mr-1 text-indigo-600"></i>Selected: <strong>${file.name}</strong> (${fileSize} KB)`;
+                        fileNameDisplay.classList.remove('hidden');
                     } else {
-                        // Regular assignment submission
-                        assignment.status = 'Submitted';
-                        assignment.submissionDate = new Date().toISOString().slice(0, 10);
-                        showMessageModal('Submitted', `Assignment "${assignment.title}" has been marked as submitted.`);
+                        fileNameDisplay.classList.add('hidden');
                     }
-                    hideViewAssignmentModal();
-                    renderStudentAssignmentsList();
+                });
+            }
+
+            // Handle assignment type change
+            const assignmentTypeSelect = document.getElementById('assignmentTypeSelect');
+            if (assignmentTypeSelect) {
+                assignmentTypeSelect.addEventListener('change', function() {
+                    const marksContainer = document.getElementById('assignmentMarksContainer');
+                    const marksInput = document.getElementById('assignmentMarksInput');
+                    if (this.value === 'mark-as-read') {
+                        marksInput.value = 0;
+                        marksInput.disabled = true;
+                        marksContainer.querySelector('p').textContent = 'Mark as Read assignments have no marks';
+                    } else {
+                        marksInput.disabled = false;
+                        marksContainer.querySelector('p').textContent = 'Leave 0 for Mark as Read assignments';
+                    }
+                });
+            }
+
+            // Handle the creation of a new assignment
+            const createAssignmentForm = document.getElementById('createAssignmentForm');
+            if (createAssignmentForm) {
+                createAssignmentForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    const assignmentDocumentInput = document.getElementById('assignmentDocumentInput');
+                    const assignmentType = document.getElementById('assignmentTypeSelect').value;
+                    const courseId = document.getElementById('assignmentCourseSelect').value;
+                    const selectedCheckboxes = Array.from(document.querySelectorAll('.assignment-student-checkbox:checked'));
+                    const studentIds = selectedCheckboxes.map(cb => parseInt(cb.value, 10));
+                    const title = document.getElementById('assignmentTitleInput').value.trim();
+                    const instructions = document.getElementById('assignmentInstructionsTextarea').value.trim();
+                    const dueDate = document.getElementById('assignmentDueDateInput').value;
+                    const totalMarks = parseInt(document.getElementById('assignmentMarksInput').value, 10) || 0;
+                    const documentFile = assignmentDocumentInput.files[0];
+
+                    // Validation
+                    if (studentIds.length === 0) {
+                        showMessageModal('Selection Required ⚠️', 'Please select at least one student to assign this assignment to.');
+                        return;
+                    }
+
+                    if (!title || !instructions || !dueDate) {
+                        showMessageModal('Input Error ⚠️', 'Please fill all required fields:\n• Assignment Title\n• Instructions\n• Due Date');
+                        return;
+                    }
+
+                    if (!documentFile) {
+                        showMessageModal('Document Required ⚠️', 'Please upload a document (PDF, PPT, or Word file) for this assignment.');
+                        return;
+                    }
+
+                    // Get course name if linked
+                    let courseName = null;
+                    if (courseId) {
+                        const course = allCoursesData.find(c => c.id === parseInt(courseId));
+                        courseName = course ? course.name : null;
+                    }
+
+                    // Create assignment for each selected student
+                    let createdCount = 0;
+                    const assignedStudentNames = [];
+                    studentIds.forEach(studentId => {
+                        const student = allUsersData.find(u => u.id === studentId);
+                        if (student) {
+                            assignedStudentNames.push(`${student.name}${student.surname ? ' ' + student.surname : ''}`);
+                        }
+                        
+                        const newAssignment = {
+                            id: Date.now() + studentId + Math.floor(Math.random() * 1000),
+                            type: assignmentType,
+                            title,
+                            instructions,
+                            dueDate,
+                            courseId: courseId ? parseInt(courseId) : null,
+                            courseName: courseName,
+                            documentFileName: documentFile.name,
+                            documentFileUrl: URL.createObjectURL(documentFile),
+                            documentType: documentFile.name.split('.').pop().toUpperCase(),
+                            totalMarks,
+                            assignedStudentId: studentId,
+                            creatorId: loggedInUser.id,
+                            status: assignmentType === 'mark-as-read' ? 'Pending Read' : 'Assigned',
+                            submissionDate: null,
+                            markedAsRead: false,
+                            readDate: null,
+                            score: null,
+                            feedback: null,
+                            creationDate: new Date().toISOString().slice(0, 10)
+                        };
+                        allAssignmentsData.push(newAssignment);
+                        createdCount++;
+                    });
+                    
+                    saveToLocalStorage(); // Save to localStorage
                     renderTMAssignmentsTable();
-                }
-            });
+                    
+                    // Build detailed success message
+                    const courseInfo = courseName ? ` linked to course "${courseName}"` : '';
+                    const studentList = assignedStudentNames.length <= 3 
+                        ? assignedStudentNames.join(', ')
+                        : `${assignedStudentNames.slice(0, 3).join(', ')} and ${assignedStudentNames.length - 3} more`;
+                    const typeInfo = assignmentType === 'mark-as-read' ? '(Mark as Read)' : `(${totalMarks} marks)`;
+                    
+                    showMessageModal('Assignment Created Successfully! 🎉', 
+                        `Assignment "${title}" ${typeInfo}${courseInfo} has been created and assigned to:\n\n👥 ${studentList}\n\n📅 Due Date: ${new Date(dueDate).toLocaleDateString()}\n📎 Document: ${documentFile.name}`);
+                    hideCreateAssignmentModal();
+                });
+            }
+
+            // Event delegation for student's "View" buttons
+            const studentAssignmentsList = document.getElementById('studentAssignmentsList');
+            if (studentAssignmentsList) {
+                studentAssignmentsList.addEventListener('click', function(e) {
+                    if(e.target.classList.contains('view-assignment-btn')) {
+                        const assignmentId = parseInt(e.target.dataset.assignmentId, 10);
+                        showViewAssignmentModal(assignmentId);
+                    }
+                });
+            }
+
+            // Handle student's submission click
+            const submitAssignmentBtn = document.getElementById('submitAssignmentBtn');
+            if (submitAssignmentBtn) {
+                submitAssignmentBtn.addEventListener('click', function() {
+                    const assignmentId = parseInt(this.dataset.assignmentId, 10);
+                    const assignment = allAssignmentsData.find(a => a.id === assignmentId);
+                    if (assignment) {
+                        if (assignment.type === 'mark-as-read') {
+                            // Mark as Read confirmation
+                            assignment.markedAsRead = true;
+                            assignment.readDate = new Date().toISOString().slice(0, 10);
+                            assignment.status = 'Read';
+                            showMessageModal('Confirmed', `You have confirmed reading: "${assignment.title}". This has been recorded.`);
+                        } else {
+                            // Regular assignment submission
+                            assignment.status = 'Submitted';
+                            assignment.submissionDate = new Date().toISOString().slice(0, 10);
+                            showMessageModal('Submitted', `Assignment "${assignment.title}" has been marked as submitted.`);
+                        }
+                        hideViewAssignmentModal();
+                        renderStudentAssignmentsList();
+                        renderTMAssignmentsTable();
+                    }
+                });
+            }
         }
 
         // Render student certificates table
