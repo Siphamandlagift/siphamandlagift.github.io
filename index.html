@@ -2179,6 +2179,74 @@
                                 </div>
                             </div>
 
+                            <!-- Course Assignments Section -->
+                            <div class="bg-gradient-to-r from-purple-50 to-pink-50 p-5 rounded-lg mb-6">
+                                <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                    <i class="fas fa-tasks text-purple-600 mr-2"></i>
+                                    Course Assignments <span class="text-gray-400 text-sm ml-2">(Optional)</span>
+                                </h4>
+                                <div class="bg-white p-5 rounded-lg shadow-sm">
+                                    <!-- Assignment Details -->
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                        <div>
+                                            <label class="block text-gray-700 text-sm font-medium mb-2" for="courseAssignmentTitleInput">
+                                                <i class="fas fa-heading text-gray-500 mr-1"></i> Assignment Title
+                                            </label>
+                                            <input type="text" id="courseAssignmentTitleInput" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent" placeholder="e.g., Final Safety Assessment">
+                                        </div>
+                                        <div>
+                                            <label class="block text-gray-700 text-sm font-medium mb-2" for="courseAssignmentDueDateInput">
+                                                <i class="fas fa-calendar-alt text-gray-500 mr-1"></i> Due Date
+                                            </label>
+                                            <input type="date" id="courseAssignmentDueDateInput" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-4">
+                                        <label class="block text-gray-700 text-sm font-medium mb-2" for="courseAssignmentTypeSelect">
+                                            <i class="fas fa-tag text-gray-500 mr-1"></i> Assignment Type
+                                        </label>
+                                        <select id="courseAssignmentTypeSelect" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white">
+                                            <option value="regular">Regular Assignment</option>
+                                            <option value="mark-as-read">Mark as Read (Document/Policy)</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="mb-4">
+                                        <label class="block text-gray-700 text-sm font-medium mb-2" for="courseAssignmentInstructionsInput">
+                                            <i class="fas fa-align-left text-gray-500 mr-1"></i> Instructions
+                                        </label>
+                                        <textarea id="courseAssignmentInstructionsInput" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent" rows="3" placeholder="Provide clear instructions for the assignment..."></textarea>
+                                    </div>
+
+                                    <div class="mb-4">
+                                        <label class="block text-gray-700 text-sm font-medium mb-2" for="courseAssignmentMarksInput">
+                                            <i class="fas fa-star text-gray-500 mr-1"></i> Total Marks
+                                        </label>
+                                        <input type="number" id="courseAssignmentMarksInput" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent" placeholder="100" min="0" value="100">
+                                    </div>
+
+                                    <div class="mb-4 bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg p-4">
+                                        <label class="block text-gray-700 text-sm font-medium mb-2" for="courseAssignmentDocumentInput">
+                                            <i class="fas fa-file-upload text-purple-600 mr-1"></i> Assignment Document
+                                        </label>
+                                        <p class="text-xs text-gray-600 mb-2">Accepted: PDF, PowerPoint (.ppt, .pptx), Word (.doc, .docx)</p>
+                                        <input type="file" id="courseAssignmentDocumentInput" accept=".pdf,.doc,.docx,.ppt,.pptx" class="block w-full text-sm text-gray-700
+                                            file:mr-4 file:py-2 file:px-4
+                                            file:rounded-lg file:border-0
+                                            file:text-sm file:font-semibold
+                                            file:bg-purple-600 file:text-white
+                                            hover:file:bg-purple-700 file:cursor-pointer"/>
+                                        <p id="courseAssignmentDocFileName" class="text-xs text-green-600 mt-2 hidden flex items-center"><i class="fas fa-check-circle mr-1"></i></p>
+                                    </div>
+
+                                    <button type="button" id="addCourseAssignmentBtn" class="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 px-6 rounded-lg hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium shadow-md transition">
+                                        <i class="fas fa-plus-circle mr-2"></i>Add Assignment to Course
+                                    </button>
+                                </div>
+                                <div id="courseAssignmentsList" class="mt-4 space-y-2"></div>
+                            </div>
+
                             <!-- Form Actions -->
                             <div class="flex justify-between items-center mt-8 pt-6 border-t-2 border-gray-200">
                                 <p class="text-sm text-gray-500">
@@ -4859,11 +4927,143 @@
             updateCourseQuestionsList();
             currentCourseVideos = [];
             renderCourseVideosList();
+            currentCourseAssignments = [];
+            renderCourseAssignmentsList();
             currentCoursePdfFileName = '';
             coursePdfFileNameDisplay.classList.add('hidden');
+            courseAssignmentDocFileName.classList.add('hidden');
             coursePicturePreview.src = "https://placehold.co/128x128/E0E7FF/4F46E5?text=Course+Image"; // Reset course picture preview
             document.getElementById('addQuestionBtn').disabled = true;
             showMessageModal('Form Reset', 'The course creation form has been cleared.');
+        }
+
+        // Course Assignments Management
+        let currentCourseAssignments = [];
+
+        // Show selected document file name for course assignment
+        const courseAssignmentDocInput = document.getElementById('courseAssignmentDocumentInput');
+        const courseAssignmentDocFileName = document.getElementById('courseAssignmentDocFileName');
+        
+        if (courseAssignmentDocInput) {
+            courseAssignmentDocInput.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    const file = this.files[0];
+                    const fileSize = (file.size / 1024).toFixed(2); // KB
+                    const fileExt = file.name.split('.').pop().toUpperCase();
+                    let icon = 'fa-file';
+                    if (fileExt === 'PDF') icon = 'fa-file-pdf';
+                    else if (fileExt === 'PPT' || fileExt === 'PPTX') icon = 'fa-file-powerpoint';
+                    else if (fileExt === 'DOC' || fileExt === 'DOCX') icon = 'fa-file-word';
+                    
+                    courseAssignmentDocFileName.innerHTML = `<i class="fas ${icon} mr-1 text-purple-600"></i>Selected: <strong>${file.name}</strong> (${fileSize} KB)`;
+                    courseAssignmentDocFileName.classList.remove('hidden');
+                } else {
+                    courseAssignmentDocFileName.classList.add('hidden');
+                }
+            });
+        }
+
+        // Add assignment to course
+        const addCourseAssignmentBtn = document.getElementById('addCourseAssignmentBtn');
+        if (addCourseAssignmentBtn) {
+            addCourseAssignmentBtn.addEventListener('click', function() {
+                const title = document.getElementById('courseAssignmentTitleInput').value.trim();
+                const dueDate = document.getElementById('courseAssignmentDueDateInput').value;
+                const type = document.getElementById('courseAssignmentTypeSelect').value;
+                const instructions = document.getElementById('courseAssignmentInstructionsInput').value.trim();
+                const marks = parseInt(document.getElementById('courseAssignmentMarksInput').value) || 0;
+                const docFile = courseAssignmentDocInput.files[0];
+
+                if (!title || !dueDate || !instructions) {
+                    showMessageModal('Input Error', 'Please fill in Title, Due Date, and Instructions for the assignment.');
+                    return;
+                }
+
+                if (!docFile) {
+                    showMessageModal('Document Required', 'Please upload a document for the assignment.');
+                    return;
+                }
+
+                const assignment = {
+                    id: Date.now(),
+                    title,
+                    dueDate,
+                    type,
+                    instructions,
+                    totalMarks: marks,
+                    documentFileName: docFile.name,
+                    documentFileUrl: URL.createObjectURL(docFile),
+                    documentType: docFile.name.split('.').pop().toUpperCase()
+                };
+
+                currentCourseAssignments.push(assignment);
+                renderCourseAssignmentsList();
+
+                // Clear inputs
+                document.getElementById('courseAssignmentTitleInput').value = '';
+                document.getElementById('courseAssignmentDueDateInput').value = '';
+                document.getElementById('courseAssignmentInstructionsInput').value = '';
+                document.getElementById('courseAssignmentMarksInput').value = '100';
+                courseAssignmentDocInput.value = '';
+                courseAssignmentDocFileName.classList.add('hidden');
+
+                showMessageModal('Assignment Added', `Assignment "${title}" has been added to the course.`);
+            });
+        }
+
+        function renderCourseAssignmentsList() {
+            const container = document.getElementById('courseAssignmentsList');
+            if (!container) return;
+
+            if (currentCourseAssignments.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="bg-white border-2 border-purple-200 rounded-lg p-4 shadow-sm">
+                    <h5 class="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                        <i class="fas fa-list text-purple-600 mr-2"></i>Added Assignments (${currentCourseAssignments.length})
+                    </h5>
+                    <div class="space-y-2">
+                        ${currentCourseAssignments.map((assignment, index) => {
+                            const typeIcon = assignment.type === 'mark-as-read' ? 'fa-eye' : 'fa-file-alt';
+                            const typeBadge = assignment.type === 'mark-as-read' ? 
+                                '<span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">Mark as Read</span>' : 
+                                '<span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">Regular</span>';
+                            
+                            return `
+                            <div class="flex items-center justify-between bg-gradient-to-r from-gray-50 to-purple-50 p-3 rounded-lg border border-gray-200">
+                                <div class="flex-1">
+                                    <div class="text-sm font-medium text-gray-900 flex items-center">
+                                        <i class="fas ${typeIcon} text-purple-600 mr-2"></i>${assignment.title}
+                                    </div>
+                                    <div class="text-xs text-gray-600 mt-1 flex items-center gap-3">
+                                        <span><i class="fas fa-calendar text-gray-500 mr-1"></i>Due: ${new Date(assignment.dueDate).toLocaleDateString()}</span>
+                                        <span><i class="fas fa-star text-amber-500 mr-1"></i>${assignment.totalMarks} marks</span>
+                                        ${typeBadge}
+                                    </div>
+                                </div>
+                                <button type="button" class="text-red-600 hover:text-red-900 ml-3 delete-course-assignment-btn" data-index="${index}">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+
+            // Add delete functionality
+            container.querySelectorAll('.delete-course-assignment-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const indexToDelete = parseInt(this.dataset.index);
+                    const assignmentTitle = currentCourseAssignments[indexToDelete].title;
+                    currentCourseAssignments.splice(indexToDelete, 1);
+                    renderCourseAssignmentsList();
+                    showMessageModal('Assignment Removed', `Assignment "${assignmentTitle}" has been removed from the course.`);
+                });
+            });
         }
 
         // Video Management for Course Creation
@@ -4996,6 +5196,7 @@
                 pdfFileName: currentCoursePdfFileName,
                 picture: coursePicture,
                 questions: [...currentCourseQuestions],
+                assignments: [...currentCourseAssignments], // Save assignments array
                 documents: [], // Initialize empty documents array
                 readStatus: false,
                 creatorId: loggedInUser.id, // Assign creator ID
@@ -5015,9 +5216,10 @@
             // Show success message
             const videoText = currentCourseVideos.length > 0 ? `${currentCourseVideos.length} video(s)` : 'no videos';
             const questionText = currentCourseQuestions.length > 0 ? `${currentCourseQuestions.length} question(s)` : 'no questions';
+            const assignmentText = currentCourseAssignments.length > 0 ? `, ${currentCourseAssignments.length} assignment(s)` : '';
             
             showMessageModal('Course Created Successfully! 🎉', 
-                `Course "${courseName}" has been created with ${videoText} and ${questionText}. You can assign students to this course anytime from the assignment section.`
+                `Course "${courseName}" has been created with ${videoText}, ${questionText}${assignmentText}. You can assign students to this course anytime from the assignment section.`
             );
             resetCourseForm();
         });
@@ -5874,6 +6076,36 @@
                             });
                             student.totalHoursSpent = student.coursesEnrolled.reduce((sum, c) => sum + (c.hoursSpent || 0), 0);
                             
+                            // Create course assignments for this student
+                            if (course.assignments && course.assignments.length > 0) {
+                                course.assignments.forEach(assignmentTemplate => {
+                                    const newAssignment = {
+                                        id: Date.now() + student.id + Math.floor(Math.random() * 10000),
+                                        type: assignmentTemplate.type,
+                                        title: assignmentTemplate.title,
+                                        instructions: assignmentTemplate.instructions,
+                                        dueDate: assignmentTemplate.dueDate,
+                                        courseId: currentCourseIdToAssign,
+                                        courseName: course.name,
+                                        documentFileName: assignmentTemplate.documentFileName,
+                                        documentFileUrl: assignmentTemplate.documentFileUrl,
+                                        documentType: assignmentTemplate.documentType,
+                                        totalMarks: assignmentTemplate.totalMarks,
+                                        questions: assignmentTemplate.questions || [],
+                                        assignedStudentId: student.id,
+                                        creatorId: loggedInUser.id,
+                                        status: assignmentTemplate.type === 'mark-as-read' ? 'Pending Read' : 'Assigned',
+                                        submissionDate: null,
+                                        markedAsRead: false,
+                                        readDate: null,
+                                        score: null,
+                                        feedback: null,
+                                        creationDate: new Date().toISOString().slice(0, 10)
+                                    };
+                                    allAssignmentsData.push(newAssignment);
+                                });
+                            }
+                            
                             // Create notification for student
                             studentNotifications.push({
                                 id: Date.now() + Math.random(),
@@ -5919,6 +6151,7 @@
                     showMessageModal('Success', `Student assignments for "${course.name}" updated.`);
                     renderCoursesForAssignmentTable(); // Re-render courses table
                     renderAssignmentOverview(); // Update assignment overview
+                    renderTMAssignmentsTable(); // Refresh assignments table
                     updateDashboardStats(); // Refresh dashboard counts
                 }
             }
