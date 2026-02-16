@@ -741,13 +741,62 @@
                 </div>
             </div>
 
+            <!-- Student Submission Section -->
+            <div class="mb-6 border-t pt-4" id="studentSubmissionSection">
+                <h4 class="text-md font-semibold text-gray-800 mb-3">
+                    <i class="fas fa-upload text-green-600 mr-2"></i>Your Submission:
+                </h4>
+                <div class="bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg p-4">
+                    <label class="block text-gray-700 text-sm font-medium mb-2">
+                        Upload Assignment File(s) <span class="text-gray-500 text-xs">(PDF, Word, PowerPoint)</span>
+                    </label>
+                    <input type="file" id="assignmentSubmissionFiles" accept=".pdf,.doc,.docx,.ppt,.pptx" multiple class="block w-full text-sm text-gray-700
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-lg file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-green-600 file:text-white
+                        hover:file:bg-green-700 file:cursor-pointer"/>
+                    <div id="submissionFilesList" class="mt-2 space-y-1"></div>
+                    <div id="existingSubmissionFiles" class="mt-3 space-y-2"></div>
+                </div>
+            </div>
+
+            <!-- Training Manager Grade Section -->
+            <div class="mb-6 border-t pt-4" id="tmGradeSection" style="display: none;">
+                <h4 class="text-md font-semibold text-gray-800 mb-3">
+                    <i class="fas fa-star text-amber-500 mr-2"></i>Grade Assignment:
+                </h4>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-gray-700 text-sm font-medium mb-2">Score</label>
+                        <input type="number" id="assignmentScoreInput" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" min="0" placeholder="Enter score">
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 text-sm font-medium mb-2">Status</label>
+                        <select id="assignmentGradeStatus" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="Graded">Graded</option>
+                            <option value="Needs Revision">Needs Revision</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <label class="block text-gray-700 text-sm font-medium mb-2">Feedback</label>
+                    <textarea id="assignmentFeedback" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Provide feedback to the student..."></textarea>
+                </div>
+            </div>
+
             <div class="flex justify-between items-center">
                  <button onclick="hideViewAssignmentModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none">
                     Close
                 </button>
-                <button id="submitAssignmentBtn" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none">
-                    <i class="fas fa-check-circle mr-2"></i>Mark as Submitted
-                </button>
+                <div>
+                    <button id="submitAssignmentBtn" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none">
+                        <i class="fas fa-check-circle mr-2"></i>Submit Assignment
+                    </button>
+                    <button id="gradeAssignmentBtn" class="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 focus:outline-none" style="display: none;">
+                        <i class="fas fa-star mr-2"></i>Save Grade
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -7692,6 +7741,27 @@
                 });
             }
 
+            // Handle file upload display
+            const assignmentSubmissionFiles = document.getElementById('assignmentSubmissionFiles');
+            if (assignmentSubmissionFiles) {
+                assignmentSubmissionFiles.addEventListener('change', function() {
+                    const filesList = document.getElementById('submissionFilesList');
+                    filesList.innerHTML = '';
+                    if (this.files.length > 0) {
+                        Array.from(this.files).forEach((file, index) => {
+                            const fileItem = document.createElement('div');
+                            fileItem.className = 'flex items-center gap-2 text-xs text-gray-700 bg-white p-2 rounded border border-gray-300';
+                            fileItem.innerHTML = `
+                                <i class="fas fa-file text-indigo-600"></i>
+                                <span class="flex-1">${file.name}</span>
+                                <span class="text-gray-500">${(file.size / 1024).toFixed(2)} KB</span>
+                            `;
+                            filesList.appendChild(fileItem);
+                        });
+                    }
+                });
+            }
+
             // Handle student's submission click
             const submitAssignmentBtn = document.getElementById('submitAssignmentBtn');
             if (submitAssignmentBtn) {
@@ -7704,16 +7774,67 @@
                             assignment.markedAsRead = true;
                             assignment.readDate = new Date().toISOString().slice(0, 10);
                             assignment.status = 'Read';
+                            saveToLocalStorage();
                             showMessageModal('Confirmed', `You have confirmed reading: "${assignment.title}". This has been recorded.`);
                         } else {
                             // Regular assignment submission
+                            const fileInput = document.getElementById('assignmentSubmissionFiles');
+                            if (!fileInput.files || fileInput.files.length === 0) {
+                                showMessageModal('Files Required', 'Please upload at least one file for your submission.');
+                                return;
+                            }
+                            
+                            // Store submission files
+                            assignment.submissionFiles = Array.from(fileInput.files).map(file => ({
+                                fileName: file.name,
+                                fileUrl: URL.createObjectURL(file),
+                                fileType: file.name.split('.').pop().toUpperCase(),
+                                fileSize: (file.size / 1024).toFixed(2) + ' KB'
+                            }));
+                            
                             assignment.status = 'Submitted';
                             assignment.submissionDate = new Date().toISOString().slice(0, 10);
-                            showMessageModal('Submitted', `Assignment "${assignment.title}" has been marked as submitted.`);
+                            saveToLocalStorage();
+                            showMessageModal('Submitted', `Assignment "${assignment.title}" has been successfully submitted with ${assignment.submissionFiles.length} file(s).`);
                         }
                         hideViewAssignmentModal();
                         renderStudentAssignmentsList();
-                        renderTMAssignmentsTable();
+                        if (typeof renderTMAssignmentsTable === 'function') renderTMAssignmentsTable();
+                    }
+                });
+            }
+
+            // Handle training manager's grading
+            const gradeAssignmentBtn = document.getElementById('gradeAssignmentBtn');
+            if (gradeAssignmentBtn) {
+                gradeAssignmentBtn.addEventListener('click', function() {
+                    const assignmentId = parseInt(this.dataset.assignmentId, 10);
+                    const assignment = allAssignmentsData.find(a => a.id === assignmentId);
+                    if (assignment) {
+                        const score = parseFloat(document.getElementById('assignmentScoreInput').value);
+                        const status = document.getElementById('assignmentGradeStatus').value;
+                        const feedback = document.getElementById('assignmentFeedback').value;
+
+                        if (isNaN(score) || score < 0) {
+                            showMessageModal('Invalid Score', 'Please enter a valid score.');
+                            return;
+                        }
+
+                        if (score > assignment.totalMarks) {
+                            showMessageModal('Score Too High', `Score cannot exceed total marks (${assignment.totalMarks}).`);
+                            return;
+                        }
+
+                        assignment.score = score;
+                        assignment.status = status;
+                        assignment.feedback = feedback;
+                        assignment.gradedDate = new Date().toISOString().slice(0, 10);
+                        assignment.gradedBy = loggedInUser.id;
+
+                        saveToLocalStorage();
+                        showMessageModal('Graded', `Assignment "${assignment.title}" has been graded successfully.`);
+                        hideViewAssignmentModal();
+                        if (typeof renderTMAssignmentsTable === 'function') renderTMAssignmentsTable();
                     }
                 });
             }
@@ -9691,6 +9812,101 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById('viewAssignmentTotalMarks').textContent = assignment.totalMarks || 0;
             document.getElementById('viewAssignmentInstructions').textContent = assignment.instructions;
             
+            // Determine if the current user is a student or TM
+            const isStudent = loggedInUser && loggedInUser.role === 'student' && assignment.assignedStudentId === loggedInUser.id;
+            const isTrainingManager = loggedInUser && loggedInUser.role === 'training-manager';
+            
+            // Show/hide sections based on role
+            const studentSection = document.getElementById('studentSubmissionSection');
+            const tmGradeSection = document.getElementById('tmGradeSection');
+            const submitBtn = document.getElementById('submitAssignmentBtn');
+            const gradeBtn = document.getElementById('gradeAssignmentBtn');
+            
+            if (isStudent) {
+                if (studentSection) studentSection.style.display = 'block';
+                if (tmGradeSection) tmGradeSection.style.display = 'none';
+                if (submitBtn) submitBtn.style.display = 'inline-block';
+                if (gradeBtn) gradeBtn.style.display = 'none';
+                
+                // Show existing submission files if any
+                const existingFilesContainer = document.getElementById('existingSubmissionFiles');
+                if (existingFilesContainer) {
+                    existingFilesContainer.innerHTML = '';
+                    if (assignment.submissionFiles && assignment.submissionFiles.length > 0) {
+                        existingFilesContainer.innerHTML = '<p class="text-xs text-gray-600 font-medium mb-2">Previously Submitted:</p>';
+                        assignment.submissionFiles.forEach(file => {
+                            const fileDiv = document.createElement('a');
+                            fileDiv.href = file.fileUrl;
+                            fileDiv.target = '_blank';
+                            fileDiv.className = 'flex items-center gap-2 p-2 bg-green-50 rounded-md hover:bg-green-100 transition border border-green-200';
+                            
+                            let icon = 'fa-file';
+                            if (file.fileType === 'PDF') icon = 'fa-file-pdf';
+                            else if (file.fileType === 'PPT' || file.fileType === 'PPTX') icon = 'fa-file-powerpoint';
+                            else if (file.fileType === 'DOC' || file.fileType === 'DOCX') icon = 'fa-file-word';
+                            
+                            fileDiv.innerHTML = `
+                                <i class="fas ${icon} text-green-600 text-sm"></i>
+                                <span class="flex-1 text-xs text-gray-800">${file.fileName}</span>
+                                <span class="text-xs text-gray-500">${file.fileSize}</span>
+                            `;
+                            existingFilesContainer.appendChild(fileDiv);
+                        });
+                    }
+                }
+                
+                // Update button text based on status
+                if (assignment.status === 'Submitted' || assignment.status === 'Graded' || assignment.status === 'Read') {
+                    submitBtn.innerHTML = '<i class="fas fa-sync mr-2"></i>Resubmit Assignment';
+                } else {
+                    submitBtn.innerHTML = '<i class="fas fa-check-circle mr-2"></i>Submit Assignment';
+                }
+            } else if (isTrainingManager) {
+                if (studentSection) studentSection.style.display = 'none';
+                if (tmGradeSection) tmGradeSection.style.display = assignment.status === 'Submitted' ? 'block' : 'none';
+                if (submitBtn) submitBtn.style.display = 'none';
+                if (gradeBtn) gradeBtn.style.display = assignment.status === 'Submitted' ? 'inline-block' : 'none';
+                
+                // Populate grade fields if already graded
+                if (assignment.score !== null && assignment.score !== undefined) {
+                    document.getElementById('assignmentScoreInput').value = assignment.score;
+                }
+                if (assignment.feedback) {
+                    document.getElementById('assignmentFeedback').value = assignment.feedback;
+                }
+                if (assignment.status) {
+                    document.getElementById('assignmentGradeStatus').value = assignment.status === 'Graded' || assignment.status === 'Needs Revision' ? assignment.status : 'Graded';
+                }
+                
+                // Show student's submission files (reuse existingFilesContainer reference)
+                const tmExistingFiles = document.getElementById('existingSubmissionFiles');
+                if (tmExistingFiles && assignment.submissionFiles && assignment.submissionFiles.length > 0) {
+                    tmExistingFiles.style.display = 'block';
+                    tmExistingFiles.innerHTML = '<h5 class="text-sm font-semibold text-gray-700 mb-2"><i class="fas fa-file-upload mr-2 text-green-600"></i>Student Submissions:</h5>';
+                    assignment.submissionFiles.forEach(file => {
+                        const fileDiv = document.createElement('a');
+                        fileDiv.href = file.fileUrl;
+                        fileDiv.target = '_blank';
+                        fileDiv.className = 'flex items-center gap-2 p-2 bg-gray-50 rounded-md hover:bg-gray-100 transition';
+                        
+                        let icon = 'fa-file';
+                        if (file.fileType === 'PDF') icon = 'fa-file-pdf';
+                        else if (file.fileType === 'PPT' || file.fileType === 'PPTX') icon = 'fa-file-powerpoint';
+                        else if (file.fileType === 'DOC' || file.fileType === 'DOCX') icon = 'fa-file-word';
+                        
+                        fileDiv.innerHTML = `
+                            <i class="fas ${icon} text-indigo-600 text-sm"></i>
+                            <span class="flex-1 text-xs text-gray-800">${file.fileName}</span>
+                            <span class="text-xs text-gray-500">${file.fileSize}</span>
+                            <i class="fas fa-download text-gray-400 text-xs"></i>
+                        `;
+                        tmExistingFiles.appendChild(fileDiv);
+                    });
+                } else {
+                    if (tmExistingFiles) tmExistingFiles.style.display = 'none';
+                }
+            }
+            
             // Display documents
             const documentsList = document.getElementById('viewAssignmentDocumentsList');
             documentsList.innerHTML = '';
@@ -9772,9 +9988,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 questionsSection.style.display = 'none';
             }
             
-            // Store assignmentId on submit button
-            const submitBtn = document.getElementById('submitAssignmentBtn');
+            // Store assignmentId on buttons (already declared above)
             submitBtn.dataset.assignmentId = assignmentId;
+            gradeBtn.dataset.assignmentId = assignmentId;
             
             document.getElementById('viewAssignmentModal').classList.remove('hidden');
             document.getElementById('viewAssignmentModal').classList.add('show');
@@ -9783,6 +9999,58 @@ document.addEventListener("DOMContentLoaded", () => {
         function hideViewAssignmentModal() {
             document.getElementById('viewAssignmentModal').classList.add('hidden');
             document.getElementById('viewAssignmentModal').classList.remove('show');
+        }
+
+        // Render Training Manager's Assignments Table
+        function renderTMAssignmentsTable() {
+            const tbody = document.getElementById('tmAssignmentsTableBody');
+            if (!tbody) return;
+
+            const tmAssignments = allAssignmentsData.filter(a => a.creatorId === loggedInUser.id);
+
+            if (tmAssignments.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-gray-500 text-sm text-center">No assignments created yet.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '';
+            tmAssignments.forEach(assignment => {
+                const student = allUsersData.find(u => u.id === assignment.assignedStudentId);
+                const studentName = student ? `${student.name}${student.surname ? ' ' + student.surname : ''}` : 'Unknown';
+
+                let statusBadge = '';
+                if (assignment.status === 'Submitted') {
+                    statusBadge = '<span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full"><i class="fas fa-paper-plane mr-1"></i>Submitted</span>';
+                } else if (assignment.status === 'Graded') {
+                    statusBadge = '<span class="px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full"><i class="fas fa-check-circle mr-1"></i>Graded</span>';
+                } else if (assignment.status === 'Read') {
+                    statusBadge = '<span class="px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full"><i class="fas fa-eye mr-1"></i>Read</span>';
+                } else if (assignment.status === 'Needs Revision') {
+                    statusBadge = '<span class="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded-full"><i class="fas fa-redo mr-1"></i>Needs Revision</span>';
+                } else {
+                    statusBadge = '<span class="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-semibold rounded-full"><i class="fas fa-clock mr-1"></i>Assigned</span>';
+                }
+
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${assignment.title}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${studentName}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(assignment.dueDate).toLocaleDateString()}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">${statusBadge}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${assignment.score !== null && assignment.score !== undefined ? `${assignment.score}/${assignment.totalMarks}` : `-/${assignment.totalMarks}`}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button onclick="showViewAssignmentModal(${assignment.id})" class="text-indigo-600 hover:text-indigo-900 mr-3">
+                            <i class="fas fa-eye mr-1"></i>${assignment.status === 'Submitted' ? 'Grade' : 'View'}
+                        </button>
+                    </td>
+                `;
+            });
+        }
+
+        // Render Student's Assignments List
+        function renderStudentAssignmentsList() {
+            // This function would be implemented if there's a standalone student assignments view
+            // Currently assignments are shown within courses in the course viewer
         }
 
         function toggleDropdown(button) {
