@@ -4923,7 +4923,7 @@
             renderCourseAssignmentsList();
             currentCoursePdfFileName = '';
             coursePdfFileNameDisplay.classList.add('hidden');
-            courseAssignmentDocFileName.classList.add('hidden');
+            courseAssignmentDocFilesList.innerHTML = '';
             coursePicturePreview.src = "https://placehold.co/128x128/E0E7FF/4F46E5?text=Course+Image"; // Reset course picture preview
             document.getElementById('addQuestionBtn').disabled = true;
             showMessageModal('Form Reset', 'The course creation form has been cleared.');
@@ -7488,24 +7488,26 @@
                 createAssignmentBtn.addEventListener('click', showCreateAssignmentModal);
             }
 
-            // Show selected document name
+            // Show selected document names
             const assignmentDocumentInput = document.getElementById('assignmentDocumentInput');
+            const assignmentDocFilesList = document.getElementById('assignmentDocFilesList');
             if (assignmentDocumentInput) {
                 assignmentDocumentInput.addEventListener('change', function() {
-                    const fileNameDisplay = document.getElementById('assignmentDocFileName');
+                    assignmentDocFilesList.innerHTML = '';
                     if(this.files.length > 0) {
-                        const file = this.files[0];
-                        const fileSize = (file.size / 1024).toFixed(2); // KB
-                        const fileExt = file.name.split('.').pop().toUpperCase();
-                        let icon = 'fa-file';
-                        if (fileExt === 'PDF') icon = 'fa-file-pdf';
-                        else if (fileExt === 'PPT' || fileExt === 'PPTX') icon = 'fa-file-powerpoint';
-                        else if (fileExt === 'DOC' || fileExt === 'DOCX') icon = 'fa-file-word';
-                        
-                        fileNameDisplay.innerHTML = `<i class="fas ${icon} mr-1 text-indigo-600"></i>Selected: <strong>${file.name}</strong> (${fileSize} KB)`;
-                        fileNameDisplay.classList.remove('hidden');
-                    } else {
-                        fileNameDisplay.classList.add('hidden');
+                        Array.from(this.files).forEach(file => {
+                            const fileSize = (file.size / 1024).toFixed(2); // KB
+                            const fileExt = file.name.split('.').pop().toUpperCase();
+                            let icon = 'fa-file';
+                            if (fileExt === 'PDF') icon = 'fa-file-pdf';
+                            else if (fileExt === 'PPT' || fileExt === 'PPTX') icon = 'fa-file-powerpoint';
+                            else if (fileExt === 'DOC' || fileExt === 'DOCX') icon = 'fa-file-word';
+                            
+                            const fileItem = document.createElement('p');
+                            fileItem.className = 'text-xs text-green-600 font-medium flex items-center';
+                            fileItem.innerHTML = `<i class="fas ${icon} mr-1 text-indigo-600"></i><strong>${file.name}</strong> (${fileSize} KB)`;
+                            assignmentDocFilesList.appendChild(fileItem);
+                        });
                     }
                 });
             }
@@ -7541,7 +7543,7 @@
                     const instructions = document.getElementById('assignmentInstructionsTextarea').value.trim();
                     const dueDate = document.getElementById('assignmentDueDateInput').value;
                     const totalMarks = parseInt(document.getElementById('assignmentMarksInput').value, 10) || 0;
-                    const documentFile = assignmentDocumentInput.files[0];
+                    const documentFiles = assignmentDocumentInput.files;
 
                     // Validation
                     if (studentIds.length === 0) {
@@ -7554,8 +7556,8 @@
                         return;
                     }
 
-                    if (!documentFile) {
-                        showMessageModal('Document Required ⚠️', 'Please upload a document (PDF, PPT, or Word file) for this assignment.');
+                    if (!documentFiles || documentFiles.length === 0) {
+                        showMessageModal('Document Required ⚠️', 'Please upload at least one document (PDF, PPT, or Word file) for this assignment.');
                         return;
                     }
 
@@ -7581,6 +7583,14 @@
                         courseName = course ? course.name : null;
                     }
 
+                    // Create documents array from uploaded files
+                    const documents = Array.from(documentFiles).map(file => ({
+                        fileName: file.name,
+                        fileUrl: URL.createObjectURL(file),
+                        fileType: file.name.split('.').pop().toUpperCase(),
+                        fileSize: (file.size / 1024).toFixed(2) + ' KB'
+                    }));
+
                     // Create assignment for each selected student
                     let createdCount = 0;
                     const assignedStudentNames = [];
@@ -7598,9 +7608,7 @@
                             dueDate,
                             courseId: courseId ? parseInt(courseId) : null,
                             courseName: courseName,
-                            documentFileName: documentFile.name,
-                            documentFileUrl: URL.createObjectURL(documentFile),
-                            documentType: documentFile.name.split('.').pop().toUpperCase(),
+                            documents: documents,
                             totalMarks,
                             questions: assignmentQuestions.map(q => ({...q})), // Save questions
                             assignedStudentId: studentId,
@@ -7627,9 +7635,10 @@
                         : `${assignedStudentNames.slice(0, 3).join(', ')} and ${assignedStudentNames.length - 3} more`;
                     const typeInfo = assignmentType === 'mark-as-read' ? '(Mark as Read)' : `(${totalMarks} marks)`;
                     const questionsInfo = assignmentQuestions.length > 0 ? `\n❓ Questions: ${assignmentQuestions.length}` : '';
+                    const documentsInfo = documents.length > 1 ? `\n📎 Documents: ${documents.length} files` : `\n📎 Document: ${documents[0].fileName}`;
                     
                     showMessageModal('Assignment Created Successfully! 🎉', 
-                        `Assignment "${title}" ${typeInfo}${courseInfo} has been created and assigned to:\n\n👥 ${studentList}\n\n📅 Due Date: ${new Date(dueDate).toLocaleDateString()}\n📎 Document: ${documentFile.name}${questionsInfo}`);
+                        `Assignment "${title}" ${typeInfo}${courseInfo} has been created and assigned to:\n\n👥 ${studentList}\n\n📅 Due Date: ${new Date(dueDate).toLocaleDateString()}${documentsInfo}${questionsInfo}`);
                     hideCreateAssignmentModal();
                 });
             }
@@ -9509,12 +9518,52 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById('viewAssignmentTotalMarks').textContent = assignment.totalMarks || 0;
             document.getElementById('viewAssignmentInstructions').textContent = assignment.instructions;
             
-            // Document link
-            const downloadLink = document.getElementById('viewAssignmentDownloadLink');
-            const docName = document.getElementById('viewAssignmentDocName');
-            if (assignment.documentFileUrl && assignment.documentFileName) {
-                downloadLink.href = assignment.documentFileUrl;
-                docName.textContent = assignment.documentFileName;
+            // Display documents
+            const documentsList = document.getElementById('viewAssignmentDocumentsList');
+            documentsList.innerHTML = '';
+            
+            if (assignment.documents && assignment.documents.length > 0) {
+                assignment.documents.forEach(doc => {
+                    const docDiv = document.createElement('a');
+                    docDiv.href = doc.fileUrl;
+                    docDiv.target = '_blank';
+                    docDiv.className = 'flex items-center gap-2 p-2 bg-gray-50 rounded-md hover:bg-gray-100 transition';
+                    
+                    let icon = 'fa-file';
+                    if (doc.fileType === 'PDF') icon = 'fa-file-pdf';
+                    else if (doc.fileType === 'PPT' || doc.fileType === 'PPTX') icon = 'fa-file-powerpoint';
+                    else if (doc.fileType === 'DOC' || doc.fileType === 'DOCX') icon = 'fa-file-word';
+                    
+                    docDiv.innerHTML = `
+                        <i class="fas ${icon} text-indigo-600 text-lg"></i>
+                        <div class="flex-1">
+                            <div class="text-sm font-medium text-gray-900">${doc.fileName}</div>
+                            <div class="text-xs text-gray-500">${doc.fileSize}</div>
+                        </div>
+                        <i class="fas fa-download text-gray-400"></i>
+                    `;
+                    documentsList.appendChild(docDiv);
+                });
+            } else if (assignment.documentFileUrl && assignment.documentFileName) {
+                // Fallback for old format
+                const docDiv = document.createElement('a');
+                docDiv.href = assignment.documentFileUrl;
+                docDiv.target = '_blank';
+                docDiv.className = 'flex items-center gap-2 p-2 bg-gray-50 rounded-md hover:bg-gray-100 transition';
+                
+                let icon = 'fa-file';
+                if (assignment.documentType === 'PDF') icon = 'fa-file-pdf';
+                else if (assignment.documentType === 'PPT' || assignment.documentType === 'PPTX') icon = 'fa-file-powerpoint';
+                else if (assignment.documentType === 'DOC' || assignment.documentType === 'DOCX') icon = 'fa-file-word';
+                
+                docDiv.innerHTML = `
+                    <i class="fas ${icon} text-indigo-600 text-lg"></i>
+                    <div class="flex-1">
+                        <div class="text-sm font-medium text-gray-900">${assignment.documentFileName}</div>
+                    </div>
+                    <i class="fas fa-download text-gray-400"></i>
+                `;
+                documentsList.appendChild(docDiv);
             }
             
             // Display questions if they exist
