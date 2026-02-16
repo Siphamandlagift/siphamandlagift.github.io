@@ -7084,6 +7084,78 @@
             hideCreateAssignmentModal();
         });
 
+        // Helper function to calculate days remaining until deadline
+        function getDaysUntilDeadline(dueDate) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const deadline = new Date(dueDate);
+            deadline.setHours(0, 0, 0, 0);
+            const diffTime = deadline - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return diffDays;
+        }
+
+        // Helper function to get deadline status and styling
+        function getDeadlineStatus(dueDate) {
+            const daysRemaining = getDaysUntilDeadline(dueDate);
+            
+            if (daysRemaining < 0) {
+                return {
+                    text: `Overdue by ${Math.abs(daysRemaining)} day${Math.abs(daysRemaining) !== 1 ? 's' : ''}`,
+                    color: 'text-red-600',
+                    bgColor: 'bg-red-50',
+                    icon: 'fas fa-exclamation-triangle',
+                    badge: 'bg-red-100 text-red-800',
+                    priority: 'high'
+                };
+            } else if (daysRemaining === 0) {
+                return {
+                    text: 'Due Today',
+                    color: 'text-orange-600',
+                    bgColor: 'bg-orange-50',
+                    icon: 'fas fa-clock',
+                    badge: 'bg-orange-100 text-orange-800',
+                    priority: 'high'
+                };
+            } else if (daysRemaining === 1) {
+                return {
+                    text: 'Due Tomorrow',
+                    color: 'text-yellow-600',
+                    bgColor: 'bg-yellow-50',
+                    icon: 'fas fa-bell',
+                    badge: 'bg-yellow-100 text-yellow-800',
+                    priority: 'medium'
+                };
+            } else if (daysRemaining <= 3) {
+                return {
+                    text: `${daysRemaining} days left`,
+                    color: 'text-yellow-600',
+                    bgColor: 'bg-yellow-50',
+                    icon: 'fas fa-hourglass-half',
+                    badge: 'bg-yellow-100 text-yellow-800',
+                    priority: 'medium'
+                };
+            } else if (daysRemaining <= 7) {
+                return {
+                    text: `${daysRemaining} days left`,
+                    color: 'text-blue-600',
+                    bgColor: 'bg-blue-50',
+                    icon: 'fas fa-calendar-day',
+                    badge: 'bg-blue-100 text-blue-800',
+                    priority: 'low'
+                };
+            } else {
+                return {
+                    text: `${daysRemaining} days left`,
+                    color: 'text-gray-600',
+                    bgColor: 'bg-gray-50',
+                    icon: 'fas fa-calendar',
+                    badge: 'bg-gray-100 text-gray-800',
+                    priority: 'low'
+                };
+            }
+        }
+
         // Render assignments table for Training Manager
         function renderTMAssignmentsTable() {
             const tableBody = document.getElementById('tmAssignmentsTableBody');
@@ -7114,6 +7186,12 @@
                 // Build course info display
                 const courseInfo = assignment.courseName ? `<div class="text-xs text-gray-500 mt-1"><i class="fas fa-book mr-1"></i>${assignment.courseName}</div>` : '';
                 
+                // Get deadline status for assignments not yet completed
+                const deadlineStatus = getDeadlineStatus(assignment.dueDate);
+                const deadlineIndicator = (assignment.status !== 'Submitted' && assignment.status !== 'Graded' && assignment.status !== 'Read') 
+                    ? `<div class="text-xs ${deadlineStatus.color} font-semibold mt-1"><i class="${deadlineStatus.icon} mr-1"></i>${deadlineStatus.text}</div>` 
+                    : '';
+                
                 newRow.innerHTML = `
                     <td class="px-6 py-4 text-sm font-medium text-gray-900">
                         <div>${typeIcon}${assignment.title}</div>
@@ -7121,7 +7199,10 @@
                         ${assignment.documentType ? '<span class="text-xs text-gray-400">(' + assignment.documentType + ' attached)</span>' : ''}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${studentName}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${assignment.dueDate}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <div class="text-gray-700">${assignment.dueDate}</div>
+                        ${deadlineIndicator}
+                    </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}">${assignment.status}</span></td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${assignment.totalMarks || 'N/A'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -7142,6 +7223,22 @@
                 return;
             }
 
+            // Sort assignments by deadline urgency (overdue first, then by date)
+            myAssignments.sort((a, b) => {
+                const aDeadline = getDeadlineStatus(a.dueDate);
+                const bDeadline = getDeadlineStatus(b.dueDate);
+                
+                // Priority order: high > medium > low
+                const priorityOrder = { high: 0, medium: 1, low: 2 };
+                
+                if (priorityOrder[aDeadline.priority] !== priorityOrder[bDeadline.priority]) {
+                    return priorityOrder[aDeadline.priority] - priorityOrder[bDeadline.priority];
+                }
+                
+                // If same priority, sort by date (earliest first)
+                return new Date(a.dueDate) - new Date(b.dueDate);
+            });
+
             myAssignments.forEach(assignment => {
                 let statusColor = 'bg-blue-100 text-blue-800';
                 if (assignment.status === 'Submitted') statusColor = 'bg-green-100 text-green-800';
@@ -7152,12 +7249,27 @@
                     ? '<i class="fas fa-clipboard-check mr-2 text-indigo-600"></i>' 
                     : '<i class="fas fa-tasks mr-2 text-gray-600"></i>';
                 
+                // Get deadline status
+                const deadlineStatus = getDeadlineStatus(assignment.dueDate);
+                const showDeadlineAlert = (assignment.status !== 'Submitted' && assignment.status !== 'Graded' && assignment.status !== 'Read');
+                
                 const card = document.createElement('div');
-                card.className = 'bg-white rounded-lg shadow p-4 flex justify-between items-center hover:shadow-md transition';
+                // Add border color based on deadline urgency
+                const borderClass = showDeadlineAlert && deadlineStatus.priority === 'high' ? 'border-l-4 border-red-500' : 
+                                   showDeadlineAlert && deadlineStatus.priority === 'medium' ? 'border-l-4 border-yellow-500' : '';
+                card.className = `bg-white rounded-lg shadow p-4 flex justify-between items-center hover:shadow-md transition ${borderClass}`;
+                
+                const deadlineWarning = showDeadlineAlert && deadlineStatus.priority !== 'low' 
+                    ? `<div class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${deadlineStatus.badge} mt-1">
+                         <i class="${deadlineStatus.icon} mr-1"></i>${deadlineStatus.text}
+                       </div>` 
+                    : '';
+                
                 card.innerHTML = `
                     <div class="flex-1">
                         <h4 class="font-semibold text-gray-800">${typeIcon}${assignment.title}</h4>
                         <p class="text-sm text-gray-500">Due: ${assignment.dueDate}${assignment.type === 'mark-as-read' ? ' | Mark as Read Required' : ' | Marks: ' + (assignment.totalMarks || 0)}</p>
+                        ${deadlineWarning}
                         ${assignment.documentFileName ? '<p class="text-xs text-gray-400 mt-1"><i class="fas fa-paperclip mr-1"></i>' + assignment.documentFileName + '</p>' : ''}
                     </div>
                     <div class="flex items-center space-x-4">
