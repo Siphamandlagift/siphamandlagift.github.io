@@ -5209,6 +5209,25 @@
             const coursePicture = coursePicturePreview.src;
             const completionDeadline = document.getElementById('courseCompletionDeadlineInput').value;
 
+            // Create documents array from uploaded course PDF if exists
+            const documentsArray = [];
+            const coursePdfInput = document.getElementById('coursePdfInput');
+            if (coursePdfInput.files.length > 0) {
+                const file = coursePdfInput.files[0];
+                const fileExtension = file.name.split('.').pop().toUpperCase();
+                documentsArray.push({
+                    id: Date.now(),
+                    title: file.name.replace(/\.[^/.]+$/, ""), // Remove extension from title
+                    description: `Course material for ${courseName}`,
+                    fileUrl: URL.createObjectURL(file),
+                    fileName: file.name,
+                    fileSize: (file.size / 1024).toFixed(2) + ' KB',
+                    type: fileExtension === 'PDF' ? 'PDF' : (fileExtension === 'PPT' || fileExtension === 'PPTX' ? 'PPT' : 'DOC'),
+                    createdDate: new Date().toISOString(),
+                    isRequired: true
+                });
+            }
+
             const newCourse = {
                 id: Date.now(),
                 name: courseName,
@@ -5218,7 +5237,7 @@
                 picture: coursePicture,
                 questions: [...currentCourseQuestions],
                 assignments: [...currentCourseAssignments], // Save assignments array
-                documents: [], // Initialize empty documents array
+                documents: documentsArray, // Add uploaded document to documents array
                 readStatus: false,
                 creatorId: loggedInUser.id, // Assign creator ID
                 completionDeadline: completionDeadline || null // Save deadline if provided
