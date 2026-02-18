@@ -5377,7 +5377,7 @@
                     const totalMarks = course.questions.reduce((sum, q) => sum + (q.marks || 0), 0);
                     const deadlineInfo = getCourseDeadlineInfo(course);
 
-                    newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><img src="${course.picture}" alt="Course" class="h-10 w-10 rounded-md object-cover"></td>`;
+                    newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><img src="${course.picture}" alt="Course" class="h-8 w-8 rounded-md object-cover"></td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${course.name}${deadlineInfo.badge}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.description.substring(0, 50)}${course.description.length > 50 ? '...' : ''}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.videos ? course.videos.length + ' video(s)' : (course.videoFileName ? '1 video' : 'N/A')}</td>`;
@@ -5575,7 +5575,7 @@
                     const totalMarks = course.questions.reduce((sum, q) => sum + (q.marks || 0), 0);
                     const deadlineInfo = getCourseDeadlineInfo(course);
 
-                    newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><img src="${course.picture}" alt="Course" class="h-10 w-10 rounded-md object-cover"></td>`;
+                    newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><img src="${course.picture}" alt="Course" class="h-8 w-8 rounded-md object-cover"></td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${course.name}${deadlineInfo.badge}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.description.substring(0, 50)}${course.description.length > 50 ? '...' : ''}</td>`;
                     newRow.insertCell().outerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${course.videos ? course.videos.length + ' video(s)' : (course.videoFileName ? '1 video' : 'N/A')}</td>`;
@@ -6331,7 +6331,7 @@
                     const truncatedDesc = description.length > 50 ? description.substring(0, 50) + '...' : description;
 
                     row.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap"><img src="${course.picture}" alt="Course" class="h-10 w-10 rounded-md object-cover"></td>
+                        <td class="px-6 py-4 whitespace-nowrap"><img src="${course.picture}" alt="Course" class="h-8 w-8 rounded-md object-cover"></td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${course.name}</td>
                         <td class="px-6 py-4 text-sm text-gray-500" title="${description}">${truncatedDesc}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${totalMarks}</td>
@@ -8266,7 +8266,7 @@ function showStudentCourses(type) {
     
     let courseCard = `
       <div class="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden ${isNewlyAssigned ? 'ring-2 ring-blue-400' : ''} ${deadlineInfo.status === 'overdue' || deadlineInfo.status === 'today' ? 'ring-2 ring-red-400' : deadlineInfo.status === 'tomorrow' || deadlineInfo.status === 'urgent' ? 'ring-2 ring-yellow-400' : ''}">
-        <div class="relative w-full h-40 overflow-hidden bg-gray-200">
+        <div class="relative w-full h-32 overflow-hidden bg-gray-200">
           <img src="${courseImage}" alt="${course.name}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-300" onerror="this.src='https://placehold.co/400x200/E0E7FF/4F46E5?text=${encodeURIComponent(course.name)}'">
           ${isNewlyAssigned ? '<span class="absolute top-3 left-3 text-xs px-3 py-1 rounded-full font-medium bg-blue-600 text-white animate-pulse"><i class="fas fa-sparkles mr-1"></i>NEW</span>' : ''}
           <span class="absolute top-3 right-3 text-xs px-3 py-1 rounded-full font-medium ${badgeClass}">
@@ -8433,7 +8433,7 @@ function viewProgrammeDetails(programmeId) {
             return `
                 <div class="bg-white border-2 ${isCourseCompleted ? 'border-green-300' : 'border-gray-200'} rounded-lg p-4 hover:shadow-md transition">
                     <div class="flex items-start gap-4">
-                        <img src="${courseImage}" alt="${course.name}" class="w-20 h-20 rounded-lg object-cover" onerror="this.src='https://placehold.co/80x80/E0E7FF/4F46E5?text=Course'">
+                        <img src="${courseImage}" alt="${course.name}" class="w-16 h-16 rounded-lg object-cover" onerror="this.src='https://placehold.co/64x64/E0E7FF/4F46E5?text=Course'">
                         <div class="flex-1">
                             <div class="flex items-start justify-between mb-2">
                                 <h4 class="font-semibold text-gray-800">${course.name}</h4>
