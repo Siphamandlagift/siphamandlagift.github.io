@@ -8273,22 +8273,20 @@ function showStudentCourses(type) {
             ${statusBadge}
           </span>
         </div>
-        <div class="p-3">
-          <h3 class="font-semibold text-gray-800 mb-1 text-sm">${course.name}</h3>
-          <p class="text-xs text-gray-600 mb-2">${course.description || "No description available"}</p>
-          ${deadlineInfo.badge ? `<div class="mb-2 text-xs">${deadlineInfo.badge}</div>` : ''}
+        <div class="p-3 flex flex-col items-center justify-center min-h-[180px]">
+          <h3 class="font-semibold text-gray-800 mb-1 text-sm text-center">${course.name}</h3>
+          <p class="text-xs text-gray-600 mb-2 text-center">${course.description || "No description available"}</p>
+          ${deadlineInfo.badge ? `<div class="mb-2 text-xs text-center">${deadlineInfo.badge}</div>` : ''}
           ${!isCompleted 
             ? `<div class="w-full bg-gray-200 rounded-full h-1.5 mb-2">
                 <div class="bg-indigo-600 h-1.5 rounded-full" style="width: ${course.hoursSpent || 0}%"></div>
               </div>
-              <p class="text-xs text-gray-600 mb-2">Hours: <span class="font-medium">${course.hoursSpent || 0}</span></p>`
-            : `<p class="text-xs text-gray-600 mb-2">Completed on ${new Date(course.completionDate).toLocaleDateString()}</p>`
+              <p class="text-xs text-gray-600 mb-3 text-center">Hours: <span class="font-medium">${course.hoursSpent || 0}</span></p>`
+            : `<p class="text-xs text-gray-600 mb-3 text-center">Completed on ${new Date(course.completionDate).toLocaleDateString()}</p>`
           }
-          <div class="flex justify-center">
-            <button onclick="viewStudentCourse(${course.id}, '${course.name}')" class="text-xs bg-indigo-600 text-white py-1.5 px-6 rounded-md hover:bg-indigo-700 transition">
-              ${isNewlyAssigned ? '<i class="fas fa-play-circle mr-1"></i>Start Course' : 'View course'}
-            </button>
-          </div>
+          <button onclick="viewStudentCourse(${course.id}, '${course.name}')" class="text-xs bg-indigo-600 text-white py-1.5 px-6 rounded-md hover:bg-indigo-700 transition">
+            ${isNewlyAssigned ? '<i class="fas fa-play-circle mr-1"></i>Start Course' : 'View course'}
+          </button>
         </div>
       </div>
     `;
