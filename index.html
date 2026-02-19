@@ -8983,13 +8983,6 @@ function switchCourseManagementTab(tabName) {
     document.getElementById(tabName + 'ManagementContent').classList.remove('hidden');
     document.getElementById(tabName + 'ManagementTab').classList.remove('text-gray-600', 'border-transparent');
     document.getElementById(tabName + 'ManagementTab').classList.add('text-indigo-600', 'border-indigo-600');
-};
-        
-        // Load assignments for current course
-        if (window.currentViewingCourseId) {
-            loadCourseAssignments(window.currentViewingCourseId);
-        }
-    }
 }
 
 // Function to load and display course documents
