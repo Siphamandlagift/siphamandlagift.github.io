@@ -8284,9 +8284,11 @@ function showStudentCourses(type) {
               <p class="text-xs text-gray-600 mb-2">Hours: <span class="font-medium">${course.hoursSpent || 0}</span></p>`
             : `<p class="text-xs text-gray-600 mb-2">Completed on ${new Date(course.completionDate).toLocaleDateString()}</p>`
           }
-          <button onclick="viewStudentCourse(${course.id}, '${course.name}')" class="w-full text-xs bg-indigo-600 text-white py-1.5 rounded-md hover:bg-indigo-700 transition">
-            ${isNewlyAssigned ? '<i class="fas fa-play-circle mr-1"></i>Start Course' : 'View course'}
-          </button>
+          <div class="flex justify-center">
+            <button onclick="viewStudentCourse(${course.id}, '${course.name}')" class="text-xs bg-indigo-600 text-white py-1.5 px-6 rounded-md hover:bg-indigo-700 transition">
+              ${isNewlyAssigned ? '<i class="fas fa-play-circle mr-1"></i>Start Course' : 'View course'}
+            </button>
+          </div>
         </div>
       </div>
     `;
