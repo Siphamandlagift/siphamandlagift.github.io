@@ -2422,7 +2422,7 @@
   </div>
 
   <!-- Courses Grid -->
-  <div id="studentCoursesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+  <div id="studentCoursesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
   </div>
 
 </div>
@@ -8265,26 +8265,26 @@ function showStudentCourses(type) {
       (new Date() - new Date(course.enrollmentDate)) < (7 * 24 * 60 * 60 * 1000);
     
     let courseCard = `
-      <div class="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden ${isNewlyAssigned ? 'ring-2 ring-blue-400' : ''} ${deadlineInfo.status === 'overdue' || deadlineInfo.status === 'today' ? 'ring-2 ring-red-400' : deadlineInfo.status === 'tomorrow' || deadlineInfo.status === 'urgent' ? 'ring-2 ring-yellow-400' : ''}">
-        <div class="relative w-full h-40 overflow-hidden bg-gray-200">
+      <div class="bg-white rounded-lg shadow hover:shadow-lg transition overflow-hidden ${isNewlyAssigned ? 'ring-2 ring-blue-400' : ''} ${deadlineInfo.status === 'overdue' || deadlineInfo.status === 'today' ? 'ring-2 ring-red-400' : deadlineInfo.status === 'tomorrow' || deadlineInfo.status === 'urgent' ? 'ring-2 ring-yellow-400' : ''}">
+        <div class="relative w-full h-28 overflow-hidden bg-gray-200">
           <img src="${courseImage}" alt="${course.name}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-300" onerror="this.src='https://placehold.co/400x200/E0E7FF/4F46E5?text=${encodeURIComponent(course.name)}'">
           ${isNewlyAssigned ? '<span class="absolute top-3 left-3 text-xs px-3 py-1 rounded-full font-medium bg-blue-600 text-white animate-pulse"><i class="fas fa-sparkles mr-1"></i>NEW</span>' : ''}
           <span class="absolute top-3 right-3 text-xs px-3 py-1 rounded-full font-medium ${badgeClass}">
             ${statusBadge}
           </span>
         </div>
-        <div class="p-5">
-          <h3 class="font-semibold text-gray-800 mb-2">${course.name}</h3>
-          <p class="text-sm text-gray-600 mb-3">${course.description || "No description available"}</p>
-          ${deadlineInfo.badge ? `<div class="mb-3 text-sm">${deadlineInfo.badge}</div>` : ''}
+        <div class="p-3">
+          <h3 class="font-semibold text-gray-800 mb-1 text-sm">${course.name}</h3>
+          <p class="text-xs text-gray-600 mb-2">${course.description || "No description available"}</p>
+          ${deadlineInfo.badge ? `<div class="mb-2 text-xs">${deadlineInfo.badge}</div>` : ''}
           ${!isCompleted 
-            ? `<div class="w-full bg-gray-200 rounded-full h-2 mb-3">
-                <div class="bg-indigo-600 h-2 rounded-full" style="width: ${course.hoursSpent || 0}%"></div>
+            ? `<div class="w-full bg-gray-200 rounded-full h-1.5 mb-2">
+                <div class="bg-indigo-600 h-1.5 rounded-full" style="width: ${course.hoursSpent || 0}%"></div>
               </div>
-              <p class="text-sm text-gray-600 mb-3">Hours: <span class="font-medium">${course.hoursSpent || 0}</span></p>`
-            : `<p class="text-sm text-gray-600 mb-3">Completed on ${new Date(course.completionDate).toLocaleDateString()}</p>`
+              <p class="text-xs text-gray-600 mb-2">Hours: <span class="font-medium">${course.hoursSpent || 0}</span></p>`
+            : `<p class="text-xs text-gray-600 mb-2">Completed on ${new Date(course.completionDate).toLocaleDateString()}</p>`
           }
-          <button onclick="viewStudentCourse(${course.id}, '${course.name}')" class="w-full text-sm bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700 transition">
+          <button onclick="viewStudentCourse(${course.id}, '${course.name}')" class="w-full text-xs bg-indigo-600 text-white py-1.5 rounded-md hover:bg-indigo-700 transition">
             ${isNewlyAssigned ? '<i class="fas fa-play-circle mr-1"></i>Start Course' : 'View course'}
           </button>
         </div>
