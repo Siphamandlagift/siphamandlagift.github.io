@@ -8265,7 +8265,7 @@ function showStudentCourses(type) {
       (new Date() - new Date(course.enrollmentDate)) < (7 * 24 * 60 * 60 * 1000);
     
     let courseCard = `
-      <div class="group bg-white rounded-lg shadow hover:shadow-lg transition overflow-hidden ${isNewlyAssigned ? 'ring-2 ring-blue-400' : ''} ${deadlineInfo.status === 'overdue' || deadlineInfo.status === 'today' ? 'ring-2 ring-red-400' : deadlineInfo.status === 'tomorrow' || deadlineInfo.status === 'urgent' ? 'ring-2 ring-yellow-400' : ''}">
+      <div onclick="viewStudentCourse(${course.id}, '${course.name}')" class="group bg-white rounded-lg shadow hover:shadow-lg transition overflow-hidden cursor-pointer ${isNewlyAssigned ? 'ring-2 ring-blue-400' : ''} ${deadlineInfo.status === 'overdue' || deadlineInfo.status === 'today' ? 'ring-2 ring-red-400' : deadlineInfo.status === 'tomorrow' || deadlineInfo.status === 'urgent' ? 'ring-2 ring-yellow-400' : ''}">
         <div class="relative w-full h-28 overflow-hidden bg-gray-200">
           <img src="${courseImage}" alt="${course.name}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-300" onerror="this.src='https://placehold.co/400x200/E0E7FF/4F46E5?text=${encodeURIComponent(course.name)}'">
           ${isNewlyAssigned ? '<span class="absolute top-3 left-3 text-xs px-3 py-1 rounded-full font-medium bg-blue-600 text-white animate-pulse"><i class="fas fa-sparkles mr-1"></i>NEW</span>' : ''}
@@ -8281,12 +8281,9 @@ function showStudentCourses(type) {
             ? `<div class="w-full bg-gray-200 rounded-full h-1.5 mb-2">
                 <div class="bg-indigo-600 h-1.5 rounded-full" style="width: ${course.hoursSpent || 0}%"></div>
               </div>
-              <p class="text-xs text-gray-600 mb-3 text-center">Hours: <span class="font-medium">${course.hoursSpent || 0}</span></p>`
-            : `<p class="text-xs text-gray-600 mb-3 text-center">Completed on ${new Date(course.completionDate).toLocaleDateString()}</p>`
+              <p class="text-xs text-gray-600 mb-2 text-center">Hours: <span class="font-medium">${course.hoursSpent || 0}</span></p>`
+            : `<p class="text-xs text-gray-600 mb-2 text-center">Completed on ${new Date(course.completionDate).toLocaleDateString()}</p>`
           }
-          <button onclick="viewStudentCourse(${course.id}, '${course.name}')" class="opacity-0 group-hover:opacity-100 text-xs bg-indigo-600 text-white py-1.5 px-8 rounded-md hover:bg-indigo-700 transition-all duration-300">
-            ${isNewlyAssigned ? '<i class="fas fa-play-circle mr-1"></i>Start' : 'Open'}
-          </button>
         </div>
       </div>
     `;
