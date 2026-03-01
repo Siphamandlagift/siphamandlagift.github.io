@@ -2213,6 +2213,8 @@
                                             <option value="multiple-choice">📝 Multiple Choice</option>
                                             <option value="true-false">✓ True/False</option>
                                             <option value="matching">🔗 Matching</option>
+                                            <option value="fill-in-blank">✏️ Fill in the Blank</option>
+                                            <option value="ordering">🔢 Ordering/Sequence</option>
                                             <option value="long-answer">📄 Long Answer</option>
                                         </select>
                                     </div>
@@ -4715,6 +4717,66 @@
                 document.querySelectorAll('.matching-term, .matching-definition').forEach(input => {
                     input.addEventListener('input', checkQuestionReadiness);
                 });
+            } else if (type === 'fill-in-blank') {
+                questionInputArea.innerHTML = `
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-medium mb-2" for="fillBlankQuestionText">Question Text</label>
+                        <textarea id="fillBlankQuestionText" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" rows="3" placeholder="Enter question with blanks (use _____ or [blank] for each blank)"></textarea>
+                        <p class="text-xs text-gray-500 mt-1"><i class="fas fa-info-circle mr-1"></i>Example: The capital of France is _____ .</p>
+                    </div>
+                    <div id="fillBlankAnswersContainer" class="space-y-2 mb-4">
+                        <label class="block text-gray-700 text-sm font-medium mb-2">Correct Answers (in order of appearance)</label>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-gray-500 font-medium">1.</span>
+                            <input type="text" class="fill-blank-answer flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="Answer for first blank">
+                            <button type="button" class="remove-blank-answer-btn text-red-600 hover:text-red-900 px-2"><i class="fas fa-times"></i></button>
+                        </div>
+                    </div>
+                    <button type="button" id="addBlankAnswerBtn" class="text-indigo-600 text-sm hover:text-indigo-800 focus:outline-none">
+                        <i class="fas fa-plus mr-1"></i> Add Another Blank
+                    </button>
+                    ${marksInputHTML}
+                `;
+                document.getElementById('addBlankAnswerBtn').addEventListener('click', addBlankAnswer);
+                document.querySelectorAll('.remove-blank-answer-btn').forEach(button => {
+                    button.addEventListener('click', removeBlankAnswer);
+                });
+                document.getElementById('fillBlankQuestionText').addEventListener('input', checkQuestionReadiness);
+                document.querySelectorAll('.fill-blank-answer').forEach(input => {
+                    input.addEventListener('input', checkQuestionReadiness);
+                });
+            } else if (type === 'ordering') {
+                questionInputArea.innerHTML = `
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-medium mb-2" for="orderingQuestionText">Question/Instructions</label>
+                        <textarea id="orderingQuestionText" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" rows="2" placeholder="e.g., Arrange the following events in chronological order"></textarea>
+                    </div>
+                    <div id="orderingItemsContainer" class="space-y-2 mb-4">
+                        <label class="block text-gray-700 text-sm font-medium mb-2">Items (enter in correct order)</label>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-gray-500 font-medium">1.</span>
+                            <input type="text" class="ordering-item flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="First item">
+                            <button type="button" class="remove-ordering-item-btn text-red-600 hover:text-red-900 px-2"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-gray-500 font-medium">2.</span>
+                            <input type="text" class="ordering-item flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="Second item">
+                            <button type="button" class="remove-ordering-item-btn text-red-600 hover:text-red-900 px-2"><i class="fas fa-times"></i></button>
+                        </div>
+                    </div>
+                    <button type="button" id="addOrderingItemBtn" class="text-indigo-600 text-sm hover:text-indigo-800 focus:outline-none">
+                        <i class="fas fa-plus mr-1"></i> Add Item
+                    </button>
+                    ${marksInputHTML}
+                `;
+                document.getElementById('addOrderingItemBtn').addEventListener('click', addOrderingItem);
+                document.querySelectorAll('.remove-ordering-item-btn').forEach(button => {
+                    button.addEventListener('click', removeOrderingItem);
+                });
+                document.getElementById('orderingQuestionText').addEventListener('input', checkQuestionReadiness);
+                document.querySelectorAll('.ordering-item').forEach(input => {
+                    input.addEventListener('input', checkQuestionReadiness);
+                });
             } else if (type === 'long-answer') {
                 questionInputArea.innerHTML = `
                     <div class="mb-4">
@@ -4755,6 +4817,15 @@
                 });
                 const allPairsValid = pairs.every(pair => pair.term !== '' && pair.definition !== '');
                 isValid = pairs.length >= 2 && allPairsValid;
+            } else if (type === 'fill-in-blank') {
+                const questionText = document.getElementById('fillBlankQuestionText').value.trim();
+                const answers = Array.from(document.querySelectorAll('.fill-blank-answer')).map(input => input.value.trim());
+                const hasBlankMarker = questionText.includes('_____') || questionText.includes('[blank]');
+                isValid = questionText !== '' && hasBlankMarker && answers.length > 0 && answers.every(a => a !== '');
+            } else if (type === 'ordering') {
+                const questionText = document.getElementById('orderingQuestionText').value.trim();
+                const items = Array.from(document.querySelectorAll('.ordering-item')).map(input => input.value.trim());
+                isValid = questionText !== '' && items.length >= 2 && items.every(item => item !== '');
             } else if (type === 'long-answer') {
                 const questionText = document.getElementById('longAnswerQuestionText').value.trim();
                 isValid = questionText !== '';
@@ -4817,6 +4888,70 @@
             const pairDiv = event.target.closest('.flex.items-center');
             if (pairDiv) {
                 pairDiv.remove();
+            }
+            checkQuestionReadiness();
+        }
+
+        // Fill-in-Blank: Add new answer field
+        function addBlankAnswer() {
+            const container = document.getElementById('fillBlankAnswersContainer');
+            const answerCount = container.children.length - 1; // Subtract 1 for the label
+            const newAnswerDiv = document.createElement('div');
+            newAnswerDiv.classList.add('flex', 'items-center', 'space-x-2');
+            newAnswerDiv.innerHTML = `
+                <span class="text-gray-500 font-medium">${answerCount + 1}.</span>
+                <input type="text" class="fill-blank-answer flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="Answer for blank ${answerCount + 1}">
+                <button type="button" class="remove-blank-answer-btn text-red-600 hover:text-red-900 px-2"><i class="fas fa-times"></i></button>
+            `;
+            container.appendChild(newAnswerDiv);
+            newAnswerDiv.querySelector('.remove-blank-answer-btn').addEventListener('click', removeBlankAnswer);
+            newAnswerDiv.querySelector('.fill-blank-answer').addEventListener('input', checkQuestionReadiness);
+            checkQuestionReadiness();
+        }
+
+        // Fill-in-Blank: Remove answer field
+        function removeBlankAnswer(event) {
+            const answerDiv = event.target.closest('.flex.items-center');
+            if (answerDiv) {
+                answerDiv.remove();
+                // Re-number the remaining answers
+                const container = document.getElementById('fillBlankAnswersContainer');
+                Array.from(container.querySelectorAll('.flex.items-center')).forEach((div, index) => {
+                    div.querySelector('span').textContent = `${index + 1}.`;
+                    div.querySelector('.fill-blank-answer').placeholder = `Answer for blank ${index + 1}`;
+                });
+            }
+            checkQuestionReadiness();
+        }
+
+        // Ordering: Add new item field
+        function addOrderingItem() {
+            const container = document.getElementById('orderingItemsContainer');
+            const itemCount = container.children.length - 1; // Subtract 1 for the label
+            const newItemDiv = document.createElement('div');
+            newItemDiv.classList.add('flex', 'items-center', 'space-x-2');
+            newItemDiv.innerHTML = `
+                <span class="text-gray-500 font-medium">${itemCount + 1}.</span>
+                <input type="text" class="ordering-item flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="Item ${itemCount + 1}">
+                <button type="button" class="remove-ordering-item-btn text-red-600 hover:text-red-900 px-2"><i class="fas fa-times"></i></button>
+            `;
+            container.appendChild(newItemDiv);
+            newItemDiv.querySelector('.remove-ordering-item-btn').addEventListener('click', removeOrderingItem);
+            newItemDiv.querySelector('.ordering-item').addEventListener('input', checkQuestionReadiness);
+            checkQuestionReadiness();
+        }
+
+        // Ordering: Remove item field
+        function removeOrderingItem(event) {
+            const itemDiv = event.target.closest('.flex.items-center');
+            if (itemDiv) {
+                itemDiv.remove();
+                // Re-number the remaining items
+                const container = document.getElementById('orderingItemsContainer');
+                Array.from(container.querySelectorAll('.flex.items-center')).forEach((div, index) => {
+                    div.querySelector('span').textContent = `${index + 1}.`;
+                    div.querySelector('.ordering-item').placeholder = `Item ${index + 1}`;
+                });
             }
             checkQuestionReadiness();
         }
