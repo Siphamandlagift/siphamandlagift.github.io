@@ -4632,12 +4632,12 @@
                     <div id="mcOptionsContainer" class="space-y-2 mb-4">
                         <label class="block text-gray-700 text-sm font-medium mb-2">Options (Select correct answer)</label>
                         <div class="flex items-center space-x-2">
-                            <input type="radio" name="mcAnswer" value="0" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 cursor-pointer">
+                            <input type="radio" name="mcAnswer" value="0" class="h-4 w-4 text-yellow-500 focus:ring-yellow-400 border-gray-300 cursor-pointer">
                             <input type="text" class="mc-option flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="Option A">
                             <button type="button" class="remove-option-btn text-red-600 hover:text-red-900 px-2"><i class="fas fa-times"></i></button>
                         </div>
                         <div class="flex items-center space-x-2">
-                            <input type="radio" name="mcAnswer" value="1" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 cursor-pointer">
+                            <input type="radio" name="mcAnswer" value="1" class="h-4 w-4 text-yellow-500 focus:ring-yellow-400 border-gray-300 cursor-pointer">
                             <input type="text" class="mc-option flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="Option B">
                             <button type="button" class="remove-option-btn text-red-600 hover:text-red-900 px-2"><i class="fas fa-times"></i></button>
                         </div>
@@ -4769,7 +4769,7 @@
             const newOptionDiv = document.createElement('div');
             newOptionDiv.classList.add('flex', 'items-center', 'space-x-2');
             newOptionDiv.innerHTML = `
-                <input type="radio" name="mcAnswer" value="${optionCount}" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 cursor-pointer">
+                <input type="radio" name="mcAnswer" value="${optionCount}" class="h-4 w-4 text-yellow-500 focus:ring-yellow-400 border-gray-300 cursor-pointer">
                 <input type="text" class="mc-option flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="Option ${String.fromCharCode(65 + optionCount)}">
                 <button type="button" class="remove-option-btn text-red-600 hover:text-red-900 px-2"><i class="fas fa-times"></i></button>
             `;
