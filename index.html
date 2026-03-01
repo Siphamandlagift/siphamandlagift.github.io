@@ -4829,7 +4829,10 @@
         // Event listener for adding a question to the current course's temporary list
         document.getElementById('addQuestionBtn').addEventListener('click', function() {
             const type = document.getElementById('questionTypeSelect').value;
-            let question = { type: type };
+            let question = { 
+                id: Date.now() + Math.random(), // Unique ID for each question
+                type: type 
+            };
 
             const marksInput = document.getElementById('questionMarks');
             const marks = marksInput ? parseInt(marksInput.value, 10) : 0;
@@ -8791,6 +8794,7 @@ function loadSectionQuestions(questions) {
 
     questions.forEach((q, index) => {
         let questionHtml = '';
+        const questionId = q.id || `q-${index}`;
 
         if (q.type === 'multiple-choice') {
             questionHtml = `
@@ -8799,12 +8803,15 @@ function loadSectionQuestions(questions) {
                         <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3">
                             ${index + 1}
                         </span>
-                        <h4 class="text-lg font-semibold text-gray-800">${q.question}</h4>
+                        <div class="flex-1">
+                            <h4 class="text-base font-semibold text-gray-800">${q.text}</h4>
+                            <p class="text-xs text-gray-500 mt-1">${q.marks} ${q.marks === 1 ? 'mark' : 'marks'}</p>
+                        </div>
                     </div>
                     <div class="space-y-2 ml-11">
                         ${q.options.map((option, optIndex) => `
                             <label class="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer">
-                                <input type="radio" name="question-${q.id}" value="${optIndex}" class="w-4 h-4 text-indigo-600">
+                                <input type="radio" name="question-${questionId}" value="${optIndex}" class="w-4 h-4 text-indigo-600">
                                 <span class="ml-3 text-gray-700">${option}</span>
                             </label>
                         `).join('')}
@@ -8818,17 +8825,64 @@ function loadSectionQuestions(questions) {
                         <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3">
                             ${index + 1}
                         </span>
-                        <h4 class="text-lg font-semibold text-gray-800">${q.question}</h4>
+                        <div class="flex-1">
+                            <h4 class="text-base font-semibold text-gray-800">${q.text}</h4>
+                            <p class="text-xs text-gray-500 mt-1">${q.marks} ${q.marks === 1 ? 'mark' : 'marks'}</p>
+                        </div>
                     </div>
                     <div class="space-y-2 ml-11">
                         <label class="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer">
-                            <input type="radio" name="question-${q.id}" value="true" class="w-4 h-4 text-indigo-600">
+                            <input type="radio" name="question-${questionId}" value="true" class="w-4 h-4 text-indigo-600">
                             <span class="ml-3 text-gray-700">True</span>
                         </label>
                         <label class="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer">
-                            <input type="radio" name="question-${q.id}" value="false" class="w-4 h-4 text-indigo-600">
+                            <input type="radio" name="question-${questionId}" value="false" class="w-4 h-4 text-indigo-600">
                             <span class="ml-3 text-gray-700">False</span>
                         </label>
+                    </div>
+                </div>
+            `;
+        } else if (q.type === 'matching') {
+            questionHtml = `
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <div class="flex items-start mb-3">
+                        <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3">
+                            ${index + 1}
+                        </span>
+                        <div class="flex-1">
+                            <h4 class="text-base font-semibold text-gray-800">Matching Question</h4>
+                            <p class="text-xs text-gray-500 mt-1">${q.marks} ${q.marks === 1 ? 'mark' : 'marks'}</p>
+                        </div>
+                    </div>
+                    <div class="ml-11 space-y-3">
+                        ${q.pairs.map((pair, pairIndex) => `
+                            <div class="flex items-center space-x-3">
+                                <div class="flex-1 p-2 bg-white rounded border border-gray-300">
+                                    <span class="text-sm text-gray-700">${pair.term}</span>
+                                </div>
+                                <select name="matching-${questionId}-${pairIndex}" class="flex-1 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500">
+                                    <option value="">Select definition...</option>
+                                    ${q.pairs.map((p, i) => `<option value="${i}">${p.definition}</option>`).join('')}
+                                </select>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        } else if (q.type === 'long-answer') {
+            questionHtml = `
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <div class="flex items-start mb-3">
+                        <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3">
+                            ${index + 1}
+                        </span>
+                        <div class="flex-1">
+                            <h4 class="text-base font-semibold text-gray-800">${q.text}</h4>
+                            <p class="text-xs text-gray-500 mt-1">${q.marks} ${q.marks === 1 ? 'mark' : 'marks'}</p>
+                        </div>
+                    </div>
+                    <div class="ml-11">
+                        <textarea name="question-${questionId}" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" rows="4" placeholder="Enter your answer here..."></textarea>
                     </div>
                 </div>
             `;
