@@ -4630,16 +4630,16 @@
                         <textarea id="mcQuestionText" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" rows="2" placeholder="Enter multiple-choice question"></textarea>
                     </div>
                     <div id="mcOptionsContainer" class="space-y-2 mb-4">
-                        <label class="block text-gray-700 text-sm font-medium mb-2">Options (Check correct answer)</label>
-                        <div class="flex items-center">
-                            <input type="radio" name="mcAnswer" value="0" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
-                            <input type="text" class="mc-option ml-2 px-3 py-2 border border-gray-300 rounded-md w-full" placeholder="Option A">
-                            <button type="button" class="remove-option-btn ml-2 text-red-600 hover:text-red-900"><i class="fas fa-times"></i></button>
+                        <label class="block text-gray-700 text-sm font-medium mb-2">Options (Select correct answer)</label>
+                        <div class="flex items-center space-x-2">
+                            <input type="radio" name="mcAnswer" value="0" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 cursor-pointer">
+                            <input type="text" class="mc-option flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="Option A">
+                            <button type="button" class="remove-option-btn text-red-600 hover:text-red-900 px-2"><i class="fas fa-times"></i></button>
                         </div>
-                        <div class="flex items-center">
-                            <input type="radio" name="mcAnswer" value="1" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
-                            <input type="text" class="mc-option ml-2 px-3 py-2 border border-gray-300 rounded-md w-full" placeholder="Option B">
-                            <button type="button" class="remove-option-btn ml-2 text-red-600 hover:text-red-900"><i class="fas fa-times"></i></button>
+                        <div class="flex items-center space-x-2">
+                            <input type="radio" name="mcAnswer" value="1" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 cursor-pointer">
+                            <input type="text" class="mc-option flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="Option B">
+                            <button type="button" class="remove-option-btn text-red-600 hover:text-red-900 px-2"><i class="fas fa-times"></i></button>
                         </div>
                     </div>
                     <button type="button" id="addMcOptionBtn" class="text-indigo-600 text-sm hover:text-indigo-800 focus:outline-none">
@@ -4765,13 +4765,13 @@
         // Multiple Choice: Add new option field
         function addMultipleChoiceOption() {
             const container = document.getElementById('mcOptionsContainer');
-            const optionCount = container.children.length;
+            const optionCount = container.children.length - 1; // Subtract 1 for the label
             const newOptionDiv = document.createElement('div');
-            newOptionDiv.classList.add('flex', 'items-center');
+            newOptionDiv.classList.add('flex', 'items-center', 'space-x-2');
             newOptionDiv.innerHTML = `
-                <input type="radio" name="mcAnswer" value="${optionCount}" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
-                <input type="text" class="mc-option ml-2 px-3 py-2 border border-gray-300 rounded-md w-full" placeholder="Option ${String.fromCharCode(65 + optionCount)}">
-                <button type="button" class="remove-option-btn ml-2 text-red-600 hover:text-red-900"><i class="fas fa-times"></i></button>
+                <input type="radio" name="mcAnswer" value="${optionCount}" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 cursor-pointer">
+                <input type="text" class="mc-option flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="Option ${String.fromCharCode(65 + optionCount)}">
+                <button type="button" class="remove-option-btn text-red-600 hover:text-red-900 px-2"><i class="fas fa-times"></i></button>
             `;
             container.appendChild(newOptionDiv);
             newOptionDiv.querySelector('.remove-option-btn').addEventListener('click', removeMultipleChoiceOption);
