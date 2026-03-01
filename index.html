@@ -5019,6 +5019,28 @@
                     return;
                 }
                 question.pairs = pairs;
+            } else if (type === 'fill-in-blank') {
+                const questionText = document.getElementById('fillBlankQuestionText').value.trim();
+                const answers = Array.from(document.querySelectorAll('.fill-blank-answer')).map(input => input.value.trim());
+                
+                if (!questionText || answers.length === 0 || answers.some(a => !a)) {
+                    showMessageModal('Input Error', 'Please fill in the question text and all blank answers.');
+                    return;
+                }
+                
+                question.text = questionText;
+                question.answers = answers;
+            } else if (type === 'ordering') {
+                const questionText = document.getElementById('orderingQuestionText').value.trim();
+                const items = Array.from(document.querySelectorAll('.ordering-item')).map(input => input.value.trim());
+                
+                if (!questionText || items.length < 2 || items.some(item => !item)) {
+                    showMessageModal('Input Error', 'Please fill in the question and at least two items.');
+                    return;
+                }
+                
+                question.text = questionText;
+                question.correctOrder = items;
             } else if (type === 'long-answer') {
                 const questionText = document.getElementById('longAnswerQuestionText').value.trim();
                 if (!questionText) {
@@ -5065,6 +5087,10 @@
                     questionSummary = `T/F: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 } else if (q.type === 'matching') {
                     questionSummary = `Matching: ${q.pairs.length} pairs ${marksText}`;
+                } else if (q.type === 'fill-in-blank') {
+                    questionSummary = `Fill Blank: ${q.text.substring(0, 35)}${q.text.length > 35 ? '...' : ''} (${q.answers.length} blanks) ${marksText}`;
+                } else if (q.type === 'ordering') {
+                    questionSummary = `Ordering: ${q.correctOrder.length} items ${marksText}`;
                 } else if (q.type === 'long-answer') {
                     questionSummary = `Long Answer: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 }
@@ -8999,6 +9025,57 @@ function loadSectionQuestions(questions) {
                                     <option value="">Select definition...</option>
                                     ${q.pairs.map((p, i) => `<option value="${i}">${p.definition}</option>`).join('')}
                                 </select>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        } else if (q.type === 'fill-in-blank') {
+            // Replace blanks with input fields
+            let textWithBlanks = q.text;
+            const blankCount = q.answers.length;
+            for (let i = 0; i < blankCount; i++) {
+                const placeholder = `<input type="text" name="blank-${questionId}-${i}" class="inline-block px-2 py-1 border-b-2 border-indigo-400 focus:outline-none focus:border-indigo-600 bg-transparent text-indigo-700 font-medium min-w-[120px]" placeholder="___">`;
+                textWithBlanks = textWithBlanks.replace(/_____/, placeholder).replace(/\[blank\]/, placeholder);
+            }
+            questionHtml = `
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <div class="flex items-start mb-3">
+                        <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3">
+                            ${index + 1}
+                        </span>
+                        <div class="flex-1">
+                            <h4 class="text-base font-semibold text-gray-800">Fill in the Blanks</h4>
+                            <p class="text-xs text-gray-500 mt-1">${q.marks} ${q.marks === 1 ? 'mark' : 'marks'}</p>
+                        </div>
+                    </div>
+                    <div class="ml-11">
+                        <p class="text-gray-700 leading-relaxed">${textWithBlanks}</p>
+                    </div>
+                </div>
+            `;
+        } else if (q.type === 'ordering') {
+            // Shuffle items for display
+            const shuffledItems = [...q.correctOrder].sort(() => Math.random() - 0.5);
+            questionHtml = `
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <div class="flex items-start mb-3">
+                        <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3">
+                            ${index + 1}
+                        </span>
+                        <div class="flex-1">
+                            <h4 class="text-base font-semibold text-gray-800">${q.text}</h4>
+                            <p class="text-xs text-gray-500 mt-1">${q.marks} ${q.marks === 1 ? 'mark' : 'marks'}</p>
+                            <p class="text-xs text-gray-600 mt-1"><i class="fas fa-info-circle mr-1"></i>Drag to reorder or use the dropdowns</p>
+                        </div>
+                    </div>
+                    <div class="ml-11 space-y-2" id="ordering-${questionId}">
+                        ${shuffledItems.map((item, i) => `
+                            <div class="flex items-center space-x-2 p-2 bg-white rounded border border-gray-300">
+                                <select name="order-${questionId}-${i}" class="px-2 py-1 border border-gray-300 rounded text-sm">
+                                    ${shuffledItems.map((_, idx) => `<option value="${idx + 1}">${idx + 1}</option>`).join('')}
+                                </select>
+                                <span class="flex-1 text-gray-700">${item}</span>
                             </div>
                         `).join('')}
                     </div>
