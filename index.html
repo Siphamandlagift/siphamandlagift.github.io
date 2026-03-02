@@ -2116,46 +2116,6 @@
                         <p class="text-gray-600">Create new courses and manage your assigned course materials.</p>
                     </div>
 
-                    <!-- Course Statistics Dashboard -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                        <div class="bg-white rounded-lg shadow p-6">
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <p class="text-sm text-gray-600 font-medium">Completed</p>
-                                    <h3 class="text-3xl font-bold text-green-600" id="coursesCompletedCount">0</h3>
-                                    <p class="text-xs text-gray-500 mt-1">Students finished</p>
-                                </div>
-                                <div class="p-3 rounded-full bg-green-100 text-green-600">
-                                    <i class="fas fa-check-circle text-2xl"></i>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow p-6">
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <p class="text-sm text-gray-600 font-medium">In Progress</p>
-                                    <h3 class="text-3xl font-bold text-blue-600" id="coursesInProgressCount">0</h3>
-                                    <p class="text-xs text-gray-500 mt-1">Students working</p>
-                                </div>
-                                <div class="p-3 rounded-full bg-blue-100 text-blue-600">
-                                    <i class="fas fa-spinner text-2xl"></i>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="bg-white rounded-lg shadow p-6">
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <p class="text-sm text-gray-600 font-medium">Not Started</p>
-                                    <h3 class="text-3xl font-bold text-orange-600" id="coursesNotStartedCount">0</h3>
-                                    <p class="text-xs text-gray-500 mt-1">Yet to begin</p>
-                                </div>
-                                <div class="p-3 rounded-full bg-orange-100 text-orange-600">
-                                    <i class="fas fa-clock text-2xl"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Tab Navigation -->
                     <div class="border-b border-gray-200 mb-6">
                         <nav class="-mb-px flex space-x-8">
@@ -3669,7 +3629,6 @@
             }
             if (sectionId === 'my-coursesContent') { // Training Manager's "My Courses"
                 renderTrainingManagerCoursesTable();
-                updateCourseStatisticsDashboard();
             }
             if (sectionId === 'assignmentsContent') {
                 renderTMAssignmentsTable();
@@ -5551,7 +5510,6 @@
             saveToLocalStorage(); // Save to localStorage
 
             renderTrainingManagerCoursesTable(); // Re-render the Training Manager's courses table
-            updateCourseStatisticsDashboard(); // Update course statistics dashboard
             renderAllExistingCoursesTable(); // Re-render the Admin's courses table
             populateLinkedCoursesSelection(); // Update courses available for programmes
             populateReportCourseSelect(); // Update courses available in reports dropdown
