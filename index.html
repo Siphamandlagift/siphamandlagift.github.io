@@ -2077,6 +2077,20 @@
                         <p class="text-gray-600">Create new courses and manage your assigned course materials.</p>
                     </div>
 
+                    <!-- Tab Navigation -->
+                    <div class="border-b border-gray-200 mb-6">
+                        <nav class="-mb-px flex space-x-8">
+                            <button onclick="switchCourseManagementTab('create')" id="createCourseTab" class="course-mgmt-tab border-b-2 border-indigo-500 py-4 px-1 text-sm font-medium text-indigo-600">
+                                <i class="fas fa-plus-circle mr-2"></i>Create Course
+                            </button>
+                            <button onclick="switchCourseManagementTab('mycourses')" id="myCreatedCoursesTab" class="course-mgmt-tab border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                                <i class="fas fa-list mr-2"></i>My Created Courses
+                            </button>
+                        </nav>
+                    </div>
+
+                    <!-- Create Course Tab Content -->
+                    <div id="createCourseTabContent" class="course-mgmt-tab-content">
                     <!-- Create New Course Section -->
                     <div class="bg-white rounded-lg shadow-lg mb-6">
                         <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-6 rounded-t-lg">
@@ -2400,11 +2414,17 @@
                             </div>
                         </form>
                     </div>
+                    </div>
 
+                    <!-- My Created Courses Tab Content -->
+                    <div id="myCreatedCoursesTabContent" class="course-mgmt-tab-content hidden">
                     <!-- Available Course Materials (Training Manager's Courses) -->
                     <div class="bg-white rounded-lg shadow overflow-hidden">
-                        <div class="px-6 py-4 border-b border-gray-200">
-                            <h3 class="text-lg font-semibold text-gray-800">Your Created Courses</h3>
+                        <div class="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
+                            <h3 class="text-xl font-bold text-gray-800">
+                                <i class="fas fa-book-open mr-2 text-indigo-600"></i>Your Created Courses
+                            </h3>
+                            <p class="text-sm text-gray-600 mt-1">View and manage all courses you've created</p>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200">
@@ -2434,6 +2454,7 @@
                                 <button class="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50" disabled>Next</button>
                             </div>
                         </div>
+                    </div>
                     </div>
                 </div>
 
@@ -9231,6 +9252,35 @@ function loadSectionQuestions(questions) {
 function closeCourseViewer() {
     document.getElementById('courseViewerModal').classList.add('hidden');
     document.getElementById('courseViewerModal').classList.remove('show');
+}
+
+// Function to switch between Create Course and My Created Courses tabs
+function switchCourseManagementTab(tabName) {
+    const createTab = document.getElementById('createCourseTab');
+    const myCoursesTab = document.getElementById('myCreatedCoursesTab');
+    const createContent = document.getElementById('createCourseTabContent');
+    const myCoursesContent = document.getElementById('myCreatedCoursesTabContent');
+    
+    // Remove active styles from all tabs
+    [createTab, myCoursesTab].forEach(tab => {
+        tab.classList.remove('border-indigo-500', 'text-indigo-600');
+        tab.classList.add('border-transparent', 'text-gray-500');
+    });
+    
+    // Hide all content
+    createContent.classList.add('hidden');
+    myCoursesContent.classList.add('hidden');
+    
+    // Show selected tab
+    if (tabName === 'create') {
+        createTab.classList.remove('border-transparent', 'text-gray-500');
+        createTab.classList.add('border-indigo-500', 'text-indigo-600');
+        createContent.classList.remove('hidden');
+    } else if (tabName === 'mycourses') {
+        myCoursesTab.classList.remove('border-transparent', 'text-gray-500');
+        myCoursesTab.classList.add('border-indigo-500', 'text-indigo-600');
+        myCoursesContent.classList.remove('hidden');
+    }
 }
 
 // Function to switch between Videos and Documents tabs
