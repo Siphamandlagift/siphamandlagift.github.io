@@ -2092,49 +2092,131 @@
                     <!-- Create Course Tab Content -->
                     <div id="createCourseTabContent" class="course-mgmt-tab-content">
                     <!-- Create New Course Section -->
-                    <div class="bg-white rounded-lg shadow-lg mb-6">
-                        <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-6 rounded-t-lg">
-                            <div class="flex items-center justify-between">
-                                <div class="flex items-center">
-                                    <i class="fas fa-graduation-cap text-3xl mr-3"></i>
-                                    <div>
-                                        <h3 class="text-2xl font-bold">Create New Course</h3>
-                                        <p class="text-indigo-100 text-sm mt-1">Follow the steps below to create your course</p>
+                    <div class="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 rounded-lg shadow-lg p-6 mb-6">
+                        <div class="mb-6">
+                            <h3 class="text-3xl font-bold text-gray-800 mb-2">
+                                <i class="fas fa-graduation-cap text-indigo-600 mr-3"></i>Create New Course
+                            </h3>
+                            <p class="text-gray-600">Click on any section below to start building your course</p>
+                        </div>
+
+                        <!-- Section Cards Grid -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                            <!-- Basic Info Card -->
+                            <div onclick="expandCourseSection('basicInfo')" class="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer border-2 border-transparent hover:border-indigo-500 p-5 group">
+                                <div class="flex items-start justify-between mb-3">
+                                    <div class="bg-indigo-100 rounded-lg p-3 group-hover:bg-indigo-600 transition-all duration-300">
+                                        <i class="fas fa-info-circle text-2xl text-indigo-600 group-hover:text-white transition-all duration-300"></i>
                                     </div>
+                                    <span class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full font-medium">Required</span>
                                 </div>
-                                <div class="text-right">
-                                    <p class="text-xs text-indigo-200">Total Sections</p>
-                                    <p class="text-2xl font-bold">6</p>
+                                <h4 class="text-lg font-bold text-gray-800 mb-2 group-hover:text-indigo-600 transition-all duration-300">Basic Information</h4>
+                                <p class="text-sm text-gray-600 mb-3">Course name, description, and deadline</p>
+                                <div class="flex items-center justify-between text-xs text-gray-500">
+                                    <span><i class="fas fa-check-circle text-green-500 mr-1"></i>3 fields</span>
+                                    <i class="fas fa-arrow-right text-indigo-600 opacity-0 group-hover:opacity-100 transition-all duration-300"></i>
                                 </div>
                             </div>
-                        </div>
-                        
-                        <!-- Progress Steps -->
-                        <div class="bg-gray-50 px-6 py-4 border-b">
-                            <div class="flex items-center justify-between text-xs">
-                                <div class="flex-1 text-center">
-                                    <div class="w-8 h-8 bg-indigo-600 text-white rounded-full mx-auto mb-1 flex items-center justify-center font-bold">1</div>
-                                    <p class="text-gray-600">Basic Info</p>
+
+                            <!-- Course Picture Card -->
+                            <div onclick="expandCourseSection('coursePicture')" class="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer border-2 border-transparent hover:border-purple-500 p-5 group">
+                                <div class="flex items-start justify-between mb-3">
+                                    <div class="bg-purple-100 rounded-lg p-3 group-hover:bg-purple-600 transition-all duration-300">
+                                        <i class="fas fa-image text-2xl text-purple-600 group-hover:text-white transition-all duration-300"></i>
+                                    </div>
+                                    <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full font-medium">Optional</span>
                                 </div>
-                                <div class="flex-1 border-t-2 border-gray-300 relative" style="top: -12px;"></div>
-                                <div class="flex-1 text-center">
-                                    <div class="w-8 h-8 bg-gray-300 text-white rounded-full mx-auto mb-1 flex items-center justify-center font-bold">2</div>
-                                    <p class="text-gray-600">Media</p>
+                                <h4 class="text-lg font-bold text-gray-800 mb-2 group-hover:text-purple-600 transition-all duration-300">Course Picture</h4>
+                                <p class="text-sm text-gray-600 mb-3">Upload a cover image for your course</p>
+                                <div class="flex items-center justify-between text-xs text-gray-500">
+                                    <span><i class="fas fa-upload text-purple-500 mr-1"></i>Image upload</span>
+                                    <i class="fas fa-arrow-right text-purple-600 opacity-0 group-hover:opacity-100 transition-all duration-300"></i>
                                 </div>
-                                <div class="flex-1 border-t-2 border-gray-300 relative" style="top: -12px;"></div>
-                                <div class="flex-1 text-center">
-                                    <div class="w-8 h-8 bg-gray-300 text-white rounded-full mx-auto mb-1 flex items-center justify-center font-bold">3</div>
-                                    <p class="text-gray-600">Assessment</p>
+                            </div>
+
+                            <!-- Videos Card -->
+                            <div onclick="expandCourseSection('videos')" class="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer border-2 border-transparent hover:border-blue-500 p-5 group">
+                                <div class="flex items-start justify-between mb-3">
+                                    <div class="bg-blue-100 rounded-lg p-3 group-hover:bg-blue-600 transition-all duration-300">
+                                        <i class="fas fa-video text-2xl text-blue-600 group-hover:text-white transition-all duration-300"></i>
+                                    </div>
+                                    <span class="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full font-medium" id="videoCountBadge">0 videos</span>
                                 </div>
-                                <div class="flex-1 border-t-2 border-gray-300 relative" style="top: -12px;"></div>
-                                <div class="flex-1 text-center">
-                                    <div class="w-8 h-8 bg-gray-300 text-white rounded-full mx-auto mb-1 flex items-center justify-center font-bold">4</div>
-                                    <p class="text-gray-600">Assignments</p>
+                                <h4 class="text-lg font-bold text-gray-800 mb-2 group-hover:text-blue-600 transition-all duration-300">Course Videos</h4>
+                                <p class="text-sm text-gray-600 mb-3">Add video content for your course</p>
+                                <div class="flex items-center justify-between text-xs text-gray-500">
+                                    <span><i class="fas fa-play-circle text-blue-500 mr-1"></i>Upload or link</span>
+                                    <i class="fas fa-arrow-right text-blue-600 opacity-0 group-hover:opacity-100 transition-all duration-300"></i>
+                                </div>
+                            </div>
+
+                            <!-- Documents Card -->
+                            <div onclick="expandCourseSection('documents')" class="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer border-2 border-transparent hover:border-red-500 p-5 group">
+                                <div class="flex items-start justify-between mb-3">
+                                    <div class="bg-red-100 rounded-lg p-3 group-hover:bg-red-600 transition-all duration-300">
+                                        <i class="fas fa-file-pdf text-2xl text-red-600 group-hover:text-white transition-all duration-300"></i>
+                                    </div>
+                                    <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full font-medium">Optional</span>
+                                </div>
+                                <h4 class="text-lg font-bold text-gray-800 mb-2 group-hover:text-red-600 transition-all duration-300">Course Documents</h4>
+                                <p class="text-sm text-gray-600 mb-3">Upload PDF/PPT files and materials</p>
+                                <div class="flex items-center justify-between text-xs text-gray-500">
+                                    <span><i class="fas fa-paperclip text-red-500 mr-1"></i>PDF, PPT files</span>
+                                    <i class="fas fa-arrow-right text-red-600 opacity-0 group-hover:opacity-100 transition-all duration-300"></i>
+                                </div>
+                            </div>
+
+                            <!-- Assessment Card -->
+                            <div onclick="expandCourseSection('assessment')" class="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer border-2 border-transparent hover:border-green-500 p-5 group">
+                                <div class="flex items-start justify-between mb-3">
+                                    <div class="bg-green-100 rounded-lg p-3 group-hover:bg-green-600 transition-all duration-300">
+                                        <i class="fas fa-question-circle text-2xl text-green-600 group-hover:text-white transition-all duration-300"></i>
+                                    </div>
+                                    <span class="text-xs bg-green-100 text-green-600 px-2 py-1 rounded-full font-medium" id="questionCountBadge">0 questions</span>
+                                </div>
+                                <h4 class="text-lg font-bold text-gray-800 mb-2 group-hover:text-green-600 transition-all duration-300">Assessment</h4>
+                                <p class="text-sm text-gray-600 mb-3">Create questions to test knowledge</p>
+                                <div class="flex items-center justify-between text-xs text-gray-500">
+                                    <span><i class="fas fa-clipboard-list text-green-500 mr-1"></i>6 question types</span>
+                                    <i class="fas fa-arrow-right text-green-600 opacity-0 group-hover:opacity-100 transition-all duration-300"></i>
+                                </div>
+                            </div>
+
+                            <!-- Assignments Card -->
+                            <div onclick="expandCourseSection('assignments')" class="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer border-2 border-transparent hover:border-purple-500 p-5 group">
+                                <div class="flex items-start justify-between mb-3">
+                                    <div class="bg-purple-100 rounded-lg p-3 group-hover:bg-purple-600 transition-all duration-300">
+                                        <i class="fas fa-tasks text-2xl text-purple-600 group-hover:text-white transition-all duration-300"></i>
+                                    </div>
+                                    <span class="text-xs bg-purple-100 text-purple-600 px-2 py-1 rounded-full font-medium" id="assignmentCountBadge">0 assignments</span>
+                                </div>
+                                <h4 class="text-lg font-bold text-gray-800 mb-2 group-hover:text-purple-600 transition-all duration-300">Assignments</h4>
+                                <p class="text-sm text-gray-600 mb-3">Add assignments for students to complete</p>
+                                <div class="flex items-center justify-between text-xs text-gray-500">
+                                    <span><i class="fas fa-pencil-alt text-purple-500 mr-1"></i>With documents</span>
+                                    <i class="fas fa-arrow-right text-purple-600 opacity-0 group-hover:opacity-100 transition-all duration-300"></i>
                                 </div>
                             </div>
                         </div>
 
-                        <form id="createCourseForm" class="p-6">
+                        <!-- Submit Button -->
+                        <div class="flex justify-end gap-3">
+                            <button type="button" onclick="resetCourseForm()" class="px-6 py-3 bg-white text-gray-700 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-400 font-medium transition ease-in-out duration-150 border-2 border-gray-300 shadow-sm">
+                                <i class="fas fa-redo mr-2"></i>Reset Form
+                            </button>
+                            <button type="button" onclick="submitCourseForm()" class="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold shadow-lg transition ease-in-out duration-150">
+                                <i class="fas fa-check-circle mr-2"></i>Create Course
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Expandable Sections Container -->
+                    <div id="expandedSectionContainer" class="hidden">
+                        <form id="createCourseForm" class="bg-white rounded-lg shadow-lg p-6">
+                            <!-- Dynamic content will be loaded here -->
+                        </form>
+                    </div>
+                    </div>
                             <!-- Basic Information -->
                             <div class="bg-gradient-to-r from-indigo-50 to-purple-50 p-5 rounded-lg mb-6">
                                 <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
@@ -2412,8 +2494,6 @@
                                     </button>
                                 </div>
                             </div>
-                        </form>
-                    </div>
                     </div>
 
                     <!-- My Created Courses Tab Content -->
@@ -5260,6 +5340,71 @@
             showMessageModal('Form Reset', 'The course creation form has been cleared.');
         }
 
+        // Expand course section for editing
+        function expandCourseSection(sectionName) {
+            const container = document.getElementById('expandedSectionContainer');
+            const form = document.getElementById('createCourseForm');
+            container.classList.remove('hidden');
+            form.innerHTML = '';
+            
+            // Create back button
+            const backButton = `
+                <div class="mb-6 flex items-center justify-between border-b pb-4">
+                    <button type="button" onclick="closeCourseSection()" class="flex items-center text-gray-600 hover:text-indigo-600 transition">
+                        <i class="fas fa-arrow-left mr-2"></i>
+                        <span class="font-medium">Back to Overview</span>
+                    </button>
+                    <h3 class="text-2xl font-bold text-gray-800">${getSectionTitle(sectionName)}</h3>
+                    <div class="w-32"></div>
+                </div>
+            `;
+            
+            // Load section content based on section name
+            let sectionContent = '';
+            switch(sectionName) {
+                case 'basicInfo':
+                    sectionContent = getBasicInfoSection();
+                    break;
+                case 'coursePicture':
+                    sectionContent = getCoursePictureSection();
+                    break;
+                case 'videos':
+                    sectionContent = getVideosSection();
+                    break;
+                case 'documents':
+                    sectionContent = getDocumentsSection();
+                    break;
+                case 'assessment':
+                    sectionContent = getAssessmentSection();
+                    break;
+                case 'assignments':
+                    sectionContent = getAssignmentsSection();
+                    break;
+            }
+            
+            form.innerHTML = backButton + sectionContent;
+            
+            // Scroll to top
+            container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+        function closeCourseSection() {
+            document.getElementById('expandedSectionContainer').classList.add('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        
+        function getSectionTitle(sectionName) {
+            const titles = {
+                'basicInfo': 'Basic Information',
+                'coursePicture': 'Course Picture',
+                'videos': 'Course Videos',
+                'documents': 'Course Documents',
+                'assessment': 'Assessment & Questions',
+                'assignments': 'Assignments'
+            };
+            return titles[sectionName] || 'Course Section';
+        }
+
         // Toggle collapsible sections in course creation
         function toggleSection(sectionId) {
             const section = document.getElementById(sectionId);
@@ -5278,28 +5423,265 @@
         function updateCourseSectionCounters() {
             // Update video count
             const videoCountEl = document.getElementById('videoCount');
-            if (videoCountEl) {
+            const videoCountBadgeEl = document.getElementById('videoCountBadge');
+            if (videoCountEl || videoCountBadgeEl) {
                 const count = currentCourseVideos.length;
-                videoCountEl.textContent = `${count} video${count !== 1 ? 's' : ''}`;
+                const text = `${count} video${count !== 1 ? 's' : ''}`;
+                if (videoCountEl) videoCountEl.textContent = text;
+                if (videoCountBadgeEl) videoCountBadgeEl.textContent = text;
             }
             
             // Update question count
             const questionCountEl = document.getElementById('questionCount');
-            if (questionCountEl) {
+            const questionCountBadgeEl = document.getElementById('questionCountBadge');
+            if (questionCountEl || questionCountBadgeEl) {
                 const count = currentCourseQuestions.length;
-                questionCountEl.textContent = `${count} question${count !== 1 ? 's' : ''}`;
+                const text = `${count} question${count !== 1 ? 's' : ''}`;
+                if (questionCountEl) questionCountEl.textContent = text;
+                if (questionCountBadgeEl) questionCountBadgeEl.textContent = text;
             }
             
             // Update assignment count
             const assignmentCountEl = document.getElementById('assignmentCount');
-            if (assignmentCountEl) {
+            const assignmentCountBadgeEl = document.getElementById('assignmentCountBadge');
+            if (assignmentCountEl || assignmentCountBadgeEl) {
                 const count = currentCourseAssignments.length;
-                assignmentCountEl.textContent = `${count} assignment${count !== 1 ? 's' : ''}`;
+                const text = `${count} assignment${count !== 1 ? 's' : ''}`;
+                if (assignmentCountEl) assignmentCountEl.textContent = text;
+                if (assignmentCountBadgeEl) assignmentCountBadgeEl.textContent = text;
             }
         }
 
         // Course Assignments Management
         let currentCourseAssignments = [];
+        
+        // Section content generators
+        function getBasicInfoSection() {
+            return `
+                <div class="bg-gradient-to-r from-indigo-50 to-purple-50 p-6 rounded-xl mb-6">
+                    <div class="grid grid-cols-1 gap-6">
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2" for="courseNameInput">
+                                <i class="fas fa-bookmark text-indigo-600 mr-2"></i> Course Name <span class="text-red-500">*</span>
+                            </label>
+                            <input id="courseNameInput" type="text" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-lg" placeholder="e.g., Advanced Safety Training">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2" for="courseDescriptionInput">
+                                <i class="fas fa-align-left text-indigo-600 mr-2"></i> Course Description <span class="text-red-500">*</span>
+                            </label>
+                            <textarea id="courseDescriptionInput" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-base" rows="4" placeholder="Provide a clear description of what students will learn in this course..."></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2" for="courseCompletionDeadlineInput">
+                                <i class="fas fa-calendar-alt text-indigo-600 mr-2"></i> Completion Deadline <span class="text-gray-400 text-xs font-normal">(Optional)</span>
+                            </label>
+                            <input id="courseCompletionDeadlineInput" type="date" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-lg">
+                            <p class="text-sm text-gray-600 mt-2"><i class="fas fa-info-circle mr-1"></i>Set a deadline for students to complete this course</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex justify-end">
+                    <button type="button" onclick="closeCourseSection()" class="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium shadow-md">
+                        <i class="fas fa-check mr-2"></i>Save & Close
+                    </button>
+                </div>
+            `;
+        }
+        
+        function getCoursePictureSection() {
+            return `
+                <div class="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-dashed border-purple-300 rounded-xl p-8 mb-6 hover:border-purple-500 transition text-center">
+                    <img id="coursePicturePreview" class="h-48 w-48 rounded-xl object-cover border-4 border-purple-200 shadow-lg mx-auto mb-6" src="https://placehold.co/256x256/E0E7FF/4F46E5?text=Course+Image" alt="Course Image">
+                    <div>
+                        <label class="block text-gray-700 text-lg font-bold mb-4">
+                            <i class="fas fa-image text-purple-600 mr-2"></i> Upload Course Picture
+                        </label>
+                        <input type="file" id="coursePictureInput" accept="image/*" class="block w-full text-base text-gray-700
+                            file:mr-4 file:py-3 file:px-6
+                            file:rounded-lg file:border-0
+                            file:text-base file:font-semibold
+                            file:bg-purple-600 file:text-white
+                            hover:file:bg-purple-700 file:cursor-pointer file:shadow-md"/>
+                        <p class="text-sm text-gray-500 mt-3"><i class="fas fa-info-circle mr-1"></i>PNG or JPG, up to 5MB. Recommended size: 512x512px</p>
+                    </div>
+                </div>
+                <div class="flex justify-end">
+                    <button type="button" onclick="closeCourseSection()" class="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium shadow-md">
+                        <i class="fas fa-check mr-2"></i>Save & Close
+                    </button>
+                </div>
+            `;
+        }
+        
+        function getVideosSection() {
+            return `
+                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 mb-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="md:col-span-2">
+                                <label class="block text-gray-700 text-sm font-bold mb-2" for="videoTitleInput">
+                                    <i class="fas fa-heading text-blue-600 mr-2"></i> Video Title <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" id="videoTitleInput" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg" placeholder="e.g., Introduction to Safety Procedures">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2" for="videoDurationInput">
+                                    <i class="fas fa-clock text-blue-600 mr-2"></i> Duration <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" id="videoDurationInput" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg" placeholder="e.g., 10:30">
+                            </div>
+                            <div class="md:col-span-2">
+                                <div class="border-2 border-dashed border-blue-300 rounded-lg p-6 bg-blue-50">
+                                    <p class="text-base font-bold text-gray-700 mb-4 text-center">
+                                        <i class="fas fa-info-circle text-blue-600 mr-2"></i> Choose one option below:
+                                    </p>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label class="block text-gray-700 text-sm font-bold mb-2" for="videoFileInput">
+                                                <i class="fas fa-upload text-blue-600 mr-2"></i> Upload Video File
+                                            </label>
+                                            <input type="file" id="videoFileInput" accept="video/*" class="block w-full text-sm text-gray-700
+                                                file:mr-4 file:py-2 file:px-4
+                                                file:rounded-lg file:border-0
+                                                file:text-sm file:font-semibold
+                                                file:bg-blue-600 file:text-white
+                                                hover:file:bg-blue-700 file:cursor-pointer file:shadow-md"/>
+                                            <p class="text-xs text-gray-500 mt-2">MP4, AVI, MOV, etc.</p>
+                                        </div>
+                                        <div class="flex flex-col justify-center items-center">
+                                            <span class="text-xl font-bold text-gray-400 mb-4">OR</span>
+                                            <div class="w-full">
+                                                <label class="block text-gray-700 text-sm font-bold mb-2" for="videoUrlInput">
+                                                    <i class="fas fa-link text-blue-600 mr-2"></i> Video URL
+                                                </label>
+                                                <input type="url" id="videoUrlInput" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="https://youtube.com/...">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" id="addVideoBtn" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 px-6 rounded-lg hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold shadow-lg transition text-lg">
+                            <i class="fas fa-plus-circle mr-2"></i>Add Video to Course
+                        </button>
+                    </div>
+                    <div id="courseVideosList" class="mt-6 space-y-3"></div>
+                </div>
+                <div class="flex justify-end">
+                    <button type="button" onclick="closeCourseSection()" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-md">
+                        <i class="fas fa-check mr-2"></i>Save & Close
+                    </button>
+                </div>
+            `;
+        }
+        
+        function getDocumentsSection() {
+            return `
+                <div class="bg-gradient-to-r from-red-50 to-orange-50 rounded-xl p-6 mb-6 border-2 border-red-200">
+                    <div class="bg-white p-6 rounded-xl shadow-sm">
+                        <div class="border-2 border-dashed border-red-300 rounded-lg p-8 bg-red-50 text-center hover:border-red-500 transition">
+                            <div class="mb-4">
+                                <i class="fas fa-file-pdf text-6xl text-red-600 mb-4"></i>
+                            </div>
+                            <label class="block text-gray-700 text-lg font-bold mb-4">
+                                <i class="fas fa-upload text-red-600 mr-2"></i> Upload Course Documents
+                            </label>
+                            <input type="file" id="courseDocumentInput" accept=".pdf,.ppt,.pptx" class="block w-full text-base text-gray-700
+                                file:mr-4 file:py-3 file:px-6
+                                file:rounded-lg file:border-0
+                                file:text-base file:font-semibold
+                                file:bg-red-600 file:text-white
+                                hover:file:bg-red-700 file:cursor-pointer file:shadow-md"/>
+                            <p class="text-sm text-gray-500 mt-3"><i class="fas fa-info-circle mr-1"></i>PDF or PowerPoint files only</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex justify-end">
+                    <button type="button" onclick="closeCourseSection()" class="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium shadow-md">
+                        <i class="fas fa-check mr-2"></i>Save & Close
+                    </button>
+                </div>
+            `;
+        }
+        
+        function getAssessmentSection() {
+            return `
+                <div class="bg-gradient-to-r from-green-50 to-teal-50 rounded-xl p-6 mb-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm">
+                        <div class="mb-6">
+                            <label class="block text-gray-700 text-sm font-bold mb-3">
+                                <i class="fas fa-question-circle text-green-600 mr-2"></i> Select Question Type
+                            </label>
+                            <select id="questionTypeSelect" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg font-medium">
+                                <option value="">-- Choose Question Type --</option>
+                                <option value="multiple-choice">Multiple Choice</option>
+                                <option value="true-false">True/False</option>
+                                <option value="matching">Matching</option>
+                                <option value="fill-in-blank">Fill in the Blank</option>
+                                <option value="ordering">Ordering</option>
+                                <option value="long-answer">Long Answer</option>
+                            </select>
+                        </div>
+                        <div id="questionInputArea" class="hidden">
+                            <!-- Question inputs will be dynamically added here -->
+                        </div>
+                    </div>
+                    <div id="courseQuestionsList" class="mt-6 space-y-3"></div>
+                </div>
+                <div class="flex justify-end">
+                    <button type="button" onclick="closeCourseSection()" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-md">
+                        <i class="fas fa-check mr-2"></i>Save & Close
+                    </button>
+                </div>
+            `;
+        }
+        
+        function getAssignmentsSection() {
+            return `
+                <div class="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-6 mb-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm space-y-6">
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2" for="assignmentTitleInput">
+                                <i class="fas fa-heading text-purple-600 mr-2"></i> Assignment Title <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" id="assignmentTitleInput" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-lg" placeholder="e.g., Safety Protocol Assessment">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2" for="assignmentDescriptionInput">
+                                <i class="fas fa-align-left text-purple-600 mr-2"></i> Assignment Description <span class="text-red-500">*</span>
+                            </label>
+                            <textarea id="assignmentDescriptionInput" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-base" rows="4" placeholder="Describe what students need to do..."></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-3">
+                                <i class="fas fa-paperclip text-purple-600 mr-2"></i> Assignment Documents <span class="text-gray-400 text-xs font-normal">(Optional)</span>
+                            </label>
+                            <div class="border-2 border-dashed border-purple-300 rounded-lg p-6 bg-purple-50 text-center hover:border-purple-500 transition">
+                                <input type="file" id="assignmentDocsInput" accept=".pdf,.ppt,.pptx,.doc,.docx" multiple class="block w-full text-base text-gray-700
+                                    file:mr-4 file:py-3 file:px-6
+                                    file:rounded-lg file:border-0
+                                    file:text-base file:font-semibold
+                                    file:bg-purple-600 file:text-white
+                                    hover:file:bg-purple-700 file:cursor-pointer file:shadow-md"/>
+                                <p class="text-sm text-gray-500 mt-3"><i class="fas fa-info-circle mr-1"></i>PDF, PPT, or Word documents. You can select multiple files.</p>
+                            </div>
+                        </div>
+                        <button type="button" id="addCourseAssignmentBtn" class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-4 px-6 rounded-lg hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-purple-500 font-bold shadow-lg transition text-lg">
+                            <i class="fas fa-plus-circle mr-2"></i>Add Assignment to Course
+                        </button>
+                    </div>
+                    <div id="courseAssignmentsList" class="mt-6 space-y-3"></div>
+                </div>
+                <div class="flex justify-end">
+                    <button type="button" onclick="closeCourseSection()" class="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium shadow-md">
+                        <i class="fas fa-check mr-2"></i>Save & Close
+                    </button>
+                </div>
+            `;
+        }
+
+        // Course Assignments Management
 
         // Show selected document files for course assignment
         const courseAssignmentDocInput = document.getElementById('courseAssignmentDocumentInput');
@@ -5543,10 +5925,21 @@
         // Add event listener for Add Video button
         document.getElementById('addVideoBtn').addEventListener('click', addVideoToCourse);
 
-        // Handle Create Course Form Submission
-        document.getElementById('createCourseForm').addEventListener('submit', function(e) {
-            e.preventDefault();
+        // Function to submit course form
+        function submitCourseForm() {
+            // Trigger the form submit event
+            const form = document.getElementById('createCourseForm');
+            if (form) {
+                const event = new Event('submit', { bubbles: true, cancelable: true });
+                form.dispatchEvent(event);
+            } else {
+                // If form is not expanded, directly call submission logic
+                handleCourseCreation();
+            }
+        }
 
+        // Handle Create Course Form Submission
+        function handleCourseCreation() {
             const courseName = document.getElementById('courseNameInput').value.trim();
             const courseDescription = document.getElementById('courseDescriptionInput').value.trim();
 
@@ -5566,7 +5959,7 @@
             // Create documents array from uploaded course PDF if exists
             const documentsArray = [];
             const coursePdfInput = document.getElementById('coursePdfInput');
-            if (coursePdfInput.files.length > 0) {
+            if (coursePdfInput && coursePdfInput.files.length > 0) {
                 const file = coursePdfInput.files[0];
                 const fileExtension = file.name.split('.').pop().toUpperCase();
                 documentsArray.push({
@@ -5616,6 +6009,17 @@
                 `Course "${courseName}" has been created with ${videoText}, ${questionText}${assignmentText}. You can assign students to this course anytime from the assignment section.`
             );
             resetCourseForm();
+        }
+        
+        // Add form submit event listener
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('createCourseForm');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    handleCourseCreation();
+                });
+            }
         });
 
         // Course Deadline Helper Function
