@@ -1276,6 +1276,45 @@
                         </div>
                     </div>
 
+                    <!-- Training Manager Stats Cards (Hidden by default) -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6" id="trainingManagerStatsCards" style="display: none;">
+                        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500 hover:shadow-lg transition">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-lg bg-gradient-to-br from-green-100 to-green-50 text-green-600 mr-4">
+                                    <i class="fas fa-check-circle text-xl"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-600 font-medium">Courses Completed</p>
+                                    <h3 class="text-3xl font-bold text-gray-900" id="dashboardCoursesCompleted">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500 hover:shadow-lg transition">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-lg bg-gradient-to-br from-blue-100 to-blue-50 text-blue-600 mr-4">
+                                    <i class="fas fa-spinner text-xl"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-600 font-medium">Courses In Progress</p>
+                                    <h3 class="text-3xl font-bold text-gray-900" id="dashboardCoursesInProgress">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-orange-500 hover:shadow-lg transition">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-lg bg-gradient-to-br from-orange-100 to-orange-50 text-orange-600 mr-4">
+                                    <i class="fas fa-clock text-xl"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-600 font-medium">Courses Not Started</p>
+                                    <h3 class="text-3xl font-bold text-gray-900" id="dashboardCoursesNotStarted">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Student Stats Cards (Hidden by default) -->
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6" id="studentStatsCards" style="display: none;">
                         <div class="bg-white rounded-lg shadow p-6 border-l-4 border-orange-500 hover:shadow-lg transition">
@@ -6979,6 +7018,7 @@
             const totalCoursesElement = document.getElementById('totalCourses');
             const totalStudentsElement = document.getElementById('totalStudents');
             const adminStatsCards = document.getElementById('adminStatsCards');
+            const trainingManagerStatsCards = document.getElementById('trainingManagerStatsCards');
             const studentStatsCards = document.getElementById('studentStatsCards');
             const recentActivitySection = document.getElementById('recentActivitySection');
             const recentNotificationsSection = document.getElementById('recentNotificationsSection');
@@ -6986,8 +7026,9 @@
             const certificatesEarnedSection = document.getElementById('certificatesEarnedSection');
 
             if (loggedInUser && loggedInUser.role === 'student') {
-                // Show student stats, hide admin stats
+                // Show student stats, hide admin and training manager stats
                 if (adminStatsCards) adminStatsCards.style.display = 'none';
+                if (trainingManagerStatsCards) trainingManagerStatsCards.style.display = 'none';
                 if (studentStatsCards) studentStatsCards.style.display = 'grid';
                 if (recentActivitySection) recentActivitySection.style.display = 'none';
                 if (recentNotificationsSection) recentNotificationsSection.style.display = 'block';
@@ -7027,9 +7068,53 @@
 
                 // Load certificates earned
                 setTimeout(() => loadStudentCertificatesEarned(loggedInUser.id), 100);
+            } else if (loggedInUser && loggedInUser.role === 'training_manager') {
+                // Show training manager stats, hide admin and student stats
+                if (adminStatsCards) adminStatsCards.style.display = 'none';
+                if (trainingManagerStatsCards) trainingManagerStatsCards.style.display = 'grid';
+                if (studentStatsCards) studentStatsCards.style.display = 'none';
+                if (recentActivitySection) recentActivitySection.style.display = 'block';
+                if (recentNotificationsSection) recentNotificationsSection.style.display = 'none';
+                if (badgesEarnedSection) badgesEarnedSection.style.display = 'none';
+                if (certificatesEarnedSection) certificatesEarnedSection.style.display = 'none';
+
+                // Calculate course statistics for training manager
+                const students = allUsersData.filter(user => user.role === 'student');
+                const myCourses = allCoursesData.filter(course => course.creatorId === loggedInUser.id);
+                const myCourseIds = myCourses.map(c => c.id);
+                
+                let completedCount = 0;
+                let inProgressCount = 0;
+                let notStartedCount = 0;
+                
+                students.forEach(student => {
+                    if (!student.coursesEnrolled) return;
+                    
+                    student.coursesEnrolled.forEach(enrollment => {
+                        if (myCourseIds.includes(enrollment.courseId)) {
+                            if (enrollment.completionDate) {
+                                completedCount++;
+                            } else if (enrollment.hoursSpent && enrollment.hoursSpent > 0) {
+                                inProgressCount++;
+                            } else {
+                                notStartedCount++;
+                            }
+                        }
+                    });
+                });
+                
+                // Update dashboard counters
+                const completedElement = document.getElementById('dashboardCoursesCompleted');
+                const inProgressElement = document.getElementById('dashboardCoursesInProgress');
+                const notStartedElement = document.getElementById('dashboardCoursesNotStarted');
+                
+                if (completedElement) completedElement.textContent = completedCount;
+                if (inProgressElement) inProgressElement.textContent = inProgressCount;
+                if (notStartedElement) notStartedElement.textContent = notStartedCount;
             } else {
-                // Show admin stats, hide student stats
+                // Show admin stats, hide training manager and student stats
                 if (adminStatsCards) adminStatsCards.style.display = 'grid';
+                if (trainingManagerStatsCards) trainingManagerStatsCards.style.display = 'none';
                 if (studentStatsCards) studentStatsCards.style.display = 'none';
                 if (recentActivitySection) recentActivitySection.style.display = 'block';
                 if (recentNotificationsSection) recentNotificationsSection.style.display = 'none';
