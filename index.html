@@ -2231,18 +2231,28 @@
                             </div>
 
                             <!-- Assessment Section -->
-                            <div class="bg-gradient-to-r from-green-50 to-teal-50 p-5 rounded-lg mb-6">
-                                <h4 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                                    <i class="fas fa-clipboard-list text-green-600 mr-2"></i>
-                                    Course Assessment <span class="text-gray-400 text-sm ml-2">(Optional)</span>
-                                </h4>
-                                <div class="bg-white p-5 rounded-lg shadow-sm">
-                                    <div class="mb-4">
-                                        <label class="block text-gray-700 text-sm font-medium mb-2" for="questionTypeSelect">
-                                            <i class="fas fa-question-circle text-gray-500 mr-1"></i> Question Type
+                            <div class="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 p-6 rounded-xl mb-6 border border-emerald-100 shadow-sm">
+                                <div class="flex items-center justify-between mb-5">
+                                    <div>
+                                        <h4 class="text-xl font-bold text-gray-800 flex items-center">
+                                            <div class="p-2 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg mr-3">
+                                                <i class="fas fa-clipboard-list text-white text-lg"></i>
+                                            </div>
+                                            Course Assessment
+                                        </h4>
+                                        <p class="text-sm text-gray-600 mt-1 ml-12">Create questions to evaluate student understanding</p>
+                                    </div>
+                                    <span class="px-3 py-1 bg-white rounded-full text-xs font-semibold text-emerald-600 border border-emerald-200">Optional</span>
+                                </div>
+                                
+                                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                                    <!-- Question Type Selection -->
+                                    <div class="mb-5">
+                                        <label class="block text-gray-700 text-sm font-semibold mb-3" for="questionTypeSelect">
+                                            <i class="fas fa-layer-group text-emerald-500 mr-2"></i> Question Type
                                         </label>
-                                        <select id="questionTypeSelect" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white">
-                                            <option value="">Select a question type</option>
+                                        <select id="questionTypeSelect" class="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white text-gray-700 font-medium transition-all hover:border-emerald-300">
+                                            <option value="">— Select a question type —</option>
                                             <option value="multiple-choice">📝 Multiple Choice</option>
                                             <option value="true-false">✓ True/False</option>
                                             <option value="matching">🔗 Matching</option>
@@ -2253,21 +2263,29 @@
                                     </div>
 
                                     <!-- Question Input Area (Dynamic) -->
-                                    <div id="questionInputArea" class="space-y-4 mb-4">
-                                        <!-- Content will be dynamically loaded here based on question type -->
+                                    <div id="questionInputArea" class="space-y-4 mb-5 min-h-[120px]">
+                                        <div class="flex items-center justify-center py-8 text-gray-400">
+                                            <i class="fas fa-arrow-up mr-2"></i>
+                                            <span class="text-sm">Select a question type to begin</span>
+                                        </div>
                                     </div>
 
-                                    <button type="button" id="addQuestionBtn" class="bg-gradient-to-r from-green-600 to-teal-600 text-white px-6 py-3 rounded-lg text-sm font-medium hover:from-green-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-green-500 shadow-md transition ease-in-out duration-150" disabled>
-                                        <i class="fas fa-plus-circle mr-2"></i> Add Question to Course
+                                    <!-- Add Question Button -->
+                                    <button type="button" id="addQuestionBtn" class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-6 py-3.5 rounded-xl text-sm font-semibold hover:from-emerald-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" disabled>
+                                        <i class="fas fa-plus-circle mr-2"></i> Add Question to Assessment
                                     </button>
 
+                                    <!-- Questions List -->
                                     <div class="mt-6">
-                                        <h5 class="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                                            <i class="fas fa-list-ul text-green-600 mr-2"></i> Questions Added:
-                                        </h5>
-                                        <ul id="courseQuestionsList" class="border-2 border-gray-200 rounded-lg p-4 bg-gray-50 max-h-64 overflow-y-auto">
-                                            <li class="text-gray-400 text-sm italic flex items-center justify-center py-4">
-                                                <i class="fas fa-info-circle mr-2"></i>No questions added yet
+                                        <div class="flex items-center justify-between mb-3">
+                                            <h5 class="text-sm font-bold text-gray-700 flex items-center">
+                                                <i class="fas fa-list-ul text-emerald-600 mr-2"></i> Questions Added
+                                            </h5>
+                                            <span id="questionCount" class="text-xs font-semibold px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full">0 Questions</span>
+                                        </div>
+                                        <ul id="courseQuestionsList" class="border-2 border-dashed border-gray-200 rounded-xl p-4 bg-gradient-to-br from-gray-50 to-slate-50 max-h-80 overflow-y-auto space-y-2">
+                                            <li class="text-gray-400 text-sm italic flex items-center justify-center py-8">
+                                                <i class="fas fa-inbox mr-2"></i>No questions added yet
                                             </li>
                                         </ul>
                                     </div>
@@ -5020,38 +5038,55 @@
         // Update the displayed list of questions for the current course
         function updateCourseQuestionsList() {
             const list = document.getElementById('courseQuestionsList');
+            const countBadge = document.getElementById('questionCount');
             list.innerHTML = ''; // Clear existing list
 
             if (currentCourseQuestions.length === 0) {
-                list.innerHTML = '<li class="text-gray-500 text-sm italic">No questions added yet.</li>';
+                list.innerHTML = '<li class="text-gray-400 text-sm italic flex items-center justify-center py-8"><i class="fas fa-inbox mr-2"></i>No questions added yet</li>';
+                if (countBadge) countBadge.textContent = '0 Questions';
                 return;
+            }
+
+            // Update count badge
+            if (countBadge) {
+                const plural = currentCourseQuestions.length === 1 ? 'Question' : 'Questions';
+                countBadge.textContent = `${currentCourseQuestions.length} ${plural}`;
             }
 
             currentCourseQuestions.forEach((q, index) => {
                 const listItem = document.createElement('li');
-                listItem.classList.add('flex', 'justify-between', 'items-center', 'py-2', 'px-3', 'border-b', 'border-gray-100');
-                if (index === currentCourseQuestions.length - 1) {
-                    listItem.classList.remove('border-b'); // Remove border for last item
-                }
+                listItem.classList.add('flex', 'justify-between', 'items-center', 'py-3', 'px-4', 'bg-white', 'rounded-lg', 'border', 'border-gray-200', 'hover:border-emerald-300', 'hover:shadow-sm', 'transition-all');
+                
                 let questionSummary = '';
                 const marksText = `(${q.marks} ${q.marks === 1 ? 'mark' : 'marks'})`;
+                let icon = '';
+                
                 if (q.type === 'multiple-choice') {
+                    icon = '📝';
                     questionSummary = `MC: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 } else if (q.type === 'true-false') {
+                    icon = '✓';
                     questionSummary = `T/F: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 } else if (q.type === 'matching') {
+                    icon = '🔗';
                     questionSummary = `Matching: ${q.pairs.length} pairs ${marksText}`;
                 } else if (q.type === 'fill-in-blank') {
+                    icon = '✏️';
                     questionSummary = `Fill in Blank: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 } else if (q.type === 'ordering') {
+                    icon = '🔢';
                     questionSummary = `Ordering: ${q.correctOrder.length} items ${marksText}`;
                 } else if (q.type === 'long-answer') {
+                    icon = '📄';
                     questionSummary = `Long Answer: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 }
 
                 listItem.innerHTML = `
-                    <span class="text-sm text-gray-700">${index + 1}. ${questionSummary}</span>
-                    <button type="button" class="text-red-600 hover:text-red-900 text-sm delete-question-btn" data-index="${index}">
+                    <div class="flex items-center space-x-3">
+                        <span class="flex items-center justify-center w-8 h-8 bg-emerald-100 text-emerald-700 rounded-lg font-bold text-sm">${index + 1}</span>
+                        <span class="text-sm text-gray-700 flex items-center"><span class="mr-2">${icon}</span> ${questionSummary}</span>
+                    </div>
+                    <button type="button" class="text-red-600 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors delete-question-btn" data-index="${index}">
                         <i class="fas fa-trash"></i>
                     </button>
                 `;
