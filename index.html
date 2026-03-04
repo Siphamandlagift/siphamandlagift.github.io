@@ -1207,19 +1207,33 @@
                         
                         <div class="relative dropdown">
                             <button type="button" class="flex items-center focus:outline-none" onclick="toggleDropdown(this)">
-                                <img src="https://placehold.co/32x32/FF5733/FFFFFF?text=U" alt="User" class="w-8 h-8 rounded-full">
+                                <img src="https://placehold.co/32x32/FF5733/FFFFFF?text=U" alt="User" class="w-8 h-8 rounded-full" id="topNavUserAvatar">
                                 <span class="ml-2 text-gray-700 hidden md:inline" id="topNavUsername">Admin User</span>
                                 <i class="fas fa-chevron-down ml-1 text-gray-600 text-xs hidden md:inline"></i>
                             </button>
-                            <div class="dropdown-menu hidden mt-2 w-48 bg-white rounded-md shadow-lg py-1">
-                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" data-section="profile">
-                                    <i class="fas fa-user mr-2"></i> Profile
+                            <div class="dropdown-menu hidden absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg py-1 border border-gray-200 z-50">
+                                <div class="px-4 py-3 border-b border-gray-200">
+                                    <p class="text-sm font-semibold text-gray-900" id="dropdownUserName">Admin User</p>
+                                    <p class="text-xs text-gray-500" id="dropdownUserEmail">admin@example.com</p>
+                                </div>
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dropdown-nav-link" data-section="profile">
+                                    <i class="fas fa-user mr-2 text-gray-500"></i> My Profile
                                 </a>
-                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" data-section="system-settings">
-                                    <i class="fas fa-cog mr-2"></i> Settings
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dropdown-nav-link" data-section="dashboard">
+                                    <i class="fas fa-home mr-2 text-gray-500"></i> Dashboard
                                 </a>
-                                <div class="border-t border-gray-200"></div>
-                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" id="topLogoutBtn">
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dropdown-nav-link" data-section="system-settings">
+                                    <i class="fas fa-cog mr-2 text-gray-500"></i> Settings
+                                </a>
+                                <div class="border-t border-gray-200 my-1"></div>
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-question-circle mr-2 text-gray-500"></i> Help & Support
+                                </a>
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-keyboard mr-2 text-gray-500"></i> Keyboard Shortcuts
+                                </a>
+                                <div class="border-t border-gray-200 my-1"></div>
+                                <a href="#" class="block px-4 py-2 text-sm text-red-600 hover:bg-red-50" id="topLogoutBtn">
                                     <i class="fas fa-sign-out-alt mr-2"></i> Logout
                                 </a>
                             </div>
@@ -3717,6 +3731,11 @@
                 document.getElementById('greetingName').textContent = loggedInUser.name; // Only first name for greeting
                 document.querySelector('#sidebar .user-info img').src = loggedInUser.picture;
                 document.querySelector('header .dropdown img').src = loggedInUser.picture;
+                
+                // Update dropdown user info
+                document.getElementById('dropdownUserName').textContent = loggedInUser.fullName;
+                document.getElementById('dropdownUserEmail').textContent = loggedInUser.email;
+                document.getElementById('topNavUserAvatar').src = loggedInUser.picture;
 
 
                 // Show/hide navigation sections based on role
@@ -3816,6 +3835,20 @@
         }
         document.getElementById('logoutBtn').addEventListener('click', handleLogout);
         document.getElementById('topLogoutBtn').addEventListener('click', handleLogout);
+
+        // Event listeners for dropdown navigation links
+        document.querySelectorAll('.dropdown-nav-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const sectionId = this.getAttribute('data-section') + 'Content';
+                showSection(sectionId);
+                // Close the dropdown
+                const dropdown = this.closest('.dropdown-menu');
+                if (dropdown) {
+                    dropdown.classList.add('hidden');
+                }
+            });
+        });
 
         // ==================== LOCAL STORAGE PERSISTENCE ====================
         // Save data to localStorage
