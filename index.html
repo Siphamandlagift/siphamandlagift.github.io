@@ -4594,79 +4594,68 @@
         // Function to render question input fields based on type
         function renderQuestionInputArea(type) {
             const questionInputArea = document.getElementById('questionInputArea');
-            questionInputArea.innerHTML = ''; // Clear previous inputs
-            document.getElementById('addQuestionBtn').disabled = true; // Disable until valid input
+            questionInputArea.innerHTML = '';
+            document.getElementById('addQuestionBtn').disabled = true;
 
-            if (!type) return; // Exit if no type is selected
+            if (!type) return;
 
             const marksInputHTML = `
-                <div class="mt-2">
-                    <label class="block text-gray-700 text-sm font-medium mb-2" for="questionMarks">Marks</label>
-                    <input type="number" id="questionMarks" class="w-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" min="1" value="1">
+                <div class="flex items-center gap-2 bg-gray-50 p-2 rounded-md border border-gray-200 mt-3 w-max">
+                    <label class="text-gray-700 text-sm font-semibold" for="questionMarks">Marks:</label>
+                    <input type="number" id="questionMarks" class="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500" min="1" value="1">
                 </div>
             `;
 
             if (type === 'multiple-choice') {
                 questionInputArea.innerHTML = `
-                    <div class="mb-4">
-                        <label class="block text-gray-700 text-sm font-medium mb-2" for="mcQuestionText">Question Text</label>
-                        <textarea id="mcQuestionText" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" rows="2" placeholder="Enter multiple-choice question"></textarea>
+                    <div class="mb-3">
+                        <textarea id="mcQuestionText" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500" rows="2" placeholder="Enter Multiple Choice question..."></textarea>
                     </div>
-                    <div id="mcOptionsContainer" class="space-y-3 mb-4">
-                        <label class="block text-gray-700 text-sm font-medium mb-3">Options <span class="text-gray-500 text-xs">(Enter all options first, then select the correct answer(s))</span></label>
-                        <div class="flex items-start gap-3">
-                            <input type="checkbox" name="mcAnswer" value="0" class="mt-3 cursor-pointer rounded" style="width: 20px; height: 20px; accent-color: #059669; opacity: 1; flex-shrink: 0;" disabled>
-                            <input type="text" class="mc-option px-3 py-2 border border-gray-300 rounded-md flex-1" placeholder="Add an answer" onkeydown="if(event.key==='Enter'){event.preventDefault();addMultipleChoiceOption();}">
-                            <button type="button" class="remove-option-btn mt-1 text-red-600 hover:text-red-900 hover:bg-red-50 p-2 rounded transition-colors" style="flex-shrink: 0;"><i class="fas fa-times"></i></button>
+                    <div id="mcOptionsContainer" class="space-y-2 mb-2">
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="text-gray-700 text-sm font-semibold">Options <span class="text-gray-500 text-xs font-normal">(tick correct answer)</span></label>
+                            <button type="button" id="addMcOptionBtn" class="text-emerald-600 text-xs font-semibold hover:text-emerald-800"><i class="fas fa-plus mr-1"></i>Add Option</button>
                         </div>
-                        <div class="flex items-start gap-3">
-                            <input type="checkbox" name="mcAnswer" value="1" class="mt-3 cursor-pointer rounded" style="width: 20px; height: 20px; accent-color: #059669; opacity: 1; flex-shrink: 0;" disabled>
-                            <input type="text" class="mc-option px-3 py-2 border border-gray-300 rounded-md flex-1" placeholder="Add an answer" onkeydown="if(event.key==='Enter'){event.preventDefault();addMultipleChoiceOption();}">
-                            <button type="button" class="remove-option-btn mt-1 text-red-600 hover:text-red-900 hover:bg-red-50 p-2 rounded transition-colors" style="flex-shrink: 0;"><i class="fas fa-times"></i></button>
+                        <div class="flex items-center gap-2 mc-option-row">
+                            <input type="checkbox" name="mcAnswer" value="0" class="h-4 w-4 text-emerald-600 border-gray-300 rounded cursor-pointer" disabled>
+                            <input type="text" class="mc-option px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Option 1" onkeydown="if(event.key==='Enter'){event.preventDefault();addMultipleChoiceOption();}">
+                            <button type="button" class="remove-option-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="flex items-center gap-2 mc-option-row">
+                            <input type="checkbox" name="mcAnswer" value="1" class="h-4 w-4 text-emerald-600 border-gray-300 rounded cursor-pointer" disabled>
+                            <input type="text" class="mc-option px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Option 2" onkeydown="if(event.key==='Enter'){event.preventDefault();addMultipleChoiceOption();}">
+                            <button type="button" class="remove-option-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
                         </div>
                     </div>
-                    <button type="button" id="addMcOptionBtn" class="text-indigo-600 text-sm hover:text-indigo-800 focus:outline-none">
-                        <i class="fas fa-plus mr-1"></i> Add Option
-                    </button>
                     ${marksInputHTML}
                 `;
                 document.getElementById('addMcOptionBtn').addEventListener('click', addMultipleChoiceOption);
-                document.querySelectorAll('.remove-option-btn').forEach(button => {
-                    button.addEventListener('click', removeMultipleChoiceOption);
-                });
+                document.querySelectorAll('.remove-option-btn').forEach(button => button.addEventListener('click', removeMultipleChoiceOption));
                 document.getElementById('mcQuestionText').addEventListener('input', checkQuestionReadiness);
-                document.querySelectorAll('.mc-option').forEach(input => {
-                    input.addEventListener('input', checkQuestionReadiness);
-                });
+                document.querySelectorAll('.mc-option').forEach(input => input.addEventListener('input', checkQuestionReadiness));
                 document.querySelectorAll('input[name="mcAnswer"]').forEach(checkbox => {
                     checkbox.addEventListener('change', function() {
                         if (this.checked) {
-                            document.querySelectorAll('input[name="mcAnswer"]').forEach(cb => {
-                                if (cb !== this) cb.checked = false;
-                            });
+                            document.querySelectorAll('input[name="mcAnswer"]').forEach(cb => { if (cb !== this) cb.checked = false; });
                         }
                         checkQuestionReadiness();
                     });
                 });
-
             } else if (type === 'true-false') {
                 questionInputArea.innerHTML = `
-                    <div class="mb-4">
-                        <label class="block text-gray-700 text-sm font-medium mb-2" for="tfQuestionText">Question Text</label>
-                        <textarea id="tfQuestionText" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" rows="2" placeholder="Enter true/false statement"></textarea>
+                    <div class="mb-3">
+                        <textarea id="tfQuestionText" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500" rows="2" placeholder="Enter True/False statement..."></textarea>
                     </div>
-                    <div class="mb-4">
-                        <label class="block text-gray-700 text-sm font-medium mb-2">Correct Answer</label>
-                        <div class="flex items-center space-x-6">
-                            <label class="inline-flex items-center">
-                                <input type="checkbox" name="tfAnswer" value="true" class="h-5 w-5 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded cursor-pointer accent-emerald-600">
-                                <span class="ml-2 text-gray-700 font-medium">True</span>
-                            </label>
-                            <label class="inline-flex items-center">
-                                <input type="checkbox" name="tfAnswer" value="false" class="h-5 w-5 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded cursor-pointer accent-emerald-600">
-                                <span class="ml-2 text-gray-700 font-medium">False</span>
-                            </label>
-                        </div>
+                    <div class="flex items-center gap-4 bg-gray-50 p-2 rounded-md border border-gray-200 w-max">
+                        <label class="text-gray-700 text-sm font-semibold">Correct Answer:</label>
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="checkbox" name="tfAnswer" value="true" class="h-4 w-4 text-emerald-600 border-gray-300 rounded">
+                            <span class="ml-2 text-sm text-gray-700">True</span>
+                        </label>
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="checkbox" name="tfAnswer" value="false" class="h-4 w-4 text-emerald-600 border-gray-300 rounded">
+                            <span class="ml-2 text-sm text-gray-700">False</span>
+                        </label>
                     </div>
                     ${marksInputHTML}
                 `;
@@ -4674,113 +4663,89 @@
                 document.querySelectorAll('input[name="tfAnswer"]').forEach(checkbox => {
                     checkbox.addEventListener('change', function() {
                         if(this.checked) {
-                            // Uncheck the other checkbox to enforce single select for True/False
-                            document.querySelectorAll('input[name="tfAnswer"]').forEach(cb => {
-                                if(cb !== this) cb.checked = false;
-                            });
+                            document.querySelectorAll('input[name="tfAnswer"]').forEach(cb => { if(cb !== this) cb.checked = false; });
                         }
                         checkQuestionReadiness();
                     });
                 });
             } else if (type === 'matching') {
                 questionInputArea.innerHTML = `
-                    <div class="mb-4">
-                        <label class="block text-gray-700 text-sm font-medium mb-2">Matching Pairs (Term : Definition)</label>
-                        <div id="matchingPairsContainer" class="space-y-2 mb-4">
-                            <div class="flex items-center space-x-2">
-                                <input type="text" class="matching-term px-3 py-2 border border-gray-300 rounded-md w-1/2" placeholder="Term">
-                                <span class="text-gray-500">:</span>
-                                <input type="text" class="matching-definition px-3 py-2 border border-gray-300 rounded-md w-1/2" placeholder="Definition" onkeydown="if(event.key==='Enter'){event.preventDefault();addMatchingPair();}">
-                                <button type="button" class="remove-pair-btn text-red-600 hover:text-red-900"><i class="fas fa-times"></i></button>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <input type="text" class="matching-term px-3 py-2 border border-gray-300 rounded-md w-1/2" placeholder="Term">
-                                <span class="text-gray-500">:</span>
-                                <input type="text" class="matching-definition px-3 py-2 border border-gray-300 rounded-md w-1/2" placeholder="Definition" onkeydown="if(event.key==='Enter'){event.preventDefault();addMatchingPair();}">
-                                <button type="button" class="remove-pair-btn ml-2 text-red-600 hover:text-red-900"><i class="fas fa-times"></i></button>
-                            </div>
+                    <div id="matchingPairsContainer" class="space-y-2 mb-2">
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="text-gray-700 text-sm font-semibold">Matching Pairs</label>
+                            <button type="button" id="addMatchingPairBtn" class="text-emerald-600 text-xs font-semibold hover:text-emerald-800"><i class="fas fa-plus mr-1"></i>Add Pair</button>
                         </div>
-                        <button type="button" id="addMatchingPairBtn" class="text-indigo-600 text-sm hover:text-indigo-800 focus:outline-none">
-                            <i class="fas fa-plus mr-1"></i> Add Pair
-                        </button>
+                        <div class="flex items-center gap-2 matching-row">
+                            <input type="text" class="matching-term px-3 py-1.5 text-sm border border-gray-300 rounded-md w-5/12" placeholder="Term">
+                            <i class="fas fa-arrow-right text-gray-400 text-xs"></i>
+                            <input type="text" class="matching-definition px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Definition" onkeydown="if(event.key==='Enter'){event.preventDefault();addMatchingPair();}">
+                            <button type="button" class="remove-pair-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="flex items-center gap-2 matching-row">
+                            <input type="text" class="matching-term px-3 py-1.5 text-sm border border-gray-300 rounded-md w-5/12" placeholder="Term">
+                            <i class="fas fa-arrow-right text-gray-400 text-xs"></i>
+                            <input type="text" class="matching-definition px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Definition" onkeydown="if(event.key==='Enter'){event.preventDefault();addMatchingPair();}">
+                            <button type="button" class="remove-pair-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
+                        </div>
                     </div>
                     ${marksInputHTML}
                 `;
                 document.getElementById('addMatchingPairBtn').addEventListener('click', addMatchingPair);
-                document.querySelectorAll('.remove-pair-btn').forEach(button => {
-                    button.addEventListener('click', removeMatchingPair);
-                });
-                document.querySelectorAll('.matching-term, .matching-definition').forEach(input => {
-                    input.addEventListener('input', checkQuestionReadiness);
-                });
+                document.querySelectorAll('.remove-pair-btn').forEach(button => button.addEventListener('click', removeMatchingPair));
+                document.querySelectorAll('.matching-term, .matching-definition').forEach(input => input.addEventListener('input', checkQuestionReadiness));
             } else if (type === 'fill-in-blank') {
                 questionInputArea.innerHTML = `
-                    <div class="mb-4">
-                        <label class="block text-gray-700 text-sm font-medium mb-2" for="fillBlankQuestionText">Question Text</label>
-                        <textarea id="fillBlankQuestionText" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" rows="2" placeholder="Enter question (use ___ for blanks)"></textarea>
-                        <p class="text-xs text-gray-500 mt-1">Use underscores (___) to indicate where students should fill in answers</p>
+                    <div class="mb-3">
+                        <textarea id="fillBlankQuestionText" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500" rows="2" placeholder="Enter question (use ___ for blanks)"></textarea>
                     </div>
-                    <div class="mb-4">
-                        <label class="block text-gray-700 text-sm font-medium mb-2">Correct Answers (one per blank)</label>
-                        <div id="fillBlankAnswersContainer" class="space-y-2 mb-2">
-                            <div class="flex items-center space-x-2">
-                                <input type="text" class="fill-blank-answer px-3 py-2 border border-gray-300 rounded-md w-full" placeholder="Answer for blank 1" onkeydown="if(event.key==='Enter'){event.preventDefault();addBlankAnswer();}">
-                                <button type="button" class="remove-blank-btn text-red-600 hover:text-red-900"><i class="fas fa-times"></i></button>
-                            </div>
+                    <div id="fillBlankAnswersContainer" class="space-y-2 mb-2">
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="text-gray-700 text-sm font-semibold">Answers (in order)</label>
+                            <button type="button" id="addBlankAnswerBtn" class="text-emerald-600 text-xs font-semibold hover:text-emerald-800"><i class="fas fa-plus mr-1"></i>Add Answer</button>
                         </div>
-                        <button type="button" id="addBlankAnswerBtn" class="text-indigo-600 text-sm hover:text-indigo-800 focus:outline-none">
-                            <i class="fas fa-plus mr-1"></i> Add Answer
-                        </button>
+                        <div class="flex items-center gap-2 blank-row">
+                            <span class="text-xs font-medium text-gray-500 w-4">1.</span>
+                            <input type="text" class="fill-blank-answer px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Answer for blank 1" onkeydown="if(event.key==='Enter'){event.preventDefault();addBlankAnswer();}">
+                            <button type="button" class="remove-blank-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
+                        </div>
                     </div>
                     ${marksInputHTML}
                 `;
                 document.getElementById('addBlankAnswerBtn').addEventListener('click', addBlankAnswer);
-                document.querySelectorAll('.remove-blank-btn').forEach(button => {
-                    button.addEventListener('click', removeBlankAnswer);
-                });
+                document.querySelectorAll('.remove-blank-btn').forEach(button => button.addEventListener('click', removeBlankAnswer));
                 document.getElementById('fillBlankQuestionText').addEventListener('input', checkQuestionReadiness);
-                document.querySelectorAll('.fill-blank-answer').forEach(input => {
-                    input.addEventListener('input', checkQuestionReadiness);
-                });
+                document.querySelectorAll('.fill-blank-answer').forEach(input => input.addEventListener('input', checkQuestionReadiness));
             } else if (type === 'ordering') {
                 questionInputArea.innerHTML = `
-                    <div class="mb-4">
-                        <label class="block text-gray-700 text-sm font-medium mb-2" for="orderingQuestionText">Question Text</label>
-                        <textarea id="orderingQuestionText" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" rows="2" placeholder="Enter instructions (e.g., 'Put the following steps in order')"></textarea>
+                    <div class="mb-3">
+                        <textarea id="orderingQuestionText" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500" rows="2" placeholder="Enter instructions (e.g., 'Put the steps in order')"></textarea>
                     </div>
-                    <div class="mb-4">
-                        <label class="block text-gray-700 text-sm font-medium mb-2">Items in Correct Order</label>
-                        <div id="orderingItemsContainer" class="space-y-2 mb-2">
-                            <div class="flex items-center space-x-2">
-                                <span class="text-gray-500 font-medium w-6">1.</span>
-                                <input type="text" class="ordering-item px-3 py-2 border border-gray-300 rounded-md w-full" placeholder="First item" onkeydown="if(event.key==='Enter'){event.preventDefault();addOrderingItem();}">
-                                <button type="button" class="remove-ordering-btn text-red-600 hover:text-red-900"><i class="fas fa-times"></i></button>
-                            </div>
-                            <div class="flex items-center space-x-2">
-                                <span class="text-gray-500 font-medium w-6">2.</span>
-                                <input type="text" class="ordering-item px-3 py-2 border border-gray-300 rounded-md w-full" placeholder="Second item" onkeydown="if(event.key==='Enter'){event.preventDefault();addOrderingItem();}">
-                                <button type="button" class="remove-ordering-btn text-red-600 hover:text-red-900"><i class="fas fa-times"></i></button>
-                            </div>
+                    <div id="orderingItemsContainer" class="space-y-2 mb-2">
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="text-gray-700 text-sm font-semibold">Correct Order</label>
+                            <button type="button" id="addOrderingItemBtn" class="text-emerald-600 text-xs font-semibold hover:text-emerald-800"><i class="fas fa-plus mr-1"></i>Add Item</button>
                         </div>
-                        <button type="button" id="addOrderingItemBtn" class="text-indigo-600 text-sm hover:text-indigo-800 focus:outline-none">
-                            <i class="fas fa-plus mr-1"></i> Add Item
-                        </button>
+                        <div class="flex items-center gap-2 order-row">
+                            <span class="text-xs font-medium text-gray-500 w-4">1.</span>
+                            <input type="text" class="ordering-item px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="First item" onkeydown="if(event.key==='Enter'){event.preventDefault();addOrderingItem();}">
+                            <button type="button" class="remove-ordering-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="flex items-center gap-2 order-row">
+                            <span class="text-xs font-medium text-gray-500 w-4">2.</span>
+                            <input type="text" class="ordering-item px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Second item" onkeydown="if(event.key==='Enter'){event.preventDefault();addOrderingItem();}">
+                            <button type="button" class="remove-ordering-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
+                        </div>
                     </div>
                     ${marksInputHTML}
                 `;
                 document.getElementById('addOrderingItemBtn').addEventListener('click', addOrderingItem);
-                document.querySelectorAll('.remove-ordering-btn').forEach(button => {
-                    button.addEventListener('click', removeOrderingItem);
-                });
+                document.querySelectorAll('.remove-ordering-btn').forEach(button => button.addEventListener('click', removeOrderingItem));
                 document.getElementById('orderingQuestionText').addEventListener('input', checkQuestionReadiness);
-                document.querySelectorAll('.ordering-item').forEach(input => {
-                    input.addEventListener('input', checkQuestionReadiness);
-                });
+                document.querySelectorAll('.ordering-item').forEach(input => input.addEventListener('input', checkQuestionReadiness));
             } else if (type === 'long-answer') {
                 questionInputArea.innerHTML = `
-                    <div class="mb-4">
-                        <label class="block text-gray-700 text-sm font-medium mb-2" for="longAnswerQuestionText">Question Text</label>
-                        <textarea id="longAnswerQuestionText" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" rows="3" placeholder="Enter long answer question"></textarea>
+                    <div class="mb-3">
+                        <textarea id="longAnswerQuestionText" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500" rows="3" placeholder="Enter long answer prompt..."></textarea>
                     </div>
                     ${marksInputHTML}
                 `;
@@ -4853,22 +4818,20 @@
         // Multiple Choice: Add new option field
         function addMultipleChoiceOption() {
             const container = document.getElementById('mcOptionsContainer');
-            const optionCount = container.children.length - 1; // Subtract 1 for the label
+            const optionCount = container.querySelectorAll('.mc-option-row').length;
             const newOptionDiv = document.createElement('div');
-            newOptionDiv.classList.add('flex', 'items-start', 'gap-3');
+            newOptionDiv.classList.add('flex', 'items-center', 'gap-2', 'mc-option-row');
             newOptionDiv.innerHTML = `
-                <input type="checkbox" name="mcAnswer" value="${optionCount}" class="mt-3 cursor-pointer rounded" style="width: 20px; height: 20px; accent-color: #059669; opacity: 1; flex-shrink: 0;" disabled>
-                <input type="text" class="mc-option px-3 py-2 border border-gray-300 rounded-md flex-1" placeholder="Add an answer (Press Enter to add another)" onkeydown="if(event.key==='Enter'){event.preventDefault();addMultipleChoiceOption();}">
-                <button type="button" class="remove-option-btn mt-1 text-red-600 hover:text-red-900 hover:bg-red-50 p-2 rounded transition-colors" style="flex-shrink: 0;"><i class="fas fa-times"></i></button>
+                <input type="checkbox" name="mcAnswer" value="${optionCount}" class="h-4 w-4 text-emerald-600 border-gray-300 rounded cursor-pointer" disabled>
+                <input type="text" class="mc-option px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Option ${optionCount + 1}" onkeydown="if(event.key==='Enter'){event.preventDefault();addMultipleChoiceOption();}">
+                <button type="button" class="remove-option-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
             `;
             container.appendChild(newOptionDiv);
             newOptionDiv.querySelector('.remove-option-btn').addEventListener('click', removeMultipleChoiceOption);
             newOptionDiv.querySelector('.mc-option').addEventListener('input', checkQuestionReadiness);
             newOptionDiv.querySelector('input[name="mcAnswer"]').addEventListener('change', function() {
                 if (this.checked) {
-                    document.querySelectorAll('input[name="mcAnswer"]').forEach(cb => {
-                        if (cb !== this) cb.checked = false;
-                    });
+                    document.querySelectorAll('input[name="mcAnswer"]').forEach(cb => { if (cb !== this) cb.checked = false; });
                 }
                 checkQuestionReadiness();
             });
@@ -4876,18 +4839,16 @@
             checkQuestionReadiness();
         }
 
-        // Multiple Choice: Remove option field
         function removeMultipleChoiceOption(event) {
             const container = document.getElementById('mcOptionsContainer');
-            if (container.querySelectorAll('.flex.items-start.gap-3').length <= 2) {
+            if (container.querySelectorAll('.mc-option-row').length <= 2) {
                 alert("A multiple-choice question must have at least 2 options.");
                 return;
             }
-            const optionDiv = event.target.closest('.flex.items-start.gap-3');
+            const optionDiv = event.target.closest('.mc-option-row');
             if (optionDiv && optionDiv.querySelector('.mc-option')) {
                 optionDiv.remove();
-                // Re-index checkbox values (skip the label element)
-                document.querySelectorAll('#mcOptionsContainer > .flex.items-start.gap-3').forEach((div, index) => {
+                document.querySelectorAll('#mcOptionsContainer .mc-option-row').forEach((div, index) => {
                     const checkbox = div.querySelector('input[type="checkbox"]');
                     if (checkbox) checkbox.value = index;
                 });
@@ -4899,45 +4860,41 @@
         function addMatchingPair() {
             const container = document.getElementById('matchingPairsContainer');
             const newPairDiv = document.createElement('div');
-            newPairDiv.classList.add('flex', 'items-center', 'space-x-2');
+            newPairDiv.classList.add('flex', 'items-center', 'gap-2', 'matching-row');
             newPairDiv.innerHTML = `
-                <input type="text" class="matching-term px-3 py-2 border border-gray-300 rounded-md w-1/2" placeholder="Term">
-                <span class="text-gray-500">:</span>
-                <input type="text" class="matching-definition px-3 py-2 border border-gray-300 rounded-md w-1/2" placeholder="Definition (Press Enter to add another)" onkeydown="if(event.key==='Enter'){event.preventDefault();addMatchingPair();}">
-                <button type="button" class="remove-pair-btn text-red-600 hover:text-red-900"><i class="fas fa-times"></i></button>
+                <input type="text" class="matching-term px-3 py-1.5 text-sm border border-gray-300 rounded-md w-5/12" placeholder="Term">
+                <i class="fas fa-arrow-right text-gray-400 text-xs"></i>
+                <input type="text" class="matching-definition px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Definition" onkeydown="if(event.key==='Enter'){event.preventDefault();addMatchingPair();}">
+                <button type="button" class="remove-pair-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
             `;
             container.appendChild(newPairDiv);
             newPairDiv.querySelector('.remove-pair-btn').addEventListener('click', removeMatchingPair);
-            newPairDiv.querySelectorAll('.matching-term, .matching-definition').forEach(input => {
-                input.addEventListener('input', checkQuestionReadiness);
-            });
+            newPairDiv.querySelectorAll('.matching-term, .matching-definition').forEach(input => input.addEventListener('input', checkQuestionReadiness));
             newPairDiv.querySelector('.matching-term').focus();
             checkQuestionReadiness();
         }
 
-        // Matching: Remove pair field
         function removeMatchingPair(event) {
             const container = document.getElementById('matchingPairsContainer');
-            if (container.querySelectorAll('.flex.items-center').length <= 2) {
+            if (container.querySelectorAll('.matching-row').length <= 2) {
                 alert("A matching question must have at least 2 pairs.");
                 return;
             }
-            const pairDiv = event.target.closest('.flex.items-center');
-            if (pairDiv) {
-                pairDiv.remove();
-            }
+            const pairDiv = event.target.closest('.matching-row');
+            if (pairDiv) pairDiv.remove();
             checkQuestionReadiness();
         }
 
         // Fill-in-Blank: Add new answer field
         function addBlankAnswer() {
             const container = document.getElementById('fillBlankAnswersContainer');
-            const answerCount = container.children.length + 1;
+            const answerCount = container.querySelectorAll('.blank-row').length + 1;
             const newAnswerDiv = document.createElement('div');
-            newAnswerDiv.classList.add('flex', 'items-center', 'space-x-2');
+            newAnswerDiv.classList.add('flex', 'items-center', 'gap-2', 'blank-row');
             newAnswerDiv.innerHTML = `
-                <input type="text" class="fill-blank-answer px-3 py-2 border border-gray-300 rounded-md w-full" placeholder="Answer for blank ${answerCount} (Press Enter to add another)" onkeydown="if(event.key==='Enter'){event.preventDefault();addBlankAnswer();}">
-                <button type="button" class="remove-blank-btn text-red-600 hover:text-red-900"><i class="fas fa-times"></i></button>
+                <span class="text-xs font-medium text-gray-500 w-4">${answerCount}.</span>
+                <input type="text" class="fill-blank-answer px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Answer for blank ${answerCount}" onkeydown="if(event.key==='Enter'){event.preventDefault();addBlankAnswer();}">
+                <button type="button" class="remove-blank-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
             `;
             container.appendChild(newAnswerDiv);
             newAnswerDiv.querySelector('.remove-blank-btn').addEventListener('click', removeBlankAnswer);
@@ -4946,16 +4903,19 @@
             checkQuestionReadiness();
         }
 
-        // Fill-in-Blank: Remove answer field
         function removeBlankAnswer(event) {
             const container = document.getElementById('fillBlankAnswersContainer');
-            if (container.children.length <= 1) {
+            if (container.querySelectorAll('.blank-row').length <= 1) {
                 alert("A fill-in-the-blank question must have at least 1 answer.");
                 return;
             }
-            const answerDiv = event.target.closest('.flex.items-center');
+            const answerDiv = event.target.closest('.blank-row');
             if (answerDiv) {
                 answerDiv.remove();
+                document.querySelectorAll('#fillBlankAnswersContainer .blank-row').forEach((div, index) => {
+                    div.querySelector('span').textContent = `${index + 1}.`;
+                    div.querySelector('.fill-blank-answer').placeholder = `Answer for blank ${index + 1}`;
+                });
             }
             checkQuestionReadiness();
         }
@@ -4963,13 +4923,13 @@
         // Ordering: Add new item field
         function addOrderingItem() {
             const container = document.getElementById('orderingItemsContainer');
-            const itemCount = container.children.length + 1;
+            const itemCount = container.querySelectorAll('.order-row').length + 1;
             const newItemDiv = document.createElement('div');
-            newItemDiv.classList.add('flex', 'items-center', 'space-x-2');
+            newItemDiv.classList.add('flex', 'items-center', 'gap-2', 'order-row');
             newItemDiv.innerHTML = `
-                <span class="text-gray-500 font-medium w-6">${itemCount}.</span>
-                <input type="text" class="ordering-item px-3 py-2 border border-gray-300 rounded-md w-full" placeholder="Item ${itemCount} (Press Enter to add another)" onkeydown="if(event.key==='Enter'){event.preventDefault();addOrderingItem();}">
-                <button type="button" class="remove-ordering-btn text-red-600 hover:text-red-900"><i class="fas fa-times"></i></button>
+                <span class="text-xs font-medium text-gray-500 w-4">${itemCount}.</span>
+                <input type="text" class="ordering-item px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Item ${itemCount}" onkeydown="if(event.key==='Enter'){event.preventDefault();addOrderingItem();}">
+                <button type="button" class="remove-ordering-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
             `;
             container.appendChild(newItemDiv);
             newItemDiv.querySelector('.remove-ordering-btn').addEventListener('click', removeOrderingItem);
@@ -4978,18 +4938,16 @@
             checkQuestionReadiness();
         }
 
-        // Ordering: Remove item field and re-number
         function removeOrderingItem(event) {
             const container = document.getElementById('orderingItemsContainer');
-            if (container.children.length <= 2) {
+            if (container.querySelectorAll('.order-row').length <= 2) {
                 alert("An ordering question must have at least 2 items.");
                 return;
             }
-            const itemDiv = event.target.closest('.flex.items-center');
+            const itemDiv = event.target.closest('.order-row');
             if (itemDiv) {
                 itemDiv.remove();
-                // Re-number the items
-                document.querySelectorAll('#orderingItemsContainer .flex.items-center').forEach((div, index) => {
+                document.querySelectorAll('#orderingItemsContainer .order-row').forEach((div, index) => {
                     div.querySelector('span').textContent = `${index + 1}.`;
                     div.querySelector('.ordering-item').placeholder = `Item ${index + 1}`;
                 });
