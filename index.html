@@ -290,30 +290,36 @@
         }
     </style>
 <style>
-/* Theme Override CSS */
+/* Core Theme Variables */
 body.theme-dark {
-    --bg-main: #111827; /* gray-900 */
-    --bg-panel: #1f2937; /* gray-800 */
-    --text-primary: #f9fafb; /* gray-50 */
-    --text-secondary: #9ca3af; /* gray-400 */
-    --border-color: #374151; /* gray-700 */
-    --hover-bg: #374151;
+    --bg-main: #111827;
+    --bg-panel: #1f2937;
+    --bg-panel-hover: #374151;
+    --text-primary: #f9fafb;
+    --text-secondary: #9ca3af;
+    --border-color: #374151;
+    --brand-primary: #3b82f6;
+    --sidebar-bg: linear-gradient(to bottom, #111827, #000000);
 }
 body.theme-purple {
-    --bg-main: #2e1065; /* purple-950 */
-    --bg-panel: #4c1d95; /* purple-900 */
-    --text-primary: #f3e8ff; /* purple-50 */
-    --text-secondary: #c4b5fd; /* purple-300 */
-    --border-color: #5b21b6; /* purple-800 */
-    --hover-bg: #5b21b6;
+    --bg-main: #2e1065;
+    --bg-panel: #4c1d95;
+    --bg-panel-hover: #5b21b6;
+    --text-primary: #f3e8ff;
+    --text-secondary: #c4b5fd;
+    --border-color: #7c3aed;
+    --brand-primary: #a855f7;
+    --sidebar-bg: linear-gradient(to bottom, #3b0764, #2e1065);
 }
 body.theme-grey {
-    --bg-main: #374151; /* gray-700 */
-    --bg-panel: #4b5563; /* gray-600 */
-    --text-primary: #f9fafb; /* gray-50 */
-    --text-secondary: #d1d5db; /* gray-300 */
-    --border-color: #6b7280; /* gray-500 */
-    --hover-bg: #6b7280;
+    --bg-main: #374151;
+    --bg-panel: #4b5563;
+    --bg-panel-hover: #6b7280;
+    --text-primary: #f9fafb;
+    --text-secondary: #d1d5db;
+    --border-color: #9ca3af;
+    --brand-primary: #9ca3af;
+    --sidebar-bg: linear-gradient(to bottom, #1f2937, #111827);
 }
 
 body[class*="theme-"]:not(.theme-white) {
@@ -324,35 +330,70 @@ body[class*="theme-"]:not(.theme-white) {
 
 body[class*="theme-"]:not(.theme-white) .bg-white,
 body[class*="theme-"]:not(.theme-white) .bg-gray-50,
-body[class*="theme-"]:not(.theme-white) .bg-gray-100 {
+body[class*="theme-"]:not(.theme-white) .bg-gray-100,
+body[class*="theme-"]:not(.theme-white) .bg-slate-50,
+body[class*="theme-"]:not(.theme-white) .bg-slate-100,
+body[class*="theme-"]:not(.theme-white) .bg-white\/95 {
     background-color: var(--bg-panel) !important;
+    background-image: none !important;
+}
+
+body[class*="theme-"]:not(.theme-white) #sidebar {
+    background: var(--sidebar-bg) !important;
+    border-right: 1px solid var(--border-color);
+}
+
+body[class*="theme-"]:not(.theme-white) .bg-gradient-to-br,
+body[class*="theme-"]:not(.theme-white) .bg-gradient-to-r,
+body[class*="theme-"]:not(.theme-white) .bg-gradient-to-b {
+    background-image: none !important;
+    background-color: var(--bg-panel) !important;
+}
+
+body[class*="theme-"]:not(.theme-white) .bg-indigo-600,
+body[class*="theme-"]:not(.theme-white) .bg-indigo-500,
+body[class*="theme-"]:not(.theme-white) .from-indigo-600 {
+    background-color: var(--brand-primary) !important;
+    background-image: none !important;
+    color: white !important;
+}
+body[class*="theme-"]:not(.theme-white) .text-indigo-600 {
+    color: var(--brand-primary) !important;
+}
+
+body[class*="theme-"]:not(.theme-white) .dropdown-menu {
+    background-color: var(--bg-panel) !important;
+    border-color: var(--border-color) !important;
+}
+body[class*="theme-"]:not(.theme-white) .dropdown-menu button {
     color: var(--text-primary) !important;
+}
+body[class*="theme-"]:not(.theme-white) .dropdown-menu button:hover {
+    background-color: var(--bg-panel-hover) !important;
 }
 
 body[class*="theme-"]:not(.theme-white) .text-gray-900,
 body[class*="theme-"]:not(.theme-white) .text-gray-800,
-body[class*="theme-"]:not(.theme-white) .text-gray-700 {
+body[class*="theme-"]:not(.theme-white) .text-gray-700,
+body[class*="theme-"]:not(.theme-white) .text-slate-900 {
     color: var(--text-primary) !important;
 }
 
 body[class*="theme-"]:not(.theme-white) .text-gray-600,
-body[class*="theme-"]:not(.theme-white) .text-gray-500 {
+body[class*="theme-"]:not(.theme-white) .text-gray-500,
+body[class*="theme-"]:not(.theme-white) .text-gray-400 {
     color: var(--text-secondary) !important;
 }
 
-body[class*="theme-"]:not(.theme-white) .border-gray-100,
-body[class*="theme-"]:not(.theme-white) .border-gray-200,
-body[class*="theme-"]:not(.theme-white) .border-gray-300,
-body[class*="theme-"]:not(.theme-white) .border-b,
-body[class*="theme-"]:not(.theme-white) .border-t,
-body[class*="theme-"]:not(.theme-white) .border {
-    border-color: var(--border-color) !important;
+body[class*="theme-"]:not(.theme-white) .bg-clip-text {
+    background: none !important;
+    color: var(--text-primary) !important;
+    -webkit-text-fill-color: var(--text-primary) !important;
 }
 
 body[class*="theme-"]:not(.theme-white) .hover\:bg-gray-50:hover,
-body[class*="theme-"]:not(.theme-white) .hover\:bg-gray-100:hover,
-body[class*="theme-"]:not(.theme-white) .hover\:bg-gray-200:hover {
-    background-color: var(--hover-bg) !important;
+body[class*="theme-"]:not(.theme-white) .hover\:bg-gray-100:hover {
+    background-color: var(--bg-panel-hover) !important;
 }
 
 body[class*="theme-"]:not(.theme-white) input:not([type="checkbox"]):not([type="radio"]),
@@ -361,16 +402,6 @@ body[class*="theme-"]:not(.theme-white) select {
     background-color: var(--bg-main) !important;
     color: var(--text-primary) !important;
     border-color: var(--border-color) !important;
-}
-
-/* Fix dropdowns in custom themes */
-body[class*="theme-"]:not(.theme-white) .dropdown-menu {
-    background-color: var(--bg-panel) !important;
-    border-color: var(--border-color) !important;
-}
-
-body[class*="theme-"]:not(.theme-white) a.dropdown-nav-link:hover {
-    background-color: var(--hover-bg) !important;
 }
 
 </style>
@@ -10671,6 +10702,8 @@ document.addEventListener("DOMContentLoaded", () => {
     <!-- Theme Management -->
     <script>
         function setTheme(theme) {
+            // Close dropdowns
+            document.querySelectorAll('.dropdown-menu').forEach(d => d.classList.add('hidden'));
             document.body.className = document.body.className.replace(/\btheme-[a-zA-Z0-9]+\b/g, '').trim();
             if(theme !== 'white') document.body.classList.add('theme-' + theme);
             localStorage.setItem('appTheme', theme);
