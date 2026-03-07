@@ -5992,6 +5992,8 @@
                     removedStudentIds.forEach(studentId => {
                         const student = allUsersData.find(u => u.id === studentId);
                         if (student) {
+                            // Ensure coursesEnrolled exists
+                            student.coursesEnrolled = student.coursesEnrolled || [];
                             // Remove courses linked to this programme from student's enrolled list
                             student.coursesEnrolled = student.coursesEnrolled.filter(enr =>
                                 !programmeLinkedCourses.includes(enr.courseId)
@@ -6003,11 +6005,13 @@
                     addedStudentIds.forEach(studentId => {
                         const student = allUsersData.find(u => u.id === studentId);
                         if (student) {
+                            // Ensure coursesEnrolled exists
+                            student.coursesEnrolled = student.coursesEnrolled || [];
                             programmeLinkedCourses.forEach(courseId => {
                                 // Add course to student's enrolled list if not already there
                                 if (!student.coursesEnrolled.some(enr => enr.courseId === courseId)) {
                                     student.coursesEnrolled.push({
-                                        courseId: courseId,
+                                        courseId: parseInt(courseId),
                                         enrollmentDate: new Date().toISOString().slice(0, 10),
                                         completionDate: null,
                                         hoursSpent: 0 // Initialize hours spent for this course
@@ -7444,9 +7448,10 @@
 
         // Event delegation for "Assign Students" buttons in the existing programmes table
         document.addEventListener('click', function(e) {
-            if (e.target.classList.contains('assign-students-btn')) {
+            const assignBtn = e.target.closest('.assign-students-btn');
+            if (assignBtn) {
                 e.stopPropagation(); // Prevent row click event
-                const programmeId = parseInt(e.target.dataset.programmeId);
+                const programmeId = parseInt(assignBtn.dataset.programmeId);
                 showAssignStudentsModal(programmeId);
             }
         });
@@ -8954,7 +8959,7 @@ function loadSectionQuestions(questions) {
                     <div class="space-y-2 ml-11">
                         ${q.options.map((option, optIndex) => `
                             <label class="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer">
-                                <input type="radio" name="question-${q.id}" value="${optIndex}" class="w-4 h-4 text-indigo-600">
+                                <input type="checkbox" name="question-${q.id}" value="${optIndex}" class="w-4 h-4 text-indigo-600 rounded" onchange="if(this.checked) { document.querySelectorAll('input[name=\\\'question-${q.id}\\\']').forEach(cb => { if(cb !== this) cb.checked = false; }) }">
                                 <span class="ml-3 text-gray-700">${option}</span>
                             </label>
                         `).join('')}
@@ -8972,11 +8977,11 @@ function loadSectionQuestions(questions) {
                     </div>
                     <div class="space-y-2 ml-11">
                         <label class="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer">
-                            <input type="radio" name="question-${q.id}" value="true" class="w-4 h-4 text-indigo-600">
+                            <input type="checkbox" name="question-${q.id}" value="true" class="w-4 h-4 text-indigo-600 rounded" onchange="if(this.checked) { document.querySelectorAll('input[name=\\\'question-${q.id}\\\']').forEach(cb => { if(cb !== this) cb.checked = false; }) }">
                             <span class="ml-3 text-gray-700">True</span>
                         </label>
                         <label class="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer">
-                            <input type="radio" name="question-${q.id}" value="false" class="w-4 h-4 text-indigo-600">
+                            <input type="checkbox" name="question-${q.id}" value="false" class="w-4 h-4 text-indigo-600 rounded" onchange="if(this.checked) { document.querySelectorAll('input[name=\\\'question-${q.id}\\\']').forEach(cb => { if(cb !== this) cb.checked = false; }) }">
                             <span class="ml-3 text-gray-700">False</span>
                         </label>
                     </div>
@@ -9906,85 +9911,6 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         });
 
-        // ====================================================
-        // MODAL HELPERS
-        // ====================================================
-
-        function showAddUserModal() {
-            document.getElementById('addUserModal').classList.remove('hidden');
-            document.getElementById('addUserModal').classList.add('show');
-        }
-
-        function hideAddUserModal() {
-            document.getElementById('addUserModal').classList.add('hidden');
-            document.getElementById('addUserModal').classList.remove('show');
-        }
-
-        function showLoginModal() {
-            document.getElementById('loginModal').classList.remove('hidden');
-            document.getElementById('loginModal').classList.add('show');
-        }
-
-        function hideLoginModal() {
-            document.getElementById('loginModal').classList.add('hidden');
-            document.getElementById('loginModal').classList.remove('show');
-        }
-
-        function showMessageModal(title, message) {
-            document.getElementById('messageModalTitle').textContent = title;
-            document.getElementById('messageModalContent').textContent = message;
-            document.getElementById('messageModal').classList.remove('hidden');
-            document.getElementById('messageModal').classList.add('show');
-        }
-
-        function hideMessageModal() {
-            document.getElementById('messageModal').classList.add('hidden');
-            document.getElementById('messageModal').classList.remove('show');
-        }
-
-        function showCreateAssignmentModal() {
-            loadStudentsInAssignmentForm();
-            document.getElementById('createAssignmentModal').classList.remove('hidden');
-            document.getElementById('createAssignmentModal').classList.add('show');
-        }
-
-        function hideCreateAssignmentModal() {
-            document.getElementById('createAssignmentModal').classList.add('hidden');
-            document.getElementById('createAssignmentModal').classList.remove('show');
-        }
-
-        function closeCertificateViewer() {
-            document.getElementById('certificateViewerModal').classList.add('hidden');
-        }
-
-        function closeBadgeViewer() {
-            document.getElementById('badgeViewerModal').classList.add('hidden');
-        }
-
-        function closeCourseViewer() {
-            document.getElementById('courseViewerModal').classList.add('hidden');
-        }
-
-        function showAssignStudentsModal() {
-            document.getElementById('assignStudentsModal').classList.remove('hidden');
-            document.getElementById('assignStudentsModal').classList.add('show');
-        }
-
-        function hideAssignStudentsModal() {
-            document.getElementById('assignStudentsModal').classList.add('hidden');
-            document.getElementById('assignStudentsModal').classList.remove('show');
-        }
-
-        function showPdfViewerModal() {
-            document.getElementById('pdfViewerModal').classList.remove('hidden');
-            document.getElementById('pdfViewerModal').classList.add('show');
-        }
-
-        function hidePdfViewerModal() {
-            document.getElementById('pdfViewerModal').classList.add('hidden');
-            document.getElementById('pdfViewerModal').classList.remove('show');
-        }
-
         function showViewAssignmentModal(assignmentId) {
             const assignment = allAssignmentsData.find(a => a.id === assignmentId);
             if (!assignment) return;
@@ -10310,47 +10236,7 @@ document.addEventListener("DOMContentLoaded", () => {
             document.body.appendChild(modal);
         }
 
-        function toggleDropdown(button) {
-            const dropdown = button.nextElementSibling;
-            if (!dropdown) return;
-            
-            document.querySelectorAll('.dropdown-menu').forEach(d => {
-                if (d !== dropdown) d.classList.add('hidden');
-            });
-            dropdown.classList.toggle('hidden');
-        }
 
-        // Close dropdowns when clicking outside
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.dropdown')) {
-                document.querySelectorAll('.dropdown-menu').forEach(d => d.classList.add('hidden'));
-            }
-        });
-
-        // ====================================================
-        // ADDITIONAL MODAL FUNCTIONS
-        // ====================================================
-
-        function showBulkUploadModal() {
-            document.getElementById('bulkUploadModal').classList.remove('hidden');
-        }
-
-        function hideBulkUploadModal() {
-            document.getElementById('bulkUploadModal').classList.add('hidden');
-        }
-
-        function editUser(userId) {
-            showMessageModal('Edit User', `Edit functionality - Coming soon!`);
-        }
-
-        function downloadCertificate() {
-            showMessageModal('Certificate Downloaded', 'Your certificate has been downloaded successfully!');
-        }
-
-        function resetProgrammeForm() {
-            document.getElementById('createProgrammeForm').reset();
-            document.getElementById('programmePicturePreview').src = 'https://placehold.co/128x128/ADD8E6/00008B?text=Programme+Image';
-        }
 
         // ====================================================
         // CALENDAR FUNCTIONALITY FOR STUDENTS
