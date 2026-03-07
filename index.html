@@ -4688,12 +4688,12 @@
                             <button type="button" id="addMcOptionBtn" class="text-emerald-600 text-xs font-semibold hover:text-emerald-800"><i class="fas fa-plus mr-1"></i>Add Option</button>
                         </div>
                         <div class="flex items-center gap-2 mc-option-row">
-                            <input type="checkbox" name="mcAnswer" value="0" class="h-4 w-4 text-emerald-600 border-gray-300 rounded cursor-pointer" disabled>
+                            <input type="radio" name="mcAnswer" value="0" class="h-4 w-4 text-emerald-600 border-gray-300 rounded-full cursor-pointer">
                             <input type="text" class="mc-option px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Option 1" onkeydown="if(event.key==='Enter'){event.preventDefault();addMultipleChoiceOption();}">
                             <button type="button" class="remove-option-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
                         </div>
                         <div class="flex items-center gap-2 mc-option-row">
-                            <input type="checkbox" name="mcAnswer" value="1" class="h-4 w-4 text-emerald-600 border-gray-300 rounded cursor-pointer" disabled>
+                            <input type="radio" name="mcAnswer" value="1" class="h-4 w-4 text-emerald-600 border-gray-300 rounded-full cursor-pointer">
                             <input type="text" class="mc-option px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Option 2" onkeydown="if(event.key==='Enter'){event.preventDefault();addMultipleChoiceOption();}">
                             <button type="button" class="remove-option-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
                         </div>
@@ -4825,25 +4825,7 @@
             checkQuestionReadiness();
         }
 
-        function updateMultipleChoiceAnswerSelectionState() {
-            const optionInputs = Array.from(document.querySelectorAll('.mc-option'));
-            const answerCheckboxes = Array.from(document.querySelectorAll('input[name="mcAnswer"]'));
 
-            if (!optionInputs.length || !answerCheckboxes.length) return;
-
-            const hasMinimumOptions = optionInputs.length >= 2;
-            const allOptionsFilled = optionInputs.every(input => input.value.trim() !== '');
-            const canSelectCorrectAnswer = hasMinimumOptions && allOptionsFilled;
-
-            answerCheckboxes.forEach(checkbox => {
-                checkbox.disabled = !canSelectCorrectAnswer;
-                if (!canSelectCorrectAnswer) {
-                    checkbox.checked = false;
-                }
-            });
-        }
-
-        // Validate if question input fields are filled to enable "Add Question" button
         function checkQuestionReadiness() {
             const type = document.getElementById('questionTypeSelect').value;
             const addQuestionBtn = document.getElementById('addQuestionBtn');
@@ -4853,8 +4835,7 @@
                 const questionText = document.getElementById('mcQuestionText').value.trim();
                 const options = Array.from(document.querySelectorAll('.mc-option')).map(input => input.value.trim());
                 const allOptionsFilled = options.every(option => option !== '');
-                updateMultipleChoiceAnswerSelectionState();
-                const anyRadioSelected = Array.from(document.querySelectorAll('input[name="mcAnswer"]')).some(radio => radio.checked);
+                                const anyRadioSelected = Array.from(document.querySelectorAll('input[name="mcAnswer"]')).some(radio => radio.checked);
                 isValid = questionText !== '' && options.length >= 2 && allOptionsFilled && anyRadioSelected;
             } else if (type === 'true-false') {
                 const questionText = document.getElementById('tfQuestionText').value.trim();
@@ -4893,7 +4874,7 @@
             const newOptionDiv = document.createElement('div');
             newOptionDiv.classList.add('flex', 'items-center', 'gap-2', 'mc-option-row');
             newOptionDiv.innerHTML = `
-                <input type="checkbox" name="mcAnswer" value="${optionCount}" class="h-4 w-4 text-emerald-600 border-gray-300 rounded cursor-pointer" disabled>
+                <input type="radio" name="mcAnswer" value="${optionCount}" class="h-4 w-4 text-emerald-600 border-gray-300 rounded-full cursor-pointer">
                 <input type="text" class="mc-option px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Option ${optionCount + 1}" onkeydown="if(event.key==='Enter'){event.preventDefault();addMultipleChoiceOption();}">
                 <button type="button" class="remove-option-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
             `;
