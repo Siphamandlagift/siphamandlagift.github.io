@@ -500,6 +500,55 @@ body[class*="theme-"]:not(.theme-white) select {
         </div>
     </div>
 
+    <!-- Edit User Modal -->
+    <div id="editUserModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 shadow-xl max-w-md w-full transform transition-all duration-300 scale-100 opacity-100">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Edit User</h3>
+            <form id="editUserForm">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-medium mb-2" for="editUserNameInput">Name</label>
+                    <input id="editUserNameInput" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Enter user's name">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-medium mb-2" for="editUserSurnameInput">Surname</label>
+                    <input id="editUserSurnameInput" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Enter user's surname">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-medium mb-2" for="editUserEmailInput">Email Address</label>
+                    <input id="editUserEmailInput" type="email" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Enter user's email">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-medium mb-2" for="editUserIDNumberInput">ID Number</label>
+                    <input id="editUserIDNumberInput" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Enter user's ID number">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-medium mb-2" for="editCompanyNameInput">Company Name</label>
+                    <input id="editCompanyNameInput" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Enter company name">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-medium mb-2" for="editUserPasswordInput">Password</label>
+                    <input id="editUserPasswordInput" type="password" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Enter new password (optional)">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 text-sm font-medium mb-2" for="editUserRoleSelect">Select Role</label>
+                    <select id="editUserRoleSelect" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="administrator">Administrator</option>
+                        <option value="training_manager">Training Manager</option>
+                        <option value="student">Student</option>
+                    </select>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="hideEditUserModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 transition ease-in-out duration-150">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition ease-in-out duration-150">
+                        Update User
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Bulk Upload Users Modal -->
     <div id="bulkUploadModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-lg p-6 shadow-xl max-w-md w-full transform transition-all duration-300 scale-100 opacity-100">
@@ -3505,6 +3554,114 @@ body[class*="theme-"]:not(.theme-white) select {
             messageModal.classList.add('hidden');
         }
 
+let currentEditingUserId = null;
+
+window.editUser = function(userId) {
+    if (window.event) {
+        window.event.stopPropagation();
+        window.event.preventDefault();
+    }
+    const user = allUsersData.find(u => u.id === userId);
+    if (!user) return;
+    
+    currentEditingUserId = userId;
+    
+    if (document.getElementById('editUserNameInput')) document.getElementById('editUserNameInput').value = user.name || '';
+    if (document.getElementById('editUserSurnameInput')) document.getElementById('editUserSurnameInput').value = user.surname || '';
+    if (document.getElementById('editUserEmailInput')) document.getElementById('editUserEmailInput').value = user.email || '';
+    if (document.getElementById('editUserIDNumberInput')) document.getElementById('editUserIDNumberInput').value = user.idNumber || '';
+    if (document.getElementById('editCompanyNameInput')) document.getElementById('editCompanyNameInput').value = user.company || '';
+    if (document.getElementById('editUserPasswordInput')) document.getElementById('editUserPasswordInput').value = ''; // Don't show password
+    if (document.getElementById('editUserRoleSelect')) document.getElementById('editUserRoleSelect').value = user.role || 'student';
+    
+    if (document.getElementById('editUserModal')) {
+        document.getElementById('editUserModal').classList.remove('hidden');
+        document.getElementById('editUserModal').classList.add('flex');
+    }
+};
+
+window.hideEditUserModal = function() {
+    if (document.getElementById('editUserModal')) {
+        document.getElementById('editUserModal').classList.add('hidden');
+        document.getElementById('editUserModal').classList.remove('flex');
+    }
+    currentEditingUserId = null;
+    if (document.getElementById('editUserForm')) document.getElementById('editUserForm').reset();
+};
+
+window.deleteUser = function(userId) {
+    if (window.event) {
+        window.event.stopPropagation();
+        window.event.preventDefault();
+    }
+    
+    const defaultAdmins = ['mandla1_z@yahoo.com'];
+    const user = allUsersData.find(u => u.id === userId);
+    if (user && defaultAdmins.includes(user.email)) {
+        showMessageModal('Action Denied', 'You cannot delete the primary administrator account.');
+        return;
+    }
+
+    if (confirm('Are you sure you want to delete ' + (user ? user.name : 'this user') + '? This action cannot be undone.')) {
+        allUsersData = allUsersData.filter(u => u.id !== userId);
+        if (typeof saveToLocalStorage === 'function') saveToLocalStorage();
+        else localStorage.setItem('allUsersData', JSON.stringify(allUsersData));
+        
+        if (typeof renderUserTable === 'function') renderUserTable();
+        if (typeof updateDashboardStats === 'function') updateDashboardStats();
+        if (typeof showMessageModal === 'function') showMessageModal('Success', 'User has been successfully deleted.');
+        else alert('User deleted.');
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    const editForm = document.getElementById('editUserForm');
+    if (editForm) {
+        editForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (!currentEditingUserId) return;
+            
+            const userIndex = allUsersData.findIndex(u => u.id === currentEditingUserId);
+            if (userIndex === -1) return;
+            
+            const name = document.getElementById('editUserNameInput').value.trim();
+            const surname = document.getElementById('editUserSurnameInput') ? document.getElementById('editUserSurnameInput').value.trim() : '';
+            const email = document.getElementById('editUserEmailInput').value.trim();
+            const idNumber = document.getElementById('editUserIDNumberInput') ? document.getElementById('editUserIDNumberInput').value.trim() : '';
+            const company = document.getElementById('editCompanyNameInput') ? document.getElementById('editCompanyNameInput').value.trim() : '';
+            const role = document.getElementById('editUserRoleSelect').value;
+            const password = document.getElementById('editUserPasswordInput') ? document.getElementById('editUserPasswordInput').value.trim() : '';
+
+            if (!name || !email || !role) {
+                if (typeof showMessageModal === 'function') showMessageModal('Error', 'Name, Email, and Role are required.');
+                else alert('Name, Email, and Role are required.');
+                return;
+            }
+
+            allUsersData[userIndex].name = name;
+            allUsersData[userIndex].surname = surname;
+            allUsersData[userIndex].email = email;
+            allUsersData[userIndex].idNumber = idNumber;
+            allUsersData[userIndex].company = company;
+            allUsersData[userIndex].role = role;
+            
+            if (password) {
+                allUsersData[userIndex].password = password; // Only update if new password provided
+            }
+
+            if (typeof saveToLocalStorage === 'function') saveToLocalStorage();
+            else localStorage.setItem('allUsersData', JSON.stringify(allUsersData));
+            
+            if (typeof renderUserTable === 'function') renderUserTable();
+            if (typeof updateDashboardStats === 'function') updateDashboardStats();
+            hideEditUserModal();
+            if (typeof showMessageModal === 'function') showMessageModal('Success', 'User information updated successfully.');
+            else alert('User updated.');
+        });
+    }
+});
+
+
         // Global variables for Add User Modal
         const addUserModal = document.getElementById('addUserModal');
         const userPicturePreview = document.getElementById('userPicturePreview');
@@ -4398,8 +4555,8 @@ body[class*="theme-"]:not(.theme-white) select {
 
                 newRow.insertCell().outerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <a href="#" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</a>
-                        <a href="#" class="text-red-600 hover:text-red-900">Delete</a>
+                        <button type="button" onclick="editUser(${user.id})" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</button>
+                        <button type="button" onclick="deleteUser(${user.id})" class="text-red-600 hover:text-red-900">Delete</button>
                     </td>
                 `;
             });
