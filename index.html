@@ -289,6 +289,91 @@
             border-radius: 12px;
         }
     </style>
+<style>
+/* Theme Override CSS */
+body.theme-dark {
+    --bg-main: #111827; /* gray-900 */
+    --bg-panel: #1f2937; /* gray-800 */
+    --text-primary: #f9fafb; /* gray-50 */
+    --text-secondary: #9ca3af; /* gray-400 */
+    --border-color: #374151; /* gray-700 */
+    --hover-bg: #374151;
+}
+body.theme-purple {
+    --bg-main: #2e1065; /* purple-950 */
+    --bg-panel: #4c1d95; /* purple-900 */
+    --text-primary: #f3e8ff; /* purple-50 */
+    --text-secondary: #c4b5fd; /* purple-300 */
+    --border-color: #5b21b6; /* purple-800 */
+    --hover-bg: #5b21b6;
+}
+body.theme-grey {
+    --bg-main: #374151; /* gray-700 */
+    --bg-panel: #4b5563; /* gray-600 */
+    --text-primary: #f9fafb; /* gray-50 */
+    --text-secondary: #d1d5db; /* gray-300 */
+    --border-color: #6b7280; /* gray-500 */
+    --hover-bg: #6b7280;
+}
+
+body[class*="theme-"]:not(.theme-white) {
+    background-color: var(--bg-main) !important;
+    background-image: none !important;
+    color: var(--text-primary) !important;
+}
+
+body[class*="theme-"]:not(.theme-white) .bg-white,
+body[class*="theme-"]:not(.theme-white) .bg-gray-50,
+body[class*="theme-"]:not(.theme-white) .bg-gray-100 {
+    background-color: var(--bg-panel) !important;
+    color: var(--text-primary) !important;
+}
+
+body[class*="theme-"]:not(.theme-white) .text-gray-900,
+body[class*="theme-"]:not(.theme-white) .text-gray-800,
+body[class*="theme-"]:not(.theme-white) .text-gray-700 {
+    color: var(--text-primary) !important;
+}
+
+body[class*="theme-"]:not(.theme-white) .text-gray-600,
+body[class*="theme-"]:not(.theme-white) .text-gray-500 {
+    color: var(--text-secondary) !important;
+}
+
+body[class*="theme-"]:not(.theme-white) .border-gray-100,
+body[class*="theme-"]:not(.theme-white) .border-gray-200,
+body[class*="theme-"]:not(.theme-white) .border-gray-300,
+body[class*="theme-"]:not(.theme-white) .border-b,
+body[class*="theme-"]:not(.theme-white) .border-t,
+body[class*="theme-"]:not(.theme-white) .border {
+    border-color: var(--border-color) !important;
+}
+
+body[class*="theme-"]:not(.theme-white) .hover\:bg-gray-50:hover,
+body[class*="theme-"]:not(.theme-white) .hover\:bg-gray-100:hover,
+body[class*="theme-"]:not(.theme-white) .hover\:bg-gray-200:hover {
+    background-color: var(--hover-bg) !important;
+}
+
+body[class*="theme-"]:not(.theme-white) input:not([type="checkbox"]):not([type="radio"]),
+body[class*="theme-"]:not(.theme-white) textarea,
+body[class*="theme-"]:not(.theme-white) select {
+    background-color: var(--bg-main) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* Fix dropdowns in custom themes */
+body[class*="theme-"]:not(.theme-white) .dropdown-menu {
+    background-color: var(--bg-panel) !important;
+    border-color: var(--border-color) !important;
+}
+
+body[class*="theme-"]:not(.theme-white) a.dropdown-nav-link:hover {
+    background-color: var(--hover-bg) !important;
+}
+
+</style>
 </head>
 <body class="bg-gradient-to-br from-slate-50 to-slate-100 font-sans antialiased" style="display: none;">
 
@@ -1143,6 +1228,30 @@
                             </button>
                         </div>
                         
+                        
+                        <!-- Theme Selector -->
+                        <div class="relative dropdown">
+                            <button type="button" class="text-gray-600 focus:outline-none relative transition hover:text-indigo-600 mx-2 flex items-center" onclick="toggleDropdown(this)" title="Theme">
+                                <i class="fas fa-palette text-xl"></i>
+                            </button>
+                            <div class="dropdown-menu hidden absolute right-0 mt-2 w-40 bg-white rounded-md shadow-lg py-1 border border-gray-200 z-[60]">
+                                <div class="px-4 py-2 border-b border-gray-200">
+                                    <h3 class="text-sm font-semibold text-gray-800">Theme</h3>
+                                </div>
+                                <button type="button" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 theme-btn" onclick="setTheme('white')">
+                                    <span class="w-4 h-4 rounded-full bg-white border border-gray-300"></span> Light
+                                </button>
+                                <button type="button" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 theme-btn" onclick="setTheme('dark')">
+                                    <span class="w-4 h-4 rounded-full bg-gray-900 border border-gray-600"></span> Dark
+                                </button>
+                                <button type="button" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 theme-btn" onclick="setTheme('purple')">
+                                    <span class="w-4 h-4 rounded-full bg-purple-900 border border-purple-600"></span> Purple
+                                </button>
+                                <button type="button" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 theme-btn" onclick="setTheme('grey')">
+                                    <span class="w-4 h-4 rounded-full bg-gray-600 border border-gray-400"></span> Grey
+                                </button>
+                            </div>
+                        </div>
                         <div class="relative dropdown">
                             <button type="button" class="text-gray-600 focus:outline-none relative" onclick="toggleDropdown(this)">
                                 <i class="fas fa-bell text-xl"></i>
@@ -10557,6 +10666,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
 </script>
 
+
+
+    <!-- Theme Management -->
+    <script>
+        function setTheme(theme) {
+            document.body.className = document.body.className.replace(/\btheme-[a-zA-Z0-9]+\b/g, '').trim();
+            if(theme !== 'white') document.body.classList.add('theme-' + theme);
+            localStorage.setItem('appTheme', theme);
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('appTheme') || 'white';
+            setTheme(savedTheme);
+        });
+    </script>
 
 </body>
 </html>
