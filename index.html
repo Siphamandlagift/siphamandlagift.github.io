@@ -1009,7 +1009,7 @@ body[class*="theme-"]:not(.theme-white) select {
                 <div class="mb-6 border-b border-gray-200">
                     <div class="flex space-x-4 pb-3" id="mainTabsContainer">
                         <button onclick="switchCourseTab('videos')" class="px-4 py-2 font-medium text-gray-600 hover:text-gray-800 border-b-2 border-transparent hover:border-indigo-600 transition cursor-pointer" id="videosTabBtn">
-                            <i class="fas fa-video mr-2"></i>Videos
+                            <i class="fas fa-book-open mr-2"></i>Content
                         </button>
                         <button onclick="switchCourseTab('documents')" class="px-4 py-2 font-medium text-gray-600 hover:text-gray-800 border-b-2 border-transparent hover:border-indigo-600 transition cursor-pointer" id="documentsTabBtn">
                             <i class="fas fa-file-alt mr-2"></i>Documents
@@ -8979,7 +8979,7 @@ function viewStudentCourse(courseId, courseName) {
     }
     
     // If this is a real course from allCoursesData, create sections from questions
-    if (isRealCourse && course.videos && course.videos.length > 0 && (!course.sections || course.sections.length === 0)) {
+    if (isRealCourse && (!course.sections || course.sections.length === 0) && ((course.videos && course.videos.length > 0) || (course.questions && course.questions.length > 0))) {
         // Create a default section structure for courses with videos
         course.sections = [{
             id: courseId * 10 + 1,
@@ -9000,7 +9000,7 @@ function viewStudentCourse(courseId, courseName) {
     window.currentViewingCourseId = courseId;
 
     // Check what content exists in the course
-    const hasVideos = course.videos && course.videos.length > 0;
+    const hasVideos = (course.videos && course.videos.length > 0) || (course.questions && course.questions.length > 0) || (course.sections && course.sections.length > 0);
     const hasDocuments = course.documents && course.documents.length > 0;
     const hasAssignments = allAssignmentsData && allAssignmentsData.some(a => 
         a.courseId === courseId && a.assignedStudentId === loggedInUser.id
@@ -9139,7 +9139,7 @@ function loadSectionQuestions(questions) {
                     <div class="space-y-2 ml-11">
                         ${q.options.map((option, optIndex) => `
                             <label class="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer">
-                                <input type="checkbox" name="question-${q.id}" value="${optIndex}" class="w-4 h-4 text-indigo-600 rounded" onchange="if(this.checked) { document.querySelectorAll('input[name=\\\'question-${q.id}\\\']').forEach(cb => { if(cb !== this) cb.checked = false; }) }">
+                                <input type="checkbox" name="question-${q.id}" value="${optIndex}" class="w-4 h-4 text-indigo-600 rounded">
                                 <span class="ml-3 text-gray-700">${option}</span>
                             </label>
                         `).join('')}
@@ -9559,21 +9559,35 @@ document.addEventListener('DOMContentLoaded', function() {
             let allAnswered = true;
 
             window.currentSectionQuestions.forEach(q => {
-                const selected = document.querySelector(`input[name="question-${q.id}"]:checked`);
-                if (!selected) {
+                const selectedElements = document.querySelectorAll(`input[name="question-${q.id}"]:checked`);
+                if (!selectedElements || selectedElements.length === 0) {
                     allAnswered = false;
                     return;
                 }
 
-                let userAnswer = selected.value;
-                if (q.type === 'true-false') {
-                    userAnswer = userAnswer === 'true';
+                if (q.type === 'multiple-choice') {
+                    // Because user can select multiple, extract all chosen int values
+                    let userAnswers = Array.from(selectedElements).map(el => parseInt(el.value));
+                    
+                    // q.correctAnswer could be an Array if created perfectly, but fallback to single var if old format
+                    let correctAnswers = Array.isArray(q.correctAnswer) ? q.correctAnswer : [q.correctAnswer];
+                    
+                    // Check if arrays perfectly match (same length and all elements match)
+                    let isCorrect = userAnswers.length === correctAnswers.length && 
+                                  userAnswers.every(val => correctAnswers.includes(val));
+                    if (isCorrect) score++;
                 } else {
-                    userAnswer = parseInt(userAnswer);
-                }
+                    // For true-false or older single-choice where only one checkbox/radio is expected
+                    let userAnswer = selectedElements[0].value;
+                    if (q.type === 'true-false') {
+                        userAnswer = userAnswer === 'true';
+                    } else {
+                        userAnswer = parseInt(userAnswer);
+                    }
 
-                if (userAnswer === q.correctAnswer) {
-                    score++;
+                    if (userAnswer === q.correctAnswer) {
+                        score++;
+                    }
                 }
             });
 
