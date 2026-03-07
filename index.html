@@ -4616,12 +4616,12 @@
                         <label class="block text-gray-700 text-sm font-medium mb-3">Options <span class="text-gray-500 text-xs">(Enter all options first, then select the correct answer)</span></label>
                         <div class="flex items-start gap-3">
                             <input type="radio" name="mcAnswer" value="0" class="mt-3 cursor-pointer" style="width: 20px; height: 20px; accent-color: #6B7280; opacity: 1; flex-shrink: 0;" disabled>
-                            <input type="text" class="mc-option px-3 py-2 border border-gray-300 rounded-md flex-1" placeholder="Add an answer">
+                            <input type="text" class="mc-option px-3 py-2 border border-gray-300 rounded-md flex-1" placeholder="Add an answer" onkeydown="if(event.key==='Enter'){event.preventDefault();addMultipleChoiceOption();}">
                             <button type="button" class="remove-option-btn mt-1 text-red-600 hover:text-red-900 hover:bg-red-50 p-2 rounded transition-colors" style="flex-shrink: 0;"><i class="fas fa-times"></i></button>
                         </div>
                         <div class="flex items-start gap-3">
                             <input type="radio" name="mcAnswer" value="1" class="mt-3 cursor-pointer" style="width: 20px; height: 20px; accent-color: #6B7280; opacity: 1; flex-shrink: 0;" disabled>
-                            <input type="text" class="mc-option px-3 py-2 border border-gray-300 rounded-md flex-1" placeholder="Add an answer">
+                            <input type="text" class="mc-option px-3 py-2 border border-gray-300 rounded-md flex-1" placeholder="Add an answer" onkeydown="if(event.key==='Enter'){event.preventDefault();addMultipleChoiceOption();}">
                             <button type="button" class="remove-option-btn mt-1 text-red-600 hover:text-red-900 hover:bg-red-50 p-2 rounded transition-colors" style="flex-shrink: 0;"><i class="fas fa-times"></i></button>
                         </div>
                     </div>
@@ -4675,13 +4675,13 @@
                             <div class="flex items-center space-x-2">
                                 <input type="text" class="matching-term px-3 py-2 border border-gray-300 rounded-md w-1/2" placeholder="Term">
                                 <span class="text-gray-500">:</span>
-                                <input type="text" class="matching-definition px-3 py-2 border border-gray-300 rounded-md w-1/2" placeholder="Definition">
+                                <input type="text" class="matching-definition px-3 py-2 border border-gray-300 rounded-md w-1/2" placeholder="Definition" onkeydown="if(event.key==='Enter'){event.preventDefault();addMatchingPair();}">
                                 <button type="button" class="remove-pair-btn text-red-600 hover:text-red-900"><i class="fas fa-times"></i></button>
                             </div>
                             <div class="flex items-center space-x-2">
                                 <input type="text" class="matching-term px-3 py-2 border border-gray-300 rounded-md w-1/2" placeholder="Term">
                                 <span class="text-gray-500">:</span>
-                                <input type="text" class="matching-definition px-3 py-2 border border-gray-300 rounded-md w-1/2" placeholder="Definition">
+                                <input type="text" class="matching-definition px-3 py-2 border border-gray-300 rounded-md w-1/2" placeholder="Definition" onkeydown="if(event.key==='Enter'){event.preventDefault();addMatchingPair();}">
                                 <button type="button" class="remove-pair-btn ml-2 text-red-600 hover:text-red-900"><i class="fas fa-times"></i></button>
                             </div>
                         </div>
@@ -4709,7 +4709,7 @@
                         <label class="block text-gray-700 text-sm font-medium mb-2">Correct Answers (one per blank)</label>
                         <div id="fillBlankAnswersContainer" class="space-y-2 mb-2">
                             <div class="flex items-center space-x-2">
-                                <input type="text" class="fill-blank-answer px-3 py-2 border border-gray-300 rounded-md w-full" placeholder="Answer for blank 1">
+                                <input type="text" class="fill-blank-answer px-3 py-2 border border-gray-300 rounded-md w-full" placeholder="Answer for blank 1" onkeydown="if(event.key==='Enter'){event.preventDefault();addBlankAnswer();}">
                                 <button type="button" class="remove-blank-btn text-red-600 hover:text-red-900"><i class="fas fa-times"></i></button>
                             </div>
                         </div>
@@ -4738,12 +4738,12 @@
                         <div id="orderingItemsContainer" class="space-y-2 mb-2">
                             <div class="flex items-center space-x-2">
                                 <span class="text-gray-500 font-medium w-6">1.</span>
-                                <input type="text" class="ordering-item px-3 py-2 border border-gray-300 rounded-md w-full" placeholder="First item">
+                                <input type="text" class="ordering-item px-3 py-2 border border-gray-300 rounded-md w-full" placeholder="First item" onkeydown="if(event.key==='Enter'){event.preventDefault();addOrderingItem();}">
                                 <button type="button" class="remove-ordering-btn text-red-600 hover:text-red-900"><i class="fas fa-times"></i></button>
                             </div>
                             <div class="flex items-center space-x-2">
                                 <span class="text-gray-500 font-medium w-6">2.</span>
-                                <input type="text" class="ordering-item px-3 py-2 border border-gray-300 rounded-md w-full" placeholder="Second item">
+                                <input type="text" class="ordering-item px-3 py-2 border border-gray-300 rounded-md w-full" placeholder="Second item" onkeydown="if(event.key==='Enter'){event.preventDefault();addOrderingItem();}">
                                 <button type="button" class="remove-ordering-btn text-red-600 hover:text-red-900"><i class="fas fa-times"></i></button>
                             </div>
                         </div>
@@ -4843,18 +4843,24 @@
             newOptionDiv.classList.add('flex', 'items-start', 'gap-3');
             newOptionDiv.innerHTML = `
                 <input type="radio" name="mcAnswer" value="${optionCount}" class="mt-3 cursor-pointer" style="width: 20px; height: 20px; accent-color: #6B7280; opacity: 1; flex-shrink: 0;" disabled>
-                <input type="text" class="mc-option px-3 py-2 border border-gray-300 rounded-md flex-1" placeholder="Add an answer">
+                <input type="text" class="mc-option px-3 py-2 border border-gray-300 rounded-md flex-1" placeholder="Add an answer (Press Enter to add another)" onkeydown="if(event.key==='Enter'){event.preventDefault();addMultipleChoiceOption();}">
                 <button type="button" class="remove-option-btn mt-1 text-red-600 hover:text-red-900 hover:bg-red-50 p-2 rounded transition-colors" style="flex-shrink: 0;"><i class="fas fa-times"></i></button>
             `;
             container.appendChild(newOptionDiv);
             newOptionDiv.querySelector('.remove-option-btn').addEventListener('click', removeMultipleChoiceOption);
             newOptionDiv.querySelector('.mc-option').addEventListener('input', checkQuestionReadiness);
             newOptionDiv.querySelector('input[name="mcAnswer"]').addEventListener('change', checkQuestionReadiness);
+            newOptionDiv.querySelector('.mc-option').focus();
             checkQuestionReadiness();
         }
 
         // Multiple Choice: Remove option field
         function removeMultipleChoiceOption(event) {
+            const container = document.getElementById('mcOptionsContainer');
+            if (container.querySelectorAll('.flex.items-start.gap-3').length <= 2) {
+                alert("A multiple-choice question must have at least 2 options.");
+                return;
+            }
             const optionDiv = event.target.closest('.flex.items-start.gap-3');
             if (optionDiv && optionDiv.querySelector('.mc-option')) {
                 optionDiv.remove();
@@ -4875,7 +4881,7 @@
             newPairDiv.innerHTML = `
                 <input type="text" class="matching-term px-3 py-2 border border-gray-300 rounded-md w-1/2" placeholder="Term">
                 <span class="text-gray-500">:</span>
-                <input type="text" class="matching-definition px-3 py-2 border border-gray-300 rounded-md w-1/2" placeholder="Definition">
+                <input type="text" class="matching-definition px-3 py-2 border border-gray-300 rounded-md w-1/2" placeholder="Definition (Press Enter to add another)" onkeydown="if(event.key==='Enter'){event.preventDefault();addMatchingPair();}">
                 <button type="button" class="remove-pair-btn text-red-600 hover:text-red-900"><i class="fas fa-times"></i></button>
             `;
             container.appendChild(newPairDiv);
@@ -4883,11 +4889,17 @@
             newPairDiv.querySelectorAll('.matching-term, .matching-definition').forEach(input => {
                 input.addEventListener('input', checkQuestionReadiness);
             });
+            newPairDiv.querySelector('.matching-term').focus();
             checkQuestionReadiness();
         }
 
         // Matching: Remove pair field
         function removeMatchingPair(event) {
+            const container = document.getElementById('matchingPairsContainer');
+            if (container.querySelectorAll('.flex.items-center').length <= 2) {
+                alert("A matching question must have at least 2 pairs.");
+                return;
+            }
             const pairDiv = event.target.closest('.flex.items-center');
             if (pairDiv) {
                 pairDiv.remove();
@@ -4902,17 +4914,23 @@
             const newAnswerDiv = document.createElement('div');
             newAnswerDiv.classList.add('flex', 'items-center', 'space-x-2');
             newAnswerDiv.innerHTML = `
-                <input type="text" class="fill-blank-answer px-3 py-2 border border-gray-300 rounded-md w-full" placeholder="Answer for blank ${answerCount}">
+                <input type="text" class="fill-blank-answer px-3 py-2 border border-gray-300 rounded-md w-full" placeholder="Answer for blank ${answerCount} (Press Enter to add another)" onkeydown="if(event.key==='Enter'){event.preventDefault();addBlankAnswer();}">
                 <button type="button" class="remove-blank-btn text-red-600 hover:text-red-900"><i class="fas fa-times"></i></button>
             `;
             container.appendChild(newAnswerDiv);
             newAnswerDiv.querySelector('.remove-blank-btn').addEventListener('click', removeBlankAnswer);
             newAnswerDiv.querySelector('.fill-blank-answer').addEventListener('input', checkQuestionReadiness);
+            newAnswerDiv.querySelector('.fill-blank-answer').focus();
             checkQuestionReadiness();
         }
 
         // Fill-in-Blank: Remove answer field
         function removeBlankAnswer(event) {
+            const container = document.getElementById('fillBlankAnswersContainer');
+            if (container.children.length <= 1) {
+                alert("A fill-in-the-blank question must have at least 1 answer.");
+                return;
+            }
             const answerDiv = event.target.closest('.flex.items-center');
             if (answerDiv) {
                 answerDiv.remove();
@@ -4928,17 +4946,23 @@
             newItemDiv.classList.add('flex', 'items-center', 'space-x-2');
             newItemDiv.innerHTML = `
                 <span class="text-gray-500 font-medium w-6">${itemCount}.</span>
-                <input type="text" class="ordering-item px-3 py-2 border border-gray-300 rounded-md w-full" placeholder="Item ${itemCount}">
+                <input type="text" class="ordering-item px-3 py-2 border border-gray-300 rounded-md w-full" placeholder="Item ${itemCount} (Press Enter to add another)" onkeydown="if(event.key==='Enter'){event.preventDefault();addOrderingItem();}">
                 <button type="button" class="remove-ordering-btn text-red-600 hover:text-red-900"><i class="fas fa-times"></i></button>
             `;
             container.appendChild(newItemDiv);
             newItemDiv.querySelector('.remove-ordering-btn').addEventListener('click', removeOrderingItem);
             newItemDiv.querySelector('.ordering-item').addEventListener('input', checkQuestionReadiness);
+            newItemDiv.querySelector('.ordering-item').focus();
             checkQuestionReadiness();
         }
 
         // Ordering: Remove item field and re-number
         function removeOrderingItem(event) {
+            const container = document.getElementById('orderingItemsContainer');
+            if (container.children.length <= 2) {
+                alert("An ordering question must have at least 2 items.");
+                return;
+            }
             const itemDiv = event.target.closest('.flex.items-center');
             if (itemDiv) {
                 itemDiv.remove();
