@@ -2117,30 +2117,20 @@
                             <h3 class="text-2xl font-bold text-gray-800">Create New Course</h3>
                         </div>
                         <form id="createCourseForm">
-                            <!-- Top Row: Core Info & Media (Grid Layout) -->
-                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                                
-                                <!-- Left Column: Core Info & Docs -->
-                                <div class="space-y-6">
-                                    
-                                    <!-- Basic Information -->
-                                    <div class="bg-white border-t-4 border-t-indigo-500 rounded-xl shadow-sm hover:shadow-md transition-shadow p-5 border border-gray-100">
-                                        <h4 class="text-md font-bold text-gray-800 mb-4 flex items-center">
-                                            <div class="bg-indigo-100 p-1.5 rounded-lg mr-2"><i class="fas fa-info-circle text-indigo-600 text-sm"></i></div>
-                                            Basic Information <span class="text-red-500 ml-1 text-xs">*</span>
-                                        </h4>
-                                        <div class="space-y-4">
+                            <!-- Core Information Section -->
+                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                                <div class="lg:col-span-3 bg-white border-t-4 border-t-indigo-500 rounded-xl shadow-sm p-6 border border-gray-100">
+                                    <h4 class="text-md font-bold text-gray-800 mb-4 flex items-center">
+                                        <div class="bg-indigo-100 p-1.5 rounded-lg mr-2"><i class="fas fa-info-circle text-indigo-600 text-sm"></i></div>
+                                        Basic Information <span class="text-red-500 ml-1 text-xs">*</span>
+                                    </h4>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div class="space-y-4 md:col-span-1">
                                             <div>
                                                 <label class="block text-gray-700 text-sm font-semibold mb-1" for="courseNameInput">
                                                     Course Name <span class="text-red-500">*</span>
                                                 </label>
-                                                <input id="courseNameInput" type="text" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" placeholder="e.g., Advanced Safety Training">
-                                            </div>
-                                            <div>
-                                                <label class="block text-gray-700 text-sm font-semibold mb-1" for="courseDescriptionInput">
-                                                    Course Description <span class="text-red-500">*</span>
-                                                </label>
-                                                <textarea id="courseDescriptionInput" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" rows="2" placeholder="Provide a clear description of what students will learn..."></textarea>
+                                                <input id="courseNameInput" type="text" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all" placeholder="e.g., Advanced Safety Training" required>
                                             </div>
                                             <div>
                                                 <label class="block text-gray-700 text-sm font-semibold mb-1" for="courseCompletionDeadlineInput">
@@ -2149,193 +2139,299 @@
                                                 <input id="courseCompletionDeadlineInput" type="date" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all">
                                             </div>
                                         </div>
-                                    </div>
-
-                                    <!-- Course Picture & Course Documents Grid -->
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        
-                                        <!-- Course Picture -->
-                                        <div class="bg-white border-t-4 border-t-purple-400 rounded-xl shadow-sm hover:shadow-md transition-shadow p-4 text-center border border-gray-100 flex flex-col items-center justify-center">
-                                            <label class="block text-gray-700 text-sm font-semibold mb-2">
-                                                Course Picture <span class="text-gray-400 font-normal text-xs">(Optional)</span>
+                                        <div class="md:col-span-1 md:border-l border-gray-100 md:pl-6">
+                                            <label class="block text-gray-700 text-sm font-semibold mb-1" for="courseDescriptionInput">
+                                                Course Description <span class="text-red-500">*</span>
                                             </label>
-                                            <div class="relative group cursor-pointer w-full flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-3 hover:border-purple-400 hover:bg-purple-50 transition-all">
-                                                <img id="coursePicturePreview" class="h-24 w-24 rounded-lg object-cover shadow-sm mb-2" src="https://placehold.co/128x128/E0E7FF/4F46E5?text=Image" alt="Course Image">
-                                                <input type="file" id="coursePictureInput" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
-                                                <span class="text-xs font-semibold text-purple-600 bg-purple-100 px-2 py-1 rounded">Change Photo</span>
-                                                <p class="text-[10px] text-gray-500 mt-1">PNG/JPG (Max 5MB)</p>
-                                            </div>
+                                            <textarea id="courseDescriptionInput" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all h-[105px] resize-none" placeholder="Provide a clear description of what students will learn..." required></textarea>
                                         </div>
-
-                                        <!-- Course Documents -->
-                                        <div class="bg-white border-t-4 border-t-red-400 rounded-xl shadow-sm hover:shadow-md transition-shadow p-4 border border-gray-100 flex flex-col justify-center">
-                                            <label class="block text-gray-700 text-sm font-semibold mb-2" for="coursePdfInput">
-                                                Course Document <span class="text-gray-400 font-normal text-xs">(Optional)</span>
-                                            </label>
-                                            <div class="relative group cursor-pointer w-full flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-5 hover:border-red-400 hover:bg-red-50 transition-all mb-1 h-[130px]">
-                                                <i class="fas fa-file-pdf text-red-400 text-3xl mb-2"></i>
-                                                <input type="file" id="coursePdfInput" accept=".pdf,.ppt,.pptx" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
-                                                <span class="text-xs font-semibold text-red-600 bg-red-100 px-2 py-1 rounded text-center">Upload PDF/PPT</span>
-                                                <p id="coursePdfFileName" class="text-[10px] font-medium text-green-600 mt-2 truncate w-full text-center hidden"><i class="fas fa-check-circle mr-1"></i></p>
-                                            </div>
-                                        </div>
-
-                                    </div>
-                                </div>
-
-                                <!-- Right Column: Media (Videos) -->
-                                <div class="bg-white border-t-4 border-t-blue-500 rounded-xl shadow-sm hover:shadow-md transition-shadow p-5 border border-gray-100 flex flex-col h-full">
-                                    <h4 class="text-md font-bold text-gray-800 mb-4 flex items-center">
-                                        <div class="bg-blue-100 p-1.5 rounded-lg mr-2"><i class="fas fa-video text-blue-600 text-sm"></i></div>
-                                        Course Videos <span class="text-gray-400 font-normal text-xs ml-1">(Optional)</span>
-                                    </h4>
-                                    
-                                    <div class="space-y-4 bg-gray-50 p-4 rounded-lg border border-gray-200 flex-1">
-                                        <div class="grid grid-cols-2 gap-3">
-                                            <div class="col-span-2">
-                                                <label class="block text-gray-700 text-xs font-semibold mb-1" for="videoTitleInput">Video Title</label>
-                                                <input type="text" id="videoTitleInput" class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., Intro to Safety">
-                                            </div>
-                                            <div class="col-span-2">
-                                                <label class="block text-gray-700 text-xs font-semibold mb-1" for="videoDurationInput">Duration (mm:ss)</label>
-                                                <input type="text" id="videoDurationInput" class="w-[50%] px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="10:30">
-                                            </div>
-                                        </div>
-
-                                        <div class="border border-dashed border-gray-300 rounded bg-white p-3">
-                                            <p class="text-[11px] font-semibold text-gray-500 mb-2 uppercase tracking-wide text-center">Add via File or Link</p>
-                                            
-                                            <div class="space-y-3">
-                                                <div>
-                                                    <label class="block text-gray-700 text-xs font-semibold mb-1" for="videoFileInput"><i class="fas fa-upload text-blue-400 mr-1"></i>Upload Video File</label>
-                                                    <input type="file" id="videoFileInput" accept="video/*" class="block w-full text-xs text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"/>
-                                                </div>
-                                                <div class="flex items-center justify-center">
-                                                    <span class="text-[10px] text-gray-400 font-bold bg-white px-2">OR</span>
-                                                </div>
-                                                <div>
-                                                    <label class="block text-gray-700 text-xs font-semibold mb-1" for="videoUrlInput"><i class="fas fa-link text-blue-400 mr-1"></i>URL (YouTube/Vimeo)</label>
-                                                    <input type="url" id="videoUrlInput" class="w-full px-3 py-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="https://...">
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <button type="button" id="addVideoBtn" class="w-full bg-blue-600 text-white py-2 px-4 rounded text-sm font-semibold hover:bg-blue-700 transition shadow-sm">
-                                            <i class="fas fa-plus mr-1"></i> Add Video
-                                        </button>
-                                        <div id="courseVideosList" class="mt-2 space-y-2 max-h-[140px] overflow-y-auto pr-1"></div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Bottom Row: Assessments & Assignments -->
-                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                            <!-- Course Builder Dashboard Cards -->
+                            <div class="mb-4 flex items-center justify-between mt-2">
+                                <div>
+                                    <h4 class="text-lg font-bold text-gray-800 flex items-center"><i class="fas fa-cubes text-indigo-600 mr-2"></i> Course Builder Modules</h4>
+                                    <p class="text-xs text-gray-500">Select a module to add rich content (Optional)</p>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 relative z-0">
                                 
-                                <!-- Assessment Section -->
-                                <div class="bg-white border-t-4 border-t-emerald-500 rounded-xl shadow-sm hover:shadow-md transition-shadow p-5 border border-gray-100 flex flex-col">
-                                    <div class="flex justify-between items-center mb-4">
-                                        <h4 class="text-md font-bold text-gray-800 flex items-center">
-                                            <div class="bg-emerald-100 p-1.5 rounded-lg mr-2"><i class="fas fa-clipboard-check text-emerald-600 text-sm"></i></div>
-                                            Course Assessment
-                                        </h4>
-                                        <span class="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">Optional</span>
+                                <!-- Card 1: Resources -->
+                                <button type="button" class="text-left bg-white rounded-xl shadow-sm border border-gray-200 hover:border-purple-400 hover:shadow-md transition-all group flex flex-col p-5 focus:outline-none focus:ring-2 focus:ring-purple-500" onclick="document.getElementById('modalResources').classList.remove('hidden')">
+                                    <div class="h-12 w-12 rounded-full bg-purple-50 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                                        <i class="fas fa-folder-open text-xl text-purple-600"></i>
                                     </div>
-                                    <p class="text-xs text-gray-500 mb-4">Create dynamic questions to evaluate users.</p>
+                                    <h5 class="font-bold text-gray-800 mb-1">Files & Media</h5>
+                                    <p class="text-xs text-gray-500 mb-3 flex-1 h-12">Upload course thumbnail, PDFs, and slide decks.</p>
+                                    <div class="flex flex-row items-center justify-start mt-auto w-full">
+                                        <div class="flex items-center text-[10px] uppercase font-bold text-purple-600 bg-purple-50 px-2 py-1 rounded w-fit group-hover:bg-purple-100 transition-colors">
+                                            <i class="fas fa-cog mr-1"></i> Manage Media
+                                        </div>
+                                    </div>
+                                </button>
 
-                                    <div class="bg-emerald-50/50 p-4 rounded-lg border border-emerald-100 flex-1 flex flex-col">
-                                        <div class="mb-4">
-                                            <label class="block text-gray-700 text-xs font-semibold mb-1.5" for="questionTypeSelect">Select Question Type</label>
-                                            <select id="questionTypeSelect" class="w-full px-3 py-2.5 text-sm border border-emerald-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white transition hover:border-emerald-300">
-                                                <option value="">— Select type to begin —</option>
-                                                <option value="multiple-choice">📝 Multiple Choice</option>
-                                                <option value="true-false">✓ True/False</option>
-                                                <option value="matching">🔗 Matching</option>
-                                                <option value="fill-in-blank">✏️ Fill in the Blank</option>
-                                                <option value="ordering">🔢 Ordering/Sequence</option>
-                                                <option value="long-answer">📄 Long Answer</option>
-                                            </select>
+                                <!-- Card 2: Videos -->
+                                <button type="button" class="text-left bg-white rounded-xl shadow-sm border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all group flex flex-col p-5 focus:outline-none focus:ring-2 focus:ring-blue-500" onclick="document.getElementById('modalVideos').classList.remove('hidden')">
+                                    <div class="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                                        <i class="fas fa-video text-xl text-blue-600"></i>
+                                    </div>
+                                    <h5 class="font-bold text-gray-800 mb-1">Course Videos</h5>
+                                    <p class="text-xs text-gray-500 mb-3 flex-1 h-12">Embed YouTube/Vimeo links or upload mp4 clips.</p>
+                                    <div class="flex flex-row items-center justify-start mt-auto w-full">
+                                        <div class="flex items-center text-[10px] uppercase font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded w-fit group-hover:bg-blue-100 transition-colors">
+                                            <i class="fas fa-cog mr-1"></i> Manage Videos
+                                        </div>
+                                    </div>
+                                </button>
+
+                                <!-- Card 3: Assessments -->
+                                <button type="button" class="text-left bg-white rounded-xl shadow-sm border border-gray-200 hover:border-emerald-400 hover:shadow-md transition-all group flex flex-col p-5 focus:outline-none focus:ring-2 focus:ring-emerald-500" onclick="document.getElementById('modalAssessments').classList.remove('hidden')">
+                                    <div class="h-12 w-12 rounded-full bg-emerald-50 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                                        <i class="fas fa-clipboard-check text-xl text-emerald-600"></i>
+                                    </div>
+                                    <h5 class="font-bold text-gray-800 mb-1">Assessments</h5>
+                                    <p class="text-xs text-gray-500 mb-3 flex-1 h-12">Build dynamic quizzes and test questions.</p>
+                                    <div class="flex flex-row items-center justify-start mt-auto w-full">
+                                        <div class="flex items-center text-[10px] uppercase font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded w-fit group-hover:bg-emerald-100 transition-colors">
+                                            <i class="fas fa-cog mr-1"></i> Manage Exams
+                                        </div>
+                                    </div>
+                                </button>
+
+                                <!-- Card 4: Assignments -->
+                                <button type="button" class="text-left bg-white rounded-xl shadow-sm border border-gray-200 hover:border-pink-400 hover:shadow-md transition-all group flex flex-col p-5 focus:outline-none focus:ring-2 focus:ring-pink-500" onclick="document.getElementById('modalAssignments').classList.remove('hidden')">
+                                    <div class="h-12 w-12 rounded-full bg-pink-50 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                                        <i class="fas fa-tasks text-xl text-pink-600"></i>
+                                    </div>
+                                    <h5 class="font-bold text-gray-800 mb-1">Assignments</h5>
+                                    <p class="text-xs text-gray-500 mb-3 flex-1 h-12">Create document uploads and read-receipt tasks.</p>
+                                    <div class="flex flex-row items-center justify-start mt-auto w-full">
+                                        <div class="flex items-center text-[10px] uppercase font-bold text-pink-600 bg-pink-50 px-2 py-1 rounded w-fit group-hover:bg-pink-100 transition-colors">
+                                            <i class="fas fa-cog mr-1"></i> Manage Tasks
+                                        </div>
+                                    </div>
+                                </button>
+
+                            </div>
+
+                            <!-- BEGIN BUILDER MODALS -->
+
+                            <!-- Modal: Resources -->
+                            <div id="modalResources" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm transition-opacity">
+                                <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col m-4">
+                                    <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-purple-50">
+                                        <h3 class="font-bold text-gray-800 flex items-center"><i class="fas fa-folder-open text-purple-600 mr-2"></i> Files & Media</h3>
+                                        <button type="button" class="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-300 rounded" onclick="document.getElementById('modalResources').classList.add('hidden');"><i class="fas fa-times text-xl"></i></button>
+                                    </div>
+                                    <div class="p-6 overflow-y-auto flex-1">
+                                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                             <div class="border border-gray-200 rounded-xl p-5 text-center flex flex-col items-center justify-center">
+                                                 <label class="block text-gray-700 text-sm font-semibold mb-2">
+                                                     Course Thumbnail
+                                                 </label>
+                                                 <div class="relative group cursor-pointer w-full flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-3 hover:border-purple-400 hover:bg-purple-50 transition-all">
+                                                     <img id="coursePicturePreview" class="h-24 w-24 rounded-lg object-cover shadow-sm mb-2" src="https://placehold.co/128x128/E0E7FF/4F46E5?text=Image" alt="Course Image">
+                                                     <input type="file" id="coursePictureInput" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
+                                                     <span class="text-xs font-semibold text-purple-600 bg-purple-100 px-2 py-1 rounded group-hover:bg-purple-200">Change Photo</span>
+                                                     <p class="text-[10px] text-gray-500 mt-1">PNG/JPG (Max 5MB)</p>
+                                                 </div>
+                                             </div>
+                                             <div class="border border-gray-200 rounded-xl p-5 flex flex-col justify-center">
+                                                 <label class="block text-gray-700 text-sm font-semibold mb-2" for="coursePdfInput">
+                                                     Course Presentation (PDF)
+                                                 </label>
+                                                 <div class="relative group cursor-pointer w-full flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-5 hover:border-red-400 hover:bg-red-50 transition-all mb-1 h-[130px]">
+                                                     <i class="fas fa-file-pdf text-red-400 text-3xl mb-2 group-hover:scale-110 transition-transform"></i>
+                                                     <input type="file" id="coursePdfInput" accept=".pdf,.ppt,.pptx" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
+                                                     <span class="text-xs font-semibold text-red-600 bg-red-100 px-2 py-1 rounded text-center group-hover:bg-red-200">Select File</span>
+                                                     <p id="coursePdfFileName" class="text-[10px] font-medium text-green-600 mt-2 truncate w-full text-center hidden"><i class="fas fa-check-circle mr-1"></i></p>
+                                                 </div>
+                                             </div>
+                                         </div>
+                                    </div>
+                                    <div class="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                                        <button type="button" class="px-5 py-2.5 bg-gray-800 text-white rounded-lg text-sm font-semibold hover:bg-gray-900 transition-colors focus:ring-2 focus:ring-gray-400" onclick="document.getElementById('modalResources').classList.add('hidden')">Done</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Modal: Videos -->
+                            <div id="modalVideos" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm transition-opacity">
+                                <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col m-4">
+                                    <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-blue-50">
+                                        <h3 class="font-bold text-gray-800 flex items-center"><i class="fas fa-video text-blue-600 mr-2"></i> Course Videos</h3>
+                                        <button type="button" class="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 rounded" onclick="document.getElementById('modalVideos').classList.add('hidden');"><i class="fas fa-times text-xl"></i></button>
+                                    </div>
+                                    <div class="p-6 overflow-y-auto flex-1">
+                                         <div class="space-y-4 bg-gray-50 p-5 rounded-lg border border-gray-200">
+                                             <div class="grid grid-cols-2 gap-4">
+                                                 <div class="col-span-2 md:col-span-1">
+                                                     <label class="block text-gray-700 text-xs font-semibold mb-1" for="videoTitleInput">Video Title</label>
+                                                     <input type="text" id="videoTitleInput" class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., Intro to Safety">
+                                                 </div>
+                                                 <div class="col-span-2 md:col-span-1">
+                                                     <label class="block text-gray-700 text-xs font-semibold mb-1" for="videoDurationInput">Duration (mm:ss)</label>
+                                                     <input type="text" id="videoDurationInput" class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="10:30">
+                                                 </div>
+                                             </div>
+
+                                             <div class="border border-dashed border-gray-300 rounded bg-white p-4">
+                                                 <p class="text-[11px] font-semibold text-gray-500 mb-3 uppercase tracking-wide text-center">Add via File or Link</p>
+                                                 
+                                                 <div class="space-y-4">
+                                                     <div>
+                                                         <label class="block text-gray-700 text-xs font-semibold mb-1" for="videoFileInput"><i class="fas fa-upload text-blue-400 mr-1"></i>Upload Video File</label>
+                                                         <input type="file" id="videoFileInput" accept="video/*" class="block w-full text-xs text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-400"/>
+                                                     </div>
+                                                     <div class="flex items-center justify-center relative">
+                                                         <div class="border-t border-gray-200 w-full absolute"></div>
+                                                         <span class="text-[10px] text-gray-400 font-bold bg-white px-2 relative z-10">OR</span>
+                                                     </div>
+                                                     <div>
+                                                         <label class="block text-gray-700 text-xs font-semibold mb-1" for="videoUrlInput"><i class="fas fa-link text-blue-400 mr-1"></i>URL (YouTube/Vimeo)</label>
+                                                         <input type="url" id="videoUrlInput" class="w-full px-3 py-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="https://youtube.com/...">
+                                                     </div>
+                                                 </div>
+                                             </div>
+
+                                             <button type="button" id="addVideoBtn" class="w-full bg-blue-600 text-white py-2.5 px-4 rounded-lg text-sm font-semibold hover:bg-blue-700 transition shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                                 <i class="fas fa-plus mr-1"></i> Add to List
+                                             </button>
+                                             <div id="courseVideosList" class="mt-4 space-y-2 max-h-[200px] overflow-y-auto pr-1 empty:hidden"></div>
+                                         </div>
+                                    </div>
+                                    <div class="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                                        <button type="button" class="px-5 py-2.5 bg-gray-800 text-white rounded-lg text-sm font-semibold hover:bg-gray-900 transition-colors focus:ring-2 focus:ring-gray-400" onclick="document.getElementById('modalVideos').classList.add('hidden')">Done</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Modal: Assessments -->
+                            <div id="modalAssessments" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm transition-opacity">
+                                <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col m-4">
+                                    <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-emerald-50">
+                                        <h3 class="font-bold text-gray-800 flex items-center"><i class="fas fa-clipboard-check text-emerald-600 mr-2"></i> Assessments Module</h3>
+                                        <button type="button" class="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded" onclick="document.getElementById('modalAssessments').classList.add('hidden');"><i class="fas fa-times text-xl"></i></button>
+                                    </div>
+                                    <div class="p-6 overflow-y-auto flex-1 bg-gray-50">
+                                        <div class="bg-white p-5 rounded-lg border border-gray-200">
+                                            <div class="mb-5">
+                                                <label class="block text-gray-700 text-sm font-semibold mb-2" for="questionTypeSelect">Select Question Type</label>
+                                                <select id="questionTypeSelect" class="w-full px-4 py-3 text-sm border-2 border-emerald-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white transition hover:border-emerald-300 cursor-pointer">
+                                                    <option value="">— Select type to begin —</option>
+                                                    <option value="multiple-choice">📝 Multiple Choice</option>
+                                                    <option value="true-false">✓ True/False</option>
+                                                    <option value="matching">🔗 Matching</option>
+                                                    <option value="fill-in-blank">✏️ Fill in the Blank</option>
+                                                    <option value="ordering">🔢 Ordering/Sequence</option>
+                                                    <option value="long-answer">📄 Long Answer</option>
+                                                </select>
+                                            </div>
+
+                                            <div id="questionInputArea" class="bg-gray-50 rounded-lg p-4 border border-gray-200 mb-5 min-h-[150px] transition-all">
+                                                <div class="flex flex-col items-center justify-center py-8 text-gray-400">
+                                                    <i class="fas fa-magic text-3xl mb-3 opacity-30"></i>
+                                                    <span class="text-sm font-medium">Select a question type above to customize</span>
+                                                </div>
+                                            </div>
+
+                                            <button type="button" id="addQuestionBtn" class="w-full bg-emerald-600 text-white py-3 px-4 rounded-lg text-sm font-bold hover:bg-emerald-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-emerald-500" disabled>
+                                                <i class="fas fa-plus mr-1"></i> Add Question to Bank
+                                            </button>
                                         </div>
 
-                                        <div id="questionInputArea" class="bg-white rounded-lg p-3 border border-gray-200 mb-4 min-h-[150px] transition-all">
-                                            <div class="flex flex-col items-center justify-center py-6 text-gray-400">
-                                                <i class="fas fa-magic text-2xl mb-2 opacity-50"></i>
-                                                <span class="text-xs font-medium">Select a question type</span>
+                                        <div class="mt-6 bg-white rounded-lg border border-gray-200 p-4">
+                                            <div class="flex items-center justify-between mb-3 border-b border-gray-100 pb-2">
+                                                <h5 class="text-sm font-bold text-gray-700"><i class="fas fa-list-ul text-emerald-500 mr-2"></i> Current Question Bank</h5>
+                                                <span id="questionCount" class="text-xs font-bold px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-md">0</span>
                                             </div>
-                                        </div>
-
-                                        <button type="button" id="addQuestionBtn" class="w-full bg-emerald-600 text-white py-2.5 px-4 rounded-lg text-sm font-bold hover:bg-emerald-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                                            <i class="fas fa-plus mr-1"></i> Add Question
-                                        </button>
-
-                                        <div class="mt-4 bg-white rounded-lg border border-gray-200 p-3 h-full">
-                                            <div class="flex items-center justify-between mb-2">
-                                                <h5 class="text-xs font-bold text-gray-700"><i class="fas fa-list-ul text-emerald-500 mr-1.5"></i> Assessment Questions</h5>
-                                                <span id="questionCount" class="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-md">0</span>
-                                            </div>
-                                            <ul id="courseQuestionsList" class="max-h-[140px] overflow-y-auto space-y-1.5 custom-scrollbar px-1">
-                                                <li class="text-gray-400 text-[11px] italic text-center py-6">No questions added yet</li>
+                                            <ul id="courseQuestionsList" class="max-h-[250px] overflow-y-auto space-y-2 custom-scrollbar px-1">
+                                                <li class="text-gray-400 text-sm italic text-center py-8" id="emptyQuestionsMsg">No questions added yet. Start by generating one above!</li>
                                             </ul>
                                         </div>
                                     </div>
-                                </div>
-
-                                <!-- Course Assignments Section -->
-                                <div class="bg-white border-t-4 border-t-purple-500 rounded-xl shadow-sm hover:shadow-md transition-shadow p-5 border border-gray-100 flex flex-col">
-                                    <div class="flex justify-between items-center mb-4">
-                                        <h4 class="text-md font-bold text-gray-800 flex items-center">
-                                            <div class="bg-purple-100 p-1.5 rounded-lg mr-2"><i class="fas fa-tasks text-purple-600 text-sm"></i></div>
-                                            Course Assignments
-                                        </h4>
-                                        <span class="text-xs font-semibold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full">Optional</span>
-                                    </div>
-
-                                    <div class="bg-gray-50 border border-gray-200 p-4 rounded-lg flex-1">
-                                        <div class="grid grid-cols-2 gap-3 mb-3">
-                                            <div class="col-span-1">
-                                                <label class="block text-gray-700 text-xs font-semibold mb-1" for="courseAssignmentTitleInput">Title</label>
-                                                <input type="text" id="courseAssignmentTitleInput" class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="e.g., Final Essay">
-                                            </div>
-                                            <div class="col-span-1">
-                                                <label class="block text-gray-700 text-xs font-semibold mb-1" for="courseAssignmentDueDateInput">Due Date</label>
-                                                <input type="date" id="courseAssignmentDueDateInput" class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500">
-                                            </div>
-                                        </div>
-
-                                        <div class="grid grid-cols-5 gap-3 mb-3">
-                                            <div class="col-span-3">
-                                                <label class="block text-gray-700 text-xs font-semibold mb-1" for="courseAssignmentTypeSelect">Type</label>
-                                                <select id="courseAssignmentTypeSelect" class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white">
-                                                    <option value="regular">Regular Assignment</option>
-                                                    <option value="mark-as-read">Mark as Read</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-span-2">
-                                                <label class="block text-gray-700 text-xs font-semibold mb-1" for="courseAssignmentMarksInput">Marks</label>
-                                                <input type="number" id="courseAssignmentMarksInput" class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="100" min="0" value="100">
-                                            </div>
-                                        </div>
-
-                                        <div class="mb-3">
-                                            <label class="block text-gray-700 text-xs font-semibold mb-1" for="courseAssignmentInstructionsInput">Instructions</label>
-                                            <textarea id="courseAssignmentInstructionsInput" class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500" rows="2" placeholder="Instructions..."></textarea>
-                                        </div>
-
-                                        <div class="mb-3 bg-white border border-dashed border-purple-200 rounded p-3">
-                                            <label class="block text-gray-700 text-[11px] font-semibold mb-1" for="courseAssignmentDocumentInput"><i class="fas fa-paperclip text-purple-400 mr-1"></i> Attach Files</label>
-                                            <input type="file" id="courseAssignmentDocumentInput" accept=".pdf,.doc,.docx,.ppt,.pptx" multiple class="block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-purple-50 file:text-purple-700 cursor-pointer"/>
-                                            <div id="courseAssignmentDocFilesList" class="mt-1 space-y-1 max-h-[60px] overflow-y-auto"></div>
-                                        </div>
-
-                                        <button type="button" id="addCourseAssignmentBtn" class="w-full bg-purple-600 text-white py-2 px-4 rounded text-sm font-bold hover:bg-purple-700 transition shadow-sm">
-                                            <i class="fas fa-plus mr-1"></i> Add Assignment
-                                        </button>
-                                        
-                                        <div id="courseAssignmentsList" class="mt-3 space-y-2 max-h-[100px] overflow-y-auto pr-1"></div>
+                                    <div class="px-6 py-4 border-t border-gray-100 bg-white flex justify-end">
+                                        <button type="button" class="px-5 py-2.5 bg-gray-800 text-white rounded-lg text-sm font-semibold hover:bg-gray-900 transition-colors focus:ring-2 focus:ring-gray-400" onclick="document.getElementById('modalAssessments').classList.add('hidden')">Close Editor</button>
                                     </div>
                                 </div>
-
                             </div>
-                            <!-- Form Actions -->
+
+                            <!-- Modal: Assignments -->
+                            <div id="modalAssignments" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm transition-opacity">
+                                <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col m-4">
+                                    <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-pink-50">
+                                        <h3 class="font-bold text-gray-800 flex items-center"><i class="fas fa-tasks text-pink-600 mr-2"></i> Assignments Module</h3>
+                                        <button type="button" class="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-pink-300 rounded" onclick="document.getElementById('modalAssignments').classList.add('hidden');"><i class="fas fa-times text-xl"></i></button>
+                                    </div>
+                                    <div class="p-6 overflow-y-auto flex-1 bg-gray-50 flex flex-col md:flex-row gap-6">
+                                        
+                                        <div class="bg-white border border-gray-200 p-5 rounded-lg flex-1 md:w-1/2">
+                                            <h5 class="text-sm font-bold text-gray-800 mb-4 border-b border-gray-100 pb-2">New Task Configuration</h5>
+                                            
+                                            <div class="space-y-4">
+                                                <div>
+                                                    <label class="block text-gray-700 text-xs font-semibold mb-1" for="courseAssignmentTitleInput">Title</label>
+                                                    <input type="text" id="courseAssignmentTitleInput" class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-pink-500" placeholder="e.g., Final Essay">
+                                                </div>
+                                                
+                                                <div class="grid grid-cols-2 gap-3 mb-3">
+                                                    <div class="col-span-1">
+                                                        <label class="block text-gray-700 text-xs font-semibold mb-1" for="courseAssignmentDueDateInput">Due Date</label>
+                                                        <input type="date" id="courseAssignmentDueDateInput" class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-pink-500">
+                                                    </div>
+                                                    <div class="col-span-1">
+                                                        <label class="block text-gray-700 text-xs font-semibold mb-1" for="courseAssignmentMarksInput">Marks</label>
+                                                        <input type="number" id="courseAssignmentMarksInput" class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-pink-500" placeholder="100" min="0" value="100">
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <label class="block text-gray-700 text-xs font-semibold mb-1" for="courseAssignmentTypeSelect">Type</label>
+                                                    <select id="courseAssignmentTypeSelect" class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-pink-500 bg-white">
+                                                        <option value="regular">Regular Assignment</option>
+                                                        <option value="mark-as-read">Mark as Read (Review Document)</option>
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <label class="block text-gray-700 text-xs font-semibold mb-1" for="courseAssignmentInstructionsInput">Instructions</label>
+                                                    <textarea id="courseAssignmentInstructionsInput" class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-pink-500" rows="3" placeholder="Provide clear instructions..."></textarea>
+                                                </div>
+
+                                                <div class="bg-gray-50 border border-dashed border-gray-300 rounded p-4">
+                                                    <label class="block text-gray-700 text-[11px] font-semibold mb-1" for="courseAssignmentDocumentInput"><i class="fas fa-paperclip text-pink-400 mr-1"></i> Attach Resources <span class="font-normal text-gray-500">(Optional)</span></label>
+                                                    <input type="file" id="courseAssignmentDocumentInput" accept=".pdf,.doc,.docx,.ppt,.pptx" multiple class="block w-full text-xs text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-pink-50 file:text-pink-700 hover:file:bg-pink-100 cursor-pointer"/>
+                                                    <div id="courseAssignmentDocFilesList" class="mt-2 space-y-1 max-h-[60px] overflow-y-auto text-xs empty:hidden"></div>
+                                                </div>
+
+                                                <button type="button" id="addCourseAssignmentBtn" class="w-full bg-pink-600 text-white py-2.5 px-4 rounded-lg text-sm font-bold hover:bg-pink-700 transition shadow-sm focus:outline-none focus:ring-2 focus:ring-pink-500 mt-2">
+                                                    <i class="fas fa-plus mr-1"></i> Bind Assignment
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="md:w-1/2 flex flex-col">
+                                            <div class="bg-white rounded-lg border border-gray-200 p-4 h-full flex flex-col">
+                                                <h5 class="text-sm font-bold text-gray-800 mb-3 border-b border-gray-100 pb-2"><i class="fas fa-list-ol text-pink-500 mr-2"></i> Task Registry</h5>
+                                                <div id="courseAssignmentsList" class="space-y-3 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+                                                     <div class="flex flex-col items-center justify-center py-10 text-gray-400 h-full" id="emptyAssignmentsMsg">
+                                                         <i class="fas fa-inbox text-3xl mb-3 opacity-30"></i>
+                                                         <p class="text-xs italic text-center">No assignments configured.</p>
+                                                     </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="px-6 py-4 border-t border-gray-100 bg-white flex justify-end">
+                                        <button type="button" class="px-5 py-2.5 bg-gray-800 text-white rounded-lg text-sm font-semibold hover:bg-gray-900 transition-colors focus:ring-2 focus:ring-gray-400" onclick="document.getElementById('modalAssignments').classList.add('hidden')">Close Editor</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- END BUILDER MODALS -->
+<!-- Form Actions -->
                             <div class="flex justify-between items-center mt-8 pt-6 border-t-2 border-gray-200">
                                 <p class="text-sm text-gray-500">
                                     <i class="fas fa-asterisk text-red-500 text-xs mr-1"></i> Required fields
