@@ -8978,15 +8978,27 @@ function viewStudentCourse(courseId, courseName) {
         return;
     }
     
-    // If this is a real course from allCoursesData, create sections from questions
+    // If this is a real course from allCoursesData, create sections from questions and videos
     if (isRealCourse && (!course.sections || course.sections.length === 0) && ((course.videos && course.videos.length > 0) || (course.questions && course.questions.length > 0))) {
-        // Create a default section structure for courses with videos
-        course.sections = [{
-            id: courseId * 10 + 1,
-            title: course.name,
-            videoDuration: "N/A",
-            questions: course.questions || []
-        }];
+        if (course.videos && course.videos.length > 0) {
+            // Map each video to its own section
+            course.sections = course.videos.map((video, index) => ({
+                 id: courseId * 10 + index + 1,
+                 title: video.title || `Video ${index + 1}`,
+                 videoDuration: video.duration || "N/A",
+                 videoUrl: video.url || null,
+                 questions: index === course.videos.length - 1 ? (course.questions || []) : []
+            }));
+        } else {
+            // Create a default section structure for courses with only questions
+            course.sections = [{
+                id: courseId * 10 + 1,
+                title: course.name,
+                videoDuration: "N/A",
+                videoUrl: null,
+                questions: course.questions || []
+            }];
+        }
     }
     
     // Note: We no longer require sections - course might only have documents or assignments
@@ -9106,6 +9118,54 @@ function loadSection(sectionId, courseId) {
 
     // Update video duration
     document.getElementById('courseVideoDuration').textContent = section.videoDuration;
+
+    // Render video if available
+    const videoPlayer = document.getElementById('videoPlayer');
+    if (videoPlayer) {
+        if (section.videoUrl) {
+            let embedUrl = section.videoUrl;
+            let isYouTube = false;
+            // Handle regular YouTube links
+            if (embedUrl.includes('youtube.com/watch?v=')) {
+                isYouTube = true;
+                let videoId = embedUrl.split('v=')[1];
+                let ampersandPosition = videoId.indexOf('&');
+                if (ampersandPosition !== -1) {
+                    videoId = videoId.substring(0, ampersandPosition);
+                }
+                embedUrl = 'https://www.youtube.com/embed/' + videoId;
+            } 
+            // Handle YouTube short links
+            else if (embedUrl.includes('youtu.be/')) {
+                isYouTube = true;
+                let videoId = embedUrl.split('youtu.be/')[1];
+                let questionMarkPosition = videoId.indexOf('?');
+                if (questionMarkPosition !== -1) {
+                    videoId = videoId.substring(0, questionMarkPosition);
+                }
+                embedUrl = 'https://www.youtube.com/embed/' + videoId;
+            }
+            // Handle Vimeo links
+            else if (embedUrl.includes('vimeo.com/')) {
+                isYouTube = true;
+                let videoId = embedUrl.split('vimeo.com/')[1];
+                embedUrl = 'https://player.vimeo.com/video/' + videoId;
+            }
+            
+            if (isYouTube) {
+                videoPlayer.innerHTML = `<iframe class="w-full h-full" style="min-height: 24rem;" src="${embedUrl}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+            } else {
+                videoPlayer.innerHTML = `<video class="w-full h-full" style="min-height: 24rem; background: #000;" src="${embedUrl}" controls title="Video Player"></video>`;
+            }
+        } else {
+            videoPlayer.innerHTML = `
+                <div class="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center">
+                    <i class="fas fa-play-circle text-6xl text-white mb-4 group-hover:scale-110 transition"></i>
+                    <p class="text-white text-lg">No Video available</p>
+                </div>
+            `;
+        }
+    }
 
     // Load section questions
     loadSectionQuestions(section.questions);
