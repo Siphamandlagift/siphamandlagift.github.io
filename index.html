@@ -132,7 +132,6 @@
         
         /* Dropdown menu hidden by default, shown by JS */
         .dropdown-menu {
-            display: none;
             position: absolute;
             right: 0;
             z-index: 1000;
@@ -4631,6 +4630,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('greetingName').textContent = loggedInUser.name;
                 document.querySelector('#sidebar .user-info img').src = loggedInUser.picture;
                 document.querySelector('header .dropdown img').src = loggedInUser.picture;
+                
+                // Update dropdown user info
+                if (document.getElementById('dropdownUserName')) document.getElementById('dropdownUserName').textContent = loggedInUser.fullName;
+                if (document.getElementById('dropdownUserEmail')) document.getElementById('dropdownUserEmail').textContent = loggedInUser.email;
+                if (document.getElementById('topNavUserAvatar')) document.getElementById('topNavUserAvatar').src = loggedInUser.picture;
                 
                 // Show appropriate navigation
                 document.querySelectorAll('.nav-section').forEach(section => {
