@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en-UK">
 <head>
+
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -9469,7 +9471,8 @@ function switchCourseTab(tabName) {
     }
 }
 
-// Function to load and display course documents(courseId) {
+// Function to load and display course documents
+function loadCourseDocuments(courseId) {
     const course = allCoursesData.find(c => c.id === courseId);
     const container = document.getElementById('courseDocumentsContainer');
     
