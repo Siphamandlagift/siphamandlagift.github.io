@@ -6143,7 +6143,43 @@ let allUsersData = [];
         // Update Training Manager Course Statistics Dashboard
         function updateCourseStatisticsDashboard() {
             // Get all students
-            const students = allUsersData.filter(user => user.role === 'student');
+            
+            
+
+
+            const assignGroupsList = document.getElementById('assignGroupsList');
+            const noGroupsAvailableMsg = document.getElementById('noGroupsAvailableMsg');
+            if (assignGroupsList) {
+                assignGroupsList.innerHTML = '';
+                let groupHtml = '';
+                
+                if (window.allLearnerGroups && allLearnerGroups.length > 0) {
+                    noGroupsAvailableMsg.classList.add('hidden');
+                    allLearnerGroups.forEach(group => {
+                        const lCount = group.learners ? group.learners.length : 0;
+                        groupHtml += `
+                            <div class="flex items-center justify-between py-2 px-2 hover:bg-gray-50 rounded group-item">
+                                <div class="flex items-center space-x-3">
+                                    <input type="checkbox" 
+                                           value="${group.id}" 
+                                           class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded assign-group-checkbox cursor-pointer" 
+                                           id="assignGroup-${group.id}"
+                                           onchange="toggleGroupStudents(this, '${group.id}', 'programme')">
+                                    <label for="assignGroup-${group.id}" class="text-sm font-medium text-gray-700 cursor-pointer">
+                                        ${group.name} 
+                                        <span class="text-xs text-gray-500 font-normal ml-1">(${lCount} students)</span>
+                                    </label>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    assignGroupsList.innerHTML = groupHtml;
+                } else if (noGroupsAvailableMsg) {
+                    noGroupsAvailableMsg.classList.remove('hidden');
+                }
+            }
+
+const students = allUsersData.filter(user => user.role === 'student');
             
             // Get courses created by the logged-in training manager
             const myCourses = allCoursesData.filter(course => course.creatorId === loggedInUser.id);
@@ -6484,7 +6520,43 @@ let allUsersData = [];
             
             assignStudentsList.innerHTML = ''; // Clear previous list
 
-            const students = allUsersData.filter(user => user.role === 'student');
+            
+            
+
+
+            const assignCourseGroupsList = document.getElementById('assignCourseGroupsList');
+            const noCourseGroupsAvailableMsg = document.getElementById('noCourseGroupsAvailableMsg');
+            if (assignCourseGroupsList) {
+                assignCourseGroupsList.innerHTML = '';
+                let courseGroupHtml = '';
+                
+                if (window.allLearnerGroups && allLearnerGroups.length > 0) {
+                    noCourseGroupsAvailableMsg.classList.add('hidden');
+                    allLearnerGroups.forEach(group => {
+                        const lCount = group.learners ? group.learners.length : 0;
+                        courseGroupHtml += `
+                            <div class="flex items-center justify-between py-2 px-2 hover:bg-gray-50 rounded group-item">
+                                <div class="flex items-center space-x-3">
+                                    <input type="checkbox" 
+                                           value="${group.id}" 
+                                           class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded assign-course-group-checkbox cursor-pointer" 
+                                           id="assignCourseGroup-${group.id}"
+                                           onchange="toggleGroupStudents(this, '${group.id}', 'course')">
+                                    <label for="assignCourseGroup-${group.id}" class="text-sm font-medium text-gray-700 cursor-pointer">
+                                        ${group.name} 
+                                        <span class="text-xs text-gray-500 font-normal ml-1">(${lCount} students)</span>
+                                    </label>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    assignCourseGroupsList.innerHTML = courseGroupHtml;
+                } else if (noCourseGroupsAvailableMsg) {
+                    noCourseGroupsAvailableMsg.classList.remove('hidden');
+                }
+            }
+
+const students = allUsersData.filter(user => user.role === 'student');
 
             if (students.length === 0) {
                 noStudentsAvailableMsg.classList.remove('hidden');
