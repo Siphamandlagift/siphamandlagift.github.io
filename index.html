@@ -1055,7 +1055,7 @@ body[class*="theme-"]:not(.theme-white) select {
         <!-- Body -->
         <div class="flex flex-1 overflow-hidden" id="courseViewerBody">
             <!-- Sidebar Menu Navigation -->
-            <div class="w-72 bg-gray-50 border-r border-gray-200 overflow-y-auto flex-shrink-0 flex flex-col h-full hidden lg:flex">
+            <div class="w-72 bg-gray-900 border-r border-gray-800 overflow-y-auto flex-shrink-0 flex flex-col h-full hidden lg:flex text-white">
                 <div class="p-4 space-y-6">
                     <!-- Sections Menu -->
                     <div id="courseSidebarSectionsContainer">
@@ -1069,7 +1069,7 @@ body[class*="theme-"]:not(.theme-white) select {
                     <div id="courseSidebarDocumentsContainer">
                         <h3 class="font-semibold text-xs text-gray-400 uppercase tracking-wider mb-3 ml-2">Documents</h3>
                         <div id="courseSidebarDocuments" class="space-y-1">
-                            <p class="text-gray-500 text-center py-2 text-sm">No documents</p>
+                            <p class="text-gray-400 text-center py-2 text-sm">No documents</p>
                         </div>
                     </div>
                     
@@ -1077,7 +1077,7 @@ body[class*="theme-"]:not(.theme-white) select {
                     <div id="courseSidebarAssignmentsContainer">
                         <h3 class="font-semibold text-xs text-gray-400 uppercase tracking-wider mb-3 ml-2">Assignments</h3>
                         <div id="courseSidebarAssignments" class="space-y-1">
-                            <p class="text-gray-500 text-center py-2 text-sm">No assignments</p>
+                            <p class="text-gray-400 text-center py-2 text-sm">No assignments</p>
                         </div>
                     </div>
                 </div>
@@ -1090,7 +1090,7 @@ body[class*="theme-"]:not(.theme-white) select {
                     <i class="fas fa-bars"></i>
                 </button>
                 <!-- Mobile Sidebar Overlay -->
-                <div id="courseMobileSidebar" class="lg:hidden hidden absolute inset-y-0 left-0 w-64 bg-white shadow-xl z-20 overflow-y-auto border-r border-gray-200 pt-16">
+                <div id="courseMobileSidebar" class="lg:hidden hidden absolute inset-y-0 left-0 w-64 bg-gray-900 text-white shadow-xl z-20 overflow-y-auto border-r border-gray-800 pt-16">
                     <button class="absolute top-4 right-4 text-gray-500" onclick="document.getElementById('courseMobileSidebar').classList.add('hidden')"><i class="fas fa-times text-xl"></i></button>
                     <div class="p-4 space-y-6" id="courseMobileSidebarContent"></div>
                 </div>
@@ -9155,7 +9155,7 @@ function viewStudentCourse(courseId, courseName) {
     if (hasVideos && course.sections) {
         sectionsWrap.classList.remove('hidden');
         sectionsContainer.innerHTML = course.sections.map((s, idx) => `
-            <div class="sidebar-item px-3 py-2 rounded-md hover:bg-gray-100 cursor-pointer text-sm text-gray-700 flex items-center transition" onclick="loadSection(${s.id}, ${courseId})" id="sidebar-sec-${s.id}">
+            <div class="sidebar-item px-3 py-2 rounded-md hover:bg-gray-800 cursor-pointer text-sm text-white flex items-center transition" onclick="loadSection(${s.id}, ${courseId})" id="sidebar-sec-${s.id}">
                 <i class="fas fa-play-circle mr-3 text-indigo-500"></i>
                 <span class="truncate truncate-lines-1">${s.title}</span>
             </div>
@@ -9169,7 +9169,7 @@ function viewStudentCourse(courseId, courseName) {
     if (hasDocuments) {
         docsWrap.classList.remove('hidden');
         docsContainer.innerHTML = course.documents.map(d => `
-            <div class="sidebar-item px-3 py-2 rounded-md hover:bg-gray-100 cursor-pointer text-sm text-gray-700 flex items-center transition" onclick="loadDocumentView(${d.id}, ${courseId})" id="sidebar-doc-${d.id}">
+            <div class="sidebar-item px-3 py-2 rounded-md hover:bg-gray-800 cursor-pointer text-sm text-white flex items-center transition" onclick="loadDocumentView(${d.id}, ${courseId})" id="sidebar-doc-${d.id}">
                 <i class="fas fa-file-alt mr-3 text-red-500"></i>
                 <span class="truncate truncate-lines-1">${d.title}</span>
             </div>
@@ -9183,7 +9183,7 @@ function viewStudentCourse(courseId, courseName) {
     if (hasAssignments) {
         astWrap.classList.remove('hidden');
         astContainer.innerHTML = courseAssignmentsList.map(a => `
-            <div class="sidebar-item px-3 py-2 rounded-md hover:bg-gray-100 cursor-pointer text-sm text-gray-700 flex items-center transition" onclick="loadAssignmentView(${a.id}, ${courseId})" id="sidebar-ast-${a.id}">
+            <div class="sidebar-item px-3 py-2 rounded-md hover:bg-gray-800 cursor-pointer text-sm text-white flex items-center transition" onclick="loadAssignmentView(${a.id}, ${courseId})" id="sidebar-ast-${a.id}">
                 <i class="fas fa-tasks mr-3 text-blue-500"></i>
                 <span class="truncate truncate-lines-1">${a.title}</span>
             </div>
@@ -9226,14 +9226,14 @@ function viewStudentCourse(courseId, courseName) {
 
 function updateSidebarActiveItem(activeId) {
     document.querySelectorAll('.sidebar-item').forEach(el => {
-        el.classList.remove('bg-indigo-50', 'text-indigo-700', 'font-medium');
-        el.classList.add('text-gray-700');
+        el.classList.remove('bg-indigo-600', 'text-white', 'font-medium');
+        el.classList.add('text-white');
     });
     // Find all elements with this id (normal sidebar + mobile sidebar)
     document.querySelectorAll('#' + activeId).forEach(el => {
         if(el) {
-            el.classList.add('bg-indigo-50', 'text-indigo-700', 'font-medium');
-            el.classList.remove('text-gray-700');
+            el.classList.add('bg-indigo-600', 'text-white', 'font-medium');
+            el.classList.remove('text-white');
         }
     });
 
