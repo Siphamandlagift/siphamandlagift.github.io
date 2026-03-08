@@ -4353,27 +4353,15 @@ if (sectionId === 'course-contentContent') {
 
         function renderGroupModalCheckboxes(selectedLearners = []) {
             const studentContainer = document.getElementById('groupStudentsList');
-            const courseContainer = document.getElementById('groupCoursesList');
-            studentContainer.innerHTML = '';
-            courseContainer.innerHTML = '';
+            if (studentContainer) studentContainer.innerHTML = '';
 
-            const students = allUsersData.filter(u => u.role === 'student');
+            const students = allUsersData.filter(u => u.role === 'student');    
             students.forEach(st => {
                 const checked = (selectedLearners || []).map(String).includes(String(st.id)) ? 'checked' : '';
                 studentContainer.innerHTML += `
                     <label class="inline-flex items-center mt-2">
                         <input type="checkbox" name="groupStudentCheck" value="${st.id}" class="form-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded" ${checked}>
                         <span class="ml-2 text-sm text-gray-700">${st.name} (${st.email})</span>
-                    </label>
-                `;
-            });
-
-            allCoursesData.forEach(course => {
-                const checked = (selectedCourses || []).map(String).includes(String(course.id)) ? 'checked' : '';
-                courseContainer.innerHTML += `
-                    <label class="inline-flex items-center mt-2">
-                        <input type="checkbox" name="groupCourseCheck" value="${course.id}" class="form-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded" ${checked}>
-                        <span class="ml-2 text-sm text-gray-700">${course.title}</span>
                     </label>
                 `;
             });
