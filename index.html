@@ -1242,7 +1242,12 @@ body[class*="theme-"]:not(.theme-white) select {
                         <span class="sidebar-text">Programmes</span>
                     </a>
                     <div class="p-6 text-xs uppercase text-indigo-300 font-bold sidebar-text tracking-wider">Student Management</div>
-                    <a href="#" class="sidebar-item" data-section="assignment-overview">
+                    
+                      <a href="#" class="sidebar-item" data-section="learner-groups">
+                          <i class="fas fa-users mr-3"></i>
+                          <span class="sidebar-text">Learner Groups</span>
+                      </a>
+<a href="#" class="sidebar-item" data-section="assignment-overview">
                         <i class="fas fa-users-cog mr-3"></i>
                         <span class="sidebar-text">Student Assignments</span>
                     </a>
@@ -1846,7 +1851,34 @@ body[class*="theme-"]:not(.theme-white) select {
                 <!-- Course Assignment section removed - now integrated in Student Assignments hub -->
 
                 <!-- Assignment Overview Dashboard (Training Manager) - Consolidated Hub -->
-                <div id="assignment-overviewContent" class="content-section">
+                
+                <!-- Learner Groups Content (Training Manager) -->
+                <div id="learner-groupsContent" class="content-section">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-semibold text-gray-800">Learner Groups</h2>
+                        <button onclick="openCreateGroupModal()" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition shadow-sm">
+                            <i class="fas fa-plus mr-2"></i>Create Group
+                        </button>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Group Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Learners</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Courses</th>
+                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="learnerGroupsTableBody" class="bg-white divide-y divide-gray-200">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+<div id="assignment-overviewContent" class="content-section">
                     <div class="mb-6">
                         <h2 class="text-2xl font-semibold text-gray-800">Student Assignments</h2>
                         <p class="text-gray-600">Manage all student enrollments - programmes, courses, and track progress.</p>
@@ -3901,7 +3933,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     let titleText = sectionId.replace('Content', '').replace(/-/g, ' ');
                     titleText = titleText.charAt(0).toUpperCase() + titleText.slice(1); // Capitalize first letter
                     // Special handling for the renamed sections
-                    if (sectionId === 'course-contentContent') {
+                    
+            if (sectionId === 'learner-groupsContent') {
+                loadLearnerGroupsTable();
+            }
+if (sectionId === 'course-contentContent') {
                         pageTitle.textContent = 'Course Content Overview';
                     } else if (sectionId === 'programme-managementContent') {
                         pageTitle.textContent = 'Programme Management';
@@ -4185,7 +4221,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const notifications = localStorage.getItem('studentNotifications');
                 const savedUser = localStorage.getItem('loggedInUser');
 
-                if (users) allUsersData = JSON.parse(users);
+                                  const savedGroups = localStorage.getItem('allLearnerGroups');
+                  if (savedGroups) allLearnerGroups = JSON.parse(savedGroups);
+                  if (users) allUsersData = JSON.parse(users);
                 if (courses) allCoursesData = JSON.parse(courses);
                 if (programs) allProgramsData = JSON.parse(programs);
                 if (assignments) allAssignmentsData = JSON.parse(assignments);
@@ -4211,6 +4249,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Initialize data - load from localStorage or use defaults
+        
         function initializeData() {
             const loaded = loadFromLocalStorage();
             
@@ -4271,7 +4310,9 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         // Global array to store user data
-        let allUsersData = [];
+        
+        let allLearnerGroups = [];
+let allUsersData = [];
         
         // Function to get default users
         function getDefaultUsers() {
