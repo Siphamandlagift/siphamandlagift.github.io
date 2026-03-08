@@ -4359,7 +4359,7 @@ if (sectionId === 'course-contentContent') {
 
             const students = allUsersData.filter(u => u.role === 'student');
             students.forEach(st => {
-                const checked = selectedLearners.includes(st.id) ? 'checked' : '';
+                const checked = (selectedLearners || []).map(String).includes(String(st.id)) ? 'checked' : '';
                 studentContainer.innerHTML += `
                     <label class="inline-flex items-center mt-2">
                         <input type="checkbox" name="groupStudentCheck" value="${st.id}" class="form-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded" ${checked}>
@@ -4369,7 +4369,7 @@ if (sectionId === 'course-contentContent') {
             });
 
             allCoursesData.forEach(course => {
-                const checked = selectedCourses.includes(course.id) ? 'checked' : '';
+                const checked = (selectedCourses || []).map(String).includes(String(course.id)) ? 'checked' : '';
                 courseContainer.innerHTML += `
                     <label class="inline-flex items-center mt-2">
                         <input type="checkbox" name="groupCourseCheck" value="${course.id}" class="form-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded" ${checked}>
@@ -6540,6 +6540,28 @@ let allUsersData = [];
             updateSelectedCount();
             assignStudentsModal.classList.remove('hidden');
             assignStudentsModal.classList.add('show');
+        }
+
+        
+        function toggleGroupStudents(groupCheckbox, groupId, context) {
+            const group = allLearnerGroups.find(g => g.id === groupId || g.id === String(groupId));
+            if (!group) return;
+            
+            const isChecked = groupCheckbox.checked;
+            const checkboxClass = context === 'programme' ? '.assign-student-checkbox' : '.assign-course-student-checkbox';
+            
+            const studentCheckboxes = document.querySelectorAll(checkboxClass);
+            studentCheckboxes.forEach(cb => {
+                if ((group.learners || []).map(String).includes(String(cb.value))) {
+                    cb.checked = isChecked;
+                }
+            });
+            
+            if (context === 'programme') {
+                if (typeof updateSelectedCount === 'function') updateSelectedCount();
+            } else {
+                if (typeof updateCourseSelectedCount === 'function') updateCourseSelectedCount();
+            }
         }
 
         function hideAssignStudentsModal() {
