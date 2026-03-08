@@ -9054,60 +9054,6 @@ function closeProgrammeDetailsModal() {
                         ]
 // Function to view student course with sections, video and questions
 function viewStudentCourse(courseId, courseName) {
-    const course = studentCourses.find(c => c.id === courseId);
-    if (!course || !course.sections || course.sections.length === 0) return;
-
-    document.getElementById('courseViewerTitle').textContent = course.name;
-    document.getElementById('courseViewerDescription').textContent = 'Learn about ' + course.name + '. This course covers essential concepts and practical skills.';
-    document.getElementById('courseViewerCourseId').textContent = 'COURSE-' + courseId;
-    document.getElementById('courseViewerProgress').textContent = course.progress;
-
-    // Create section tabs
-    loadSectionTabs(course);
-
-}
-
-// Function to view PDF course
-function viewPDFCourse(courseId, courseName) {
-    const course = studentCourses.find(c => c.id === courseId);
-    if (!course || course.type !== 'pdf') return;
-    
-    // Create a modal to view the PDF
-    const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4';
-    modal.innerHTML = `
-        <div class="bg-white rounded-lg shadow-lg max-w-4xl w-full max-h-screen overflow-hidden flex flex-col">
-            <div class="flex justify-between items-center p-6 border-b border-gray-200">
-                <h2 class="text-2xl font-bold text-gray-800">${course.name}</h2>
-                <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700 text-2xl">├ù</button>
-            </div>
-            <div class="flex-1 overflow-hidden">
-                <iframe src="${course.pdfUrl}" class="w-full h-full" style="min-height: 500px;"></iframe>
-            </div>
-            <div class="p-6 border-t border-gray-200 flex justify-between items-center bg-gray-50">
-                <p class="text-sm text-gray-600"><i class="fas fa-file-pdf mr-2 text-red-500"></i>PDF Document</p>
-                <button onclick="markPDFAsRead(${courseId}); this.closest('.fixed').remove();" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
-                    <i class="fas fa-check mr-2"></i>Mark as Read & Close
-                </button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-}
-
-// Function to mark PDF course as read
-function markPDFAsRead(courseId) {
-    const course = studentCourses.find(c => c.id === courseId);
-    if (!course || course.type !== 'pdf') return;
-    
-    course.isRead = !course.isRead;
-    showStudentCourses('inprogress');
-    showMessageModal('Success', course.isRead ? `"${course.name}" marked as read!` : `"${course.name}" marked as unread!`);
-}
-
-// Function to view student course with sections, video and questions
-function viewStudentCourse(courseId, courseName) {
-    // First try to find in allCoursesData (real assigned courses), then in studentCourses (demo)
     let course = allCoursesData.find(c => c.id === courseId);
     let isRealCourse = !!course;
     
@@ -9120,10 +9066,8 @@ function viewStudentCourse(courseId, courseName) {
         return;
     }
     
-    // If this is a real course from allCoursesData, create sections from questions and videos
     if (isRealCourse && (!course.sections || course.sections.length === 0) && ((course.videos && course.videos.length > 0) || (course.questions && course.questions.length > 0))) {
         if (course.videos && course.videos.length > 0) {
-            // Map each video to its own section
             course.sections = course.videos.map((video, index) => ({
                  id: courseId * 10 + index + 1,
                  title: video.title || `Video ${index + 1}`,
@@ -9132,7 +9076,6 @@ function viewStudentCourse(courseId, courseName) {
                  questions: index === course.videos.length - 1 ? (course.questions || []) : []
             }));
         } else {
-            // Create a default section structure for courses with only questions
             course.sections = [{
                 id: courseId * 10 + 1,
                 title: course.name,
@@ -9143,152 +9086,158 @@ function viewStudentCourse(courseId, courseName) {
         }
     }
     
-    // Note: We no longer require sections - course might only have documents or assignments
-
     document.getElementById('courseViewerTitle').textContent = course.name;
     document.getElementById('courseViewerDescription').textContent = course.description || 'Learn about ' + course.name + '. This course covers essential concepts and practical skills.';
     document.getElementById('courseViewerCourseId').textContent = 'COURSE-' + courseId;
     document.getElementById('courseViewerProgress').textContent = course.progress || 0;
 
-    // Store current course ID for later use
     window.currentViewingCourseId = courseId;
+    window.currentCourse = course;
 
-    // Check what content exists in the course
+    // Reset views
+    document.getElementById('videosContent').classList.add('hidden');
+    document.getElementById('documentMainContent').classList.add('hidden');
+    document.getElementById('assignmentMainContent').classList.add('hidden');
+
     const hasVideos = (course.videos && course.videos.length > 0) || (course.questions && course.questions.length > 0) || (course.sections && course.sections.length > 0);
     const hasDocuments = course.documents && course.documents.length > 0;
-    const hasAssignments = allAssignmentsData && allAssignmentsData.some(a => 
+    
+    const courseAssignmentsList = allAssignmentsData ? allAssignmentsData.filter(a => 
         a.courseId === courseId && a.assignedStudentId === loggedInUser.id
-    );
+    ) : [];
+    const hasAssignments = courseAssignmentsList.length > 0;
 
-    // Get tab elements
-    const videosTabBtn = document.getElementById('videosTabBtn');
-    const documentsTabBtn = document.getElementById('documentsTabBtn');
-    const assignmentsTabBtn = document.getElementById('assignmentsTabBtn');
-    const videosContent = document.getElementById('videosContent');
-    const documentsContent = document.getElementById('documentsContent');
-    const assignmentsContent = document.getElementById('assignmentsContent');
-
-    // Show/Hide tabs based on available content
-    if (videosTabBtn) videosTabBtn.style.display = hasVideos ? 'block' : 'none';
-    if (documentsTabBtn) documentsTabBtn.style.display = hasDocuments ? 'block' : 'none';
-    if (assignmentsTabBtn) assignmentsTabBtn.style.display = hasAssignments ? 'block' : 'none';
-
-    // Determine which tab to show first
-    let firstTab = null;
-    if (hasVideos) {
-        firstTab = 'videos';
-    } else if (hasDocuments) {
-        firstTab = 'documents';
-    } else if (hasAssignments) {
-        firstTab = 'assignments';
+    // Render Sidebars
+    const sectionsContainer = document.getElementById('courseSidebarSections');
+    const sectionsWrap = document.getElementById('courseSidebarSectionsContainer');
+    if (hasVideos && course.sections) {
+        sectionsWrap.classList.remove('hidden');
+        sectionsContainer.innerHTML = course.sections.map((s, idx) => `
+            <div class="sidebar-item px-3 py-2 rounded-md hover:bg-gray-100 cursor-pointer text-sm text-gray-700 flex items-center transition" onclick="loadSection(${s.id}, ${courseId})" id="sidebar-sec-${s.id}">
+                <i class="fas fa-play-circle mr-3 text-indigo-500"></i>
+                <span class="truncate truncate-lines-1">${s.title}</span>
+            </div>
+        `).join('');
+    } else {
+        sectionsWrap.classList.add('hidden');
     }
 
-    // If no content at all, show message
-    if (!firstTab) {
+    const docsContainer = document.getElementById('courseSidebarDocuments');
+    const docsWrap = document.getElementById('courseSidebarDocumentsContainer');
+    if (hasDocuments) {
+        docsWrap.classList.remove('hidden');
+        docsContainer.innerHTML = course.documents.map(d => `
+            <div class="sidebar-item px-3 py-2 rounded-md hover:bg-gray-100 cursor-pointer text-sm text-gray-700 flex items-center transition" onclick="loadDocumentView(${d.id}, ${courseId})" id="sidebar-doc-${d.id}">
+                <i class="fas fa-file-alt mr-3 text-red-500"></i>
+                <span class="truncate truncate-lines-1">${d.title}</span>
+            </div>
+        `).join('');
+    } else {
+        docsWrap.classList.add('hidden');
+    }
+
+    const astContainer = document.getElementById('courseSidebarAssignments');
+    const astWrap = document.getElementById('courseSidebarAssignmentsContainer');
+    if (hasAssignments) {
+        astWrap.classList.remove('hidden');
+        astContainer.innerHTML = courseAssignmentsList.map(a => `
+            <div class="sidebar-item px-3 py-2 rounded-md hover:bg-gray-100 cursor-pointer text-sm text-gray-700 flex items-center transition" onclick="loadAssignmentView(${a.id}, ${courseId})" id="sidebar-ast-${a.id}">
+                <i class="fas fa-tasks mr-3 text-blue-500"></i>
+                <span class="truncate truncate-lines-1">${a.title}</span>
+            </div>
+        `).join('');
+    } else {
+        astWrap.classList.add('hidden');
+    }
+    
+    // Copy the sidebars to mobile sidebars
+    const mobileSidebarContent = document.getElementById('courseMobileSidebarContent');
+    if(mobileSidebarContent) {
+        mobileSidebarContent.innerHTML = '';
+        if(hasVideos) mobileSidebarContent.appendChild(sectionsWrap.cloneNode(true));
+        if(hasDocuments) mobileSidebarContent.appendChild(docsWrap.cloneNode(true));
+        if(hasAssignments) mobileSidebarContent.appendChild(astWrap.cloneNode(true));
+        
+        // Fix onClick refs for clone node if needed, simpler is just innerHTML replacement:
+        mobileSidebarContent.innerHTML = `
+            ${hasVideos ? sectionsWrap.outerHTML : ''}
+            ${hasDocuments ? docsWrap.outerHTML : ''}
+            ${hasAssignments ? astWrap.outerHTML : ''}
+        `;
+    }
+
+    // Default selection
+    if (hasVideos) {
+        loadSection(course.sections[0].id, courseId);
+    } else if (hasDocuments) {
+        loadDocumentView(course.documents[0].id, courseId);
+    } else if (hasAssignments) {
+        loadAssignmentView(courseAssignmentsList[0].id, courseId);
+    } else {
         showMessageModal('No Content', 'This course has no content available yet.');
         return;
     }
 
-    // Create section tabs (for videos)
-    if (hasVideos) {
-        loadSectionTabs(course);
-        loadSection(course.sections[0].id, courseId);
-    }
-
-    // Show the first available tab
-    switchCourseTab(firstTab);
-
-    // Show the modal
     document.getElementById('courseViewerModal').classList.remove('hidden');
     document.getElementById('courseViewerModal').classList.add('show');
-
-    // Store current course for later use
-    window.currentCourse = course;
 }
 
-// Function to create section tabs
-function loadSectionTabs(course) {
-    const tabsContainer = document.getElementById('sectionTabsContainer');
-    tabsContainer.innerHTML = '';
-
-    course.sections.forEach((section, index) => {
-        const tab = document.createElement('button');
-        tab.className = `px-4 py-2 rounded-md text-sm font-medium transition ${
-            index === 0 
-            ? 'bg-indigo-600 text-white' 
-            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-        }`;
-        tab.textContent = section.title;
-        tab.onclick = () => loadSection(section.id, course.id);
-        
-        // Update active tab styling on click
-        tab.addEventListener('click', function() {
-            document.querySelectorAll('#sectionTabsContainer button').forEach(btn => {
-                btn.className = 'px-4 py-2 rounded-md text-sm font-medium transition bg-gray-100 text-gray-700 hover:bg-gray-200';
-            });
-            this.className = 'px-4 py-2 rounded-md text-sm font-medium transition bg-indigo-600 text-white';
-        });
-
-        tabsContainer.appendChild(tab);
+function updateSidebarActiveItem(activeId) {
+    document.querySelectorAll('.sidebar-item').forEach(el => {
+        el.classList.remove('bg-indigo-50', 'text-indigo-700', 'font-medium');
+        el.classList.add('text-gray-700');
     });
+    // Find all elements with this id (normal sidebar + mobile sidebar)
+    document.querySelectorAll('#' + activeId).forEach(el => {
+        if(el) {
+            el.classList.add('bg-indigo-50', 'text-indigo-700', 'font-medium');
+            el.classList.remove('text-gray-700');
+        }
+    });
+
+    // close mobile sidebar if open
+    document.getElementById('courseMobileSidebar').classList.add('hidden');
+}
+
+function switchCourseMainView(viewName) {
+    document.getElementById('videosContent').classList.add('hidden');
+    document.getElementById('documentMainContent').classList.add('hidden');
+    document.getElementById('assignmentMainContent').classList.add('hidden');
+    document.getElementById(viewName).classList.remove('hidden');
 }
 
 // Function to load a specific section
 function loadSection(sectionId, courseId) {
-    // First try to find in allCoursesData, then in studentCourses
-    let course = allCoursesData.find(c => c.id === courseId);
-    if (!course) {
-        course = studentCourses.find(c => c.id === courseId);
-    }
-    if (!course) return;
-    
-    // Ensure sections exist
-    if (!course.sections || course.sections.length === 0) {
-        course.sections = [{
-            id: courseId * 10 + 1,
-            title: course.name,
-            videoDuration: "N/A",
-            questions: course.questions || []
-        }];
-    }
+    updateSidebarActiveItem('sidebar-sec-' + sectionId);
+    switchCourseMainView('videosContent');
+
+    let course = allCoursesData.find(c => c.id === courseId) || studentCourses.find(c => c.id === courseId);
+    if (!course || !course.sections) return;
 
     const section = course.sections.find(s => s.id === sectionId);
     if (!section) return;
 
-    // Update section title
     document.getElementById('sectionTitle').textContent = section.title;
+    document.getElementById('courseVideoDuration').textContent = section.videoDuration || 'N/A';
 
-    // Update video duration
-    document.getElementById('courseVideoDuration').textContent = section.videoDuration;
-
-    // Render video if available
     const videoPlayer = document.getElementById('videoPlayer');
     if (videoPlayer) {
         if (section.videoUrl) {
             let embedUrl = section.videoUrl;
             let isYouTube = false;
-            // Handle regular YouTube links
             if (embedUrl.includes('youtube.com/watch?v=')) {
                 isYouTube = true;
                 let videoId = embedUrl.split('v=')[1];
                 let ampersandPosition = videoId.indexOf('&');
-                if (ampersandPosition !== -1) {
-                    videoId = videoId.substring(0, ampersandPosition);
-                }
+                if (ampersandPosition !== -1) videoId = videoId.substring(0, ampersandPosition);
                 embedUrl = 'https://www.youtube.com/embed/' + videoId;
-            } 
-            // Handle YouTube short links
-            else if (embedUrl.includes('youtu.be/')) {
+            } else if (embedUrl.includes('youtu.be/')) {
                 isYouTube = true;
                 let videoId = embedUrl.split('youtu.be/')[1];
                 let questionMarkPosition = videoId.indexOf('?');
-                if (questionMarkPosition !== -1) {
-                    videoId = videoId.substring(0, questionMarkPosition);
-                }
+                if (questionMarkPosition !== -1) videoId = videoId.substring(0, questionMarkPosition);
                 embedUrl = 'https://www.youtube.com/embed/' + videoId;
-            }
-            // Handle Vimeo links
-            else if (embedUrl.includes('vimeo.com/')) {
+            } else if (embedUrl.includes('vimeo.com/')) {
                 isYouTube = true;
                 let videoId = embedUrl.split('vimeo.com/')[1];
                 embedUrl = 'https://player.vimeo.com/video/' + videoId;
@@ -9302,45 +9251,85 @@ function loadSection(sectionId, courseId) {
         } else {
             videoPlayer.innerHTML = `
                 <div class="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center">
-                    <i class="fas fa-play-circle text-6xl text-white mb-4 group-hover:scale-110 transition"></i>
+                    <i class="fas fa-play-circle text-6xl text-white mb-4 transition"></i>
                     <p class="text-white text-lg">No Video available</p>
                 </div>
             `;
         }
     }
 
-    // Load section questions
     loadSectionQuestions(section.questions);
-
-    // Store current section for submission
     window.currentSection = section;
+}
+
+function loadDocumentView(docId, courseId) {
+    updateSidebarActiveItem('sidebar-doc-' + docId);
+    switchCourseMainView('documentMainContent');
+
+    let course = allCoursesData.find(c => c.id === courseId) || studentCourses.find(c => c.id === courseId);
+    if (!course || !course.documents) return;
+
+    const doc = course.documents.find(d => d.id === docId);
+    if (!doc) return;
+
+    document.getElementById('docViewerTitle').textContent = doc.title;
+    document.getElementById('docViewerDesc').textContent = doc.description || 'Click below to view or download this document.';
+    
+    const icon = document.getElementById('docViewerIcon');
+    icon.className = doc.type === 'pdf' ? 'fas fa-file-pdf text-6xl text-red-500 mb-4 inline-block' : 'fas fa-file-powerpoint text-6xl text-orange-500 mb-4 inline-block';
+
+    const btn = document.getElementById('openDocumentBtn');
+    btn.onclick = () => viewDocument(courseId, docId);
+}
+
+function loadAssignmentView(assignmentId, courseId) {
+    updateSidebarActiveItem('sidebar-ast-' + assignmentId);
+    switchCourseMainView('assignmentMainContent');
+
+    const assignment = allAssignmentsData.find(a => a.id === assignmentId);
+    if (!assignment) return;
+
+    document.getElementById('assignmentTitleViewer').textContent = assignment.title;
+    document.getElementById('assignmentDescViewer').textContent = assignment.description || 'Complete the assignment by following the instructions provided in the details.';
+
+    const btn = document.getElementById('openAssignmentBtn');
+    btn.onclick = () => {
+        closeCourseViewer();
+        if(typeof viewAssignment === 'function') {
+            viewAssignment(assignmentId);
+        } else {
+            showMessageModal('Assignment', 'Assignment viewer is not available.');
+        }
+    };
 }
 
 // Function to load and display section questions
 function loadSectionQuestions(questions) {
     const questionsContainer = document.getElementById('courseQuestionsContainer');
     questionsContainer.innerHTML = '';
+    const sectionWrap = document.getElementById('questionsSectionContainer');
 
     if (!questions || questions.length === 0) {
-        questionsContainer.innerHTML = '<p class="text-gray-500 text-center py-8">No questions for this section.</p>';
+        if (sectionWrap) sectionWrap.classList.add('hidden');
         return;
     }
+    
+    if (sectionWrap) sectionWrap.classList.remove('hidden');
 
     questions.forEach((q, index) => {
         let questionHtml = '';
-
         if (q.type === 'multiple-choice') {
             questionHtml = `
                 <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
                     <div class="flex items-start mb-3">
-                        <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3">
+                        <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3 shrink-0">
                             ${index + 1}
                         </span>
                         <h4 class="text-lg font-semibold text-gray-800">${q.question}</h4>
                     </div>
                     <div class="space-y-2 ml-11">
                         ${q.options.map((option, optIndex) => `
-                            <label class="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer">
+                            <label class="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer transition">
                                 <input type="checkbox" name="question-${q.id}" value="${optIndex}" class="w-4 h-4 text-indigo-600 rounded">
                                 <span class="ml-3 text-gray-700">${option}</span>
                             </label>
@@ -9352,29 +9341,27 @@ function loadSectionQuestions(questions) {
             questionHtml = `
                 <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
                     <div class="flex items-start mb-3">
-                        <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3">
+                        <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3 shrink-0">
                             ${index + 1}
                         </span>
                         <h4 class="text-lg font-semibold text-gray-800">${q.question}</h4>
                     </div>
                     <div class="space-y-2 ml-11">
-                        <label class="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer">
-                            <input type="checkbox" name="question-${q.id}" value="true" class="w-4 h-4 text-indigo-600 rounded" onchange="if(this.checked) { document.querySelectorAll('input[name=\\\'question-${q.id}\\\']').forEach(cb => { if(cb !== this) cb.checked = false; }) }">
+                        <label class="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer transition">
+                            <input type="checkbox" name="question-${q.id}" value="true" class="w-4 h-4 text-indigo-600 rounded" onchange="if(this.checked) { document.querySelectorAll('input[name=\'question-${q.id}\']').forEach(cb => { if(cb !== this) cb.checked = false; }) }">
                             <span class="ml-3 text-gray-700">True</span>
                         </label>
-                        <label class="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer">
-                            <input type="checkbox" name="question-${q.id}" value="false" class="w-4 h-4 text-indigo-600 rounded" onchange="if(this.checked) { document.querySelectorAll('input[name=\\\'question-${q.id}\\\']').forEach(cb => { if(cb !== this) cb.checked = false; }) }">
+                        <label class="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer transition">
+                            <input type="checkbox" name="question-${q.id}" value="false" class="w-4 h-4 text-indigo-600 rounded" onchange="if(this.checked) { document.querySelectorAll('input[name=\'question-${q.id}\']').forEach(cb => { if(cb !== this) cb.checked = false; }) }">
                             <span class="ml-3 text-gray-700">False</span>
                         </label>
                     </div>
                 </div>
             `;
         }
-
         questionsContainer.innerHTML += questionHtml;
     });
 
-    // Store questions for submission
     window.currentSectionQuestions = questions;
 }
 
@@ -9382,6 +9369,11 @@ function loadSectionQuestions(questions) {
 function closeCourseViewer() {
     document.getElementById('courseViewerModal').classList.add('hidden');
     document.getElementById('courseViewerModal').classList.remove('show');
+    
+    const vp = document.getElementById('videoPlayer');
+    if(vp) {
+        vp.innerHTML = ''; // Stop video from playing when closed
+    }
 }
 
 // Function to switch between Create Course and My Created Courses tabs
