@@ -1280,12 +1280,12 @@ body[class*="theme-"]:not(.theme-white) select {
                 <a href="#" class="sidebar-item" data-section="messages">
                     <i class="las la-envelope mr-3"></i>
                     <span class="sidebar-text">Messages</span>
-                    <span class="notification-badge bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">2</span>
+                    <span class="notification-badge notif-badge-ui hidden msg-badge-ui hidden  bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center"></span>
                 </a>
                 <a href="#" class="sidebar-item" data-section="notifications">
                     <i class="las la-bell mr-3"></i>
                     <span class="sidebar-text">Notifications</span>
-                    <span class="notification-badge bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">5</span>
+                    <span class="notification-badge notif-badge-ui hidden bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center"></span>
                 </a>
                 <a href="#" class="sidebar-item" id="logoutBtn">
                     <i class="las la-sign-out-alt mr-3"></i>
@@ -1344,21 +1344,14 @@ body[class*="theme-"]:not(.theme-white) select {
                         <div class="relative dropdown">
                             <button type="button" class="text-gray-600 hover:text-indigo-600 focus:outline-none relative transition" onclick="toggleDropdown(this)" title="Messages">
                                 <i class="las la-envelope text-xl"></i>
-                                <span class="notification-badge bg-blue-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">2</span>
+                                <span class="notification-badge msg-badge-ui hidden  bg-blue-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center"></span>
                             </button>
                             <div class="dropdown-menu hidden absolute right-0 mt-2 w-72 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
                                 <div class="px-4 py-2 border-b border-gray-200">
                                     <h3 class="text-sm font-semibold text-gray-800">Messages</h3>
                                 </div>
                                 <div class="max-h-60 overflow-y-auto">
-                                    <a href="#" class="block px-4 py-3 border-b border-gray-100 hover:bg-gray-50" onclick="showMessageModal('Message from Jane Manager', 'Assignment Submission Guidelines: Please make sure to review the new standards for submission.')">
-                                        <p class="text-sm font-semibold text-gray-800">Jane Manager</p>
-                                        <p class="text-xs text-gray-600 truncate">Assignment Submission Guidelines...</p>
-                                    </a>
-                                    <a href="#" class="block px-4 py-3 hover:bg-gray-50" onclick="showMessageModal('Message from Admin User', 'System Maintenance Notice: The platform will go down for scheduled maintenance Sunday at 2 AM.')">
-                                        <p class="text-sm font-semibold text-gray-800">Admin User</p>
-                                        <p class="text-xs text-gray-600 truncate">System Maintenance Notice</p>
-                                    </a>
+                                    <p class=\"text-gray-500 text-sm text-center py-4\">No new messages.</p>
                                 </div>
                                 <div class="px-4 py-2 border-t border-gray-200 text-center">
                                     <a href="#" class="text-xs text-indigo-600 hover:underline font-medium dropdown-nav-link" data-section="messages">View all messages</a>
@@ -1370,17 +1363,14 @@ body[class*="theme-"]:not(.theme-white) select {
                         <div class="relative dropdown">
                             <button type="button" class="text-gray-600 hover:text-indigo-600 focus:outline-none relative transition" onclick="toggleDropdown(this)" title="Notifications">
                                 <i class="las la-bell text-xl"></i>
-                                <span class="notification-badge bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">5</span>
+                                <span class="notification-badge notif-badge-ui hidden bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center"></span>
                             </button>
                             <div class="dropdown-menu hidden absolute right-0 mt-2 w-72 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
                                 <div class="px-4 py-2 border-b border-gray-200">
                                     <h3 class="text-sm font-semibold text-gray-800">Notifications</h3>
                                 </div>
                                 <div class="max-h-60 overflow-y-auto">
-                                    <a href="#" class="block px-4 py-3 border-b border-gray-100 hover:bg-gray-50" onclick="showMessageModal('Notification', 'React Project assignment is due in 3 days. Make sure to complete all required material before the deadline.')">
-                                        <p class="text-sm font-semibold text-gray-800">Assignment Due Soon</p>
-                                        <p class="text-xs text-gray-600 truncate">React Project assignment is due in 3 days</p>
-                                    </a>
+                                    <p class=\"text-gray-500 text-sm text-center py-4\">No new notifications.</p>
                                 </div>
                                 <div class="px-4 py-2 border-t border-gray-200 text-center">
                                     <a href="#" class="text-xs text-indigo-600 hover:underline font-medium dropdown-nav-link" data-section="notifications">View all notifications</a>
@@ -2742,7 +2732,7 @@ body[class*="theme-"]:not(.theme-white) select {
                     <div class="bg-white rounded-lg shadow p-6">
                         <h3 class="text-lg font-semibold text-gray-800 mb-4">Your Inbox</h3>
                         <div class="divide-y divide-gray-200" id="inboxMessagesList">
-                            <div class="p-4 hover:bg-gray-50 transition cursor-pointer border-l-4 border-indigo-600">
+                            <div class="p-4 hover:bg-gray-50 transition cursor-pointer border-l-4 border-indigo-600" onclick="readFullMessage(this)">
                                 <div class="flex justify-between items-start mb-2">
                                     <h4 class="font-semibold text-gray-800">Jane Manager</h4>
                                     <span class="text-xs text-gray-500">Jan 20, 2:30 PM</span>
@@ -2762,7 +2752,7 @@ body[class*="theme-"]:not(.theme-white) select {
                                 <span class="inline-block mt-2 px-2 py-1 text-xs bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20 rounded">Read</span>
                             </div>
                             
-                            <div class="p-4 hover:bg-gray-50 transition cursor-pointer border-l-4 border-indigo-600">
+                            <div class="p-4 hover:bg-gray-50 transition cursor-pointer border-l-4 border-indigo-600" onclick="readFullMessage(this)">
                                 <div class="flex justify-between items-start mb-2">
                                     <h4 class="font-semibold text-gray-800">Jane Manager</h4>
                                     <span class="text-xs text-gray-500">Jan 16, 3:45 PM</span>
@@ -2791,100 +2781,7 @@ body[class*="theme-"]:not(.theme-white) select {
                     <p class="text-gray-600 mb-6">View all your system notifications.</p>
                     
                     <div class="space-y-4">
-                        <!-- Important Notification -->
-                        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-red-500 hover:shadow-lg transition">
-                            <div class="flex justify-between items-start mb-3">
-                                <div class="flex items-start gap-4">
-                                    <div class="p-2 rounded-lg bg-red-100 text-red-600">
-                                        <i class="las la-exclamation-circle text-xl"></i>
-                                    </div>
-                                    <div>
-                                        <h3 class="font-semibold text-gray-800">Assignment Due Soon</h3>
-                                        <p class="text-sm text-gray-600">React Project assignment is due in 3 days</p>
-                                    </div>
-                                </div>
-                                <span class="text-xs text-gray-500">Jan 22, 2:15 PM</span>
-                            </div>
-                            <div class="ml-14">
-                                <button class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">View Assignment GåÆ</button>
-                            </div>
-                        </div>
-
-                        <!-- Success Notification -->
-                        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500 hover:shadow-lg transition">
-                            <div class="flex justify-between items-start mb-3">
-                                <div class="flex items-start gap-4">
-                                    <div class="p-2 rounded-lg bg-green-100 text-green-600">
-                                        <i class="las la-check-circle text-xl"></i>
-                                    </div>
-                                    <div>
-                                        <h3 class="font-semibold text-gray-800">Badge Earned!</h3>
-                                        <p class="text-sm text-gray-600">You've earned the "Quick Learner" badge</p>
-                                    </div>
-                                </div>
-                                <span class="text-xs text-gray-500">Jan 21, 5:30 PM</span>
-                            </div>
-                            <div class="ml-14">
-                                <span class="inline-block mt-2 px-2 py-1 text-xs bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20 rounded">Achievement</span>
-                            </div>
-                        </div>
-
-                        <!-- Info Notification -->
-                        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500 hover:shadow-lg transition">
-                            <div class="flex justify-between items-start mb-3">
-                                <div class="flex items-start gap-4">
-                                    <div class="p-2 rounded-lg bg-blue-100 text-blue-600">
-                                        <i class="las la-info-circle text-xl"></i>
-                                    </div>
-                                    <div>
-                                        <h3 class="font-semibold text-gray-800">New Course Available</h3>
-                                        <p class="text-sm text-gray-600">Advanced Python Programming course is now available</p>
-                                    </div>
-                                </div>
-                                <span class="text-xs text-gray-500">Jan 20, 10:00 AM</span>
-                            </div>
-                            <div class="ml-14">
-                                <button class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">Enroll Now GåÆ</button>
-                            </div>
-                        </div>
-
-                        <!-- Grade Notification -->
-                        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500 hover:shadow-lg transition">
-                            <div class="flex justify-between items-start mb-3">
-                                <div class="flex items-start gap-4">
-                                    <div class="p-2 rounded-lg bg-yellow-100 text-yellow-600">
-                                        <i class="las la-star text-xl"></i>
-                                    </div>
-                                    <div>
-                                        <h3 class="font-semibold text-gray-800">Grade Posted</h3>
-                                        <p class="text-sm text-gray-600">Your grade for JavaScript Basics quiz has been posted (95%)</p>
-                                    </div>
-                                </div>
-                                <span class="text-xs text-gray-500">Jan 19, 3:20 PM</span>
-                            </div>
-                            <div class="ml-14">
-                                <button class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">View Grade GåÆ</button>
-                            </div>
-                        </div>
-
-                        <!-- Reminder Notification -->
-                        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-purple-500 hover:shadow-lg transition">
-                            <div class="flex justify-between items-start mb-3">
-                                <div class="flex items-start gap-4">
-                                    <div class="p-2 rounded-lg bg-purple-100 text-purple-600">
-                                        <i class="las la-bell text-xl"></i>
-                                    </div>
-                                    <div>
-                                        <h3 class="font-semibold text-gray-800">Course Enrollment Reminder</h3>
-                                        <p class="text-sm text-gray-600">You haven't started the "Data Analytics Basics" course yet</p>
-                                    </div>
-                                </div>
-                                <span class="text-xs text-gray-500">Jan 18, 1:45 PM</span>
-                            </div>
-                            <div class="ml-14">
-                                <button class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">Start Course GåÆ</button>
-                            </div>
-                        </div>
+                        <p class="text-gray-500">No notifications loaded.</p>
                     </div>
                 </div>
 
@@ -10738,7 +10635,56 @@ document.addEventListener("DOMContentLoaded", () => {
             const savedTheme = localStorage.getItem('appTheme') || 'white';
             setTheme(savedTheme);
         });
-    </script>
+    
+        function readFullMessage(element) {
+            // Check if it's currently unread by looking for the span
+            const badge = Array.from(element.querySelectorAll('span')).find(s => s.textContent.trim() === 'Unread');
+            
+            if (badge) {
+                // Change to Read
+                badge.textContent = 'Read';
+                badge.className = 'inline-block mt-2 px-2 py-1 text-xs bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20 rounded';
+                
+                // Remove visual unread indicator (border)
+                element.classList.remove('border-l-4', 'border-indigo-600');
+                
+                decrementMessageBadges();
+            }
+            
+            // Show the modal
+            const author = element.querySelector('h4').textContent;
+            const title = element.querySelector('p.font-medium').textContent;
+            const bodyText = element.querySelectorAll('p.text-gray-600')[0].textContent;
+            showMessageModal(author, title + "
+
+" + bodyText);
+        }
+
+        function readDropdownMessage(element) {
+            if (!element.hasAttribute('data-read')) {
+                element.setAttribute('data-read', 'true');
+                element.classList.remove('bg-gray-50', 'bg-indigo-50'); // clear any unread styling if existed
+                element.style.opacity = '0.7'; // visually show it's read
+                decrementMessageBadges();
+            }
+        }
+
+        function decrementMessageBadges() {
+            const badges = document.querySelectorAll('.msg-badge-ui');
+            badges.forEach(b => {
+                let count = parseInt(b.textContent) || 0;
+                if(count > 0) {
+                    count--;
+                    if(count === 0) {
+                        b.style.display = 'none';
+                    } else {
+                        b.textContent = count;
+                    }
+                }
+            });
+        }
+
+</script>
 
 </body>
 </html>
