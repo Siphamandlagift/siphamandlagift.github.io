@@ -9795,8 +9795,8 @@ function loadAssignmentView(assignmentId, courseId) {
     const btn = document.getElementById('openAssignmentBtn');
     btn.onclick = () => {
         closeCourseViewer();
-        if(typeof viewAssignment === 'function') {
-            viewAssignment(assignmentId);
+        if(typeof showViewAssignmentModal === 'function') {
+            showViewAssignmentModal(assignmentId);
         } else {
             showMessageModal('Assignment', 'Assignment viewer is not available.');
         }
