@@ -437,7 +437,7 @@ body[class*="theme-"]:not(.theme-white) select {
     <div id="messageModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-lg p-6 shadow-xl max-w-sm w-full transform transition-all duration-300 scale-100 opacity-100">
             <h3 class="text-lg font-semibold text-gray-900 mb-4" id="messageModalTitle">Notification</h3>
-            <p class="text-gray-700 mb-6" id="messageModalContent"></p>
+            <p class="text-gray-700 mb-6 whitespace-pre-wrap" id="messageModalContent"></p>
             <div class="flex justify-end gap-2">
                 <button
                     id="messageModalCancelBtn"
@@ -1389,11 +1389,11 @@ body[class*="theme-"]:not(.theme-white) select {
                                     <h3 class="text-sm font-semibold text-gray-800">Messages</h3>
                                 </div>
                                 <div class="max-h-60 overflow-y-auto" id="dropdownMessagesList">
-                                    <a href="#" class="block px-4 py-3 border-b border-gray-100 hover:bg-gray-50" onclick="readDropdownMessage(this); showMessageModal('Message from Jane Manager', 'Assignment Submission Guidelines: Please make sure to review the new standards for submission.')">
+                                    <a href="#" class="block px-4 py-3 border-b border-gray-100 hover:bg-gray-50" onclick="readDropdownMessage(this); showMessageModal('Message from Jane Manager', 'Subject: Student Enrolment Submission Guidelines\n\nPlease ensure all student enrolments are submitted before the deadline. Guidelines are available in the course materials section...')">
                                         <p class="text-sm font-semibold text-gray-800">Jane Manager</p>
                                         <p class="text-xs text-gray-600 truncate">Student Enrolment Submission Guidelines...</p>
                                     </a>
-                                    <a href="#" class="block px-4 py-3 hover:bg-gray-50" onclick="readDropdownMessage(this); showMessageModal('Message from Admin User', 'System Maintenance Notice: The platform will go down for scheduled maintenance Sunday at 2 AM.')">
+                                    <a href="#" class="block px-4 py-3 hover:bg-gray-50" onclick="readDropdownMessage(this); showMessageModal('Message from Admin User', 'Subject: System Maintenance Notice\n\nThe platform will go down for scheduled maintenance Sunday at 2 AM.')">
                                         <p class="text-sm font-semibold text-gray-800">Admin User</p>
                                         <p class="text-xs text-gray-600 truncate">System Maintenance Notice</p>
                                     </a>
@@ -8085,17 +8085,32 @@ const students = allUsersData.filter(user => user.role === 'student');
                 });
             }
 
-            const confirmationMessage = `Message Sent Successfully!
-
-To: ${recipientName}
+            const confirmationMessage = `To: ${recipientName}
 Subject: ${subject}
 
-Message:
-"${messageBody}"
+${messageBody}`;
 
-This message has been securely delivered to the student's LMS Notification Center.`;
+            showMessageModal('Message Sent to ' + recipientName, 'Subject: ' + subject + '\n\n' + messageBody);
 
-            showMessageModal('Message Sent', confirmationMessage);
+            // Also add the sent message visually to the Inbox list so it reflects there too
+            const inboxList = document.getElementById('inboxMessagesList');
+            if (inboxList) {
+                const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+                const inboxItem = document.createElement('div');
+                inboxItem.className = 'p-4 hover:bg-gray-50 transition cursor-pointer border-l-4 border-gray-300 bg-gray-50/50';
+                inboxItem.setAttribute('onclick', 'readFullMessage(this)');
+                inboxItem.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <h4 class="font-semibold text-gray-800">You (To: ${recipientName})</h4>
+                        <span class="text-xs text-gray-500">${dateStr}</span>
+                    </div>
+                    <p class="text-sm font-medium text-gray-700 mb-1">${subject}</p>
+                    <p class="text-sm text-gray-600 mb-2">${messageBody.substring(0, 100)}${messageBody.length > 100 ? '...' : ''}</p>
+                    <span class="inline-block mt-2 px-2 py-1 text-xs bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-600/20 rounded">Sent</span>
+                    <div class="hidden-full-content" style="display:none;">${messageBody}</div>
+                `;
+                inboxList.insertBefore(inboxItem, inboxList.firstChild);
+            }
 
             // Clear the form after successful submission
             composeEmailForm.reset();
@@ -8103,7 +8118,7 @@ This message has been securely delivered to the student's LMS Notification Cente
             // Simulate getting a reply message to demonstrate "reflect and update the messages as well and at the top envelope"
             setTimeout(() => {
                 const replySubject = "Re: " + subject;
-                const replyBody = "Thank you for reaching out.\\n\\nI have received your message regarding '" + subject + "' and will begin reviewing the materials and guidelines accordingly.\\n\\nBest regards,\\n" + recipientName;
+                const replyBody = "Thank you for reaching out.\n\nI have received your message regarding '" + subject + "' and will begin reviewing the materials and guidelines accordingly.\n\nBest regards,\n" + recipientName;
                 simulateReceiveMessage(recipientName, replySubject, replyBody);
             }, 3500); // 3.5 second delay to feel natural
         });
@@ -11595,7 +11610,9 @@ document.addEventListener("DOMContentLoaded", () => {
             // Use the hidden full content if it exists, otherwise fallback to the paragraph text
             const hiddenContent = element.querySelector('.hidden-full-content');
             const bodyText = hiddenContent ? hiddenContent.textContent : element.querySelectorAll('p.text-gray-600')[0].textContent;
-            showMessageModal(author, title + "\\n\\n" + bodyText);
+            
+            const modalTitle = author.startsWith('You') ? author : 'Message from ' + author;
+            showMessageModal(modalTitle, 'Subject: ' + title + '\n\n' + bodyText);
         }
 
         function decrementNotificationBadges() {
@@ -11660,7 +11677,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
             // Make sure the title and body are safe for using in HTML strings/onclick
             const safeSubject = subject.replace(/['"]/g, "&apos;");
-            const safeContent = bodyText.replace(/['"]/g, "&apos;").replace(/\n/g, "\\n");
+            const fullBody = 'Subject: ' + subject + '\n\n' + bodyText;
+            const safeContent = fullBody.replace(/['"]/g, "&apos;").replace(/\n/g, "\\n");
 
             // 2. Prepend to Dropdown Menu List
             const dropdownList = document.getElementById('dropdownMessagesList');
