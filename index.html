@@ -8072,10 +8072,31 @@ const students = allUsersData.filter(user => user.role === 'student');
                 return;
             }
 
-            const confirmationMessage = `Simulated Email Sent!\n\nTo: ${recipientName}\nSubject: ${subject}\n\nMessage:\n"${messageBody}"\n\nIn a real application, this email would be sent to the student's email address.`;
+            const student = typeof allUsersData !== 'undefined' ? allUsersData.find(u => u.email === recipientEmail) : null;
+            if (student && typeof studentNotifications !== 'undefined') {
+                studentNotifications.unshift({
+                    id: Date.now(),
+                    studentId: student.id,
+                    title: 'Message: ' + subject,
+                    message: messageBody,
+                    type: 'info',
+                    timestamp: new Date().toISOString(),
+                    read: false
+                });
+            }
 
-            showMessageModal('Email Sent', confirmationMessage);
-            
+            const confirmationMessage = `Message Sent Successfully!
+
+To: ${recipientName}
+Subject: ${subject}
+
+Message:
+"${messageBody}"
+
+This message has been securely delivered to the student's LMS Notification Center.`;
+
+            showMessageModal('Message Sent', confirmationMessage);
+
             // Clear the form after successful submission
             composeEmailForm.reset();
         });
