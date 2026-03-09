@@ -10,7 +10,8 @@
     <!-- Google Fonts - Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/line-awesome/1.3.0/font-awesome-line-awesome/css/all.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/line-awesome/1.3.0/line-awesome/css/line-awesome.min.css">
     <!-- jsPDF library for PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
@@ -593,7 +594,7 @@ body[class*="theme-"]:not(.theme-white) select {
                         Cancel
                     </button>
                     <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none">
-                        <i class="fas fa-upload mr-1"></i> Upload
+                        <i class="las la-upload mr-1"></i> Upload
                     </button>
                 </div>
             </form>
@@ -611,7 +612,7 @@ body[class*="theme-"]:not(.theme-white) select {
         <div class="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl p-8 w-full max-w-lg border border-white/40">
             <div class="flex items-center justify-between mb-6">
                 <div>
-                    <p class="inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full bg-indigo-100 text-indigo-700">Secure Login</p>
+                    <p class="inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20">Secure Login</p>
                     <h2 class="mt-3 text-3xl font-extrabold text-slate-900">SKILLSCONNECT</h2>
                     <p class="text-gray-600 mt-1">Access your learning workspace</p>
                 </div>
@@ -688,10 +689,10 @@ body[class*="theme-"]:not(.theme-white) select {
                 <div class="flex justify-between items-center">
                     <div class="space-x-2">
                         <button type="button" onclick="selectAllStudents()" class="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 focus:outline-none">
-                            <i class="fas fa-check-double mr-1"></i> Select All
+                            <i class="las la-check-double mr-1"></i> Select All
                         </button>
                         <button type="button" onclick="deselectAllStudents()" class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 focus:outline-none">
-                            <i class="fas fa-times mr-1"></i> Deselect All
+                            <i class="las la-times mr-1"></i> Deselect All
                         </button>
                     </div>
                     <span id="selectedStudentsCount" class="text-sm text-gray-600">0 students selected</span>
@@ -727,10 +728,10 @@ body[class*="theme-"]:not(.theme-white) select {
                 <div class="flex justify-between items-center">
                     <div class="space-x-2">
                         <button type="button" onclick="selectAllCourseStudents()" class="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 focus:outline-none">
-                            <i class="fas fa-check-double mr-1"></i> Select All
+                            <i class="las la-check-double mr-1"></i> Select All
                         </button>
                         <button type="button" onclick="deselectAllCourseStudents()" class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 focus:outline-none">
-                            <i class="fas fa-times mr-1"></i> Deselect All
+                            <i class="las la-times mr-1"></i> Deselect All
                         </button>
                     </div>
                     <span id="selectedCourseStudentsCount" class="text-sm text-gray-600">0 students selected</span>
@@ -801,7 +802,7 @@ body[class*="theme-"]:not(.theme-white) select {
                 <!-- Document Upload -->
                 <div class="mb-4 bg-blue-50 border border-blue-200 rounded-md p-4">
                     <label class="block text-gray-700 text-sm font-medium mb-2" for="assignmentDocumentInput">
-                        <i class="fas fa-file-upload mr-2 text-indigo-600"></i>Upload Assignment Documents <span class="text-red-500">*</span> <span class="text-gray-500 text-xs">(Multiple files allowed)</span>
+                        <i class="las la-file-upload mr-2 text-indigo-600"></i>Upload Assignment Documents <span class="text-red-500">*</span> <span class="text-gray-500 text-xs">(Multiple files allowed)</span>
                     </label>
                     <p class="text-xs text-gray-600 mb-2">Accepted formats: PDF, PowerPoint (.ppt, .pptx), Word (.doc, .docx)</p>
                     <input type="file" id="assignmentDocumentInput" accept=".pdf,.doc,.docx,.ppt,.pptx" multiple class="block w-full text-sm text-gray-500
@@ -818,7 +819,7 @@ body[class*="theme-"]:not(.theme-white) select {
                 <div class="mb-4 bg-amber-50 border border-amber-200 rounded-md p-4" id="assignmentMarksContainer">
                     <div class="flex items-center justify-between mb-3">
                         <label class="block text-gray-700 text-sm font-medium" for="assignmentMarksInput">
-                            <i class="fas fa-star mr-2 text-amber-600"></i>Total Marks <span class="text-red-500">*</span>
+                            <i class="las la-star mr-2 text-amber-600"></i>Total Marks <span class="text-red-500">*</span>
                         </label>
                         <input id="assignmentMarksInput" type="number" class="w-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 text-center font-bold text-lg" placeholder="100" min="0" value="100">
                     </div>
@@ -828,10 +829,10 @@ body[class*="theme-"]:not(.theme-white) select {
                     <div id="questionsSection" class="mt-4">
                         <div class="flex justify-between items-center mb-2">
                             <label class="block text-gray-700 text-sm font-medium">
-                                <i class="fas fa-list-ol mr-2 text-indigo-600"></i>Assignment Questions (Optional)
+                                <i class="las la-list-ol mr-2 text-indigo-600"></i>Assignment Questions (Optional)
                             </label>
                             <button type="button" onclick="addAssignmentQuestion()" class="px-3 py-1 text-xs bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none">
-                                <i class="fas fa-plus mr-1"></i> Add Question
+                                <i class="las la-plus mr-1"></i> Add Question
                             </button>
                         </div>
                         <p class="text-xs text-gray-500 mb-3">Add questions with individual marks allocation (optional, for reference)</p>
@@ -852,10 +853,10 @@ body[class*="theme-"]:not(.theme-white) select {
                         <div class="flex justify-between items-center">
                             <div class="space-x-2">
                                 <button type="button" onclick="selectAllAssignmentStudents()" class="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 focus:outline-none">
-                                    <i class="fas fa-check-double mr-1"></i> Select All
+                                    <i class="las la-check-double mr-1"></i> Select All
                                 </button>
                                 <button type="button" onclick="deselectAllAssignmentStudents()" class="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 focus:outline-none">
-                                    <i class="fas fa-times mr-1"></i> Deselect All
+                                    <i class="las la-times mr-1"></i> Deselect All
                                 </button>
                             </div>
                             <span id="selectedAssignmentStudentsCount" class="text-xs text-gray-600">0 students selected</span>
@@ -875,10 +876,10 @@ body[class*="theme-"]:not(.theme-white) select {
                 <!-- Action Buttons -->
                 <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
                     <button type="button" onclick="hideCreateAssignmentModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none">
-                        <i class="fas fa-times mr-1"></i> Cancel
+                        <i class="las la-times mr-1"></i> Cancel
                     </button>
                     <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none">
-                        <i class="fas fa-check mr-1"></i> Create & Assign
+                        <i class="las la-check mr-1"></i> Create & Assign
                     </button>
                 </div>
             </form>
@@ -906,7 +907,7 @@ body[class*="theme-"]:not(.theme-white) select {
             <!-- Questions Section -->
             <div class="mb-6 border-t pt-4" id="viewAssignmentQuestionsSection" style="display: none;">
                 <h4 class="text-md font-semibold text-gray-800 mb-3">
-                    <i class="fas fa-question-circle text-amber-500 mr-2"></i>Questions:
+                    <i class="las la-question-circle text-amber-500 mr-2"></i>Questions:
                 </h4>
                 <div id="viewAssignmentQuestionsList" class="space-y-3">
                     <!-- Questions will be populated here -->
@@ -916,7 +917,7 @@ body[class*="theme-"]:not(.theme-white) select {
             <!-- Student Submission Section -->
             <div class="mb-6 border-t pt-4" id="studentSubmissionSection">
                 <h4 class="text-md font-semibold text-gray-800 mb-3">
-                    <i class="fas fa-upload text-green-600 mr-2"></i>Your Submission:
+                    <i class="las la-upload text-green-600 mr-2"></i>Your Submission:
                 </h4>
                 <div class="bg-blue-50 border-2 border-dashed border-blue-300 rounded-lg p-4">
                     <label class="block text-gray-700 text-sm font-medium mb-2">
@@ -936,7 +937,7 @@ body[class*="theme-"]:not(.theme-white) select {
             <!-- Training Manager Grade Section -->
             <div class="mb-6 border-t pt-4" id="tmGradeSection" style="display: none;">
                 <h4 class="text-md font-semibold text-gray-800 mb-3">
-                    <i class="fas fa-star text-amber-500 mr-2"></i>Grade Assignment:
+                    <i class="las la-star text-amber-500 mr-2"></i>Grade Assignment:
                 </h4>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
@@ -963,10 +964,10 @@ body[class*="theme-"]:not(.theme-white) select {
                 </button>
                 <div>
                     <button id="submitAssignmentBtn" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none">
-                        <i class="fas fa-check-circle mr-2"></i>Submit Assignment
+                        <i class="las la-check-circle mr-2"></i>Submit Assignment
                     </button>
                     <button id="gradeAssignmentBtn" class="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 focus:outline-none" style="display: none;">
-                        <i class="fas fa-star mr-2"></i>Save Grade
+                        <i class="las la-star mr-2"></i>Save Grade
                     </button>
                 </div>
             </div>
@@ -979,12 +980,12 @@ body[class*="theme-"]:not(.theme-white) select {
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-semibold text-gray-900" id="certificateViewerTitle">View Certificate</h3>
                 <button onclick="closeCertificateViewer()" class="text-gray-500 hover:text-gray-700">
-                    <i class="fas fa-times text-xl"></i>
+                    <i class="las la-times text-xl"></i>
                 </button>
             </div>
             <div class="mb-4 bg-gradient-to-br from-amber-50 to-yellow-50 p-8 rounded-lg border-2 border-amber-200 text-center min-h-96 flex flex-col justify-center items-center" id="certificateDisplayArea">
                 <div class="text-6xl mb-4 text-amber-600">
-                    <i class="fas fa-certificate"></i>
+                    <i class="las la-certificate"></i>
                 </div>
                 <h2 class="text-3xl font-bold text-amber-900 mb-2" id="certificateName">Certificate of Achievement</h2>
                 <p class="text-gray-600 mb-4">This certifies that</p>
@@ -996,7 +997,7 @@ body[class*="theme-"]:not(.theme-white) select {
             </div>
             <div class="flex justify-end space-x-3">
                 <button onclick="downloadCertificate()" class="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 focus:outline-none">
-                    <i class="fas fa-download mr-2"></i> Download
+                    <i class="las la-download mr-2"></i> Download
                 </button>
                 <button onclick="closeCertificateViewer()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none">
                     Close
@@ -1011,7 +1012,7 @@ body[class*="theme-"]:not(.theme-white) select {
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-semibold text-gray-900" id="badgeViewerTitle">Badge Details</h3>
                 <button onclick="closeBadgeViewer()" class="text-gray-500 hover:text-gray-700">
-                    <i class="fas fa-times text-xl"></i>
+                    <i class="las la-times text-xl"></i>
                 </button>
             </div>
             <div class="mb-4 text-center">
@@ -1039,7 +1040,7 @@ body[class*="theme-"]:not(.theme-white) select {
             <div class="flex justify-between items-center p-6 border-b border-gray-200">
                 <h2 class="text-2xl font-semibold text-gray-900" id="courseViewerTitle">Course Title</h2>
                 <button onclick="closeCourseViewer()" class="text-gray-500 hover:text-gray-700">
-                    <i class="fas fa-times text-xl"></i>
+                    <i class="las la-times text-xl"></i>
                 </button>
             </div>
             
@@ -1048,8 +1049,8 @@ body[class*="theme-"]:not(.theme-white) select {
                 <div class="mb-6">
                     <p class="text-gray-600 mb-2" id="courseViewerDescription">Course description</p>
                     <div class="flex space-x-4 text-sm text-gray-600">
-                        <span><i class="fas fa-book mr-2"></i>Course ID: <span id="courseViewerCourseId"></span></span>
-                        <span><i class="fas fa-star mr-2"></i>Progress: <span id="courseViewerProgress"></span>%</span>
+                        <span><i class="las la-book mr-2"></i>Course ID: <span id="courseViewerCourseId"></span></span>
+                        <span><i class="las la-star mr-2"></i>Progress: <span id="courseViewerProgress"></span>%</span>
                     </div>
                 </div>
 
@@ -1057,13 +1058,13 @@ body[class*="theme-"]:not(.theme-white) select {
                 <div class="mb-6 border-b border-gray-200">
                     <div class="flex space-x-4 pb-3" id="mainTabsContainer">
                         <button onclick="switchCourseTab('videos')" class="px-4 py-2 font-medium text-gray-600 hover:text-gray-800 border-b-2 border-transparent hover:border-indigo-600 transition cursor-pointer" id="videosTabBtn">
-                            <i class="fas fa-book-open mr-2"></i>Content
+                            <i class="las la-book-open mr-2"></i>Content
                         </button>
                         <button onclick="switchCourseTab('documents')" class="px-4 py-2 font-medium text-gray-600 hover:text-gray-800 border-b-2 border-transparent hover:border-indigo-600 transition cursor-pointer" id="documentsTabBtn">
-                            <i class="fas fa-file-alt mr-2"></i>Documents
+                            <i class="las la-file-alt mr-2"></i>Documents
                         </button>
                         <button onclick="switchCourseTab('assignments')" class="px-4 py-2 font-medium text-gray-600 hover:text-gray-800 border-b-2 border-transparent hover:border-indigo-600 transition cursor-pointer" id="assignmentsTabBtn">
-                            <i class="fas fa-tasks mr-2"></i>Assignments
+                            <i class="las la-tasks mr-2"></i>Assignments
                         </button>
                     </div>
                 </div>
@@ -1081,7 +1082,7 @@ body[class*="theme-"]:not(.theme-white) select {
                     <div class="mb-6">
                         <div id="videoPlayer" class="bg-black rounded-lg overflow-hidden flex items-center justify-center h-96 mb-4 relative group cursor-pointer">
                             <div class="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center">
-                                <i class="fas fa-play-circle text-6xl text-white mb-4 group-hover:scale-110 transition"></i>
+                                <i class="las la-play-circle text-6xl text-white mb-4 group-hover:scale-110 transition"></i>
                                 <p class="text-white text-lg">Video Player</p>
                                 <p class="text-gray-400 text-sm mt-2">Click to play section video</p>
                             </div>
@@ -1108,7 +1109,7 @@ body[class*="theme-"]:not(.theme-white) select {
                             Close
                         </button>
                         <button id="submitCourseAnswersBtn" class="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none">
-                            <i class="fas fa-check mr-2"></i>Submit Answers
+                            <i class="las la-check mr-2"></i>Submit Answers
                         </button>
                     </div>
                 </div>
@@ -1158,10 +1159,10 @@ body[class*="theme-"]:not(.theme-white) select {
                     <span class="logo-text text-xl font-bold">SKILLSCONNECT</span>
                 </div>
                 <button id="toggleSidebar" class="text-white focus:outline-none hidden lg:block hover:bg-white/10 p-2 rounded transition">
-                    <i class="fas fa-bars"></i>
+                    <i class="las la-bars"></i>
                 </button>
                 <button id="mobileCloseSidebarBtn" class="text-white focus:outline-none lg:hidden hover:bg-white/10 p-2 rounded transition">
-                    <i class="fas fa-times"></i>
+                    <i class="las la-times"></i>
                 </button>
             </div>
             
@@ -1179,31 +1180,31 @@ body[class*="theme-"]:not(.theme-white) select {
                 <div id="adminNav" class="nav-section">
                     <div class="p-6 text-xs uppercase text-indigo-300 font-bold sidebar-text tracking-wider">Administration</div>
                     <a href="#" class="sidebar-item active" data-section="dashboard">
-                        <i class="fas fa-tachometer-alt mr-3"></i>
+                        <i class="las la-tachometer-alt mr-3"></i>
                         <span class="sidebar-text">Dashboard</span>
                     </a>
                     <a href="#" class="sidebar-item" data-section="user-management">
-                        <i class="fas fa-users mr-3"></i>
+                        <i class="las la-users mr-3"></i>
                         <span class="sidebar-text">User Management</span>
                     </a>
                     <a href="#" class="sidebar-item" data-section="course-content">
-                        <i class="fas fa-file-upload mr-3"></i>
+                        <i class="las la-file-upload mr-3"></i>
                         <span class="sidebar-text">Course Content</span>
                     </a>
                     <a href="#" class="sidebar-item" data-section="reports">
-                        <i class="fas fa-chart-bar mr-3"></i>
+                        <i class="las la-chart-bar mr-3"></i>
                         <span class="sidebar-text">Reports</span>
                     </a>
                     <a href="#" class="sidebar-item" data-section="system-settings">
-                        <i class="fas fa-cog mr-3"></i>
+                        <i class="las la-cog mr-3"></i>
                         <span class="sidebar-text">Settings</span>
                     </a>
                     <a href="#" class="sidebar-item" data-section="certificates-management">
-                        <i class="fas fa-certificate mr-3"></i>
+                        <i class="las la-certificate mr-3"></i>
                         <span class="sidebar-text">Certificates</span>
                     </a>
                     <a href="#" class="sidebar-item" data-section="badges-management">
-                        <i class="fas fa-medal mr-3"></i>
+                        <i class="las la-medal mr-3"></i>
                         <span class="sidebar-text">Badges</span>
                     </a>
                 </div>
@@ -1211,30 +1212,30 @@ body[class*="theme-"]:not(.theme-white) select {
                 <div id="trainingManagerNav" class="nav-section hidden">
                     <div class="p-6 text-xs uppercase text-indigo-300 font-bold sidebar-text tracking-wider">Management</div>
                     <a href="#" class="sidebar-item active" data-section="dashboard">
-                        <i class="fas fa-tachometer-alt mr-3"></i>
+                        <i class="las la-tachometer-alt mr-3"></i>
                         <span class="sidebar-text">Dashboard</span>
                     </a>
                     <div class="p-6 text-xs uppercase text-indigo-300 font-bold sidebar-text tracking-wider">Content</div>
                     <a href="#" class="sidebar-item" data-section="my-courses">
-                        <i class="fas fa-book mr-3"></i>
+                        <i class="las la-book mr-3"></i>
                         <span class="sidebar-text">My Courses</span>
                     </a>
                     <a href="#" class="sidebar-item" data-section="programme-management">
-                        <i class="fas fa-sitemap mr-3"></i>
+                        <i class="las la-sitemap mr-3"></i>
                         <span class="sidebar-text">Programmes</span>
                     </a>
                     <div class="p-6 text-xs uppercase text-indigo-300 font-bold sidebar-text tracking-wider">Student Management</div>
                     <a href="#" class="sidebar-item" data-section="assignment-overview">
-                        <i class="fas fa-users-cog mr-3"></i>
+                        <i class="las la-users-cog mr-3"></i>
                         <span class="sidebar-text">Student Enrolment</span>
                     </a>
                     <div class="p-6 text-xs uppercase text-indigo-300 font-bold sidebar-text tracking-wider">Recognition</div>
                     <a href="#" class="sidebar-item" data-section="certificate-templates">
-                        <i class="fas fa-certificate mr-3"></i>
+                        <i class="las la-certificate mr-3"></i>
                         <span class="sidebar-text">Certificates</span>
                     </a>
                     <a href="#" class="sidebar-item" data-section="badges-created">
-                        <i class="fas fa-medal mr-3"></i>
+                        <i class="las la-medal mr-3"></i>
                         <span class="sidebar-text">Badges</span>
                     </a>
                 </div>
@@ -1242,52 +1243,52 @@ body[class*="theme-"]:not(.theme-white) select {
                 <div id="studentNav" class="nav-section hidden">
                     <div class="p-6 text-xs uppercase text-indigo-300 font-bold sidebar-text tracking-wider">Learning</div>
                     <a href="#" class="sidebar-item active" data-section="dashboard">
-                        <i class="fas fa-tachometer-alt mr-3"></i>
+                        <i class="las la-tachometer-alt mr-3"></i>
                         <span class="sidebar-text">Dashboard</span>
                     </a>
                     <a href="#" class="sidebar-item" data-section="enrolled-courses">
-                        <i class="fas fa-book mr-3"></i>
+                        <i class="las la-book mr-3"></i>
                         <span class="sidebar-text">My Courses</span>
                     </a>
                     <a href="#" class="sidebar-item" data-section="my-programmes">
-                        <i class="fas fa-layer-group mr-3"></i>
+                        <i class="las la-layer-group mr-3"></i>
                         <span class="sidebar-text">My Programmes</span>
                     </a>
                     <a href="#" class="sidebar-item" data-section="student-assignments">
-                        <i class="fas fa-tasks mr-3"></i>
+                        <i class="las la-tasks mr-3"></i>
                         <span class="sidebar-text">My Assignments</span>
                     </a>
                     <a href="#" class="sidebar-item" data-section="my-certificates">
-                        <i class="fas fa-certificate mr-3"></i>
+                        <i class="las la-certificate mr-3"></i>
                         <span class="sidebar-text">My Certificates</span>
                     </a>
                     <a href="#" class="sidebar-item" data-section="my-badges">
-                        <i class="fas fa-medal mr-3"></i>
+                        <i class="las la-medal mr-3"></i>
                         <span class="sidebar-text">My Badges</span>
                     </a>
                     <a href="#" class="sidebar-item" data-section="calendar">
-                        <i class="fas fa-calendar-alt mr-3"></i>
+                        <i class="las la-calendar-alt mr-3"></i>
                         <span class="sidebar-text">Calendar</span>
                     </a>
                 </div>
                 
                 <div class="p-6 text-xs uppercase text-indigo-300 font-bold sidebar-text tracking-wider border-t border-indigo-700/50 mt-4">Account</div>
                 <a href="#" class="sidebar-item" data-section="profile">
-                    <i class="fas fa-user mr-3"></i>
+                    <i class="las la-user mr-3"></i>
                     <span class="sidebar-text">Profile</span>
                 </a>
                 <a href="#" class="sidebar-item" data-section="messages">
-                    <i class="fas fa-envelope mr-3"></i>
+                    <i class="las la-envelope mr-3"></i>
                     <span class="sidebar-text">Messages</span>
                     <span class="notification-badge bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">2</span>
                 </a>
                 <a href="#" class="sidebar-item" data-section="notifications">
-                    <i class="fas fa-bell mr-3"></i>
+                    <i class="las la-bell mr-3"></i>
                     <span class="sidebar-text">Notifications</span>
                     <span class="notification-badge bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">5</span>
                 </a>
                 <a href="#" class="sidebar-item" id="logoutBtn">
-                    <i class="fas fa-sign-out-alt mr-3"></i>
+                    <i class="las la-sign-out-alt mr-3"></i>
                     <span class="sidebar-text">Logout</span>
                 </a>
             </nav>
@@ -1300,7 +1301,7 @@ body[class*="theme-"]:not(.theme-white) select {
                 <div class="flex items-center justify-between px-6 py-4">
                     <div class="flex items-center">
                         <button id="mobileMenuBtn" class="mobile-menu-btn text-gray-600 mr-4 focus:outline-none lg:hidden hover:text-indigo-600 transition">
-                            <i class="fas fa-bars text-xl"></i>
+                            <i class="las la-bars text-xl"></i>
                         </button>
                         <div>
                             <h1 class="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-indigo-400 bg-clip-text text-transparent" id="pageTitle">Dashboard</h1>
@@ -1311,7 +1312,7 @@ body[class*="theme-"]:not(.theme-white) select {
                     <div class="flex items-center space-x-4">
                         <div class="relative">
                             <button class="text-gray-600 focus:outline-none">
-                                <i class="fas fa-search text-xl"></i>
+                                <i class="las la-search text-xl"></i>
                             </button>
                         </div>
                         
@@ -1319,7 +1320,7 @@ body[class*="theme-"]:not(.theme-white) select {
                         <!-- Theme Selector -->
                         <div class="relative dropdown">
                             <button type="button" class="text-gray-600 focus:outline-none relative transition hover:text-indigo-600 mx-2 flex items-center" onclick="toggleDropdown(this)" title="Theme">
-                                <i class="fas fa-palette text-xl"></i>
+                                <i class="las la-palette text-xl"></i>
                             </button>
                             <div class="dropdown-menu hidden absolute right-0 mt-2 w-40 bg-white rounded-md shadow-lg py-1 border border-gray-200 z-[60]">
                                 <div class="px-4 py-2 border-b border-gray-200">
@@ -1342,7 +1343,7 @@ body[class*="theme-"]:not(.theme-white) select {
                         <!-- Messages Dropdown -->
                         <div class="relative dropdown">
                             <button type="button" class="text-gray-600 hover:text-indigo-600 focus:outline-none relative transition" onclick="toggleDropdown(this)" title="Messages">
-                                <i class="fas fa-envelope text-xl"></i>
+                                <i class="las la-envelope text-xl"></i>
                                 <span class="notification-badge bg-blue-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">2</span>
                             </button>
                             <div class="dropdown-menu hidden absolute right-0 mt-2 w-72 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
@@ -1368,7 +1369,7 @@ body[class*="theme-"]:not(.theme-white) select {
                         <!-- Notifications Dropdown -->
                         <div class="relative dropdown">
                             <button type="button" class="text-gray-600 hover:text-indigo-600 focus:outline-none relative transition" onclick="toggleDropdown(this)" title="Notifications">
-                                <i class="fas fa-bell text-xl"></i>
+                                <i class="las la-bell text-xl"></i>
                                 <span class="notification-badge bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">5</span>
                             </button>
                             <div class="dropdown-menu hidden absolute right-0 mt-2 w-72 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
@@ -1391,7 +1392,7 @@ body[class*="theme-"]:not(.theme-white) select {
                             <button type="button" class="flex items-center focus:outline-none" onclick="toggleDropdown(this)">
                                 <img src="https://placehold.co/32x32/FF5733/FFFFFF?text=U" alt="User" class="w-8 h-8 rounded-full" id="topNavUserAvatar">
                                 <span class="ml-2 text-gray-700 hidden md:inline" id="topNavUsername">Admin User</span>
-                                <i class="fas fa-chevron-down ml-1 text-gray-600 text-xs hidden md:inline"></i>
+                                <i class="las la-chevron-down ml-1 text-gray-600 text-xs hidden md:inline"></i>
                             </button>
                             <div class="dropdown-menu hidden absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg py-1 border border-gray-200 z-50">
                                 <div class="px-4 py-3 border-b border-gray-200">
@@ -1399,24 +1400,24 @@ body[class*="theme-"]:not(.theme-white) select {
                                     <p class="text-xs text-gray-500" id="dropdownUserEmail">admin@example.com</p>
                                 </div>
                                 <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dropdown-nav-link" data-section="profile">
-                                    <i class="fas fa-user mr-2 text-gray-500"></i> My Profile
+                                    <i class="las la-user mr-2 text-gray-500"></i> My Profile
                                 </a>
                                 <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dropdown-nav-link" data-section="dashboard">
-                                    <i class="fas fa-home mr-2 text-gray-500"></i> Dashboard
+                                    <i class="las la-home mr-2 text-gray-500"></i> Dashboard
                                 </a>
                                 <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dropdown-nav-link" data-section="system-settings">
-                                    <i class="fas fa-cog mr-2 text-gray-500"></i> Settings
+                                    <i class="las la-cog mr-2 text-gray-500"></i> Settings
                                 </a>
                                 <div class="border-t border-gray-200 my-1"></div>
                                 <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                    <i class="fas fa-question-circle mr-2 text-gray-500"></i> Help & Support
+                                    <i class="las la-question-circle mr-2 text-gray-500"></i> Help & Support
                                 </a>
                                 <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                    <i class="fas fa-keyboard mr-2 text-gray-500"></i> Keyboard Shortcuts
+                                    <i class="las la-keyboard mr-2 text-gray-500"></i> Keyboard Shortcuts
                                 </a>
                                 <div class="border-t border-gray-200 my-1"></div>
                                 <a href="#" class="block px-4 py-2 text-sm text-red-600 hover:bg-red-50" id="topLogoutBtn">
-                                    <i class="fas fa-sign-out-alt mr-2"></i> Logout
+                                    <i class="las la-sign-out-alt mr-2"></i> Logout
                                 </a>
                             </div>
                         </div>
@@ -1438,7 +1439,7 @@ body[class*="theme-"]:not(.theme-white) select {
                         <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500 hover:shadow-lg transition">
                             <div class="flex items-center">
                                 <div class="p-3 rounded-lg bg-gradient-to-br from-green-100 to-green-50 text-green-600 mr-4">
-                                    <i class="fas fa-book text-xl"></i>
+                                    <i class="las la-book text-xl"></i>
                                 </div>
                                 <div>
                                     <p class="text-sm text-gray-600 font-medium">Total Courses</p>
@@ -1450,7 +1451,7 @@ body[class*="theme-"]:not(.theme-white) select {
                         <div class="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500 hover:shadow-lg transition" id="totalStudentsCard">
                             <div class="flex items-center">
                                 <div class="p-3 rounded-lg bg-gradient-to-br from-blue-100 to-blue-50 text-blue-600 mr-4">
-                                    <i class="fas fa-users text-xl"></i>
+                                    <i class="las la-users text-xl"></i>
                                 </div>
                                 <div>
                                     <p class="text-sm text-gray-600 font-medium">Total Students</p>
@@ -1462,7 +1463,7 @@ body[class*="theme-"]:not(.theme-white) select {
                         <div class="bg-white rounded-lg shadow p-6 border-l-4 border-purple-500 hover:shadow-lg transition">
                             <div class="flex items-center">
                                 <div class="p-3 rounded-lg bg-gradient-to-br from-purple-100 to-purple-50 text-purple-600 mr-4">
-                                    <i class="fas fa-star text-xl"></i>
+                                    <i class="las la-star text-xl"></i>
                                 </div>
                                 <div>
                                     <p class="text-sm text-gray-600 font-medium">Avg. Course Rating</p>
@@ -1477,7 +1478,7 @@ body[class*="theme-"]:not(.theme-white) select {
                         <div class="bg-white rounded-lg shadow p-6 border-l-4 border-indigo-500 hover:shadow-lg transition">
                             <div class="flex items-center">
                                 <div class="p-3 rounded-lg bg-gradient-to-br from-indigo-100 to-indigo-50 text-indigo-600 mr-4">
-                                    <i class="fas fa-users text-xl"></i>
+                                    <i class="las la-users text-xl"></i>
                                 </div>
                                 <div>
                                     <p class="text-sm text-gray-600 font-medium">Total Students</p>
@@ -1489,7 +1490,7 @@ body[class*="theme-"]:not(.theme-white) select {
                         <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500 hover:shadow-lg transition">
                             <div class="flex items-center">
                                 <div class="p-3 rounded-lg bg-gradient-to-br from-green-100 to-green-50 text-green-600 mr-4">
-                                    <i class="fas fa-check-circle text-xl"></i>
+                                    <i class="las la-check-circle text-xl"></i>
                                 </div>
                                 <div>
                                     <p class="text-sm text-gray-600 font-medium">Courses Completed</p>
@@ -1501,7 +1502,7 @@ body[class*="theme-"]:not(.theme-white) select {
                         <div class="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500 hover:shadow-lg transition">
                             <div class="flex items-center">
                                 <div class="p-3 rounded-lg bg-gradient-to-br from-blue-100 to-blue-50 text-blue-600 mr-4">
-                                    <i class="fas fa-spinner text-xl"></i>
+                                    <i class="las la-spinner text-xl"></i>
                                 </div>
                                 <div>
                                     <p class="text-sm text-gray-600 font-medium">Courses In Progress</p>
@@ -1513,7 +1514,7 @@ body[class*="theme-"]:not(.theme-white) select {
                         <div class="bg-white rounded-lg shadow p-6 border-l-4 border-orange-500 hover:shadow-lg transition">
                             <div class="flex items-center">
                                 <div class="p-3 rounded-lg bg-gradient-to-br from-orange-100 to-orange-50 text-orange-600 mr-4">
-                                    <i class="fas fa-clock text-xl"></i>
+                                    <i class="las la-clock text-xl"></i>
                                 </div>
                                 <div>
                                     <p class="text-sm text-gray-600 font-medium">Courses Not Started</p>
@@ -1528,7 +1529,7 @@ body[class*="theme-"]:not(.theme-white) select {
                         <div class="bg-white rounded-lg shadow p-6 border-l-4 border-orange-500 hover:shadow-lg transition">
                             <div class="flex items-center">
                                 <div class="p-3 rounded-lg bg-gradient-to-br from-orange-100 to-orange-50 text-orange-600 mr-4">
-                                    <i class="fas fa-book text-xl"></i>
+                                    <i class="las la-book text-xl"></i>
                                 </div>
                                 <div>
                                     <p class="text-sm text-gray-600 font-medium">Enrolled Courses</p>
@@ -1540,7 +1541,7 @@ body[class*="theme-"]:not(.theme-white) select {
                         <div class="bg-white rounded-lg shadow p-6 border-l-4 border-blue-500 hover:shadow-lg transition">
                             <div class="flex items-center">
                                 <div class="p-3 rounded-lg bg-gradient-to-br from-blue-100 to-blue-50 text-blue-600 mr-4">
-                                    <i class="fas fa-clock text-xl"></i>
+                                    <i class="las la-clock text-xl"></i>
                                 </div>
                                 <div>
                                     <p class="text-sm text-gray-600 font-medium">Total Hours Earned</p>
@@ -1552,7 +1553,7 @@ body[class*="theme-"]:not(.theme-white) select {
                         <div class="bg-white rounded-lg shadow p-6 border-l-4 border-purple-500 hover:shadow-lg transition">
                             <div class="flex items-center">
                                 <div class="p-3 rounded-lg bg-gradient-to-br from-purple-100 to-purple-50 text-purple-600 mr-4">
-                                    <i class="fas fa-trophy text-xl"></i>
+                                    <i class="las la-trophy text-xl"></i>
                                 </div>
                                 <div>
                                     <p class="text-sm text-gray-600 font-medium">Badges Earned</p>
@@ -1686,10 +1687,10 @@ body[class*="theme-"]:not(.theme-white) select {
                             </div>
                             <div class="flex space-x-2">
                                 <button id="bulkUploadBtn" class="bg-gradient-to-r from-green-600 to-green-500 text-white px-4 py-2 rounded-lg text-sm hover:shadow-lg focus:outline-none font-medium transition transform hover:-translate-y-0.5">
-                                    <i class="fas fa-upload mr-2"></i> Bulk Upload
+                                    <i class="las la-upload mr-2"></i> Bulk Upload
                                 </button>
                                 <button id="addUserBtn" class="bg-gradient-to-r from-indigo-600 to-indigo-500 text-white px-4 py-2 rounded-lg text-sm hover:shadow-lg focus:outline-none font-medium transition transform hover:-translate-y-0.5">
-                                    <i class="fas fa-plus mr-2"></i> Add User
+                                    <i class="las la-plus mr-2"></i> Add User
                                 </button>
                             </div>
                         </div>
@@ -1735,7 +1736,7 @@ body[class*="theme-"]:not(.theme-white) select {
                     <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-indigo-500 p-5 rounded-lg mb-6 shadow-sm">
                         <div class="flex items-start">
                             <div class="flex-shrink-0">
-                                <i class="fas fa-info-circle text-2xl text-indigo-600"></i>
+                                <i class="las la-info-circle text-2xl text-indigo-600"></i>
                             </div>
                             <div class="ml-4">
                                 <h3 class="text-sm font-semibold text-gray-800 mb-2">How to Enrol Students in Programmes</h3>
@@ -1752,7 +1753,7 @@ body[class*="theme-"]:not(.theme-white) select {
                     <div class="bg-white rounded-lg shadow p-6 mb-6">
                         <div class="flex items-center mb-6 pb-4 border-b border-gray-100">
                             <div class="p-3 rounded-lg bg-indigo-100 text-indigo-600 mr-3">
-                                <i class="fas fa-plus-circle"></i>
+                                <i class="las la-plus-circle"></i>
                             </div>
                             <h3 class="text-lg font-bold text-gray-900">Create New Programme</h3>
                         </div>
@@ -1837,184 +1838,18 @@ body[class*="theme-"]:not(.theme-white) select {
                     <!-- Tab Navigation -->
                     <div class="mb-6 border-b border-gray-200">
                         <nav class="-mb-px flex space-x-8">
-                            <button onclick="switchAssignmentTab('overview')" id="tab-overview" class="assignment-tab active border-b-2 border-indigo-500 py-4 px-1 text-sm font-medium text-indigo-600">
-                                <i class="fas fa-chart-pie mr-2"></i>Overview
-                            </button>
-                            <button onclick="switchAssignmentTab('programmes')" id="tab-programmes" class="assignment-tab border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                                <i class="fas fa-sitemap mr-2"></i>Assign to Programmes
+                            
+                            <button onclick="switchAssignmentTab('programmes')" id="tab-programmes" class="assignment-tab active border-b-2 border-indigo-500 py-4 px-1 text-sm font-medium text-indigo-600" hover:text-gray-700 hover:border-gray-300">
+                                <i class="las la-sitemap mr-2"></i>Assign to Programmes
                             </button>
                             <button onclick="switchAssignmentTab('courses')" id="tab-courses" class="assignment-tab border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                                <i class="fas fa-book-open mr-2"></i>Assign to Courses
+                                <i class="las la-book-open mr-2"></i>Assign to Courses
                             </button>
                         </nav>
                     </div>
 
                     <!-- Overview Tab Content -->
-                    <div id="assignment-tab-overview" class="assignment-tab-content">
-                        <!-- Summary Cards -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-                            <div class="bg-white rounded-lg shadow p-6">
-                                <div class="flex items-center justify-between">
-                                    <div>
-                                        <p class="text-sm text-gray-600 font-medium">Total Students</p>
-                                        <h3 class="text-3xl font-bold text-gray-900" id="overviewTotalStudents">0</h3>
-                                    </div>
-                                    <div class="p-3 rounded-full bg-blue-100 text-blue-600">
-                                        <i class="fas fa-users text-2xl"></i>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="bg-white rounded-lg shadow p-6">
-                                <div class="flex items-center justify-between">
-                                    <div>
-                                        <p class="text-sm text-gray-600 font-medium">Enrolled Students</p>
-                                        <h3 class="text-3xl font-bold text-green-600" id="overviewAssignedStudents">0</h3>
-                                    </div>
-                                    <div class="p-3 rounded-full bg-green-100 text-green-600">
-                                        <i class="fas fa-user-check text-2xl"></i>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="bg-white rounded-lg shadow p-6">
-                                <div class="flex items-center justify-between">
-                                    <div>
-                                        <p class="text-sm text-gray-600 font-medium">Unenrolled Students</p>
-                                        <h3 class="text-3xl font-bold text-orange-600" id="overviewUnassignedStudents">0</h3>
-                                    </div>
-                                    <div class="p-3 rounded-full bg-orange-100 text-orange-600">
-                                        <i class="fas fa-user-times text-2xl"></i>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="bg-white rounded-lg shadow p-6">
-                                <div class="flex items-center justify-between">
-                                    <div>
-                                        <p class="text-sm text-gray-600 font-medium">Active Programmes</p>
-                                        <h3 class="text-3xl font-bold text-indigo-600" id="overviewActiveProgrammes">0</h3>
-                                    </div>
-                                    <div class="p-3 rounded-full bg-indigo-100 text-indigo-600">
-                                        <i class="fas fa-sitemap text-2xl"></i>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Unassigned Students Section -->
-                        <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
-                            <div class="px-6 py-4 border-b border-gray-200 bg-orange-50">
-                                <h3 class="text-lg font-semibold text-gray-800">
-                                    <i class="fas fa-exclamation-triangle text-orange-600 mr-2"></i>
-                                    Students Not Enrolled in Any Programme
-                                </h3>
-                                <p class="text-sm text-gray-600 mt-1">These students are not enrolled in any programme yet</p>
-                            </div>
-                            <div class="overflow-x-auto">
-                                <table class="min-w-full divide-y divide-gray-200">
-                                    <thead class="bg-gray-50">
-                                        <tr>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student Name</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registration Date</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="bg-white divide-y divide-gray-200" id="unassignedStudentsTableBody">
-                                        <tr>
-                                            <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">All students are enrolled in programmes.</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <!-- Programme Enrolment Details -->
-                        <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
-                            <div class="px-6 py-4 border-b border-gray-200 bg-indigo-50">
-                                <h3 class="text-lg font-semibold text-gray-800">
-                                    <i class="fas fa-sitemap text-indigo-600 mr-2"></i>
-                                    Programme Enrollment Summary
-                                </h3>
-                                <p class="text-sm text-gray-600 mt-1">View student distribution across programmes</p>
-                            </div>
-                            <div class="overflow-x-auto">
-                                <table class="min-w-full divide-y divide-gray-200">
-                                    <thead class="bg-gray-50">
-                                        <tr>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Programme Name</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Linked Courses</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Students Enrolled</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completion Rate</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                        </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200" id="programmeDetailsTableBody">
-                                    <tr>
-                                        <td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500">No programmes available.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- Courses Without Students -->
-                    <div class="bg-white rounded-lg shadow overflow-hidden">
-                        <div class="px-6 py-4 border-b border-gray-200 bg-yellow-50">
-                            <h3 class="text-lg font-semibold text-gray-800">
-                                <i class="fas fa-book text-yellow-600 mr-2"></i>
-                                Courses Without Enrolled Students
-                            </h3>
-                            <p class="text-sm text-gray-600 mt-1">These courses have no students enrolled yet</p>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Name</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Marks</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200" id="coursesWithoutStudentsTableBody">
-                                    <tr>
-                                        <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">All courses have enrolled students.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- Courses Without Students -->
-                    <div class="bg-white rounded-lg shadow overflow-hidden">
-                        <div class="px-6 py-4 border-b border-gray-200 bg-yellow-50">
-                            <h3 class="text-lg font-semibold text-gray-800">
-                                <i class="fas fa-book text-yellow-600 mr-2"></i>
-                                Courses Without Enrolled Students
-                            </h3>
-                            <p class="text-sm text-gray-600 mt-1">These courses have no students enrolled yet</p>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course Name</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Marks</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200" id="coursesWithoutStudentsTableBody">
-                                    <tr>
-                                        <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">All courses have enrolled students.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Programmes Tab Content -->
-                <div id="assignment-tab-programmes" class="assignment-tab-content hidden">
+                    <div id="assignment-tab-programmes" class="assignment-tab-content">
                     <div class="bg-white rounded-lg shadow overflow-hidden">
                         <div class="px-6 py-4 border-b border-gray-200">
                             <h3 class="text-lg font-semibold text-gray-800">Enrol Students in Programmes</h3>
@@ -2328,10 +2163,10 @@ body[class*="theme-"]:not(.theme-white) select {
                     <div class="border-b border-gray-200 mb-6">
                         <nav class="-mb-px flex space-x-8">
                             <button onclick="switchMyCourseTab('create')" id="createCourseTab" class="my-course-tab border-b-2 border-indigo-500 py-4 px-1 text-sm font-medium text-indigo-600">
-                                <i class="fas fa-plus-circle mr-2"></i>Create Course
+                                <i class="las la-plus-circle mr-2"></i>Create Course
                             </button>
                             <button onclick="switchMyCourseTab('mycourses')" id="myCreatedCoursesTab" class="my-course-tab border-b-2 border-transparent py-4 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                                <i class="fas fa-list mr-2"></i>My Created Courses
+                                <i class="las la-list mr-2"></i>My Created Courses
                             </button>
                         </nav>
                     </div>
@@ -2341,7 +2176,7 @@ body[class*="theme-"]:not(.theme-white) select {
                     <!-- Create New Course Section -->
                     <div class="bg-white rounded-lg shadow-lg p-8 mb-6">
                         <div class="flex items-center mb-6">
-                            <i class="fas fa-graduation-cap text-3xl text-indigo-600 mr-3"></i>
+                            <i class="las la-graduation-cap text-3xl text-indigo-600 mr-3"></i>
                             <h3 class="text-2xl font-bold text-gray-800">Create New Course</h3>
                         </div>
                         <form id="createCourseForm">
@@ -2349,7 +2184,7 @@ body[class*="theme-"]:not(.theme-white) select {
                             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                                 <div class="lg:col-span-3 bg-white border-t-4 border-t-indigo-500 rounded-xl shadow-sm p-6 border border-gray-100">
                                     <h4 class="text-md font-bold text-gray-800 mb-4 flex items-center">
-                                        <div class="bg-indigo-100 p-1.5 rounded-lg mr-2"><i class="fas fa-info-circle text-indigo-600 text-sm"></i></div>
+                                        <div class="bg-indigo-100 p-1.5 rounded-lg mr-2"><i class="las la-info-circle text-indigo-600 text-sm"></i></div>
                                         Basic Information <span class="text-red-500 ml-1 text-xs">*</span>
                                     </h4>
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2380,7 +2215,7 @@ body[class*="theme-"]:not(.theme-white) select {
                             <!-- Course Builder Dashboard Cards -->
                             <div class="mb-4 flex items-center justify-between mt-2">
                                 <div>
-                                    <h4 class="text-lg font-bold text-gray-800 flex items-center"><i class="fas fa-cubes text-indigo-600 mr-2"></i> Course Builder Modules</h4>
+                                    <h4 class="text-lg font-bold text-gray-800 flex items-center"><i class="las la-cubes text-indigo-600 mr-2"></i> Course Builder Modules</h4>
                                     <p class="text-xs text-gray-500">Select a module to add rich content (Optional)</p>
                                 </div>
                             </div>
@@ -2390,13 +2225,13 @@ body[class*="theme-"]:not(.theme-white) select {
                                 <!-- Card 1: Resources -->
                                 <button type="button" class="text-left bg-white rounded-xl shadow-sm border border-gray-200 hover:border-purple-400 hover:shadow-md transition-all group flex flex-col p-5 focus:outline-none focus:ring-2 focus:ring-purple-500" onclick="document.getElementById('modalResources').classList.remove('hidden')">
                                     <div class="h-12 w-12 rounded-full bg-purple-50 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                                        <i class="fas fa-folder-open text-xl text-purple-600"></i>
+                                        <i class="las la-folder-open text-xl text-purple-600"></i>
                                     </div>
                                     <h5 class="font-bold text-gray-800 mb-1">Files & Media</h5>
                                     <p class="text-xs text-gray-500 mb-3 flex-1 h-12">Upload course thumbnail, PDFs, and slide decks.</p>
                                     <div class="flex flex-row items-center justify-start mt-auto w-full">
                                         <div class="flex items-center text-[10px] uppercase font-bold text-purple-600 bg-purple-50 px-2 py-1 rounded w-fit group-hover:bg-purple-100 transition-colors">
-                                            <i class="fas fa-cog mr-1"></i> Manage Media
+                                            <i class="las la-cog mr-1"></i> Manage Media
                                         </div>
                                     </div>
                                 </button>
@@ -2404,13 +2239,13 @@ body[class*="theme-"]:not(.theme-white) select {
                                 <!-- Card 2: Videos -->
                                 <button type="button" class="text-left bg-white rounded-xl shadow-sm border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all group flex flex-col p-5 focus:outline-none focus:ring-2 focus:ring-blue-500" onclick="document.getElementById('modalVideos').classList.remove('hidden')">
                                     <div class="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                                        <i class="fas fa-video text-xl text-blue-600"></i>
+                                        <i class="las la-video text-xl text-blue-600"></i>
                                     </div>
                                     <h5 class="font-bold text-gray-800 mb-1">Course Videos</h5>
                                     <p class="text-xs text-gray-500 mb-3 flex-1 h-12">Embed YouTube/Vimeo links or upload mp4 clips.</p>
                                     <div class="flex flex-row items-center justify-start mt-auto w-full">
                                         <div class="flex items-center text-[10px] uppercase font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded w-fit group-hover:bg-blue-100 transition-colors">
-                                            <i class="fas fa-cog mr-1"></i> Manage Videos
+                                            <i class="las la-cog mr-1"></i> Manage Videos
                                         </div>
                                     </div>
                                 </button>
@@ -2418,13 +2253,13 @@ body[class*="theme-"]:not(.theme-white) select {
                                 <!-- Card 3: Assessments -->
                                 <button type="button" class="text-left bg-white rounded-xl shadow-sm border border-gray-200 hover:border-emerald-400 hover:shadow-md transition-all group flex flex-col p-5 focus:outline-none focus:ring-2 focus:ring-emerald-500" onclick="document.getElementById('modalAssessments').classList.remove('hidden')">
                                     <div class="h-12 w-12 rounded-full bg-emerald-50 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                                        <i class="fas fa-clipboard-check text-xl text-emerald-600"></i>
+                                        <i class="las la-clipboard-check text-xl text-emerald-600"></i>
                                     </div>
                                     <h5 class="font-bold text-gray-800 mb-1">Assessments</h5>
                                     <p class="text-xs text-gray-500 mb-3 flex-1 h-12">Build dynamic quizzes and test questions.</p>
                                     <div class="flex flex-row items-center justify-start mt-auto w-full">
                                         <div class="flex items-center text-[10px] uppercase font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded w-fit group-hover:bg-emerald-100 transition-colors">
-                                            <i class="fas fa-cog mr-1"></i> Manage Exams
+                                            <i class="las la-cog mr-1"></i> Manage Exams
                                         </div>
                                     </div>
                                 </button>
@@ -2432,13 +2267,13 @@ body[class*="theme-"]:not(.theme-white) select {
                                 <!-- Card 4: Assignments -->
                                 <button type="button" class="text-left bg-white rounded-xl shadow-sm border border-gray-200 hover:border-pink-400 hover:shadow-md transition-all group flex flex-col p-5 focus:outline-none focus:ring-2 focus:ring-pink-500" onclick="document.getElementById('modalAssignments').classList.remove('hidden')">
                                     <div class="h-12 w-12 rounded-full bg-pink-50 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                                        <i class="fas fa-tasks text-xl text-pink-600"></i>
+                                        <i class="las la-tasks text-xl text-pink-600"></i>
                                     </div>
                                     <h5 class="font-bold text-gray-800 mb-1">Assignments</h5>
                                     <p class="text-xs text-gray-500 mb-3 flex-1 h-12">Create document uploads and read-receipt tasks.</p>
                                     <div class="flex flex-row items-center justify-start mt-auto w-full">
                                         <div class="flex items-center text-[10px] uppercase font-bold text-pink-600 bg-pink-50 px-2 py-1 rounded w-fit group-hover:bg-pink-100 transition-colors">
-                                            <i class="fas fa-cog mr-1"></i> Manage Tasks
+                                            <i class="las la-cog mr-1"></i> Manage Tasks
                                         </div>
                                     </div>
                                 </button>
@@ -2451,8 +2286,8 @@ body[class*="theme-"]:not(.theme-white) select {
                             <div id="modalResources" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm transition-opacity">
                                 <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col m-4">
                                     <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-purple-50">
-                                        <h3 class="font-bold text-gray-800 flex items-center"><i class="fas fa-folder-open text-purple-600 mr-2"></i> Files & Media</h3>
-                                        <button type="button" class="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-300 rounded" onclick="document.getElementById('modalResources').classList.add('hidden');"><i class="fas fa-times text-xl"></i></button>
+                                        <h3 class="font-bold text-gray-800 flex items-center"><i class="las la-folder-open text-purple-600 mr-2"></i> Files & Media</h3>
+                                        <button type="button" class="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-300 rounded" onclick="document.getElementById('modalResources').classList.add('hidden');"><i class="las la-times text-xl"></i></button>
                                     </div>
                                     <div class="p-6 overflow-y-auto flex-1">
                                          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2472,10 +2307,10 @@ body[class*="theme-"]:not(.theme-white) select {
                                                      Course Presentation (PDF)
                                                  </label>
                                                  <div class="relative group cursor-pointer w-full flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-5 hover:border-red-400 hover:bg-red-50 transition-all mb-1 h-[130px]">
-                                                     <i class="fas fa-file-pdf text-red-400 text-3xl mb-2 group-hover:scale-110 transition-transform"></i>
+                                                     <i class="las la-file-pdf text-red-400 text-3xl mb-2 group-hover:scale-110 transition-transform"></i>
                                                      <input type="file" id="coursePdfInput" accept=".pdf,.ppt,.pptx" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>
                                                      <span class="text-xs font-semibold text-red-600 bg-red-100 px-2 py-1 rounded text-center group-hover:bg-red-200">Select File</span>
-                                                     <p id="coursePdfFileName" class="text-[10px] font-medium text-green-600 mt-2 truncate w-full text-center hidden"><i class="fas fa-check-circle mr-1"></i></p>
+                                                     <p id="coursePdfFileName" class="text-[10px] font-medium text-green-600 mt-2 truncate w-full text-center hidden"><i class="las la-check-circle mr-1"></i></p>
                                                  </div>
                                              </div>
                                          </div>
@@ -2490,8 +2325,8 @@ body[class*="theme-"]:not(.theme-white) select {
                             <div id="modalVideos" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm transition-opacity">
                                 <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col m-4">
                                     <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-blue-50">
-                                        <h3 class="font-bold text-gray-800 flex items-center"><i class="fas fa-video text-blue-600 mr-2"></i> Course Videos</h3>
-                                        <button type="button" class="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 rounded" onclick="document.getElementById('modalVideos').classList.add('hidden');"><i class="fas fa-times text-xl"></i></button>
+                                        <h3 class="font-bold text-gray-800 flex items-center"><i class="las la-video text-blue-600 mr-2"></i> Course Videos</h3>
+                                        <button type="button" class="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-300 rounded" onclick="document.getElementById('modalVideos').classList.add('hidden');"><i class="las la-times text-xl"></i></button>
                                     </div>
                                     <div class="p-6 overflow-y-auto flex-1">
                                          <div class="space-y-4 bg-gray-50 p-5 rounded-lg border border-gray-200">
@@ -2511,7 +2346,7 @@ body[class*="theme-"]:not(.theme-white) select {
                                                  
                                                  <div class="space-y-4">
                                                      <div>
-                                                         <label class="block text-gray-700 text-xs font-semibold mb-1" for="videoFileInput"><i class="fas fa-upload text-blue-400 mr-1"></i>Upload Video File</label>
+                                                         <label class="block text-gray-700 text-xs font-semibold mb-1" for="videoFileInput"><i class="las la-upload text-blue-400 mr-1"></i>Upload Video File</label>
                                                          <input type="file" id="videoFileInput" accept="video/*" class="block w-full text-xs text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-400"/>
                                                      </div>
                                                      <div class="flex items-center justify-center relative">
@@ -2519,14 +2354,14 @@ body[class*="theme-"]:not(.theme-white) select {
                                                          <span class="text-[10px] text-gray-400 font-bold bg-white px-2 relative z-10">OR</span>
                                                      </div>
                                                      <div>
-                                                         <label class="block text-gray-700 text-xs font-semibold mb-1" for="videoUrlInput"><i class="fas fa-link text-blue-400 mr-1"></i>URL (YouTube/Vimeo)</label>
+                                                         <label class="block text-gray-700 text-xs font-semibold mb-1" for="videoUrlInput"><i class="las la-link text-blue-400 mr-1"></i>URL (YouTube/Vimeo)</label>
                                                          <input type="url" id="videoUrlInput" class="w-full px-3 py-2 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="https://youtube.com/...">
                                                      </div>
                                                  </div>
                                              </div>
 
                                              <button type="button" id="addVideoBtn" class="w-full bg-blue-600 text-white py-2.5 px-4 rounded-lg text-sm font-semibold hover:bg-blue-700 transition shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                                 <i class="fas fa-plus mr-1"></i> Add to List
+                                                 <i class="las la-plus mr-1"></i> Add to List
                                              </button>
                                              <div id="courseVideosList" class="mt-4 space-y-2 max-h-[200px] overflow-y-auto pr-1 empty:hidden"></div>
                                          </div>
@@ -2541,8 +2376,8 @@ body[class*="theme-"]:not(.theme-white) select {
                             <div id="modalAssessments" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm transition-opacity">
                                 <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col m-4">
                                     <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-emerald-50">
-                                        <h3 class="font-bold text-gray-800 flex items-center"><i class="fas fa-clipboard-check text-emerald-600 mr-2"></i> Assessments Module</h3>
-                                        <button type="button" class="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded" onclick="document.getElementById('modalAssessments').classList.add('hidden');"><i class="fas fa-times text-xl"></i></button>
+                                        <h3 class="font-bold text-gray-800 flex items-center"><i class="las la-clipboard-check text-emerald-600 mr-2"></i> Assessments Module</h3>
+                                        <button type="button" class="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-300 rounded" onclick="document.getElementById('modalAssessments').classList.add('hidden');"><i class="las la-times text-xl"></i></button>
                                     </div>
                                     <div class="p-6 overflow-y-auto flex-1 bg-gray-50">
                                         <div class="bg-white p-5 rounded-lg border border-gray-200">
@@ -2561,20 +2396,20 @@ body[class*="theme-"]:not(.theme-white) select {
 
                                             <div id="questionInputArea" class="bg-gray-50 rounded-lg p-4 border border-gray-200 mb-5 min-h-[150px] transition-all">
                                                 <div class="flex flex-col items-center justify-center py-8 text-gray-400">
-                                                    <i class="fas fa-magic text-3xl mb-3 opacity-30"></i>
+                                                    <i class="las la-magic text-3xl mb-3 opacity-30"></i>
                                                     <span class="text-sm font-medium">Select a question type above to customize</span>
                                                 </div>
                                             </div>
 
                                             <button type="button" id="addQuestionBtn" class="w-full bg-emerald-600 text-white py-3 px-4 rounded-lg text-sm font-bold hover:bg-emerald-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-emerald-500" disabled>
-                                                <i class="fas fa-plus mr-1"></i> Add Question to Bank
+                                                <i class="las la-plus mr-1"></i> Add Question to Bank
                                             </button>
                                         </div>
 
                                         <div class="mt-6 bg-white rounded-lg border border-gray-200 p-4">
                                             <div class="flex items-center justify-between mb-3 border-b border-gray-100 pb-2">
-                                                <h5 class="text-sm font-bold text-gray-700"><i class="fas fa-list-ul text-emerald-500 mr-2"></i> Current Question Bank</h5>
-                                                <span id="questionCount" class="text-xs font-bold px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-md">0</span>
+                                                <h5 class="text-sm font-bold text-gray-700"><i class="las la-list-ul text-emerald-500 mr-2"></i> Current Question Bank</h5>
+                                                <span id="questionCount" class="text-xs font-bold px-2.5 py-1 bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20 rounded-md">0</span>
                                             </div>
                                             <ul id="courseQuestionsList" class="max-h-[250px] overflow-y-auto space-y-2 custom-scrollbar px-1">
                                                 <li class="text-gray-400 text-sm italic text-center py-8" id="emptyQuestionsMsg">No questions added yet. Start by generating one above!</li>
@@ -2591,8 +2426,8 @@ body[class*="theme-"]:not(.theme-white) select {
                             <div id="modalAssignments" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm transition-opacity">
                                 <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col m-4">
                                     <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-pink-50">
-                                        <h3 class="font-bold text-gray-800 flex items-center"><i class="fas fa-tasks text-pink-600 mr-2"></i> Assignments Module</h3>
-                                        <button type="button" class="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-pink-300 rounded" onclick="document.getElementById('modalAssignments').classList.add('hidden');"><i class="fas fa-times text-xl"></i></button>
+                                        <h3 class="font-bold text-gray-800 flex items-center"><i class="las la-tasks text-pink-600 mr-2"></i> Assignments Module</h3>
+                                        <button type="button" class="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-pink-300 rounded" onclick="document.getElementById('modalAssignments').classList.add('hidden');"><i class="las la-times text-xl"></i></button>
                                     </div>
                                     <div class="p-6 overflow-y-auto flex-1 bg-gray-50 flex flex-col md:flex-row gap-6">
                                         
@@ -2630,23 +2465,23 @@ body[class*="theme-"]:not(.theme-white) select {
                                                 </div>
 
                                                 <div class="bg-gray-50 border border-dashed border-gray-300 rounded p-4">
-                                                    <label class="block text-gray-700 text-[11px] font-semibold mb-1" for="courseAssignmentDocumentInput"><i class="fas fa-paperclip text-pink-400 mr-1"></i> Attach Resources <span class="font-normal text-gray-500">(Optional)</span></label>
+                                                    <label class="block text-gray-700 text-[11px] font-semibold mb-1" for="courseAssignmentDocumentInput"><i class="las la-paperclip text-pink-400 mr-1"></i> Attach Resources <span class="font-normal text-gray-500">(Optional)</span></label>
                                                     <input type="file" id="courseAssignmentDocumentInput" accept=".pdf,.doc,.docx,.ppt,.pptx" multiple class="block w-full text-xs text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-pink-50 file:text-pink-700 hover:file:bg-pink-100 cursor-pointer"/>
                                                     <div id="courseAssignmentDocFilesList" class="mt-2 space-y-1 max-h-[60px] overflow-y-auto text-xs empty:hidden"></div>
                                                 </div>
 
                                                 <button type="button" id="addCourseAssignmentBtn" class="w-full bg-pink-600 text-white py-2.5 px-4 rounded-lg text-sm font-bold hover:bg-pink-700 transition shadow-sm focus:outline-none focus:ring-2 focus:ring-pink-500 mt-2">
-                                                    <i class="fas fa-plus mr-1"></i> Bind Assignment
+                                                    <i class="las la-plus mr-1"></i> Bind Assignment
                                                 </button>
                                             </div>
                                         </div>
                                         
                                         <div class="md:w-1/2 flex flex-col">
                                             <div class="bg-white rounded-lg border border-gray-200 p-4 h-full flex flex-col">
-                                                <h5 class="text-sm font-bold text-gray-800 mb-3 border-b border-gray-100 pb-2"><i class="fas fa-list-ol text-pink-500 mr-2"></i> Task Registry</h5>
+                                                <h5 class="text-sm font-bold text-gray-800 mb-3 border-b border-gray-100 pb-2"><i class="las la-list-ol text-pink-500 mr-2"></i> Task Registry</h5>
                                                 <div id="courseAssignmentsList" class="space-y-3 flex-1 overflow-y-auto pr-1 custom-scrollbar">
                                                      <div class="flex flex-col items-center justify-center py-10 text-gray-400 h-full" id="emptyAssignmentsMsg">
-                                                         <i class="fas fa-inbox text-3xl mb-3 opacity-30"></i>
+                                                         <i class="las la-inbox text-3xl mb-3 opacity-30"></i>
                                                          <p class="text-xs italic text-center">No assignments configured.</p>
                                                      </div>
                                                 </div>
@@ -2662,14 +2497,14 @@ body[class*="theme-"]:not(.theme-white) select {
 <!-- Form Actions -->
                             <div class="flex justify-between items-center mt-8 pt-6 border-t-2 border-gray-200">
                                 <p class="text-sm text-gray-500">
-                                    <i class="fas fa-asterisk text-red-500 text-xs mr-1"></i> Required fields
+                                    <i class="las la-asterisk text-red-500 text-xs mr-1"></i> Required fields
                                 </p>
                                 <div class="flex space-x-3">
                                     <button type="button" class="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 font-medium transition ease-in-out duration-150 border border-gray-300" onclick="resetCourseForm()">
-                                        <i class="fas fa-redo mr-2"></i>Reset Form
+                                        <i class="las la-redo mr-2"></i>Reset Form
                                     </button>
                                     <button type="submit" class="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold shadow-lg transition ease-in-out duration-150">
-                                        <i class="fas fa-check-circle mr-2"></i>Create Course
+                                        <i class="las la-check-circle mr-2"></i>Create Course
                                     </button>
                                 </div>
                             </div>
@@ -2683,7 +2518,7 @@ body[class*="theme-"]:not(.theme-white) select {
                     <div class="bg-white rounded-lg shadow overflow-hidden">
                         <div class="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
                             <h3 class="text-xl font-bold text-gray-800">
-                                <i class="fas fa-book-open mr-2 text-indigo-600"></i>Your Created Courses
+                                <i class="las la-book-open mr-2 text-indigo-600"></i>Your Created Courses
                             </h3>
                             <p class="text-sm text-gray-600 mt-1">View and manage all courses you've created</p>
                         </div>
@@ -2761,7 +2596,7 @@ body[class*="theme-"]:not(.theme-white) select {
     <!-- Empty State -->
     <div id="noProgrammesMessage" class="hidden text-center py-16">
         <div class="inline-block p-6 bg-gray-100 rounded-full mb-4">
-            <i class="fas fa-layer-group text-5xl text-gray-400"></i>
+            <i class="las la-layer-group text-5xl text-gray-400"></i>
         </div>
         <h3 class="text-xl font-semibold text-gray-700 mb-2">No Programmes Assigned</h3>
         <p class="text-gray-500">You haven't been assigned to any programmes yet.</p>
@@ -2781,7 +2616,7 @@ body[class*="theme-"]:not(.theme-white) select {
                         <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
                             <h3 class="text-lg font-semibold text-gray-800">Your Created Assignments</h3>
                             <button class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 focus:outline-none" id="createAssignmentBtn">
-                                <i class="fas fa-plus mr-1"></i> Create Assignment
+                                <i class="las la-plus mr-1"></i> Create Assignment
                             </button>
                         </div>
                         <!-- FIX: Table for TM assignments -->
@@ -2897,7 +2732,7 @@ body[class*="theme-"]:not(.theme-white) select {
                             </div>
                             <div class="flex justify-end">
                                 <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 transition ease-in-out duration-150">
-                                    <i class="fas fa-paper-plane mr-2"></i> Send Email
+                                    <i class="las la-paper-plane mr-2"></i> Send Email
                                 </button>
                             </div>
                         </form>
@@ -2914,7 +2749,7 @@ body[class*="theme-"]:not(.theme-white) select {
                                 </div>
                                 <p class="text-sm font-medium text-gray-700 mb-1">Assignment Submission Guidelines</p>
                                 <p class="text-sm text-gray-600">Please ensure all assignments are submitted before the deadline. Guidelines are available in the course materials section...</p>
-                                <span class="inline-block mt-2 px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded">Unread</span>
+                                <span class="inline-block mt-2 px-2 py-1 text-xs bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 rounded">Unread</span>
                             </div>
                             
                             <div class="p-4 hover:bg-gray-50 transition cursor-pointer">
@@ -2924,7 +2759,7 @@ body[class*="theme-"]:not(.theme-white) select {
                                 </div>
                                 <p class="text-sm font-medium text-gray-700 mb-1">System Maintenance Notice</p>
                                 <p class="text-sm text-gray-600">The system will undergo maintenance on Jan 25 from 11 PM to 1 AM. Please plan your activities accordingly...</p>
-                                <span class="inline-block mt-2 px-2 py-1 text-xs bg-green-100 text-green-700 rounded">Read</span>
+                                <span class="inline-block mt-2 px-2 py-1 text-xs bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20 rounded">Read</span>
                             </div>
                             
                             <div class="p-4 hover:bg-gray-50 transition cursor-pointer border-l-4 border-indigo-600">
@@ -2934,7 +2769,7 @@ body[class*="theme-"]:not(.theme-white) select {
                                 </div>
                                 <p class="text-sm font-medium text-gray-700 mb-1">Great Progress on Web Development Course!</p>
                                 <p class="text-sm text-gray-600">You're doing excellent in the Web Development course. Keep up the momentum and don't hesitate to reach out if you need help...</p>
-                                <span class="inline-block mt-2 px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded">Unread</span>
+                                <span class="inline-block mt-2 px-2 py-1 text-xs bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 rounded">Unread</span>
                             </div>
                             
                             <div class="p-4 hover:bg-gray-50 transition cursor-pointer">
@@ -2944,7 +2779,7 @@ body[class*="theme-"]:not(.theme-white) select {
                                 </div>
                                 <p class="text-sm font-medium text-gray-700 mb-1">Welcome to SkillsConnect LMS</p>
                                 <p class="text-sm text-gray-600">Welcome aboard! We're excited to have you as part of our learning community. Start exploring courses and begin your learning journey...</p>
-                                <span class="inline-block mt-2 px-2 py-1 text-xs bg-green-100 text-green-700 rounded">Read</span>
+                                <span class="inline-block mt-2 px-2 py-1 text-xs bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20 rounded">Read</span>
                             </div>
                         </div>
                     </div>
@@ -2961,7 +2796,7 @@ body[class*="theme-"]:not(.theme-white) select {
                             <div class="flex justify-between items-start mb-3">
                                 <div class="flex items-start gap-4">
                                     <div class="p-2 rounded-lg bg-red-100 text-red-600">
-                                        <i class="fas fa-exclamation-circle text-xl"></i>
+                                        <i class="las la-exclamation-circle text-xl"></i>
                                     </div>
                                     <div>
                                         <h3 class="font-semibold text-gray-800">Assignment Due Soon</h3>
@@ -2980,7 +2815,7 @@ body[class*="theme-"]:not(.theme-white) select {
                             <div class="flex justify-between items-start mb-3">
                                 <div class="flex items-start gap-4">
                                     <div class="p-2 rounded-lg bg-green-100 text-green-600">
-                                        <i class="fas fa-check-circle text-xl"></i>
+                                        <i class="las la-check-circle text-xl"></i>
                                     </div>
                                     <div>
                                         <h3 class="font-semibold text-gray-800">Badge Earned!</h3>
@@ -2990,7 +2825,7 @@ body[class*="theme-"]:not(.theme-white) select {
                                 <span class="text-xs text-gray-500">Jan 21, 5:30 PM</span>
                             </div>
                             <div class="ml-14">
-                                <span class="inline-block mt-2 px-2 py-1 text-xs bg-green-100 text-green-700 rounded">Achievement</span>
+                                <span class="inline-block mt-2 px-2 py-1 text-xs bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20 rounded">Achievement</span>
                             </div>
                         </div>
 
@@ -2999,7 +2834,7 @@ body[class*="theme-"]:not(.theme-white) select {
                             <div class="flex justify-between items-start mb-3">
                                 <div class="flex items-start gap-4">
                                     <div class="p-2 rounded-lg bg-blue-100 text-blue-600">
-                                        <i class="fas fa-info-circle text-xl"></i>
+                                        <i class="las la-info-circle text-xl"></i>
                                     </div>
                                     <div>
                                         <h3 class="font-semibold text-gray-800">New Course Available</h3>
@@ -3018,7 +2853,7 @@ body[class*="theme-"]:not(.theme-white) select {
                             <div class="flex justify-between items-start mb-3">
                                 <div class="flex items-start gap-4">
                                     <div class="p-2 rounded-lg bg-yellow-100 text-yellow-600">
-                                        <i class="fas fa-star text-xl"></i>
+                                        <i class="las la-star text-xl"></i>
                                     </div>
                                     <div>
                                         <h3 class="font-semibold text-gray-800">Grade Posted</h3>
@@ -3037,7 +2872,7 @@ body[class*="theme-"]:not(.theme-white) select {
                             <div class="flex justify-between items-start mb-3">
                                 <div class="flex items-start gap-4">
                                     <div class="p-2 rounded-lg bg-purple-100 text-purple-600">
-                                        <i class="fas fa-bell text-xl"></i>
+                                        <i class="las la-bell text-xl"></i>
                                     </div>
                                     <div>
                                         <h3 class="font-semibold text-gray-800">Course Enrollment Reminder</h3>
@@ -3365,7 +3200,7 @@ body[class*="theme-"]:not(.theme-white) select {
                         <div class="bg-white rounded-lg shadow p-6">
                             <div class="flex items-center">
                                 <div class="p-3 rounded-full bg-yellow-100 text-yellow-600 mr-4">
-                                    <i class="fas fa-medal text-2xl"></i>
+                                    <i class="las la-medal text-2xl"></i>
                                 </div>
                                 <div>
                                     <p class="text-sm text-gray-500">Total Badges Created</p>
@@ -3376,7 +3211,7 @@ body[class*="theme-"]:not(.theme-white) select {
                         <div class="bg-white rounded-lg shadow p-6">
                             <div class="flex items-center">
                                 <div class="p-3 rounded-full bg-blue-100 text-blue-600 mr-4">
-                                    <i class="fas fa-award text-2xl"></i>
+                                    <i class="las la-award text-2xl"></i>
                                 </div>
                                 <div>
                                     <p class="text-sm text-gray-500">Total Earned</p>
@@ -3387,7 +3222,7 @@ body[class*="theme-"]:not(.theme-white) select {
                         <div class="bg-white rounded-lg shadow p-6">
                             <div class="flex items-center">
                                 <div class="p-3 rounded-full bg-green-100 text-green-600 mr-4">
-                                    <i class="fas fa-users text-2xl"></i>
+                                    <i class="las la-users text-2xl"></i>
                                 </div>
                                 <div>
                                     <p class="text-sm text-gray-500">Students with Badges</p>
@@ -3841,7 +3676,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (sectionId === 'assignment-overviewContent') {
                 // Default to overview tab
-                switchAssignmentTab('overview');
+                switchAssignmentTab('programmes');
             }
             if (sectionId === 'system-settingsContent') {
                 loadSystemSettings();
@@ -4424,22 +4259,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 let roleColorClass;
                 switch (user.role) {
                     case 'administrator':
-                        roleColorClass = 'bg-indigo-100 text-indigo-800';
+                        roleColorClass = 'bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20';
                         break;
                     case 'training_manager':
-                        roleColorClass = 'bg-yellow-100 text-yellow-800';
+                        roleColorClass = 'bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-600/20';
                         break;
                     case 'student':
-                        roleColorClass = 'bg-blue-100 text-blue-800';
+                        roleColorClass = 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20';
                         break;
                     default:
-                        roleColorClass = 'bg-gray-100 text-gray-800';
+                        roleColorClass = 'bg-gray-50 text-gray-700 ring-1 ring-inset ring-gray-600/20';
                 }
                 roleCell.innerHTML = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${roleColorClass}">${user.role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</span>`;
 
                 const statusCell = newRow.insertCell();
                 statusCell.classList.add('px-6', 'py-4', 'whitespace-nowrap');
-                let statusClass = user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                let statusClass = user.status === 'active' ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20' : 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20';
                 statusCell.innerHTML = `
                     <button class="status-toggle-btn px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}" data-status="${user.status}">
                         ${user.status.charAt(0).toUpperCase() + user.status.slice(1)}
@@ -4676,7 +4511,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         type: 'ppt',
                         fileName: 'company_induction.ppt',
                         description: 'PowerPoint presentation covering company overview, mission, values, and initial onboarding steps.',
-                        icon: 'fas fa-file-powerpoint',
+                        icon: 'las la-file-powerpoint',
                         color: 'orange',
                         isRead: false,
                         createdDate: '2024-01-10',
@@ -4688,7 +4523,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         type: 'pdf',
                         fileName: 'company_policies.pdf',
                         description: 'Comprehensive PDF document outlining all company policies, code of conduct, and operational procedures.',
-                        icon: 'fas fa-file-pdf',
+                        icon: 'las la-file-pdf',
                         color: 'red',
                         isRead: false,
                         createdDate: '2024-01-10',
@@ -4700,7 +4535,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         type: 'pdf',
                         fileName: 'employee_handbook.pdf',
                         description: 'Complete employee handbook with benefits, leave policies, and workplace expectations.',
-                        icon: 'fas fa-file-pdf',
+                        icon: 'las la-file-pdf',
                         color: 'red',
                         isRead: false,
                         createdDate: '2024-01-10',
@@ -4790,7 +4625,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         type: 'ppt',
                         fileName: 'data_science_guide.ppt',
                         description: 'Comprehensive PowerPoint guide introducing data science concepts, tools, and best practices.',
-                        icon: 'fas fa-file-powerpoint',
+                        icon: 'las la-file-powerpoint',
                         color: 'orange',
                         isRead: false,
                         createdDate: '2024-01-15',
@@ -4802,7 +4637,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         type: 'pdf',
                         fileName: 'data_safety_policy.pdf',
                         description: 'Important PDF document on data safety, privacy regulations, and compliance requirements.',
-                        icon: 'fas fa-file-pdf',
+                        icon: 'las la-file-pdf',
                         color: 'red',
                         isRead: false,
                         createdDate: '2024-01-15',
@@ -4892,7 +4727,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         type: 'ppt',
                         fileName: 'algorithms_design.ppt',
                         description: 'PowerPoint covering algorithm design paradigms, Big O analysis, and optimization techniques.',
-                        icon: 'fas fa-file-powerpoint',
+                        icon: 'las la-file-powerpoint',
                         color: 'orange',
                         isRead: false,
                         createdDate: '2024-01-20',
@@ -4904,7 +4739,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         type: 'pdf',
                         fileName: 'code_of_conduct.pdf',
                         description: 'PDF document covering ethical programming practices and professional conduct guidelines.',
-                        icon: 'fas fa-file-pdf',
+                        icon: 'las la-file-pdf',
                         color: 'red',
                         isRead: false,
                         createdDate: '2024-01-20',
@@ -4946,17 +4781,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div id="mcOptionsContainer" class="space-y-2 mb-2">
                         <div class="flex items-center justify-between mb-1">
                             <label class="text-gray-700 text-sm font-semibold">Options <span class="text-gray-500 text-xs font-normal">(tick correct answer)</span></label>
-                            <button type="button" id="addMcOptionBtn" class="text-emerald-600 text-xs font-semibold hover:text-emerald-800"><i class="fas fa-plus mr-1"></i>Add Option</button>
+                            <button type="button" id="addMcOptionBtn" class="text-emerald-600 text-xs font-semibold hover:text-emerald-800"><i class="las la-plus mr-1"></i>Add Option</button>
                         </div>
                         <div class="flex items-center gap-2 mc-option-row">
                             <input type="checkbox" name="mcAnswer" value="0" class="h-4 w-4 text-emerald-600 border-gray-300 rounded cursor-pointer">
                             <input type="text" class="mc-option px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Option 1" onkeydown="if(event.key==='Enter'){event.preventDefault();addMultipleChoiceOption();}">
-                            <button type="button" class="remove-option-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
+                            <button type="button" class="remove-option-btn text-red-500 hover:text-red-700 p-1"><i class="las la-times"></i></button>
                         </div>
                         <div class="flex items-center gap-2 mc-option-row">
                             <input type="checkbox" name="mcAnswer" value="1" class="h-4 w-4 text-emerald-600 border-gray-300 rounded cursor-pointer">
                             <input type="text" class="mc-option px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Option 2" onkeydown="if(event.key==='Enter'){event.preventDefault();addMultipleChoiceOption();}">
-                            <button type="button" class="remove-option-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
+                            <button type="button" class="remove-option-btn text-red-500 hover:text-red-700 p-1"><i class="las la-times"></i></button>
                         </div>
                     </div>
                     ${marksInputHTML}
@@ -5000,19 +4835,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div id="matchingPairsContainer" class="space-y-2 mb-2">
                         <div class="flex items-center justify-between mb-1">
                             <label class="text-gray-700 text-sm font-semibold">Matching Pairs</label>
-                            <button type="button" id="addMatchingPairBtn" class="text-emerald-600 text-xs font-semibold hover:text-emerald-800"><i class="fas fa-plus mr-1"></i>Add Pair</button>
+                            <button type="button" id="addMatchingPairBtn" class="text-emerald-600 text-xs font-semibold hover:text-emerald-800"><i class="las la-plus mr-1"></i>Add Pair</button>
                         </div>
                         <div class="flex items-center gap-2 matching-row">
                             <input type="text" class="matching-term px-3 py-1.5 text-sm border border-gray-300 rounded-md w-5/12" placeholder="Term">
-                            <i class="fas fa-arrow-right text-gray-400 text-xs"></i>
+                            <i class="las la-arrow-right text-gray-400 text-xs"></i>
                             <input type="text" class="matching-definition px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Definition" onkeydown="if(event.key==='Enter'){event.preventDefault();addMatchingPair();}">
-                            <button type="button" class="remove-pair-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
+                            <button type="button" class="remove-pair-btn text-red-500 hover:text-red-700 p-1"><i class="las la-times"></i></button>
                         </div>
                         <div class="flex items-center gap-2 matching-row">
                             <input type="text" class="matching-term px-3 py-1.5 text-sm border border-gray-300 rounded-md w-5/12" placeholder="Term">
-                            <i class="fas fa-arrow-right text-gray-400 text-xs"></i>
+                            <i class="las la-arrow-right text-gray-400 text-xs"></i>
                             <input type="text" class="matching-definition px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Definition" onkeydown="if(event.key==='Enter'){event.preventDefault();addMatchingPair();}">
-                            <button type="button" class="remove-pair-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
+                            <button type="button" class="remove-pair-btn text-red-500 hover:text-red-700 p-1"><i class="las la-times"></i></button>
                         </div>
                     </div>
                     ${marksInputHTML}
@@ -5028,12 +4863,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div id="fillBlankAnswersContainer" class="space-y-2 mb-2">
                         <div class="flex items-center justify-between mb-1">
                             <label class="text-gray-700 text-sm font-semibold">Answers (in order)</label>
-                            <button type="button" id="addBlankAnswerBtn" class="text-emerald-600 text-xs font-semibold hover:text-emerald-800"><i class="fas fa-plus mr-1"></i>Add Answer</button>
+                            <button type="button" id="addBlankAnswerBtn" class="text-emerald-600 text-xs font-semibold hover:text-emerald-800"><i class="las la-plus mr-1"></i>Add Answer</button>
                         </div>
                         <div class="flex items-center gap-2 blank-row">
                             <span class="text-xs font-medium text-gray-500 w-4">1.</span>
                             <input type="text" class="fill-blank-answer px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Answer for blank 1" onkeydown="if(event.key==='Enter'){event.preventDefault();addBlankAnswer();}">
-                            <button type="button" class="remove-blank-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
+                            <button type="button" class="remove-blank-btn text-red-500 hover:text-red-700 p-1"><i class="las la-times"></i></button>
                         </div>
                     </div>
                     ${marksInputHTML}
@@ -5050,17 +4885,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div id="orderingItemsContainer" class="space-y-2 mb-2">
                         <div class="flex items-center justify-between mb-1">
                             <label class="text-gray-700 text-sm font-semibold">Correct Order</label>
-                            <button type="button" id="addOrderingItemBtn" class="text-emerald-600 text-xs font-semibold hover:text-emerald-800"><i class="fas fa-plus mr-1"></i>Add Item</button>
+                            <button type="button" id="addOrderingItemBtn" class="text-emerald-600 text-xs font-semibold hover:text-emerald-800"><i class="las la-plus mr-1"></i>Add Item</button>
                         </div>
                         <div class="flex items-center gap-2 order-row">
                             <span class="text-xs font-medium text-gray-500 w-4">1.</span>
                             <input type="text" class="ordering-item px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="First item" onkeydown="if(event.key==='Enter'){event.preventDefault();addOrderingItem();}">
-                            <button type="button" class="remove-ordering-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
+                            <button type="button" class="remove-ordering-btn text-red-500 hover:text-red-700 p-1"><i class="las la-times"></i></button>
                         </div>
                         <div class="flex items-center gap-2 order-row">
                             <span class="text-xs font-medium text-gray-500 w-4">2.</span>
                             <input type="text" class="ordering-item px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Second item" onkeydown="if(event.key==='Enter'){event.preventDefault();addOrderingItem();}">
-                            <button type="button" class="remove-ordering-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
+                            <button type="button" class="remove-ordering-btn text-red-500 hover:text-red-700 p-1"><i class="las la-times"></i></button>
                         </div>
                     </div>
                     ${marksInputHTML}
@@ -5132,7 +4967,7 @@ document.addEventListener('DOMContentLoaded', () => {
             newOptionDiv.innerHTML = `
                 <input type="checkbox" name="mcAnswer" value="${optionCount}" class="h-4 w-4 text-emerald-600 border-gray-300 rounded cursor-pointer">
                 <input type="text" class="mc-option px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Option ${optionCount + 1}" onkeydown="if(event.key==='Enter'){event.preventDefault();addMultipleChoiceOption();}">
-                <button type="button" class="remove-option-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
+                <button type="button" class="remove-option-btn text-red-500 hover:text-red-700 p-1"><i class="las la-times"></i></button>
             `;
             container.appendChild(newOptionDiv);
             newOptionDiv.querySelector('.remove-option-btn').addEventListener('click', removeMultipleChoiceOption);
@@ -5166,9 +5001,9 @@ document.addEventListener('DOMContentLoaded', () => {
             newPairDiv.classList.add('flex', 'items-center', 'gap-2', 'matching-row');
             newPairDiv.innerHTML = `
                 <input type="text" class="matching-term px-3 py-1.5 text-sm border border-gray-300 rounded-md w-5/12" placeholder="Term">
-                <i class="fas fa-arrow-right text-gray-400 text-xs"></i>
+                <i class="las la-arrow-right text-gray-400 text-xs"></i>
                 <input type="text" class="matching-definition px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Definition" onkeydown="if(event.key==='Enter'){event.preventDefault();addMatchingPair();}">
-                <button type="button" class="remove-pair-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
+                <button type="button" class="remove-pair-btn text-red-500 hover:text-red-700 p-1"><i class="las la-times"></i></button>
             `;
             container.appendChild(newPairDiv);
             newPairDiv.querySelector('.remove-pair-btn').addEventListener('click', removeMatchingPair);
@@ -5197,7 +5032,7 @@ document.addEventListener('DOMContentLoaded', () => {
             newAnswerDiv.innerHTML = `
                 <span class="text-xs font-medium text-gray-500 w-4">${answerCount}.</span>
                 <input type="text" class="fill-blank-answer px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Answer for blank ${answerCount}" onkeydown="if(event.key==='Enter'){event.preventDefault();addBlankAnswer();}">
-                <button type="button" class="remove-blank-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
+                <button type="button" class="remove-blank-btn text-red-500 hover:text-red-700 p-1"><i class="las la-times"></i></button>
             `;
             container.appendChild(newAnswerDiv);
             newAnswerDiv.querySelector('.remove-blank-btn').addEventListener('click', removeBlankAnswer);
@@ -5232,7 +5067,7 @@ document.addEventListener('DOMContentLoaded', () => {
             newItemDiv.innerHTML = `
                 <span class="text-xs font-medium text-gray-500 w-4">${itemCount}.</span>
                 <input type="text" class="ordering-item px-3 py-1.5 text-sm border border-gray-300 rounded-md flex-1" placeholder="Item ${itemCount}" onkeydown="if(event.key==='Enter'){event.preventDefault();addOrderingItem();}">
-                <button type="button" class="remove-ordering-btn text-red-500 hover:text-red-700 p-1"><i class="fas fa-times"></i></button>
+                <button type="button" class="remove-ordering-btn text-red-500 hover:text-red-700 p-1"><i class="las la-times"></i></button>
             `;
             container.appendChild(newItemDiv);
             newItemDiv.querySelector('.remove-ordering-btn').addEventListener('click', removeOrderingItem);
@@ -5369,7 +5204,7 @@ document.addEventListener('DOMContentLoaded', () => {
             list.innerHTML = ''; // Clear existing list
 
             if (currentCourseQuestions.length === 0) {
-                list.innerHTML = '<li class="text-gray-400 text-sm italic flex items-center justify-center py-8"><i class="fas fa-inbox mr-2"></i>No questions added yet</li>';
+                list.innerHTML = '<li class="text-gray-400 text-sm italic flex items-center justify-center py-8"><i class="las la-inbox mr-2"></i>No questions added yet</li>';
                 if (countBadge) countBadge.textContent = '0 Questions';
                 return;
             }
@@ -5410,11 +5245,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 listItem.innerHTML = `
                     <div class="flex items-center space-x-3">
-                        <span class="flex items-center justify-center w-8 h-8 bg-emerald-100 text-emerald-700 rounded-lg font-bold text-sm">${index + 1}</span>
+                        <span class="flex items-center justify-center w-8 h-8 bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20 rounded-lg font-bold text-sm">${index + 1}</span>
                         <span class="text-sm text-gray-700 flex items-center"><span class="mr-2">${icon}</span> ${questionSummary}</span>
                     </div>
                     <button type="button" class="text-red-600 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors delete-question-btn" data-index="${index}">
-                        <i class="fas fa-trash"></i>
+                        <i class="las la-trash"></i>
                     </button>
                 `;
                 list.appendChild(listItem);
@@ -5491,10 +5326,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     Array.from(this.files).forEach(file => {
                         const fileSize = (file.size / 1024).toFixed(2); // KB
                         const fileExt = file.name.split('.').pop().toUpperCase();
-                        let icon = 'fa-file';
-                        if (fileExt === 'PDF') icon = 'fa-file-pdf';
-                        else if (fileExt === 'PPT' || fileExt === 'PPTX') icon = 'fa-file-powerpoint';
-                        else if (fileExt === 'DOC' || fileExt === 'DOCX') icon = 'fa-file-word';
+                        let icon = 'la-file';
+                        if (fileExt === 'PDF') icon = 'la-file-pdf';
+                        else if (fileExt === 'PPT' || fileExt === 'PPTX') icon = 'la-file-powerpoint';
+                        else if (fileExt === 'DOC' || fileExt === 'DOCX') icon = 'la-file-word';
                         
                         const fileItem = document.createElement('p');
                         fileItem.className = 'text-xs text-green-600 font-medium flex items-center';
@@ -5571,14 +5406,14 @@ document.addEventListener('DOMContentLoaded', () => {
             container.innerHTML = `
                 <div class="bg-white border-2 border-purple-200 rounded-lg p-4 shadow-sm">
                     <h5 class="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                        <i class="fas fa-list text-purple-600 mr-2"></i>Added Assignments (${currentCourseAssignments.length})
+                        <i class="las la-list text-purple-600 mr-2"></i>Added Assignments (${currentCourseAssignments.length})
                     </h5>
                     <div class="space-y-2">
                         ${currentCourseAssignments.map((assignment, index) => {
-                            const typeIcon = assignment.type === 'mark-as-read' ? 'fa-eye' : 'fa-file-alt';
+                            const typeIcon = assignment.type === 'mark-as-read' ? 'fa-eye' : 'la-file-alt';
                             const typeBadge = assignment.type === 'mark-as-read' ? 
-                                '<span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">Mark as Read</span>' : 
-                                '<span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">Regular</span>';
+                                '<span class="px-2 py-1 text-xs rounded-full bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20">Mark as Read</span>' : 
+                                '<span class="px-2 py-1 text-xs rounded-full bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20">Regular</span>';
                             const docCount = assignment.documents ? assignment.documents.length : 0;
                             
                             return `
@@ -5588,14 +5423,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                         <i class="fas ${typeIcon} text-purple-600 mr-2"></i>${assignment.title}
                                     </div>
                                     <div class="text-xs text-gray-600 mt-1 flex items-center gap-3">
-                                        <span><i class="fas fa-calendar text-gray-500 mr-1"></i>Due: ${new Date(assignment.dueDate).toLocaleDateString()}</span>
-                                        <span><i class="fas fa-star text-amber-500 mr-1"></i>${assignment.totalMarks} marks</span>
-                                        <span><i class="fas fa-paperclip text-indigo-500 mr-1"></i>${docCount} doc(s)</span>
+                                        <span><i class="las la-calendar text-gray-500 mr-1"></i>Due: ${new Date(assignment.dueDate).toLocaleDateString()}</span>
+                                        <span><i class="las la-star text-amber-500 mr-1"></i>${assignment.totalMarks} marks</span>
+                                        <span><i class="las la-paperclip text-indigo-500 mr-1"></i>${docCount} doc(s)</span>
                                         ${typeBadge}
                                     </div>
                                 </div>
                                 <button type="button" class="text-red-600 hover:text-red-900 ml-3 delete-course-assignment-btn" data-index="${index}">
-                                    <i class="fas fa-trash-alt"></i>
+                                    <i class="las la-trash-alt"></i>
                                 </button>
                             </div>
                             `;
@@ -5683,25 +5518,25 @@ document.addEventListener('DOMContentLoaded', () => {
             container.innerHTML = `
                 <div class="bg-white border-2 border-blue-200 rounded-lg p-4 shadow-sm">
                     <h5 class="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                        <i class="fas fa-list text-blue-600 mr-2"></i>Added Videos (${currentCourseVideos.length})
+                        <i class="las la-list text-blue-600 mr-2"></i>Added Videos (${currentCourseVideos.length})
                     </h5>
                     <div class="space-y-2">
                         ${currentCourseVideos.map((video, index) => {
                             const sourceInfo = video.isFile 
-                                ? `<i class="fas fa-file-video text-purple-600 mr-1"></i>File: ${video.fileName} (${video.fileSize})`
-                                : `<i class="fas fa-link text-blue-600 mr-1"></i>URL: ${video.url.substring(0, 50)}...`;
+                                ? `<i class="las la-file-video text-purple-600 mr-1"></i>File: ${video.fileName} (${video.fileSize})`
+                                : `<i class="las la-link text-blue-600 mr-1"></i>URL: ${video.url.substring(0, 50)}...`;
                             return `
                             <div class="flex items-center justify-between bg-gradient-to-r from-gray-50 to-blue-50 p-3 rounded-lg border border-gray-200">
                                 <div class="flex-1">
                                     <div class="text-sm font-medium text-gray-900 flex items-center">
-                                        <i class="fas fa-play-circle text-blue-600 mr-2"></i>${video.title}
+                                        <i class="las la-play-circle text-blue-600 mr-2"></i>${video.title}
                                     </div>
                                     <div class="text-xs text-gray-600 mt-1">
-                                        <i class="fas fa-clock text-gray-500 mr-1"></i>${video.duration} GÇó ${sourceInfo}
+                                        <i class="las la-clock text-gray-500 mr-1"></i>${video.duration} GÇó ${sourceInfo}
                                     </div>
                                 </div>
                                 <button type="button" onclick="removeCourseVideo(${index})" class="text-red-600 hover:text-red-900 ml-3 p-2 hover:bg-red-50 rounded-lg transition">
-                                    <i class="fas fa-trash"></i>
+                                    <i class="las la-trash"></i>
                                 </button>
                             </div>
                         `}).join('')}
@@ -5810,27 +5645,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (daysRemaining < 0) {
                 // Overdue
-                badge = ` <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800 border border-red-300"><i class="fas fa-exclamation-triangle mr-1"></i>Overdue</span>`;
+                badge = ` <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20 border border-red-300"><i class="las la-exclamation-triangle mr-1"></i>Overdue</span>`;
                 status = 'overdue';
             } else if (daysRemaining === 0) {
                 // Due today
-                badge = ` <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800 border border-red-300"><i class="fas fa-calendar-day mr-1"></i>Due Today</span>`;
+                badge = ` <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20 border border-red-300"><i class="las la-calendar-day mr-1"></i>Due Today</span>`;
                 status = 'today';
             } else if (daysRemaining === 1) {
                 // Due tomorrow
-                badge = ` <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300"><i class="fas fa-calendar-alt mr-1"></i>Due Tomorrow</span>`;
+                badge = ` <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-600/20 border border-yellow-300"><i class="las la-calendar-alt mr-1"></i>Due Tomorrow</span>`;
                 status = 'tomorrow';
             } else if (daysRemaining <= 3) {
                 // Due within 3 days
-                badge = ` <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300"><i class="fas fa-hourglass-half mr-1"></i>${daysRemaining} days</span>`;
+                badge = ` <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-600/20 border border-yellow-300"><i class="las la-hourglass-half mr-1"></i>${daysRemaining} days</span>`;
                 status = 'urgent';
             } else if (daysRemaining <= 7) {
                 // Due within 7 days
-                badge = ` <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 border border-blue-300"><i class="fas fa-clock mr-1"></i>${daysRemaining} days</span>`;
+                badge = ` <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20 border border-blue-300"><i class="las la-clock mr-1"></i>${daysRemaining} days</span>`;
                 status = 'upcoming';
             } else {
                 // More than 7 days
-                badge = ` <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-700 border border-gray-300"><i class="fas fa-calendar-check mr-1"></i>${daysRemaining} days</span>`;
+                badge = ` <span class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-gray-50 text-gray-700 ring-1 ring-inset ring-gray-600/20 border border-gray-300"><i class="las la-calendar-check mr-1"></i>${daysRemaining} days</span>`;
                 status = 'normal';
             }
 
@@ -6119,7 +5954,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     // Badge styling based on student count
                     const studentBadgeClass = assignedStudentsCount > 0 
-                        ? 'bg-green-100 text-green-700 font-semibold' 
+                        ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20 font-semibold' 
                         : 'bg-gray-100 text-gray-500';
 
                     row.innerHTML = `
@@ -6128,12 +5963,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${linkedCoursesCount} course(s)</td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             <span class="text-xs px-3 py-1 rounded-full ${studentBadgeClass}">
-                                ${assignedStudentsCount > 0 ? `<i class="fas fa-users mr-1"></i>` : ''}${assignedStudentsCount} student(s)
+                                ${assignedStudentsCount > 0 ? `<i class="las la-users mr-1"></i>` : ''}${assignedStudentsCount} student(s)
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <button class="text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 px-4 py-2 rounded-lg mr-3 assign-students-btn shadow-sm font-medium transition" data-programme-id="${programme.id}">
-                                <i class="fas fa-user-plus mr-1"></i>Assign Students
+                                <i class="las la-user-plus mr-1"></i>Assign Students
                             </button>
                             <a href="#" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</a>
                             <a href="#" class="text-red-600 hover:text-red-900">Delete</a>
@@ -6170,7 +6005,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="text-lg font-semibold text-gray-900">Enrol Students in Programme</div>
                         <div class="text-sm text-gray-600 mt-1">${programme.name}</div>
                     </div>
-                    <div class="text-sm bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-medium">
+                    <div class="text-sm bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 px-3 py-1 rounded-full font-medium">
                         Currently assigned: ${currentlyAssignedCount} student(s)
                     </div>
                 </div>
@@ -6476,8 +6311,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const enrollmentDate = enrollment ? enrollment.enrollmentDate : '';
                     const completionDate = enrollment ? enrollment.completionDate : null;
                     const statusText = completionDate ? 
-                        `<span class="text-green-600"><i class="fas fa-check-circle mr-1"></i>Completed ${completionDate}</span>` : 
-                        (isEnrolledInThisCourse ? `<span class="text-blue-600"><i class="fas fa-clock mr-1"></i>In Progress</span>` : '');
+                        `<span class="text-green-600"><i class="las la-check-circle mr-1"></i>Completed ${completionDate}</span>` : 
+                        (isEnrolledInThisCourse ? `<span class="text-blue-600"><i class="las la-clock mr-1"></i>In Progress</span>` : '');
                     
                     const checkboxDiv = document.createElement('div');
                     checkboxDiv.classList.add('flex', 'items-center', 'justify-between', 'py-2', 'px-2', 'hover:bg-gray-50', 'rounded', 'course-student-item');
@@ -6707,7 +6542,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td class="px-6 py-4 text-sm text-gray-500" title="${enrolledNames}">${enrolledCount} student(s)</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <button class="text-blue-600 hover:text-blue-900" onclick="showAssignStudentsToCoursesModal(${course.id})">
-                                <i class="fas fa-users mr-1"></i>Assign/View Students
+                                <i class="las la-users mr-1"></i>Assign/View Students
                             </button>
                         </td>
                     `;
@@ -6786,7 +6621,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function renderUnassignedStudentsTable(students, assignedStudentIds) {
-            const tableBody = document.getElementById('unassignedStudentsTableBody');
+            const tableBody = null;
             tableBody.innerHTML = '';
             
             const unassignedStudents = students.filter(s => !assignedStudentIds.has(s.id));
@@ -6795,7 +6630,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 tableBody.innerHTML = `
                     <tr>
                         <td colspan="4" class="px-6 py-4 text-center text-sm text-green-600">
-                            <i class="fas fa-check-circle mr-2"></i>All students are assigned to programmes.
+                            <i class="las la-check-circle mr-2"></i>All students are assigned to programmes.
                         </td>
                     </tr>
                 `;
@@ -6811,7 +6646,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td class="px-6 py-4 text-sm text-gray-500">${registrationDate}</td>
                         <td class="px-6 py-4 text-sm font-medium">
                             <button onclick="showQuickAssignModal(${student.id})" class="text-indigo-600 hover:text-indigo-900">
-                                <i class="fas fa-user-plus mr-1"></i>Assign Now
+                                <i class="las la-user-plus mr-1"></i>Assign Now
                             </button>
                         </td>
                     `;
@@ -6820,7 +6655,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function renderProgrammeDetailsTable() {
-            const tableBody = document.getElementById('programmeDetailsTableBody');
+            const tableBody = null;
             tableBody.innerHTML = '';
             
             if (allProgramsData.length === 0) {
@@ -6870,7 +6705,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </td>
                         <td class="px-6 py-4 text-sm font-medium">
                             <button onclick="showAssignStudentsModal(${programme.id})" class="text-blue-600 hover:text-blue-900">
-                                <i class="fas fa-users mr-1"></i>Manage
+                                <i class="las la-users mr-1"></i>Manage
                             </button>
                         </td>
                     `;
@@ -6879,7 +6714,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         function renderCoursesWithoutStudentsTable() {
-            const tableBody = document.getElementById('coursesWithoutStudentsTableBody');
+            const tableBody = null;
             tableBody.innerHTML = '';
             
             // Find courses that are not linked to any programme or linked to programmes with no students
@@ -6900,7 +6735,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 tableBody.innerHTML = `
                     <tr>
                         <td colspan="4" class="px-6 py-4 text-center text-sm text-green-600">
-                            <i class="fas fa-check-circle mr-2"></i>All courses have enrolled students.
+                            <i class="las la-check-circle mr-2"></i>All courses have enrolled students.
                         </td>
                     </tr>
                 `;
@@ -6915,7 +6750,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td class="px-6 py-4 text-sm text-gray-500">${totalMarks}</td>
                         <td class="px-6 py-4 text-sm font-medium">
                             <button onclick="navigateToCourseProgramme(${course.id})" class="text-indigo-600 hover:text-indigo-900">
-                                <i class="fas fa-link mr-1"></i>Link to Programme
+                                <i class="las la-link mr-1"></i>Link to Programme
                             </button>
                         </td>
                     `;
@@ -6994,7 +6829,7 @@ document.addEventListener('DOMContentLoaded', () => {
             systemSettings.systemLanguage = systemLanguageSelect.value;
 
             // Update logo in sidebar and top nav if they exist
-            document.querySelectorAll('.fas.fa-graduation-cap.text-2xl.mr-3').forEach(icon => {
+            document.querySelectorAll('.fas.la-graduation-cap.text-2xl.mr-3').forEach(icon => {
                  // Replace original logo icon with image if a custom logo is set
                 if (systemSettings.systemLogo !== "https://placehold.co/96x96/ADD8E6/00008B?text=LMS") { // Check if it's not the default placeholder
                     const img = document.createElement('img');
@@ -7457,7 +7292,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="flex items-start justify-between">
                         <div class="flex-1">
                             <div class="flex items-center mb-2">
-                                <i class="fas fa-certificate text-blue-600 text-xl mr-2"></i>
+                                <i class="las la-certificate text-blue-600 text-xl mr-2"></i>
                                 <h4 class="font-semibold text-gray-800">${certificate.courseName}</h4>
                             </div>
                             <p class="text-sm text-gray-600 mb-2">${certificate.certificateType}</p>
@@ -7615,7 +7450,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.company || 'N/A'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${user.role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm">
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.status === 'active' ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20' : 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20'}">
                             ${user.status.charAt(0).toUpperCase() + user.status.slice(1)}
                         </span>
                     </td>
@@ -7843,7 +7678,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 questionDiv.className = 'bg-white border border-gray-200 rounded-md p-3';
                 questionDiv.innerHTML = `
                     <div class="flex items-start gap-2">
-                        <div class="flex-shrink-0 w-8 h-8 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-bold text-sm">
+                        <div class="flex-shrink-0 w-8 h-8 bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 rounded-full flex items-center justify-center font-bold text-sm">
                             ${question.number}
                         </div>
                         <div class="flex-1">
@@ -7864,7 +7699,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button type="button" 
                             onclick="removeAssignmentQuestion(${question.id})" 
                             class="flex-shrink-0 text-red-500 hover:text-red-700 focus:outline-none">
-                            <i class="fas fa-trash-alt"></i>
+                            <i class="las la-trash-alt"></i>
                         </button>
                     </div>
                 `;
@@ -8003,10 +7838,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         Array.from(this.files).forEach(file => {
                             const fileSize = (file.size / 1024).toFixed(2); // KB
                             const fileExt = file.name.split('.').pop().toUpperCase();
-                            let icon = 'fa-file';
-                            if (fileExt === 'PDF') icon = 'fa-file-pdf';
-                            else if (fileExt === 'PPT' || fileExt === 'PPTX') icon = 'fa-file-powerpoint';
-                            else if (fileExt === 'DOC' || fileExt === 'DOCX') icon = 'fa-file-word';
+                            let icon = 'la-file';
+                            if (fileExt === 'PDF') icon = 'la-file-pdf';
+                            else if (fileExt === 'PPT' || fileExt === 'PPTX') icon = 'la-file-powerpoint';
+                            else if (fileExt === 'DOC' || fileExt === 'DOCX') icon = 'la-file-word';
                             
                             const fileItem = document.createElement('p');
                             fileItem.className = 'text-xs text-green-600 font-medium flex items-center';
@@ -8170,7 +8005,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             const fileItem = document.createElement('div');
                             fileItem.className = 'flex items-center gap-2 text-xs text-gray-700 bg-white p-2 rounded border border-gray-300';
                             fileItem.innerHTML = `
-                                <i class="fas fa-file text-indigo-600"></i>
+                                <i class="las la-file text-indigo-600"></i>
                                 <span class="flex-1">${file.name}</span>
                                 <span class="text-gray-500">${(file.size / 1024).toFixed(2)} KB</span>
                             `;
@@ -8276,7 +8111,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${cert.courseName}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${cert.issueDate}</td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">${cert.status}</span>
+                            <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20">${cert.status}</span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <button onclick="showCertificateViewer('${cert.id}')" class="text-indigo-600 hover:text-indigo-900 mr-3">View</button>
@@ -8306,7 +8141,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${cert.issueDate}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${cert.certificateType}</td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">${cert.status}</span>
+                            <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20">${cert.status}</span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <button onclick="showCertificateViewer('${cert.id}')" class="text-indigo-600 hover:text-indigo-900">View</button>
@@ -8498,7 +8333,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 type: 'ppt',
                                 fileName: 'fire_safety_training.ppt',
                                 description: 'Comprehensive PowerPoint on fire detection, prevention, and emergency procedures.',
-                                icon: 'fas fa-file-powerpoint',
+                                icon: 'las la-file-powerpoint',
                                 color: 'orange',
                                 isRead: true,
                                 createdDate: '2023-12-20',
@@ -8510,7 +8345,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 type: 'pdf',
                                 fileName: 'fire_safety_policy.pdf',
                                 description: 'PDF document outlining fire safety policies and procedures.',
-                                icon: 'fas fa-file-pdf',
+                                icon: 'las la-file-pdf',
                                 color: 'red',
                                 isRead: true,
                                 createdDate: '2023-12-20',
@@ -8671,7 +8506,7 @@ function showStudentCourses(type) {
     const courseImage = course.picture || "https://placehold.co/400x200/E0E7FF/4F46E5?text=Course+Image";
     const isCompleted = course.completionDate ? true : false;
     const statusBadge = isCompleted ? "Completed" : "In Progress";
-    const badgeClass = isCompleted ? "bg-green-100 text-green-700" : "bg-indigo-100 text-indigo-700";
+    const badgeClass = isCompleted ? "bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20" : "bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20";
     
     // Get deadline information
     const deadlineInfo = getCourseDeadlineInfo(course);
@@ -8689,7 +8524,7 @@ function showStudentCourses(type) {
         </div>
         <div class="relative w-full h-28 overflow-hidden bg-gray-200">
           <img src="${courseImage}" alt="${course.name}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-300" onerror="this.src='https://placehold.co/400x200/E0E7FF/4F46E5?text=${encodeURIComponent(course.name)}'">
-          ${isNewlyAssigned ? '<span class="absolute top-3 left-3 text-xs px-3 py-1 rounded-full font-medium bg-blue-600 text-white animate-pulse"><i class="fas fa-sparkles mr-1"></i>NEW</span>' : ''}
+          ${isNewlyAssigned ? '<span class="absolute top-3 left-3 text-xs px-3 py-1 rounded-full font-medium bg-blue-600 text-white animate-pulse"><i class="las la-sparkles mr-1"></i>NEW</span>' : ''}
           <span class="absolute top-3 right-3 text-xs px-3 py-1 rounded-full font-medium ${badgeClass}">
             ${statusBadge}
           </span>
@@ -8765,14 +8600,14 @@ function showStudentProgrammes() {
                 <div class="relative w-full h-48 overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">
                     <img src="${programmeImage}" alt="${programme.name}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-300" onerror="this.src='https://placehold.co/400x200/ADD8E6/00008B?text=${encodeURIComponent(programme.name)}'">
                     ${isCompleted 
-                        ? '<span class="absolute top-3 right-3 text-xs px-3 py-1.5 rounded-full font-semibold bg-green-600 text-white shadow-md"><i class="fas fa-check-circle mr-1"></i>Completed</span>'
-                        : '<span class="absolute top-3 right-3 text-xs px-3 py-1.5 rounded-full font-semibold bg-blue-600 text-white shadow-md"><i class="fas fa-play-circle mr-1"></i>In Progress</span>'
+                        ? '<span class="absolute top-3 right-3 text-xs px-3 py-1.5 rounded-full font-semibold bg-green-600 text-white shadow-md"><i class="las la-check-circle mr-1"></i>Completed</span>'
+                        : '<span class="absolute top-3 right-3 text-xs px-3 py-1.5 rounded-full font-semibold bg-blue-600 text-white shadow-md"><i class="las la-play-circle mr-1"></i>In Progress</span>'
                     }
                 </div>
                 <div class="p-6">
                     <div class="flex items-start justify-between mb-3">
                         <h3 class="font-bold text-lg text-gray-800 flex-1">${programme.name}</h3>
-                        <span class="ml-2 px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-full font-medium">
+                        <span class="ml-2 px-2 py-1 bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 text-xs rounded-full font-medium">
                             ${totalCourses} ${totalCourses === 1 ? 'Course' : 'Courses'}
                         </span>
                     </div>
@@ -8801,7 +8636,7 @@ function showStudentProgrammes() {
                                     const isCourseCompleted = enrollment && enrollment.completionDate;
                                     return `
                                         <div class="flex items-center text-sm">
-                                            <i class="fas ${isCourseCompleted ? 'fa-check-circle text-green-600' : 'fa-circle text-gray-400'} mr-2 text-xs"></i>
+                                            <i class="fas ${isCourseCompleted ? 'la-check-circle text-green-600' : 'la-circle text-gray-400'} mr-2 text-xs"></i>
                                             <span class="${isCourseCompleted ? 'text-gray-600 line-through' : 'text-gray-700'}">${course.name}</span>
                                         </div>
                                     `;
@@ -8815,7 +8650,7 @@ function showStudentProgrammes() {
                         ? 'bg-green-600 text-white hover:bg-green-700' 
                         : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700'
                     }">
-                        <i class="fas fa-arrow-right mr-2"></i>View Programme
+                        <i class="las la-arrow-right mr-2"></i>View Programme
                     </button>
                 </div>
             </div>
@@ -8856,8 +8691,8 @@ function viewProgrammeDetails(programmeId) {
                             <div class="flex items-start justify-between mb-2">
                                 <h4 class="font-semibold text-gray-800">${course.name}</h4>
                                 ${isCourseCompleted 
-                                    ? '<span class="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-medium"><i class="fas fa-check mr-1"></i>Done</span>'
-                                    : '<span class="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-medium"><i class="fas fa-clock mr-1"></i>Pending</span>'
+                                    ? '<span class="text-xs px-2 py-1 bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20 rounded-full font-medium"><i class="las la-check mr-1"></i>Done</span>'
+                                    : '<span class="text-xs px-2 py-1 bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20 rounded-full font-medium"><i class="las la-clock mr-1"></i>Pending</span>'
                                 }
                             </div>
                             <p class="text-sm text-gray-600 mb-3">${course.description || 'No description'}</p>
@@ -8865,7 +8700,7 @@ function viewProgrammeDetails(programmeId) {
                                 ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' 
                                 : 'bg-indigo-600 text-white hover:bg-indigo-700'
                             } transition">
-                                ${isCourseCompleted ? '<i class="fas fa-eye mr-1"></i>Review' : '<i class="fas fa-play mr-1"></i>Start Course'}
+                                ${isCourseCompleted ? '<i class="fas fa-eye mr-1"></i>Review' : '<i class="las la-play mr-1"></i>Start Course'}
                             </button>
                         </div>
                     </div>
@@ -8908,7 +8743,7 @@ function viewProgrammeDetails(programmeId) {
                 
                 <!-- Courses List -->
                 <h3 class="font-semibold text-gray-800 mb-4 flex items-center">
-                    <i class="fas fa-book text-indigo-600 mr-2"></i>
+                    <i class="las la-book text-indigo-600 mr-2"></i>
                     Programme Courses
                 </h3>
                 <div class="space-y-3 max-h-96 overflow-y-auto">
@@ -8927,7 +8762,7 @@ function viewProgrammeDetails(programmeId) {
             <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center z-10">
                 <h2 class="text-xl font-bold text-gray-800">Programme Details</h2>
                 <button onclick="closeProgrammeDetailsModal()" class="text-gray-500 hover:text-gray-700 text-2xl font-bold">
-                    <i class="fas fa-times"></i>
+                    <i class="las la-times"></i>
                 </button>
             </div>
             ${modalContent}
@@ -8951,7 +8786,7 @@ function closeProgrammeDetailsModal() {
                                 type: 'ppt',
                                 fileName: 'first_aid_procedures.ppt',
                                 description: 'PowerPoint covering emergency response protocols and first aid techniques.',
-                                icon: 'fas fa-file-powerpoint',
+                                icon: 'las la-file-powerpoint',
                                 color: 'orange',
                                 isRead: false,
                                 createdDate: '2024-01-12',
@@ -8963,7 +8798,7 @@ function closeProgrammeDetailsModal() {
                                 type: 'pdf',
                                 fileName: 'medical_emergency_guidelines.pdf',
                                 description: 'PDF with detailed medical emergency guidelines and response procedures.',
-                                icon: 'fas fa-file-pdf',
+                                icon: 'las la-file-pdf',
                                 color: 'red',
                                 isRead: false,
                                 createdDate: '2024-01-12',
@@ -8977,7 +8812,7 @@ function closeProgrammeDetailsModal() {
                                 type: 'ppt',
                                 fileName: 'health_safety_overview.ppt',
                                 description: 'PowerPoint presentation on workplace health and safety fundamentals.',
-                                icon: 'fas fa-file-powerpoint',
+                                icon: 'las la-file-powerpoint',
                                 color: 'orange',
                                 isRead: false,
                                 createdDate: '2024-01-05',
@@ -8989,7 +8824,7 @@ function closeProgrammeDetailsModal() {
                                 type: 'pdf',
                                 fileName: 'safety_rules.pdf',
                                 description: 'Complete PDF document with all safety rules and compliance requirements.',
-                                icon: 'fas fa-file-pdf',
+                                icon: 'las la-file-pdf',
                                 color: 'red',
                                 isRead: false,
                                 createdDate: '2024-01-05',
@@ -9029,9 +8864,9 @@ function viewPDFCourse(courseId, courseName) {
                 <iframe src="${course.pdfUrl}" class="w-full h-full" style="min-height: 500px;"></iframe>
             </div>
             <div class="p-6 border-t border-gray-200 flex justify-between items-center bg-gray-50">
-                <p class="text-sm text-gray-600"><i class="fas fa-file-pdf mr-2 text-red-500"></i>PDF Document</p>
+                <p class="text-sm text-gray-600"><i class="las la-file-pdf mr-2 text-red-500"></i>PDF Document</p>
                 <button onclick="markPDFAsRead(${courseId}); this.closest('.fixed').remove();" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
-                    <i class="fas fa-check mr-2"></i>Mark as Read & Close
+                    <i class="las la-check mr-2"></i>Mark as Read & Close
                 </button>
             </div>
         </div>
@@ -9246,7 +9081,7 @@ function loadSection(sectionId, courseId) {
         } else {
             videoPlayer.innerHTML = `
                 <div class="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center">
-                    <i class="fas fa-play-circle text-6xl text-white mb-4 group-hover:scale-110 transition"></i>
+                    <i class="las la-play-circle text-6xl text-white mb-4 group-hover:scale-110 transition"></i>
                     <p class="text-white text-lg">No Video available</p>
                 </div>
             `;
@@ -9434,10 +9269,10 @@ function loadCourseDocuments(courseId) {
         }
 
         const readBadge = (isAssigned ? isReadForStudent : doc.isRead) 
-            ? '<span class="inline-block px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full ml-2"><i class="fas fa-check mr-1"></i>Read</span>'
-            : '<span class="inline-block px-3 py-1 bg-yellow-100 text-yellow-700 text-xs font-medium rounded-full ml-2"><i class="fas fa-exclamation-circle mr-1"></i>Not Read</span>';
+            ? '<span class="inline-block px-3 py-1 bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20 text-xs font-medium rounded-full ml-2"><i class="las la-check mr-1"></i>Read</span>'
+            : '<span class="inline-block px-3 py-1 bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-600/20 text-xs font-medium rounded-full ml-2"><i class="las la-exclamation-circle mr-1"></i>Not Read</span>';
         const requiredBadge = isAssigned 
-            ? '<span class="inline-block px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-medium rounded-full ml-2"><i class="fas fa-clipboard-check mr-1"></i>Required</span>'
+            ? '<span class="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 text-xs font-medium rounded-full ml-2"><i class="las la-clipboard-check mr-1"></i>Required</span>'
             : '';
         
         html += `
@@ -9455,8 +9290,8 @@ function loadCourseDocuments(courseId) {
                             </div>
                             <p class="text-sm text-gray-600 mt-1">${doc.description}</p>
                             <div class="flex items-center space-x-4 mt-3 text-xs text-gray-500">
-                                <span><i class="fas fa-calendar mr-1"></i>${doc.createdDate}</span>
-                                <span><i class="fas fa-database mr-1"></i>${doc.fileSize}</span>
+                                <span><i class="las la-calendar mr-1"></i>${doc.createdDate}</span>
+                                <span><i class="las la-database mr-1"></i>${doc.fileSize}</span>
                                 <span class="uppercase font-medium">${doc.type}</span>
                             </div>
                         </div>
@@ -9466,7 +9301,7 @@ function loadCourseDocuments(courseId) {
                             <i class="fas fa-eye mr-1"></i>View
                         </button>
                         <button onclick="markDocumentAsRead(${courseId}, ${doc.id})" class="px-4 py-2 ${ (isAssigned ? isReadForStudent : doc.isRead) ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700' } text-white text-sm rounded-md transition">
-                            <i class="fas fa-check mr-1"></i>${ (isAssigned ? isReadForStudent : doc.isRead) ? 'Read' : 'Mark as Read' }
+                            <i class="las la-check mr-1"></i>${ (isAssigned ? isReadForStudent : doc.isRead) ? 'Read' : 'Mark as Read' }
                         </button>
                     </div>
                 </div>
@@ -9504,20 +9339,20 @@ function loadCourseAssignments(courseId) {
         let statusClass = '';
         
         if (assignment.status === 'Submitted' || assignment.status === 'Read') {
-            statusBadge = '<span class="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full"><i class="fas fa-paper-plane mr-1"></i>Submitted</span>';
+            statusBadge = '<span class="px-3 py-1 bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20 text-xs font-semibold rounded-full"><i class="las la-paper-plane mr-1"></i>Submitted</span>';
             statusClass = 'border-blue-200 bg-blue-50';
         } else if (assignment.status === 'Graded') {
-            statusBadge = '<span class="px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full"><i class="fas fa-check-circle mr-1"></i>Graded</span>';
+            statusBadge = '<span class="px-3 py-1 bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20 text-xs font-semibold rounded-full"><i class="las la-check-circle mr-1"></i>Graded</span>';
             statusClass = 'border-green-200 bg-green-50';
         } else {
             // Check if overdue
             const today = new Date();
             const dueDate = new Date(assignment.dueDate);
             if (dueDate < today) {
-                statusBadge = '<span class="px-3 py-1 bg-red-100 text-red-700 text-xs font-semibold rounded-full"><i class="fas fa-exclamation-triangle mr-1"></i>Overdue</span>';
+                statusBadge = '<span class="px-3 py-1 bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20 text-xs font-semibold rounded-full"><i class="las la-exclamation-triangle mr-1"></i>Overdue</span>';
                 statusClass = 'border-red-200 bg-red-50';
             } else {
-                statusBadge = '<span class="px-3 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded-full"><i class="fas fa-clock mr-1"></i>Pending</span>';
+                statusBadge = '<span class="px-3 py-1 bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-600/20 text-xs font-semibold rounded-full"><i class="las la-clock mr-1"></i>Pending</span>';
                 statusClass = 'border-yellow-200 bg-yellow-50';
             }
         }
@@ -9536,25 +9371,25 @@ function loadCourseAssignments(courseId) {
                         </div>
                         <p class="text-sm text-gray-600 mb-3">${assignment.instructions}</p>
                         <div class="flex flex-wrap items-center gap-4 text-xs text-gray-500">
-                            <span><i class="fas fa-calendar-alt mr-1 text-indigo-500"></i>Due: ${new Date(assignment.dueDate).toLocaleDateString()}</span>
-                            <span><i class="fas fa-star mr-1 text-amber-500"></i>${assignment.totalMarks} marks</span>
-                            ${docCount > 0 ? `<span><i class="fas fa-paperclip mr-1 text-blue-500"></i>${docCount} document(s)</span>` : ''}
-                            ${questionCount > 0 ? `<span><i class="fas fa-question-circle mr-1 text-purple-500"></i>${questionCount} question(s)</span>` : ''}
-                            ${assignment.type === 'mark-as-read' ? '<span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full">Mark as Read</span>' : ''}
+                            <span><i class="las la-calendar-alt mr-1 text-indigo-500"></i>Due: ${new Date(assignment.dueDate).toLocaleDateString()}</span>
+                            <span><i class="las la-star mr-1 text-amber-500"></i>${assignment.totalMarks} marks</span>
+                            ${docCount > 0 ? `<span><i class="las la-paperclip mr-1 text-blue-500"></i>${docCount} document(s)</span>` : ''}
+                            ${questionCount > 0 ? `<span><i class="las la-question-circle mr-1 text-purple-500"></i>${questionCount} question(s)</span>` : ''}
+                            ${assignment.type === 'mark-as-read' ? '<span class="px-2 py-1 bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20 rounded-full">Mark as Read</span>' : ''}
                         </div>
                     </div>
                 </div>
                 
                 ${assignment.documents && assignment.documents.length > 0 ? `
                     <div class="mt-4 pt-4 border-t border-gray-200">
-                        <h5 class="text-sm font-semibold text-gray-700 mb-2"><i class="fas fa-folder-open mr-2"></i>Attached Documents:</h5>
+                        <h5 class="text-sm font-semibold text-gray-700 mb-2"><i class="las la-folder-open mr-2"></i>Attached Documents:</h5>
                         <div class="space-y-2">
                             ${assignment.documents.map(doc => {
-                                let icon = 'fa-file';
+                                let icon = 'la-file';
                                 let color = 'indigo';
-                                if (doc.fileType === 'PDF') { icon = 'fa-file-pdf'; color = 'red'; }
-                                else if (doc.fileType === 'PPT' || doc.fileType === 'PPTX') { icon = 'fa-file-powerpoint'; color = 'orange'; }
-                                else if (doc.fileType === 'DOC' || doc.fileType === 'DOCX') { icon = 'fa-file-word'; color = 'blue'; }
+                                if (doc.fileType === 'PDF') { icon = 'la-file-pdf'; color = 'red'; }
+                                else if (doc.fileType === 'PPT' || doc.fileType === 'PPTX') { icon = 'la-file-powerpoint'; color = 'orange'; }
+                                else if (doc.fileType === 'DOC' || doc.fileType === 'DOCX') { icon = 'la-file-word'; color = 'blue'; }
                                 
                                 return `
                                     <div class="flex items-center gap-2 p-2 bg-gray-50 rounded-md hover:bg-gray-100 transition border border-gray-200">
@@ -9565,7 +9400,7 @@ function loadCourseAssignments(courseId) {
                                             <i class="fas fa-eye mr-1"></i>View
                                         </button>
                                         <a href="${doc.fileUrl}" download="${doc.fileName}" class="text-green-600 hover:text-green-800 text-xs px-2 py-1">
-                                            <i class="fas fa-download"></i>
+                                            <i class="las la-download"></i>
                                         </a>
                                     </div>
                                 `;
@@ -9615,7 +9450,7 @@ function viewDocument(courseId, docId) {
                     <p class="text-gray-600 mb-6">${doc.description}</p>
                     <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
                         <p class="text-sm text-blue-800">
-                            <i class="fas fa-info-circle mr-2"></i>
+                            <i class="las la-info-circle mr-2"></i>
                             This is a simulated document viewer. In a production environment, this would display the actual ${doc.type.toUpperCase()} file content.
                         </p>
                     </div>
@@ -9628,13 +9463,13 @@ function viewDocument(courseId, docId) {
                 </div>
             </div>
             <div class="p-6 border-t border-gray-200 bg-gray-50 flex justify-between items-center rounded-b-lg sticky bottom-0">
-                <p class="text-sm text-gray-600"><i class="fas fa-file-${doc.type === 'ppt' ? 'powerpoint text-orange-500' : 'pdf text-red-500'} mr-2"></i>${doc.type === 'ppt' ? 'PowerPoint File' : 'PDF File'}</p>
+                <p class="text-sm text-gray-600"><i class="las la-file-${doc.type === 'ppt' ? 'powerpoint text-orange-500' : 'pdf text-red-500'} mr-2"></i>${doc.type === 'ppt' ? 'PowerPoint File' : 'PDF File'}</p>
                 <div class="flex space-x-3">
                     <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 transition">
                         Close
                     </button>
                     <button onclick="markDocumentAsRead(${courseId}, ${docId}); this.closest('.fixed').remove();" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
-                        <i class="fas fa-check mr-2"></i>Mark as Read & Close
+                        <i class="las la-check mr-2"></i>Mark as Read & Close
                     </button>
                 </div>
             </div>
@@ -10286,10 +10121,10 @@ document.addEventListener("DOMContentLoaded", () => {
                             const fileDiv = document.createElement('div');
                             fileDiv.className = 'flex items-center gap-2 p-2 bg-green-50 rounded-md hover:bg-green-100 transition border border-green-200';
                             
-                            let icon = 'fa-file';
-                            if (file.fileType === 'PDF') icon = 'fa-file-pdf';
-                            else if (file.fileType === 'PPT' || file.fileType === 'PPTX') icon = 'fa-file-powerpoint';
-                            else if (file.fileType === 'DOC' || file.fileType === 'DOCX') icon = 'fa-file-word';
+                            let icon = 'la-file';
+                            if (file.fileType === 'PDF') icon = 'la-file-pdf';
+                            else if (file.fileType === 'PPT' || file.fileType === 'PPTX') icon = 'la-file-powerpoint';
+                            else if (file.fileType === 'DOC' || file.fileType === 'DOCX') icon = 'la-file-word';
                             
                             fileDiv.innerHTML = `
                                 <i class="fas ${icon} text-green-600 text-sm"></i>
@@ -10306,9 +10141,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 
                 // Update button text based on status
                 if (assignment.status === 'Submitted' || assignment.status === 'Graded' || assignment.status === 'Read') {
-                    submitBtn.innerHTML = '<i class="fas fa-sync mr-2"></i>Resubmit Assignment';
+                    submitBtn.innerHTML = '<i class="las la-sync mr-2"></i>Resubmit Assignment';
                 } else {
-                    submitBtn.innerHTML = '<i class="fas fa-check-circle mr-2"></i>Submit Assignment';
+                    submitBtn.innerHTML = '<i class="las la-check-circle mr-2"></i>Submit Assignment';
                 }
             } else if (isTrainingManager) {
                 if (studentSection) studentSection.style.display = 'none';
@@ -10331,16 +10166,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 const tmExistingFiles = document.getElementById('existingSubmissionFiles');
                 if (tmExistingFiles && assignment.submissionFiles && assignment.submissionFiles.length > 0) {
                     tmExistingFiles.style.display = 'block';
-                    tmExistingFiles.innerHTML = '<h5 class="text-sm font-semibold text-gray-700 mb-2"><i class="fas fa-file-upload mr-2 text-green-600"></i>Student Submissions:</h5>';
+                    tmExistingFiles.innerHTML = '<h5 class="text-sm font-semibold text-gray-700 mb-2"><i class="las la-file-upload mr-2 text-green-600"></i>Student Submissions:</h5>';
                     assignment.submissionFiles.forEach(file => {
                         const fileDiv = document.createElement('div');
                         fileDiv.className = 'flex items-center gap-2 p-2 bg-gray-50 rounded-md hover:bg-gray-100 transition border border-gray-200';
                         
-                        let icon = 'fa-file';
+                        let icon = 'la-file';
                         let color = 'indigo';
-                        if (file.fileType === 'PDF') { icon = 'fa-file-pdf'; color = 'red'; }
-                        else if (file.fileType === 'PPT' || file.fileType === 'PPTX') { icon = 'fa-file-powerpoint'; color = 'orange'; }
-                        else if (file.fileType === 'DOC' || file.fileType === 'DOCX') { icon = 'fa-file-word'; color = 'blue'; }
+                        if (file.fileType === 'PDF') { icon = 'la-file-pdf'; color = 'red'; }
+                        else if (file.fileType === 'PPT' || file.fileType === 'PPTX') { icon = 'la-file-powerpoint'; color = 'orange'; }
+                        else if (file.fileType === 'DOC' || file.fileType === 'DOCX') { icon = 'la-file-word'; color = 'blue'; }
                         
                         fileDiv.innerHTML = `
                             <i class="fas ${icon} text-${color}-600 text-sm"></i>
@@ -10350,7 +10185,7 @@ document.addEventListener("DOMContentLoaded", () => {
                                 <i class="fas fa-eye mr-1"></i>View
                             </button>
                             <a href="${file.fileUrl}" download="${file.fileName}" class="text-green-600 hover:text-green-800 text-xs px-2">
-                                <i class="fas fa-download"></i>
+                                <i class="las la-download"></i>
                             </a>
                         `;
                         tmExistingFiles.appendChild(fileDiv);
@@ -10369,11 +10204,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     const docDiv = document.createElement('div');
                     docDiv.className = 'flex items-center gap-2 p-3 bg-gray-50 rounded-md hover:bg-gray-100 transition border border-gray-200';
                     
-                    let icon = 'fa-file';
+                    let icon = 'la-file';
                     let color = 'indigo';
-                    if (doc.fileType === 'PDF') { icon = 'fa-file-pdf'; color = 'red'; }
-                    else if (doc.fileType === 'PPT' || doc.fileType === 'PPTX') { icon = 'fa-file-powerpoint'; color = 'orange'; }
-                    else if (doc.fileType === 'DOC' || doc.fileType === 'DOCX') { icon = 'fa-file-word'; color = 'blue'; }
+                    if (doc.fileType === 'PDF') { icon = 'la-file-pdf'; color = 'red'; }
+                    else if (doc.fileType === 'PPT' || doc.fileType === 'PPTX') { icon = 'la-file-powerpoint'; color = 'orange'; }
+                    else if (doc.fileType === 'DOC' || doc.fileType === 'DOCX') { icon = 'la-file-word'; color = 'blue'; }
                     
                     docDiv.innerHTML = `
                         <i class="fas ${icon} text-${color}-600 text-lg"></i>
@@ -10385,7 +10220,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             <i class="fas fa-eye mr-1"></i>View
                         </button>
                         <a href="${doc.fileUrl}" download="${doc.fileName}" class="text-green-600 hover:text-green-800 px-3 py-1 text-sm">
-                            <i class="fas fa-download"></i>
+                            <i class="las la-download"></i>
                         </a>
                     `;
                     documentsList.appendChild(docDiv);
@@ -10397,17 +10232,17 @@ document.addEventListener("DOMContentLoaded", () => {
                 docDiv.target = '_blank';
                 docDiv.className = 'flex items-center gap-2 p-2 bg-gray-50 rounded-md hover:bg-gray-100 transition';
                 
-                let icon = 'fa-file';
-                if (assignment.documentType === 'PDF') icon = 'fa-file-pdf';
-                else if (assignment.documentType === 'PPT' || assignment.documentType === 'PPTX') icon = 'fa-file-powerpoint';
-                else if (assignment.documentType === 'DOC' || assignment.documentType === 'DOCX') icon = 'fa-file-word';
+                let icon = 'la-file';
+                if (assignment.documentType === 'PDF') icon = 'la-file-pdf';
+                else if (assignment.documentType === 'PPT' || assignment.documentType === 'PPTX') icon = 'la-file-powerpoint';
+                else if (assignment.documentType === 'DOC' || assignment.documentType === 'DOCX') icon = 'la-file-word';
                 
                 docDiv.innerHTML = `
                     <i class="fas ${icon} text-indigo-600 text-lg"></i>
                     <div class="flex-1">
                         <div class="text-sm font-medium text-gray-900">${assignment.documentFileName}</div>
                     </div>
-                    <i class="fas fa-download text-gray-400"></i>
+                    <i class="las la-download text-gray-400"></i>
                 `;
                 documentsList.appendChild(docDiv);
             }
@@ -10425,15 +10260,15 @@ document.addEventListener("DOMContentLoaded", () => {
                         <div class="flex items-start justify-between">
                             <div class="flex-1">
                                 <div class="flex items-center gap-2 mb-2">
-                                    <span class="flex-shrink-0 w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-bold text-xs">
+                                    <span class="flex-shrink-0 w-7 h-7 bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 rounded-full flex items-center justify-center font-bold text-xs">
                                         ${question.number}
                                     </span>
                                     <span class="text-sm font-medium text-gray-900">${question.text}</span>
                                 </div>
                             </div>
                             <div class="ml-3 flex-shrink-0">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                                    <i class="fas fa-star text-xs mr-1"></i>${question.marks} marks
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                                    <i class="las la-star text-xs mr-1"></i>${question.marks} marks
                                 </span>
                             </div>
                         </div>
@@ -10477,15 +10312,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 let statusBadge = '';
                 if (assignment.status === 'Submitted') {
-                    statusBadge = '<span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full"><i class="fas fa-paper-plane mr-1"></i>Submitted</span>';
+                    statusBadge = '<span class="px-2 py-1 bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20 text-xs font-semibold rounded-full"><i class="las la-paper-plane mr-1"></i>Submitted</span>';
                 } else if (assignment.status === 'Graded') {
-                    statusBadge = '<span class="px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full"><i class="fas fa-check-circle mr-1"></i>Graded</span>';
+                    statusBadge = '<span class="px-2 py-1 bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20 text-xs font-semibold rounded-full"><i class="las la-check-circle mr-1"></i>Graded</span>';
                 } else if (assignment.status === 'Read') {
-                    statusBadge = '<span class="px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full"><i class="fas fa-eye mr-1"></i>Read</span>';
+                    statusBadge = '<span class="px-2 py-1 bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20 text-xs font-semibold rounded-full"><i class="fas fa-eye mr-1"></i>Read</span>';
                 } else if (assignment.status === 'Needs Revision') {
-                    statusBadge = '<span class="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded-full"><i class="fas fa-redo mr-1"></i>Needs Revision</span>';
+                    statusBadge = '<span class="px-2 py-1 bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-600/20 text-xs font-semibold rounded-full"><i class="las la-redo mr-1"></i>Needs Revision</span>';
                 } else {
-                    statusBadge = '<span class="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-semibold rounded-full"><i class="fas fa-clock mr-1"></i>Assigned</span>';
+                    statusBadge = '<span class="px-2 py-1 bg-gray-50 text-gray-700 ring-1 ring-inset ring-gray-600/20 text-xs font-semibold rounded-full"><i class="las la-clock mr-1"></i>Assigned</span>';
                 }
 
                 const row = tbody.insertRow();
@@ -10515,20 +10350,20 @@ document.addEventListener("DOMContentLoaded", () => {
             const modal = document.createElement('div');
             modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-[9999] flex items-center justify-center p-4';
             
-            let icon = 'fa-file';
+            let icon = 'la-file';
             let color = 'indigo';
             let typeLabel = 'Document';
             
             if (fileType === 'PDF') {
-                icon = 'fa-file-pdf';
+                icon = 'la-file-pdf';
                 color = 'red';
                 typeLabel = 'PDF Document';
             } else if (fileType === 'PPT' || fileType === 'PPTX') {
-                icon = 'fa-file-powerpoint';
+                icon = 'la-file-powerpoint';
                 color = 'orange';
                 typeLabel = 'PowerPoint Presentation';
             } else if (fileType === 'DOC' || fileType === 'DOCX') {
-                icon = 'fa-file-word';
+                icon = 'la-file-word';
                 color = 'blue';
                 typeLabel = 'Word Document';
             }
@@ -10548,13 +10383,13 @@ document.addEventListener("DOMContentLoaded", () => {
                             <h3 class="text-xl font-semibold text-gray-800 mb-4">${fileName}</h3>
                             <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 max-w-2xl mx-auto">
                                 <p class="text-sm text-blue-800">
-                                    <i class="fas fa-info-circle mr-2"></i>
+                                    <i class="las la-info-circle mr-2"></i>
                                     This is a simulated document viewer. In a production environment, this would display the actual ${typeLabel.toLowerCase()} content using an embedded viewer.
                                 </p>
                             </div>
                             <div class="text-sm text-gray-600 space-y-2">
-                                <p><i class="fas fa-file mr-2 text-${color}-600"></i><strong>File Type:</strong> ${typeLabel}</p>
-                                <p><i class="fas fa-link mr-2 text-${color}-600"></i><strong>Status:</strong> Ready to view</p>
+                                <p><i class="las la-file mr-2 text-${color}-600"></i><strong>File Type:</strong> ${typeLabel}</p>
+                                <p><i class="las la-link mr-2 text-${color}-600"></i><strong>Status:</strong> Ready to view</p>
                             </div>
                         </div>
                     </div>
@@ -10564,7 +10399,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         </div>
                         <div class="flex space-x-3">
                             <a href="${fileUrl}" download="${fileName}" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
-                                <i class="fas fa-download mr-2"></i>Download
+                                <i class="las la-download mr-2"></i>Download
                             </a>
                             <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 transition">
                                 Close
@@ -10594,11 +10429,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
         function getEventTypeColor(type) {
             const colors = {
-                'assignment': 'bg-blue-100 text-blue-800 border-blue-300',
-                'test': 'bg-orange-100 text-orange-800 border-orange-300',
-                'exam': 'bg-red-100 text-red-800 border-red-300'
+                'assignment': 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20 border-blue-300',
+                'test': 'bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-600/20 border-orange-300',
+                'exam': 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20 border-red-300'
             };
-            return colors[type] || 'bg-gray-100 text-gray-800 border-gray-300';
+            return colors[type] || 'bg-gray-50 text-gray-700 ring-1 ring-inset ring-gray-600/20 border-gray-300';
         }
 
         function getEventTypeIcon(type) {
@@ -10700,8 +10535,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 sortedEvents.forEach(event => {
                     const dateStr = event.date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
                     const isUpcoming = event.date >= new Date();
-                    const status = isUpcoming ? '<span class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">Upcoming</span>' 
-                                              : '<span class="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded">Completed</span>';
+                    const status = isUpcoming ? '<span class="px-2 py-1 bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20 text-xs rounded">Upcoming</span>' 
+                                              : '<span class="px-2 py-1 bg-gray-50 text-gray-700 ring-1 ring-inset ring-gray-600/20 text-xs rounded">Completed</span>';
                     
                     html += `
                         <tr class="hover:bg-gray-50 transition">
@@ -10907,6 +10742,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
 </body>
 </html>
+
+
 
 
 
