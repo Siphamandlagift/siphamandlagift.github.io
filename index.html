@@ -677,10 +677,10 @@ body[class*="theme-"]:not(.theme-white) select {
         </div>
     </div>
 
-    <!-- Assign Students Modal -->
+    <!-- Enrol Students Modal -->
     <div id="assignStudentsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-lg p-6 shadow-xl max-w-2xl w-full transform transition-all duration-300 scale-100 opacity-100">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4" id="assignStudentsModalTitle">Assign Students to Programme</h3>
+            <h3 class="text-lg font-semibold text-gray-900 mb-4" id="assignStudentsModalTitle">Enrol Students in Programme</h3>
             
             <!-- Search and Bulk Actions -->
             <div class="mb-4 space-y-3">
@@ -710,16 +710,16 @@ body[class*="theme-"]:not(.theme-white) select {
                     Cancel
                 </button>
                 <button type="button" id="saveAssignedStudentsBtn" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none">
-                    Save Assignments
+                    Save Enrolments
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- Assign Students to Courses Modal (Direct Course Assignment) -->
+    <!-- Enrol Students in Courses Modal (Direct Course Assignment) -->
     <div id="assignStudentsToCoursesModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
         <div class="bg-white rounded-lg p-6 shadow-xl max-w-2xl w-full transform transition-all duration-300 scale-100 opacity-100">
-            <h3 class="text-lg font-semibold text-gray-900 mb-4" id="assignStudentsToCoursesModalTitle">Assign Students to Course</h3>
+            <h3 class="text-lg font-semibold text-gray-900 mb-4" id="assignStudentsToCoursesModalTitle">Enrol Students in Course</h3>
             
             <!-- Search and Bulk Actions -->
             <div class="mb-4 space-y-3">
@@ -749,7 +749,7 @@ body[class*="theme-"]:not(.theme-white) select {
                     Cancel
                 </button>
                 <button type="button" id="saveAssignedCourseStudentsBtn" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none">
-                    Save Assignments
+                    Save Enrolments
                 </button>
             </div>
         </div>
@@ -1226,7 +1226,7 @@ body[class*="theme-"]:not(.theme-white) select {
                     <div class="p-6 text-xs uppercase text-indigo-300 font-bold sidebar-text tracking-wider">Student Management</div>
                     <a href="#" class="sidebar-item" data-section="assignment-overview">
                         <i class="fas fa-users-cog mr-3"></i>
-                        <span class="sidebar-text">Student Assignments</span>
+                        <span class="sidebar-text">Student Enrolment</span>
                     </a>
                     <div class="p-6 text-xs uppercase text-indigo-300 font-bold sidebar-text tracking-wider">Recognition</div>
                     <a href="#" class="sidebar-item" data-section="certificate-templates">
@@ -1738,11 +1738,11 @@ body[class*="theme-"]:not(.theme-white) select {
                                 <i class="fas fa-info-circle text-2xl text-indigo-600"></i>
                             </div>
                             <div class="ml-4">
-                                <h3 class="text-sm font-semibold text-gray-800 mb-2">How to Assign Students to Programmes</h3>
+                                <h3 class="text-sm font-semibold text-gray-800 mb-2">How to Enrol Students in Programmes</h3>
                                 <ol class="text-sm text-gray-700 space-y-1 list-decimal list-inside">
                                     <li>Create a programme and link courses to it below</li>
-                                    <li>Click <strong>"Assign Students"</strong> button in the programmes table</li>
-                                    <li>Select students from the list and click <strong>"Save Assignments"</strong></li>
+                                    <li>Click <strong>"Enrol Students"</strong> button in the programmes table</li>
+                                    <li>Select students from the list and click <strong>"Save Enrolments"</strong></li>
                                     <li>Students will be able to view and access the programme in their dashboard</li>
                                 </ol>
                             </div>
@@ -1830,7 +1830,7 @@ body[class*="theme-"]:not(.theme-white) select {
                 <!-- Assignment Overview Dashboard (Training Manager) - Consolidated Hub -->
                 <div id="assignment-overviewContent" class="content-section">
                     <div class="mb-6">
-                        <h2 class="text-2xl font-semibold text-gray-800">Student Assignments</h2>
+                        <h2 class="text-2xl font-semibold text-gray-800">Student Enrolment</h2>
                         <p class="text-gray-600">Manage all student enrollments - programmes, courses, and track progress.</p>
                     </div>
 
@@ -1867,7 +1867,7 @@ body[class*="theme-"]:not(.theme-white) select {
                             <div class="bg-white rounded-lg shadow p-6">
                                 <div class="flex items-center justify-between">
                                     <div>
-                                        <p class="text-sm text-gray-600 font-medium">Assigned Students</p>
+                                        <p class="text-sm text-gray-600 font-medium">Enrolled Students</p>
                                         <h3 class="text-3xl font-bold text-green-600" id="overviewAssignedStudents">0</h3>
                                     </div>
                                     <div class="p-3 rounded-full bg-green-100 text-green-600">
@@ -1878,7 +1878,7 @@ body[class*="theme-"]:not(.theme-white) select {
                             <div class="bg-white rounded-lg shadow p-6">
                                 <div class="flex items-center justify-between">
                                     <div>
-                                        <p class="text-sm text-gray-600 font-medium">Unassigned Students</p>
+                                        <p class="text-sm text-gray-600 font-medium">Unenrolled Students</p>
                                         <h3 class="text-3xl font-bold text-orange-600" id="overviewUnassignedStudents">0</h3>
                                     </div>
                                     <div class="p-3 rounded-full bg-orange-100 text-orange-600">
@@ -1904,7 +1904,7 @@ body[class*="theme-"]:not(.theme-white) select {
                             <div class="px-6 py-4 border-b border-gray-200 bg-orange-50">
                                 <h3 class="text-lg font-semibold text-gray-800">
                                     <i class="fas fa-exclamation-triangle text-orange-600 mr-2"></i>
-                                    Students Not Assigned to Any Programme
+                                    Students Not Enrolled in Any Programme
                                 </h3>
                                 <p class="text-sm text-gray-600 mt-1">These students are not enrolled in any programme yet</p>
                             </div>
@@ -1920,14 +1920,14 @@ body[class*="theme-"]:not(.theme-white) select {
                                     </thead>
                                     <tbody class="bg-white divide-y divide-gray-200" id="unassignedStudentsTableBody">
                                         <tr>
-                                            <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">All students are assigned to programmes.</td>
+                                            <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">All students are enrolled in programmes.</td>
                                         </tr>
                                     </tbody>
                                 </table>
                             </div>
                         </div>
 
-                        <!-- Programme Assignment Details -->
+                        <!-- Programme Enrolment Details -->
                         <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
                             <div class="px-6 py-4 border-b border-gray-200 bg-indigo-50">
                                 <h3 class="text-lg font-semibold text-gray-800">
@@ -2017,8 +2017,8 @@ body[class*="theme-"]:not(.theme-white) select {
                 <div id="assignment-tab-programmes" class="assignment-tab-content hidden">
                     <div class="bg-white rounded-lg shadow overflow-hidden">
                         <div class="px-6 py-4 border-b border-gray-200">
-                            <h3 class="text-lg font-semibold text-gray-800">Assign Students to Programmes</h3>
-                            <p class="text-sm text-gray-600 mt-1">Select a programme to assign or manage student enrollments</p>
+                            <h3 class="text-lg font-semibold text-gray-800">Enrol Students in Programmes</h3>
+                            <p class="text-sm text-gray-600 mt-1">Select a programme to enrol or manage student enrolments</p>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200">
@@ -2026,13 +2026,13 @@ body[class*="theme-"]:not(.theme-white) select {
                                     <tr>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Programme Name</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Linked Courses</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Students</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enrolled Students</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200" id="programmesForAssignmentTableBody">
                                     <tr>
-                                        <td colspan="4" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No programmes available for assignment. Create programmes first.</td>
+                                        <td colspan="4" class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">No programmes available for enrolment. Create programmes first.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -2047,8 +2047,8 @@ body[class*="theme-"]:not(.theme-white) select {
                 <div id="assignment-tab-courses" class="assignment-tab-content hidden">
                     <div class="bg-white rounded-lg shadow overflow-hidden">
                         <div class="px-6 py-4 border-b border-gray-200">
-                            <h3 class="text-lg font-semibold text-gray-800">Assign Students to Individual Courses</h3>
-                            <p class="text-sm text-gray-600 mt-1">Select a course to assign or manage student enrollments</p>
+                            <h3 class="text-lg font-semibold text-gray-800">Enrol Students in Individual Courses</h3>
+                            <p class="text-sm text-gray-600 mt-1">Select a course to enrol or manage student enrolments</p>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200">
@@ -3808,7 +3808,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else if (sectionId === 'programme-managementContent') {
                         pageTitle.textContent = 'Programme Management';
                     } else if (sectionId === 'assignment-overviewContent') {
-                        pageTitle.textContent = 'Student Assignments';
+                        pageTitle.textContent = 'Student Enrolment';
                     } else if (sectionId === 'profileContent') {
                         pageTitle.textContent = 'User Profile';
                     } else if (sectionId === 'reportsContent') {
@@ -5788,7 +5788,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const assignmentText = currentCourseAssignments.length > 0 ? `, ${currentCourseAssignments.length} assignment(s)` : '';
             
             showMessageModal('Course Created Successfully! =Äë', 
-                `Course "${courseName}" has been created with ${videoText}, ${questionText}${assignmentText}. You can assign students to this course anytime from the assignment section.`
+                `Course "${courseName}" has been created with ${videoText}, ${questionText}${assignmentText}. You can enrol students in this course anytime from the enrolment section.`
             );
             resetCourseForm();
         });
@@ -6167,7 +6167,7 @@ document.addEventListener('DOMContentLoaded', () => {
             assignStudentsModalTitle.innerHTML = `
                 <div class="flex items-center justify-between">
                     <div>
-                        <div class="text-lg font-semibold text-gray-900">Assign Students to Programme</div>
+                        <div class="text-lg font-semibold text-gray-900">Enrol Students in Programme</div>
                         <div class="text-sm text-gray-600 mt-1">${programme.name}</div>
                     </div>
                     <div class="text-sm bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-medium">
@@ -6452,7 +6452,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showMessageModal('Error', 'Course not found.');
                 return;
             }
-            assignStudentsToCoursesModalTitle.textContent = `Assign Students to: ${course.name}`;
+            assignStudentsToCoursesModalTitle.textContent = `Enrol Students in: ${course.name}`;
             
             // Clear search input
             document.getElementById('assignStudentsToCoursesSearch').value = '';
@@ -6604,7 +6604,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                     
-                    showMessageModal('Success', `Student assignments for "${course.name}" updated.`);
+                    showMessageModal('Success', `Student enrolment for "${course.name}" updated.`);
                     renderCoursesForAssignmentTable(); // Re-render courses table
                     renderAssignmentOverview(); // Update assignment overview
                     renderTMAssignmentsTable(); // Refresh assignments table
@@ -10907,6 +10907,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
 </body>
 </html>
+
+
+
+
+
 
 
 
