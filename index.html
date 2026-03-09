@@ -5398,8 +5398,8 @@ let allUsersData = [];
                 isValid = questionText !== '' && options.length >= 2 && allOptionsFilled && anyCheckboxSelected;
             } else if (type === 'true-false') {
                 const questionText = document.getElementById('tfQuestionText').value.trim();
-                const anyCheckboxSelected = Array.from(document.querySelectorAll('input[name="mcAnswer"]')).some(checkbox => checkbox.checked);
-                isValid = questionText !== '' && anyRadioSelected;
+                const anyCheckboxSelected = Array.from(document.querySelectorAll('input[name="tfAnswer"]')).some(checkbox => checkbox.checked);
+                isValid = questionText !== '' && anyCheckboxSelected;
             } else if (type === 'matching') {
                 const pairs = [];
                 document.querySelectorAll('.matching-row').forEach(pairDiv => {
