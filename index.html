@@ -428,7 +428,6 @@ body[class*="theme-"]:not(.theme-white) select {
 }
 </style>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-gradient-to-br from-slate-50 to-slate-100 font-sans antialiased" style="display: none;">
 
@@ -1883,13 +1882,6 @@ body[class*="theme-"]:not(.theme-white) select {
                 </div>
 
                 </div>
-                    <!-- Chart Section -->
-                    <div class="mt-8 bg-white p-6 rounded-lg shadow animate-fade-in-up" style="animation-delay: 500ms; transition: all 0.5s;">
-                        <h3 class="text-xl font-bold text-gray-800 mb-4">Course Progress Overview</h3>
-                        <div style="position: relative; height:300px; width:100%">
-                            <canvas id="tmDashboardChart"></canvas>
-                        </div>
-                    </div>
     
                 <!-- Course Assignment section removed - now integrated in Student Assignments hub -->
 
@@ -7724,37 +7716,6 @@ const students = allUsersData.filter(user => user.role === 'student');
                 
                 if (notStartedElement) notStartedElement.textContent = notStartedCount;
 
-                // Create or update dashboard chart
-                const ctx = document.getElementById('tmDashboardChart');
-                if (ctx) {
-                    if (window.tmChartInstance) {
-                        window.tmChartInstance.destroy();
-                    }
-                    window.tmChartInstance = new Chart(ctx, {
-                        type: 'doughnut',
-                        data: {
-                            labels: ['Completed', 'In Progress', 'Not Started'],
-                            datasets: [{
-                                data: [completedCount, inProgressCount, notStartedCount],
-                                backgroundColor: [
-                                    '#10B981', // green-500
-                                    '#3B82F6', // blue-500
-                                    '#F59E0B'  // yellow-500
-                                ],
-                                borderWidth: 1
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: {
-                                    position: 'bottom',
-                                }
-                            }
-                        }
-                    });
-                }
 
             } else {
                 // Show admin stats, hide training manager and student stats
