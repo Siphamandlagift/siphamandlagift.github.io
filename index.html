@@ -8405,7 +8405,22 @@ const students = allUsersData.filter(user => user.role === 'student');
         }
 
         // Populate course dropdown for assignment
-        function populateAssignmentCourseSelect() {
+        
+// Function to switch programme sub-tabs
+function switchProgrammeSubTab(tab, event) {
+    if(event) event.preventDefault();
+    
+    document.getElementById('prog-sub-existing').classList.add('hidden');
+    document.getElementById('prog-sub-create').classList.add('hidden');
+    
+    document.getElementById('tab-prog-existing').className = 'inline-flex items-center justify-center p-4 border-b-2 border-transparent hover:text-gray-600 hover:border-gray-300 rounded-t-lg group text-gray-500';
+    document.getElementById('tab-prog-create').className = 'inline-flex items-center justify-center p-4 border-b-2 border-transparent hover:text-gray-600 hover:border-gray-300 rounded-t-lg group text-gray-500';
+    
+    document.getElementById('prog-sub-' + tab).classList.remove('hidden');
+    document.getElementById('tab-prog-' + tab).className = 'inline-flex items-center justify-center p-4 border-b-2 border-indigo-600 text-indigo-600 rounded-t-lg active group';
+}
+
+function populateAssignmentCourseSelect() {
             const select = document.getElementById('assignmentCourseSelect');
             select.innerHTML = '<option value="">-- Select type to begin --</option>';
             
