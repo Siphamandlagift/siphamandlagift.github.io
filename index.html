@@ -8701,7 +8701,7 @@ function populateAssignmentCourseSelect() {
             if (studentAssignmentsList) {
                 studentAssignmentsList.addEventListener('click', function(e) {
                     if(e.target.classList.contains('view-assignment-btn')) {
-                        const assignmentId = parseInt(e.target.dataset.assignmentId, 10);
+                        const assignmentId = e.target.dataset.assignmentId;
                         showViewAssignmentModal(assignmentId);
                     }
                 });
@@ -9545,7 +9545,7 @@ function closeProgrammeDetailsModal() {
                             }
                         ]
 // Function to view student course with sections, video and questions
-function viewStudentCourse(courseId, courseName) {
+window.viewStudentCourse = function viewStudentCourse(courseId, courseName) {
     let course = allCoursesData.find(c => c.id === courseId);
     let isRealCourse = !!course;
     
@@ -10577,7 +10577,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // Close certificate viewer
-        function closeCertificateViewer() {
+        window.closeCertificateViewer = function closeCertificateViewer() {
             document.getElementById('certificateViewerModal').classList.add('hidden');
             document.getElementById('certificateViewerModal').classList.remove('show');
         }
@@ -11004,7 +11004,7 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         });
 
-        function showViewAssignmentModal(assignmentId) {
+        window.showViewAssignmentModal = function showViewAssignmentModal(assignmentId) {
             const assignment = allAssignmentsData.find(a => String(a.id) === String(assignmentId));
             if (!assignment) return;
 
@@ -11202,7 +11202,7 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById('viewAssignmentModal').classList.add('show');
         }
 
-        function hideViewAssignmentModal() {
+        window.hideViewAssignmentModal = function hideViewAssignmentModal() {
             document.getElementById('viewAssignmentModal').classList.add('hidden');
             document.getElementById('viewAssignmentModal').classList.remove('show');
         }
@@ -11260,7 +11260,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // Function to view assignment documents
-        function viewAssignmentDocument(fileUrl, fileName, fileType) {
+        window.viewAssignmentDocument = function viewAssignmentDocument(fileUrl, fileName, fileType) {
             const modal = document.createElement('div');
             modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-[9999] flex items-center justify-center p-4';
             
