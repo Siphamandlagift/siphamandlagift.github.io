@@ -3374,14 +3374,14 @@ body[class*="theme-"]:not(.theme-white) select {
                         </div>
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
+                                <thead class="bg-gray-50/80 border-b border-gray-100">
                                     <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Icon</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Badge Name</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours Required</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Students Earned</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-widest">Icon</th>
+                                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-widest pl-6">Badge Info</th>
+                                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-widest hidden sm:table-cell">Requirement</th>
+                                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-widest hidden lg:table-cell">Description</th>
+                                        <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-widest hidden md:table-cell">Earned</th>
+                                        <th class="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-widest">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200" id="createdBadgesTableBody">
@@ -3443,14 +3443,13 @@ body[class*="theme-"]:not(.theme-white) select {
                         </div>
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
+                                <thead class="bg-gray-50/80 border-b border-gray-100">
                                     <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Icon</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Badge Name</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours Required</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created By</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Times Earned</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-widest">Icon</th>
+                                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-widest pl-6">Badge Info</th>
+                                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-widest hidden sm:table-cell">Requirement</th>
+                                        <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-widest hidden md:table-cell">Earned</th>
+                                        <th class="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-widest">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200" id="allBadgesTableBody">
@@ -7781,19 +7780,25 @@ const students = allUsersData.filter(user => user.role === 'student');
             // Get badge details for each earned badge
             studentBadgesEarned.forEach(earnedBadge => {
                 const badgeData = allBadgesData.find(b => b.id === earnedBadge.badgeId);
-                
+
                 if (badgeData) {
                     const badgeElement = document.createElement('div');
-                    badgeElement.className = 'flex flex-col items-center p-4 rounded-lg border-2 border-yellow-400 bg-yellow-50 hover:shadow-lg transition';
-                    
+                    badgeElement.className = 'group flex flex-col items-center justify-center p-6 rounded-2xl border border-blue-100 bg-white hover:bg-gradient-to-br hover:from-white hover:to-indigo-50/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_-4px_rgba(14,165,233,0.15)] transition-all duration-300 transform hover:-translate-y-1 relative overflow-hidden';
+
                     const earnedDate = new Date(earnedBadge.earnedDate);
                     const dateFormatted = earnedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-                    
+
                     badgeElement.innerHTML = `
-                        <div class="text-5xl mb-2">${badgeData.icon}</div>
-                        <h4 class="font-semibold text-gray-800 text-center text-sm">${badgeData.name}</h4>
-                        <p class="text-xs text-gray-600 text-center mt-1">${badgeData.description}</p>
-                        <p class="text-xs text-gray-500 mt-2">Earned on ${dateFormatted}</p>
+                        <div class="absolute inset-0 bg-blue-50/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div class="relative z-10 w-full flex flex-col items-center">
+                            <div class="inline-flex items-center justify-center w-20 h-20 mb-4 rounded-3xl bg-gradient-to-br from-indigo-50 to-blue-50/50 shadow-sm border border-white/50 transform group-hover:scale-110 group-hover:-rotate-3 group-hover:shadow-md transition-all duration-300 text-5xl drop-shadow-sm">${badgeData.icon}</div>
+                            <h4 class="font-bold text-gray-800 text-center text-sm mb-1 bg-clip-text text-transparent bg-gradient-to-r from-gray-800 to-indigo-900 line-clamp-1 w-full px-1">${badgeData.name}</h4>
+                            <p class="text-[11px] text-gray-500 text-center mb-3 line-clamp-2 w-full px-2">${badgeData.description}</p>
+                            <div class="inline-flex items-center justify-center space-x-1 mt-auto bg-gradient-to-r from-emerald-50 to-green-50 text-emerald-600 text-[10px] font-bold tracking-wide uppercase px-2.5 py-1 rounded-full border border-emerald-100/50 group-hover:border-emerald-200 transition-colors">
+                                <i class="fas fa-check-circle opacity-70"></i>
+                                <span>${dateFormatted}</span>
+                            </div>
+                        </div>
                     `;
                     badgesEarnedList.appendChild(badgeElement);
                 }
@@ -10711,12 +10716,16 @@ document.addEventListener("DOMContentLoaded", () => {
             container.innerHTML = '';
             badges.forEach(badge => {
                 const badgeHtml = `
-                    <div class="bg-white rounded-lg shadow p-6 text-center hover:shadow-lg transition cursor-pointer" onclick="showBadgeDetails('${badge.id}', '${badge.name}', '${badge.description}', '${badge.icon}', '${badge.hoursRequired}', '${badge.earnedDate}')">
-                        <div class="text-6xl mb-3">${badge.icon}</div>
-                        <h3 class="text-lg font-semibold text-gray-800 mb-2">${badge.name}</h3>
-                        <p class="text-sm text-gray-600 mb-3">${badge.description}</p>
-                        <div class="text-xs text-gray-500 bg-green-50 p-2 rounded">
-                            Earned: ${badge.earnedDate}
+                    <div class="relative group bg-white rounded-2xl p-6 text-center shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_-4px_rgba(14,165,233,0.15)] transition-all duration-300 cursor-pointer overflow-hidden border border-gray-100 hover:border-blue-200 transform hover:-translate-y-1" onclick="showBadgeDetails('${badge.id}', '${badge.name}', '${badge.description}', '${badge.icon}', '${badge.hoursRequired}', '${badge.earnedDate}')">
+                        <div class="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-full opacity-50 group-hover:scale-150 transition-transform duration-500 ease-in-out z-0"></div>
+                        <div class="relative z-10">
+                            <div class="text-6xl mb-4 transform group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 drop-shadow-sm">${badge.icon}</div>
+                            <h3 class="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-800 to-gray-600 mb-2">${badge.name}</h3>
+                            <p class="text-sm text-gray-500 mb-4 line-clamp-2">${badge.description}</p>
+                            <div class="inline-flex items-center justify-center space-x-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 text-indigo-600 text-xs font-semibold px-3 py-1.5 rounded-full border border-blue-100/50 group-hover:border-blue-200 transition-colors">
+                                <i class="fas fa-calendar-check opacity-70"></i>
+                                <span>Earned ${badge.earnedDate}</span>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -10758,15 +10767,39 @@ document.addEventListener("DOMContentLoaded", () => {
 
             myBadges.forEach(badge => {
                 const row = `
-                    <tr>
-                        <td class="px-6 py-4 whitespace-nowrap text-center text-2xl">${badge.icon}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${badge.name}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${badge.hoursRequired} hours</td>
-                        <td class="px-6 py-4 text-sm text-gray-700">${badge.description.substring(0, 50)}...</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${badge.timesEarned}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button onclick="editBadge('${badge.id}')" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</button>
-                            <button onclick="deleteBadge('${badge.id}')" class="text-red-600 hover:text-red-900">Delete</button>
+                    <tr class="hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent transition-all duration-300 group border-b border-gray-100/70 last:border-0 hover:shadow-sm relative">
+                        <td class="px-6 py-5 whitespace-nowrap text-center">
+                            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-gray-50 to-white border border-gray-100 shadow-sm group-hover:scale-110 group-hover:shadow-md transition-all duration-300 transform group-hover:-rotate-3 text-4xl">${badge.icon}</div>
+                        </td>
+                        <td class="px-6 py-5 whitespace-nowrap">
+                            <div class="flex flex-col">
+                                <span class="text-sm font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-indigo-800 tracking-tight">${badge.name}</span>
+                                <span class="text-xs text-indigo-500/80 font-medium tracking-wide uppercase mt-0.5">ID: ${badge.id.substr(0,8)}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-5 whitespace-nowrap hidden sm:table-cell">
+                            <div class="inline-flex items-center space-x-1.5 bg-blue-50/80 px-3 py-1.5 text-xs text-blue-700 font-semibold rounded-lg border border-blue-100 group-hover:bg-blue-100 transition-colors">
+                                <i class="fas fa-clock opacity-60"></i>
+                                <span>${badge.hoursRequired} Hours</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-5 hidden lg:table-cell">
+                            <p class="text-sm text-gray-500 leading-relaxed line-clamp-2 max-w-xs transition-colors group-hover:text-gray-700">${badge.description.substring(0, 60)}${badge.description.length > 60 ? '...' : ''}</p>
+                        </td>
+                        <td class="px-6 py-5 whitespace-nowrap text-center hidden md:table-cell">
+                            <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 font-bold text-sm ring-1 ring-emerald-200 group-hover:bg-emerald-100 transition-colors shadow-sm">
+                                ${badge.timesEarned}
+                            </span>
+                        </td>
+                        <td class="px-6 py-5 whitespace-nowrap text-right sticky right-0 bg-white group-hover:bg-blue-50/10 transition-colors">
+                            <div class="flex items-center justify-end space-x-2 opacity-100">
+                                <button onclick="editBadge('${badge.id}')" class="p-2 rounded-lg text-indigo-600 hover:bg-indigo-50 hover:text-indigo-900 transition-all duration-200 hover:scale-105 tooltip" title="Edit Badge">
+                                    <i class="fas fa-edit relative group-hover:animate-pulse"></i>
+                                </button>
+                                <button onclick="deleteBadge('${badge.id}')" class="p-2 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-all duration-200 hover:scale-105 tooltip" title="Delete Badge">
+                                    <i class="fas fa-trash-alt relative"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>
                 `;
@@ -10792,14 +10825,32 @@ document.addEventListener("DOMContentLoaded", () => {
                 const creator = allUsersData.find(u => u.id === badge.creatorId);
                 const creatorName = creator ? creator.name : 'Unknown';
                 const row = `
-                    <tr>
-                        <td class="px-6 py-4 whitespace-nowrap text-center text-2xl">${badge.icon}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${badge.name}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${badge.hoursRequired} hours</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${creatorName}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${badge.timesEarned}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button onclick="viewBadgeDetails('${badge.id}')" class="text-indigo-600 hover:text-indigo-900">View</button>
+                    <tr class="hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent transition-all duration-300 group border-b border-gray-100/70 last:border-0 hover:shadow-sm relative">
+                        <td class="px-6 py-5 whitespace-nowrap text-center">
+                            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-gray-50 to-white border border-gray-100 shadow-sm group-hover:scale-110 group-hover:shadow-md transition-all duration-300 transform group-hover:-rotate-3 text-4xl">${badge.icon}</div>
+                        </td>
+                        <td class="px-6 py-5 whitespace-nowrap">
+                            <div class="flex flex-col">
+                                <span class="text-sm font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-indigo-800 tracking-tight">${badge.name}</span>
+                                <span class="text-xs text-blue-500/80 font-medium tracking-wide mt-0.5"><i class="fas fa-user-circle mr-1"></i>${creatorName}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-5 whitespace-nowrap hidden sm:table-cell">
+                            <div class="inline-flex items-center space-x-1.5 bg-blue-50/80 px-3 py-1.5 text-xs text-blue-700 font-semibold rounded-lg border border-blue-100 group-hover:bg-blue-100 transition-colors">
+                                <i class="fas fa-clock opacity-60"></i>
+                                <span>${badge.hoursRequired} Hours</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-5 whitespace-nowrap text-center hidden md:table-cell">
+                            <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 font-bold text-sm ring-1 ring-emerald-200 group-hover:bg-emerald-100 transition-colors shadow-sm" title="Times Earned">
+                                ${badge.timesEarned}
+                            </span>
+                        </td>
+                        <td class="px-6 py-5 whitespace-nowrap text-right sticky right-0 bg-white group-hover:bg-blue-50/10 transition-colors">
+                            <button onclick="viewBadgeDetails('${badge.id}')" class="inline-flex items-center justify-center space-x-1.5 px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg font-medium text-sm transition-all duration-300 shadow-sm hover:shadow-md transform hover:-translate-y-0.5">
+                                <span>View</span>
+                                <i class="fas fa-arrow-right text-[10px]"></i>
+                            </button>
                         </td>
                     </tr>
                 `;
