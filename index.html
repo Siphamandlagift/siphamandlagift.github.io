@@ -6192,6 +6192,7 @@ let allUsersData = [];
             } else {
                 const newCourse = {
                     id: Date.now(),
+                    creatorId: loggedInUser.id,
                     name: courseName,
                     description: courseDescription,
                     videos: [...currentCourseVideos],
@@ -8407,7 +8408,7 @@ const students = allUsersData.filter(user => user.role === 'student');
         // Populate course dropdown for assignment
         
 // Function to switch programme sub-tabs
-function switchProgrammeSubTab(tab, event) {
+window.switchProgrammeSubTab = function switchProgrammeSubTab(tab, event) {
     if(event) event.preventDefault();
     
     document.getElementById('prog-sub-existing').classList.add('hidden');
@@ -8731,8 +8732,8 @@ function populateAssignmentCourseSelect() {
             const submitAssignmentBtn = document.getElementById('submitAssignmentBtn');
             if (submitAssignmentBtn) {
                 submitAssignmentBtn.addEventListener('click', function() {
-                    const assignmentId = parseInt(this.dataset.assignmentId, 10);
-                    const assignment = allAssignmentsData.find(a => a.id === assignmentId);
+                    const assignmentId = this.dataset.assignmentId;
+                    const assignment = allAssignmentsData.find(a => String(a.id) === String(assignmentId));
                     if (assignment) {
                         if (assignment.type === 'mark-as-read') {
                             // Mark as Read confirmation
@@ -8773,8 +8774,8 @@ function populateAssignmentCourseSelect() {
             const gradeAssignmentBtn = document.getElementById('gradeAssignmentBtn');
             if (gradeAssignmentBtn) {
                 gradeAssignmentBtn.addEventListener('click', function() {
-                    const assignmentId = parseInt(this.dataset.assignmentId, 10);
-                    const assignment = allAssignmentsData.find(a => a.id === assignmentId);
+                    const assignmentId = this.dataset.assignmentId;
+                    const assignment = allAssignmentsData.find(a => String(a.id) === String(assignmentId));
                     if (assignment) {
                         const score = parseFloat(document.getElementById('assignmentScoreInput').value);
                         const status = document.getElementById('assignmentGradeStatus').value;
@@ -9617,7 +9618,7 @@ function viewStudentCourse(courseId, courseName) {
                     totalMarks: template.totalMarks || 100,
                     questions: template.questions || [],
                     assignedStudentId: loggedInUser.id,
-                    creatorId: course.creatorId || loggedInUser.id,
+                    creatorId: course.creatorId || (allUsersData.find(u => u.role === 'training_manager') ? allUsersData.find(u => u.role === 'training_manager').id : loggedInUser.id),
                     status: (template.type === 'mark-as-read') ? 'Pending Read' : 'Assigned',
                     submissionDate: null,
                     score: null,
@@ -9821,7 +9822,7 @@ function loadAssignmentView(assignmentId, courseId) {
     updateSidebarActiveItem('sidebar-ast-' + assignmentId);
     switchCourseMainView('assignmentMainContent');
 
-    const assignment = allAssignmentsData.find(a => a.id === assignmentId);
+    const assignment = allAssignmentsData.find(a => String(a.id) === String(assignmentId));
     if (!assignment) return;
 
     document.getElementById('assignmentTitleViewer').textContent = assignment.title;
@@ -10155,7 +10156,7 @@ function loadCourseAssignments(courseId) {
                         totalMarks: template.totalMarks || 100,
                         questions: template.questions || [],
                         assignedStudentId: loggedInUser.id,
-                        creatorId: course.creatorId || loggedInUser.id,
+                        creatorId: course.creatorId || (allUsersData.find(u => u.role === 'training_manager') ? allUsersData.find(u => u.role === 'training_manager').id : loggedInUser.id),
                         status: (template.type === 'mark-as-read') ? 'Pending Read' : 'Assigned',
                         submissionDate: null,
                         markedAsRead: false,
@@ -11004,7 +11005,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         function showViewAssignmentModal(assignmentId) {
-            const assignment = allAssignmentsData.find(a => a.id === assignmentId);
+            const assignment = allAssignmentsData.find(a => String(a.id) === String(assignmentId));
             if (!assignment) return;
 
             document.getElementById('viewAssignmentTitle').textContent = assignment.title;
@@ -11014,7 +11015,7 @@ document.addEventListener("DOMContentLoaded", () => {
             
             // Determine if the current user is a student or TM
             const isStudent = loggedInUser && loggedInUser.role === 'student' && assignment.assignedStudentId === loggedInUser.id;
-            const isTrainingManager = loggedInUser && loggedInUser.role === 'training-manager';
+            const isTrainingManager = loggedInUser && (loggedInUser.role === 'training-manager' || loggedInUser.role === 'training_manager');
             
             // Show/hide sections based on role
             const studentSection = document.getElementById('studentSubmissionSection');
