@@ -7706,6 +7706,11 @@ const students = allUsersData.filter(user => user.role === 'student');
                     read: true
                 }
             ];
+            // Ensure they are fully sorted
+            notifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            // User requested ONLY the latest notification
+            const notificationsToShow = notifications.slice(0, 1);
+
 
             if (notifications.length === 0) {
                 notificationsList.innerHTML = '<p class="text-gray-500 text-sm">No notifications to display.</p>';
@@ -7726,7 +7731,7 @@ const students = allUsersData.filter(user => user.role === 'student');
                 }
             }
             
-            notifications.forEach(notification => {
+            notificationsToShow.forEach(notification => {
                 const notificationElement = document.createElement('div');
                 notificationElement.className = `p-4 rounded-lg border-l-4 ${getNotificationStyles(notification.type)} ${notification.read ? 'bg-gray-50' : 'bg-white'}`;
                 
