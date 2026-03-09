@@ -8112,6 +8112,28 @@ ${messageBody}`;
                 inboxList.insertBefore(inboxItem, inboxList.firstChild);
             }
 
+            // Also add the sent message to the Top Envelope Dropdown
+            const dropdownList = document.getElementById('dropdownMessagesList');
+            if (dropdownList) {
+                const dropItem = document.createElement('a');
+                dropItem.href = '#';
+                dropItem.className = 'block px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition opacity-70'; // opacity-70 because it's already "read/sent"
+                const safeSubj = subject.replace(/['"]/g, "\\'");
+                const safeBody = ('Subject: ' + subject + '\n\n' + messageBody).replace(/['"]/g, "\\'").replace(/\n/g, "\\n");
+                
+                const previewText = messageBody.replace(/\n/g, ' ');
+
+                dropItem.setAttribute('onclick', `readDropdownMessage(this); showMessageModal('Message Sent to ${recipientName}', '${safeBody}')`);
+                dropItem.innerHTML = `
+                    <div class="flex justify-between items-center mb-1">
+                        <p class="text-sm font-semibold text-gray-800">You (To: ${recipientName})</p>
+                    </div>
+                    <p class="text-xs font-medium text-gray-700 truncate">${subject}</p>
+                    <p class="text-xs text-gray-500 truncate">${previewText.substring(0, 40)}${previewText.length > 40 ? '...' : ''}</p>
+                `;
+                dropdownList.insertBefore(dropItem, dropdownList.firstChild);
+            }
+
             // Clear the form after successful submission
             composeEmailForm.reset();
 
@@ -11676,9 +11698,12 @@ document.addEventListener("DOMContentLoaded", () => {
             });
 
             // Make sure the title and body are safe for using in HTML strings/onclick
-            const safeSubject = subject.replace(/['"]/g, "&apos;");
+            const safeSubject = subject.replace(/['"]/g, "\\'");
             const fullBody = 'Subject: ' + subject + '\n\n' + bodyText;
-            const safeContent = fullBody.replace(/['"]/g, "&apos;").replace(/\n/g, "\\n");
+            const safeContent = fullBody.replace(/['"]/g, "\\'").replace(/\n/g, "\\n");
+
+            // Strip newlines for the tiny truncated preview in the dropdown
+            const previewText = bodyText.replace(/\n/g, ' ');
 
             // 2. Prepend to Dropdown Menu List
             const dropdownList = document.getElementById('dropdownMessagesList');
@@ -11693,7 +11718,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         <span class="w-2 h-2 bg-indigo-600 rounded-full inline-block"></span>
                     </div>
                     <p class="text-xs font-medium text-gray-700 truncate">${subject}</p>
-                    <p class="text-xs text-gray-500 truncate">${bodyText.substring(0, 40)}${bodyText.length > 40 ? '...' : ''}</p>
+                    <p class="text-xs text-gray-500 truncate">${previewText.substring(0, 40)}${previewText.length > 40 ? '...' : ''}</p>
                 `;
                 dropdownList.insertBefore(dropItem, dropdownList.firstChild);
             }
