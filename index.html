@@ -7711,6 +7711,11 @@ const students = allUsersData.filter(user => user.role === 'student');
             // User requested ONLY the latest notification
             const notificationsToShow = notifications.slice(0, 1);
 
+            // Ensure they are fully sorted
+            notifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            // User requested ONLY the latest notification
+            const notificationsToShow = notifications.slice(0, 1);
+
 
             if (notifications.length === 0) {
                 notificationsList.innerHTML = '<p class="text-gray-500 text-sm">No notifications to display.</p>';
@@ -10033,9 +10038,7 @@ function loadCourseAssignments(courseId) {
                                         <button onclick="viewAssignmentDocument('${doc.fileUrl}', '${doc.fileName}', '${doc.fileType}')" class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1">
                                             <i class="fas fa-eye mr-1"></i>View
                                         </button>
-                                        <a href="${doc.fileUrl}" download="${doc.fileName}" class="text-green-600 hover:text-green-800 text-xs px-2 py-1">
-                                            <i class="fas fa-download"></i>
-                                        </a>
+                                        ${(typeof loggedInUser !== "undefined" && loggedInUser && loggedInUser.role === "training-manager") ? `<a href="${doc.fileUrl}" download="${doc.fileName}" class="text-green-600 hover:text-green-800 text-xs px-2 py-1"><i class="fas fa-download"></i></a>` : ""}
                                     </div>
                                 `;
                             }).join('')}
@@ -10082,12 +10085,15 @@ function viewDocument(courseId, docId) {
                     </div>
                     <h3 class="text-xl font-semibold text-gray-800 mb-2">${doc.title}</h3>
                     <p class="text-gray-600 mb-6">${doc.description}</p>
-                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                        <p class="text-sm text-blue-800">
-                            <i class="fas fa-info-circle mr-2"></i>
-                            This is a simulated document viewer. In a production environment, this would display the actual ${doc.type.toUpperCase()} file content.
-                        </p>
-                    </div>
+                    ${(doc.fileUrl && (doc.type.toUpperCase() === 'PDF')) ? 
+                        `<iframe src="${doc.fileUrl}#toolbar=0" class="w-full h-[500px] border border-gray-300 rounded-lg mb-6" oncontextmenu="return false;"></iframe>` : 
+                        `<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                            <p class="text-sm text-blue-800">
+                                <i class="fas fa-info-circle mr-2"></i>
+                                ${(doc.fileUrl && doc.type.toUpperCase() !== 'PDF') ? 'Document attached but cannot be previewed natively in the browser without downloading.' : 'This is a simulated document viewer. In a production environment, this would display the actual ' + doc.type.toUpperCase() + ' file content.'}
+                            </p>
+                        </div>`
+                    }
                     <div class="space-y-3 text-gray-600 text-sm">
                         <p><strong>File Name:</strong> ${doc.fileName}</p>
                         <p><strong>Type:</strong> ${doc.type === 'ppt' ? 'PowerPoint Presentation' : 'PDF Document'}</p>
@@ -10883,9 +10889,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             <button onclick="viewAssignmentDocument('${file.fileUrl}', '${file.fileName}', '${file.fileType}')" class="text-blue-600 hover:text-blue-800 text-xs px-2">
                                 <i class="fas fa-eye mr-1"></i>View
                             </button>
-                            <a href="${file.fileUrl}" download="${file.fileName}" class="text-green-600 hover:text-green-800 text-xs px-2">
-                                <i class="fas fa-download"></i>
-                            </a>
+                            ${(typeof loggedInUser !== "undefined" && loggedInUser && loggedInUser.role === "training-manager") ? `<a href="${file.fileUrl}" download="${file.fileName}" class="text-green-600 hover:text-green-800 text-xs px-2"><i class="fas fa-download"></i></a>` : ""}
                         `;
                         tmExistingFiles.appendChild(fileDiv);
                     });
@@ -10918,9 +10922,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         <button onclick="viewAssignmentDocument('${doc.fileUrl}', '${doc.fileName}', '${doc.fileType}')" class="text-blue-600 hover:text-blue-800 px-3 py-1 text-sm">
                             <i class="fas fa-eye mr-1"></i>View
                         </button>
-                        <a href="${doc.fileUrl}" download="${doc.fileName}" class="text-green-600 hover:text-green-800 px-3 py-1 text-sm">
-                            <i class="fas fa-download"></i>
-                        </a>
+                        ${(typeof loggedInUser !== "undefined" && loggedInUser && loggedInUser.role === "training-manager") ? `<a href="${doc.fileUrl}" download="${doc.fileName}" class="text-green-600 hover:text-green-800 px-3 py-1 text-sm"><i class="fas fa-download"></i></a>` : ""}
                     `;
                     documentsList.appendChild(docDiv);
                 });
@@ -11080,12 +11082,15 @@ document.addEventListener("DOMContentLoaded", () => {
                         <div class="bg-gradient-to-br from-${color}-50 to-gray-50 rounded-lg p-12 text-center border-2 border-${color}-200">
                             <i class="fas ${icon} text-8xl text-${color}-500 mb-6"></i>
                             <h3 class="text-xl font-semibold text-gray-800 mb-4">${fileName}</h3>
-                            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 max-w-2xl mx-auto">
-                                <p class="text-sm text-blue-800">
-                                    <i class="fas fa-info-circle mr-2"></i>
-                                    This is a simulated document viewer. In a production environment, this would display the actual ${typeLabel.toLowerCase()} content using an embedded viewer.
-                                </p>
-                            </div>
+                            ${(fileUrl && fileType === 'PDF') ? 
+                                `<iframe src="${fileUrl}#toolbar=0" class="w-full h-[500px] border border-gray-300 rounded-lg mb-6" oncontextmenu="return false;"></iframe>` : 
+                                `<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 max-w-2xl mx-auto">
+                                    <p class="text-sm text-blue-800">
+                                        <i class="fas fa-info-circle mr-2"></i>
+                                        ${(fileUrl && fileType !== 'PDF') ? 'Document attached but cannot be previewed natively in the browser without downloading.' : 'This is a simulated document viewer. In a production environment, this would display the actual ' + typeLabel.toLowerCase() + ' content using an embedded viewer.'}
+                                    </p>
+                                </div>`
+                            }
                             <div class="text-sm text-gray-600 space-y-2">
                                 <p><i class="fas fa-file mr-2 text-${color}-600"></i><strong>File Type:</strong> ${typeLabel}</p>
                                 <p><i class="fas fa-link mr-2 text-${color}-600"></i><strong>Status:</strong> Ready to view</p>
@@ -11097,9 +11102,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             <i class="fas ${icon} text-${color}-500 mr-2"></i>${typeLabel}
                         </div>
                         <div class="flex space-x-3">
-                            <a href="${fileUrl}" download="${fileName}" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition">
-                                <i class="fas fa-download mr-2"></i>Download
-                            </a>
+                            ${(typeof loggedInUser !== "undefined" && loggedInUser && loggedInUser.role === "training-manager") ? `<a href="${fileUrl}" download="${fileName}" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition"><i class="fas fa-download mr-2"></i>Download</a>` : ""}
                             <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 transition">
                                 Close
                             </button>
