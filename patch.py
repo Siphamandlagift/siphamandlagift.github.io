@@ -21,16 +21,16 @@ funcs = \"\"\"
             
             // Switch to create tab
             if (typeof switchMyCourseTab === 'function') switchMyCourseTab('create');
-            showSection('my-coursesContent');
+            if (typeof showSection === 'function') showSection('my-coursesContent');
             
-            const submitBtn = document.querySelector('#createCourseForm button[type="submit"]');
-            if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-save mr-2"></i>Update Course';
+            const submitBtn = document.querySelector('#createCourseForm button[type=\"submit\"]');
+            if (submitBtn) submitBtn.innerHTML = '<i class=\"fas fa-save mr-2\"></i>Update Course';
             
             document.getElementById('courseNameInput').value = course.name || '';
             document.getElementById('courseDescriptionInput').value = course.description || '';
             
             const picturePreview = document.getElementById('coursePicturePreview');
-            if (picturePreview) picturePreview.src = course.picture || "https://placehold.co/400x200/e2e8f0/64748b?text=Course+Image";
+            if (picturePreview) picturePreview.src = course.picture || \"https://placehold.co/400x200/e2e8f0/64748b?text=Course+Image\";
             
             const deadlineInput = document.getElementById('courseCompletionDeadlineInput');
             if (deadlineInput) deadlineInput.value = course.completionDeadline || '';
@@ -54,7 +54,7 @@ funcs = \"\"\"
                 event.stopPropagation();
                 event.preventDefault();
             }
-            if (confirm('Are you sure you want to delete this course? This action cannot be undone.')) {
+            if (confirm('Are you sure you want to delete this course?')) {
                 const index = allCoursesData.findIndex(c => c.id === courseId);
                 if (index > -1) {
                     allCoursesData.splice(index, 1);
@@ -76,8 +76,23 @@ funcs = \"\"\"
 if 'function deleteCourse' not in text:
     text = text.replace('// Function to get default courses', funcs + '\n        // Function to get default courses')
 
-# 3. Modify createCourseForm submit listener
-new_submit_logic = \"\"\"            if (editingCourseId) {
+# 3. Patch the 'Edit' and 'Delete' anchors in renderTrainingManagerCoursesTable
+old_action_cell = '''<td class=\"px-6 py-4 whitespace-nowrap text-sm font-medium\">
+                            <a href=\"#\" class=\"text-indigo-600 hover:text-indigo-900 mr-3\">Edit</a>
+                            <a href=\"#\" class=\"text-red-600 hover:text-red-900\">Delete</a>
+                        </td>'''
+new_action_cell = '''<td class=\"px-6 py-4 whitespace-nowrap text-sm font-medium\">
+                            <a href=\"#\" onclick=\"editCourse(, event)\" class=\"text-indigo-600 hover:text-indigo-900 mr-3\">Edit</a>
+                            <a href=\"#\" onclick=\"deleteCourse(, event)\" class=\"text-red-600 hover:text-red-900\">Delete</a>
+                        </td>'''
+if old_action_cell in text:
+    # replace all occurences
+    text = text.replace(old_action_cell, new_action_cell)
+
+# 4. Modify form submit block (we match regex block for newCourse)
+block_regex = re.compile(r'const newCourse = \{[\s\S]*?resetCourseForm\(\);\s*\}\);', re.MULTILINE)
+
+new_form_logic = \"\"\"if (editingCourseId) {
                 const courseIndex = allCoursesData.findIndex(c => c.id === editingCourseId);
                 if (courseIndex !== -1) {
                     allCoursesData[courseIndex] = {
@@ -92,76 +107,61 @@ new_submit_logic = \"\"\"            if (editingCourseId) {
                         completionDeadline: completionDeadline || null
                     };
                     
-                    // Add new document if a new one is uploaded
                     if (documentsArray.length > 0) {
                          if (!allCoursesData[courseIndex].documents) allCoursesData[courseIndex].documents = [];
-                         allCoursesData[courseIndex].documents = allCoursesData[courseIndex].documents.filter(d => !d.isRequired); // optional logic
-                         allCoursesData[courseIndex].documents.push(documentsArray[0]);
+                         let newDocs = allCoursesData[courseIndex].documents.filter(d => !d.isRequired);
+                         newDocs.push(documentsArray[0]);
+                         allCoursesData[courseIndex].documents = newDocs;
                     }
                     
                     saveToLocalStorage();
-                    showMessageModal('Course Updated', Course "" has been successfully updated.);
+                    showMessageModal('Course Updated', Course \"\\" has been successfully updated.);
                 }
-                editingCourseId = null; // reset
-                const submitBtn = document.querySelector('#createCourseForm button[type="submit"]');
-                if (submitBtn) submitBtn.innerHTML = '<i class="fas fa-plus-circle mr-2"></i>Create Course';
+                editingCourseId = null;
+                const submitBtn = document.querySelector('#createCourseForm button[type=\"submit\"]');
+                if (submitBtn) submitBtn.innerHTML = '<i class=\"fas fa-plus-circle mr-2\"></i>Create Course';
+                
             } else {
                 const newCourse = {
                     id: Date.now(),
                     name: courseName,
                     description: courseDescription,
-                    videos: [...currentCourseVideos], // Save videos array
+                    videos: [...currentCourseVideos],
                     pdfFileName: currentCoursePdfFileName,
                     picture: coursePicture,
                     questions: [...currentCourseQuestions],
-                    assignments: [...currentCourseAssignments], // Save assignments array
-                    documents: documentsArray, // Add uploaded document to documents array
+                    assignments: [...currentCourseAssignments],
+                    documents: documentsArray,
                     readStatus: false,
-                    creatorId: loggedInUser.id, // Assign creator ID
-                    completionDeadline: completionDeadline || null // Save deadline if provided
+                    creatorId: loggedInUser.id,
+                    completionDeadline: completionDeadline || null
                 };
                 allCoursesData.push(newCourse);
-                saveToLocalStorage(); // Save to localStorage
+                saveToLocalStorage(); 
                 
-                const questionText = currentCourseQuestions.length > 0 ? \\ question(s)\ : 'no questions';
-                const assignmentText = currentCourseAssignments.length > 0 ? \, \ assignment(s)\ : '';
-                const videoText = currentCourseVideos.length > 0 ? \\ video(s)\ : 'no videos';
+                const videoText = currentCourseVideos.length > 0 ? \ video(s) : 'no videos';
+                const questionText = currentCourseQuestions.length > 0 ? \ question(s) : 'no questions';
+                const assignmentText = currentCourseAssignments.length > 0 ? , \ assignment(s) : '';
                 
-                showMessageModal('Course Created Successfully! 🎉', 
-                    \Course "\" has been created with \, \\. You can assign students to this course anytime from the assignment section.\
+                showMessageModal('Course Created Successfully!', 
+                    Course \"\\" has been created.
                 );
-            }\"\"\"
+            }
 
-# Replace logic around allCoursesData.push
-old_push_logic = \"\"\"            const newCourse = {
-                id: Date.now(),
-                name: courseName,
-                description: courseDescription,
-                videos: [...currentCourseVideos], // Save videos array
-                pdfFileName: currentCoursePdfFileName,
-                picture: coursePicture,
-                questions: [...currentCourseQuestions],
-                assignments: [...currentCourseAssignments], // Save assignments array
-                documents: documentsArray, // Add uploaded document to documents array
-                readStatus: false,
-                creatorId: loggedInUser.id, // Assign creator ID
-                completionDeadline: completionDeadline || null // Save deadline if provided
-            };
-            allCoursesData.push(newCourse);
-            saveToLocalStorage(); // Save to localStorage\"\"\"
-
-if old_push_logic in text and 'if (editingCourseId)' not in text:
-    old_msg = \"\"\"            const videoText = currentCourseVideos.length > 0 ? ${currentCourseVideos.length} video(s) : 'no videos';
-            const questionText = currentCourseQuestions.length > 0 ? ${currentCourseQuestions.length} question(s) : 'no questions';
-            const assignmentText = currentCourseAssignments.length > 0 ? ,  assignment(s) : '';
+            if (typeof renderTrainingManagerCoursesTable === 'function') renderTrainingManagerCoursesTable();
+            if (typeof renderAllExistingCoursesTable === 'function') renderAllExistingCoursesTable();
+            if (typeof populateLinkedCoursesSelection === 'function') populateLinkedCoursesSelection();
+            if (typeof populateReportCourseSelect === 'function') populateReportCourseSelect();
+            if (typeof renderCoursesForAssignmentTable === 'function') renderCoursesForAssignmentTable();
+            if (typeof updateDashboardStats === 'function') updateDashboardStats();
             
-            showMessageModal('Course Created Successfully! 🎉', 
-                Course "" has been created with , . You can assign students to this course anytime from the assignment section.
-            );\"\"\"
-    # Because of emojis and interpolations, just do a raw regex replacement for the whole block down to showMessageModal
-    
-    # We will replace from const newCourse = { up to esetCourseForm();
-    pass # Wait, let me craft a safer sub
+            resetCourseForm();
+        });\"\"\"
 
-with open('patched.py', 'w', encoding='utf-8') as f:
-    f.write('print("Test")')
+if 'if (editingCourseId)' not in text:
+    text = block_regex.sub(new_form_logic, text)
+
+with open('c:/Users/sipha/OneDrive/Documentos/GitHub/siphamandlagift.github.io/index.html', 'w', encoding='utf-8') as f:
+    f.write(text)
+
+print('Patch applied successfully')
