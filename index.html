@@ -1318,7 +1318,7 @@ body[class*="theme-"]:not(.theme-white) select {
                 <a href="#" class="sidebar-item" data-section="messages">
                     <i class="las la-envelope mr-3"></i>
                     <span class="sidebar-text">Messages</span>
-                    <span class="notification-badge bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">2</span>
+                    <span class="notification-badge msg-badge-ui bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">2</span>
                 </a>
                 <a href="#" class="sidebar-item" data-section="notifications">
                     <i class="las la-bell mr-3"></i>
@@ -1382,18 +1382,18 @@ body[class*="theme-"]:not(.theme-white) select {
                         <div class="relative dropdown">
                             <button type="button" class="text-gray-600 hover:text-indigo-600 focus:outline-none relative transition" onclick="toggleDropdown(this)" title="Messages">
                                 <i class="las la-envelope text-xl"></i>
-                                <span class="notification-badge bg-blue-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">2</span>
+                                <span class="notification-badge msg-badge-ui bg-blue-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">2</span>
                             </button>
                             <div class="dropdown-menu hidden absolute right-0 mt-2 w-72 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
                                 <div class="px-4 py-2 border-b border-gray-200">
                                     <h3 class="text-sm font-semibold text-gray-800">Messages</h3>
                                 </div>
                                 <div class="max-h-60 overflow-y-auto">
-                                    <a href="#" class="block px-4 py-3 border-b border-gray-100 hover:bg-gray-50" onclick="showMessageModal('Message from Jane Manager', 'Assignment Submission Guidelines: Please make sure to review the new standards for submission.')">
+                                    <a href="#" class="block px-4 py-3 border-b border-gray-100 hover:bg-gray-50" onclick="readDropdownMessage(this); showMessageModal('Message from Jane Manager', 'Assignment Submission Guidelines: Please make sure to review the new standards for submission.')">
                                         <p class="text-sm font-semibold text-gray-800">Jane Manager</p>
                                         <p class="text-xs text-gray-600 truncate">Student Enrolment Submission Guidelines...</p>
                                     </a>
-                                    <a href="#" class="block px-4 py-3 hover:bg-gray-50" onclick="showMessageModal('Message from Admin User', 'System Maintenance Notice: The platform will go down for scheduled maintenance Sunday at 2 AM.')">
+                                    <a href="#" class="block px-4 py-3 hover:bg-gray-50" onclick="readDropdownMessage(this); showMessageModal('Message from Admin User', 'System Maintenance Notice: The platform will go down for scheduled maintenance Sunday at 2 AM.')">
                                         <p class="text-sm font-semibold text-gray-800">Admin User</p>
                                         <p class="text-xs text-gray-600 truncate">System Maintenance Notice</p>
                                     </a>
@@ -2946,7 +2946,7 @@ body[class*="theme-"]:not(.theme-white) select {
                     <div class="bg-white rounded-lg shadow p-6">
                         <h3 class="text-lg font-semibold text-gray-800 mb-4">Your Inbox</h3>
                         <div class="divide-y divide-gray-200" id="inboxMessagesList">
-                            <div class="p-4 hover:bg-gray-50 transition cursor-pointer border-l-4 border-indigo-600">
+                            <div class="p-4 hover:bg-gray-50 transition cursor-pointer border-l-4 border-indigo-600" onclick="readFullMessage(this)">
                                 <div class="flex justify-between items-start mb-2">
                                     <h4 class="font-semibold text-gray-800">Jane Manager</h4>
                                     <span class="text-xs text-gray-500">Jan 20, 2:30 PM</span>
@@ -2966,7 +2966,7 @@ body[class*="theme-"]:not(.theme-white) select {
                                 <span class="inline-block mt-2 px-2 py-1 text-xs bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20 rounded">Read</span>
                             </div>
                             
-                            <div class="p-4 hover:bg-gray-50 transition cursor-pointer border-l-4 border-indigo-600">
+                            <div class="p-4 hover:bg-gray-50 transition cursor-pointer border-l-4 border-indigo-600" onclick="readFullMessage(this)">
                                 <div class="flex justify-between items-start mb-2">
                                     <h4 class="font-semibold text-gray-800">Jane Manager</h4>
                                     <span class="text-xs text-gray-500">Jan 16, 3:45 PM</span>
@@ -11545,7 +11545,54 @@ document.addEventListener("DOMContentLoaded", () => {
                 overlay.classList.add('hidden');
             }, 300);
         }
-    </script>
+    
+        function readFullMessage(element) {
+            // Check if it's currently unread by looking for the span
+            const badge = Array.from(element.querySelectorAll('span')).find(s => s.textContent.trim() === 'Unread');
+            
+            if (badge) {
+                // Change to Read
+                badge.textContent = 'Read';
+                badge.className = 'inline-block mt-2 px-2 py-1 text-xs bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20 rounded';
+                
+                // Remove visual unread indicator (border)
+                element.classList.remove('border-l-4', 'border-indigo-600');
+                
+                decrementMessageBadges();
+            }
+            
+            // Show the modal
+            const author = element.querySelector('h4').textContent;
+            const title = element.querySelector('p.font-medium').textContent;
+            const bodyText = element.querySelectorAll('p.text-gray-600')[0].textContent;
+            showMessageModal(author, title + "\n\n" + bodyText);
+        }
+
+        function readDropdownMessage(element) {
+            if (!element.hasAttribute('data-read')) {
+                element.setAttribute('data-read', 'true');
+                element.classList.remove('bg-gray-50', 'bg-indigo-50'); // clear any unread styling if existed
+                element.style.opacity = '0.7'; // visually show it's read
+                decrementMessageBadges();
+            }
+        }
+
+        function decrementMessageBadges() {
+            const badges = document.querySelectorAll('.msg-badge-ui');
+            badges.forEach(b => {
+                let count = parseInt(b.textContent) || 0;
+                if(count > 0) {
+                    count--;
+                    if(count === 0) {
+                        b.style.display = 'none';
+                    } else {
+                        b.textContent = count;
+                    }
+                }
+            });
+        }
+
+</script>
 
 </body>
 </html>
