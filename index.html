@@ -10045,14 +10045,56 @@ function loadCourseDocuments(courseId) {
 // Function to load and display course assignments
 function loadCourseAssignments(courseId) {
     const container = document.getElementById('courseAssignmentsContainer');
-    
+
     if (!container) return;
-    
-    // Get assignments for this course and current user
+
     let courseAssignments = [];
-    
+
     if (typeof loggedInUser !== 'undefined' && loggedInUser && loggedInUser.role === 'student') {
-        courseAssignments = allAssignmentsData.filter(a => 
+        const course = allCoursesData.find(c => c.id === courseId);
+        
+        // Auto-generate missing assignments from templates
+        if (course && course.assignments && course.assignments.length > 0) {
+            let wasUpdated = false;
+            course.assignments.forEach(template => {
+                const exists = allAssignmentsData.find(a => 
+                    a.assignedStudentId === loggedInUser.id && 
+                    a.courseId === courseId && 
+                    a.title === template.title
+                );
+                
+                if (!exists) {
+                    const newAssignment = {
+                        id: Date.now() + loggedInUser.id + Math.floor(Math.random() * 10000),
+                        type: template.type || 'regular',
+                        title: template.title,
+                        instructions: template.instructions || '',
+                        dueDate: template.dueDate || new Date().toISOString().slice(0, 10),
+                        courseId: courseId,
+                        courseName: course.name,
+                        documents: template.documents || [],
+                        totalMarks: template.totalMarks || 100,
+                        questions: template.questions || [],
+                        assignedStudentId: loggedInUser.id,
+                        creatorId: course.creatorId || loggedInUser.id,
+                        status: (template.type === 'mark-as-read') ? 'Pending Read' : 'Assigned',
+                        submissionDate: null,
+                        markedAsRead: false,
+                        readDate: null,
+                        score: null,
+                        feedback: null,
+                        creationDate: new Date().toISOString().slice(0, 10)
+                    };
+                    allAssignmentsData.push(newAssignment);
+                    wasUpdated = true;
+                }
+            });
+            if (wasUpdated && typeof saveToLocalStorage === 'function') {
+                saveToLocalStorage();
+            }
+        }
+
+        courseAssignments = allAssignmentsData.filter(a =>
             a.courseId === courseId && a.assignedStudentId === loggedInUser.id
         );
     }
