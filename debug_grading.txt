@@ -1,0 +1,34 @@
+window.currentSectionQuestions.forEach(q => {
+                const selectedElements = document.querySelectorAll(`input[name="question-${q.id}"]:checked`);
+                if (!selectedElements || selectedElements.length === 0) {
+                    allAnswered = false;
+                    return;
+                }
+
+                if (q.type === 'multiple-choice') {
+                    // Because user can select multiple, extract all chosen int values
+                    let userAnswers = Array.from(selectedElements).map(el => parseInt(el.value));
+                    
+                    // q.correctAnswer could be an Array if created perfectly, but fallback to single var if old format
+                    let correctAnswers = Array.isArray(q.correctAnswer) ? q.correctAnswer : [q.correctAnswer];
+                    
+                    // Check if arrays perfectly match (same length and all elements match)
+                    let isCorrect = userAnswers.length === correctAnswers.length && 
+                                  userAnswers.every(val => correctAnswers.includes(val));
+                    if (isCorrect) score++;
+                } else {
+                    // For true-false or older single-choice where only one checkbox/radio is expected
+                    let userAnswer = selectedElements[0].value;
+                    if (q.type === 'true-false') {
+                        userAnswer = userAnswer === 'true';
+                    } else {
+                        userAnswer = parseInt(userAnswer);
+                    }
+
+                    if (userAnswer === q.correctAnswer) {
+                        score++;
+                    }
+                }
+            });
+
+            if (!allAnswered) {

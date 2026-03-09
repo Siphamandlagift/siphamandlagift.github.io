@@ -9658,6 +9658,7 @@ function loadSectionQuestions(questions) {
     if (sectionWrap) sectionWrap.classList.remove('hidden');
 
     questions.forEach((q, index) => {
+        const qText = q.text || q.question || (q.type === 'long-answer' ? 'Long Question' : q.type === 'true-false' ? 'True/False' : q.type === 'multiple-choice' ? 'Multiple Choice' : q.type === 'matching' ? 'Matching' : q.type === 'fill-in-blank' ? 'Fill in the Blank' : q.type === 'ordering' ? 'Ordering' : 'Assessment Question');
         let questionHtml = '';
         if (q.type === 'multiple-choice') {
             questionHtml = `
@@ -9666,7 +9667,7 @@ function loadSectionQuestions(questions) {
                         <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3 shrink-0">
                             ${index + 1}
                         </span>
-                        <h4 class="text-lg font-semibold text-gray-800">${q.question}</h4>
+                        <h4 class="text-lg font-semibold text-gray-800">${qText}</h4>
                     </div>
                     <div class="space-y-2 ml-11">
                         ${q.options.map((option, optIndex) => `
@@ -9685,7 +9686,7 @@ function loadSectionQuestions(questions) {
                         <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3 shrink-0">
                             ${index + 1}
                         </span>
-                        <h4 class="text-lg font-semibold text-gray-800">${q.question}</h4>
+                        <h4 class="text-lg font-semibold text-gray-800">${qText}</h4>
                     </div>
                     <div class="space-y-2 ml-11">
                         <label class="flex items-center p-2 rounded hover:bg-gray-100 cursor-pointer transition">
@@ -9696,6 +9697,85 @@ function loadSectionQuestions(questions) {
                             <input type="checkbox" name="question-${q.id}" value="false" class="w-4 h-4 text-indigo-600 rounded" onchange="if(this.checked) { document.querySelectorAll('input[name=\'question-${q.id}\']').forEach(cb => { if(cb !== this) cb.checked = false; }) }">
                             <span class="ml-3 text-gray-700">False</span>
                         </label>
+                    </div>
+                </div>
+            `;
+        } else if (q.type === 'matching') {
+            const definitions = [...(q.pairs || [])].map(p => p.definition).sort(() => Math.random() - 0.5);
+            questionHtml = `
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">  
+                    <div class="flex items-start mb-3">
+                        <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3 shrink-0">  
+                            ${index + 1}
+                        </span>
+                        <h4 class="text-lg font-semibold text-gray-800">${qText}</h4>
+                    </div>
+                    <div class="space-y-4 ml-11">
+                        ${(q.pairs || []).map((pair, pIndex) => `
+                            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                                <div class="font-medium text-gray-700 sm:w-1/2 p-2 bg-white rounded border border-gray-100 shadow-sm">${pair.term}</div>
+                                <select name="question-${q.id}-pair-${pIndex}" class="sm:w-1/2 p-2 border border-gray-300 rounded-md text-sm cursor-pointer hover:border-indigo-400 focus:border-indigo-500 min-w-0 flex-1">
+                                    <option value="">Select matching definition...</option>
+                                    ${definitions.map(def => `<option value="${def.replace(/"/g, '&quot;')}">${def}</option>`).join('')}
+                                </select>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        } else if (q.type === 'fill-in-blank') {
+            questionHtml = `
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">  
+                    <div class="flex items-start mb-3">
+                        <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3 shrink-0">  
+                            ${index + 1}
+                        </span>
+                        <h4 class="text-lg font-semibold text-gray-800">${qText}</h4>
+                    </div>
+                    <div class="space-y-3 ml-11 mt-3">
+                        ${(q.answers || []).map((_, aIndex) => `
+                            <div class="flex items-center gap-3 w-full max-w-md">
+                                <span class="text-gray-500 font-medium whitespace-nowrap">Blank ${aIndex + 1}:</span>
+                                <input type="text" name="question-${q.id}-answer-${aIndex}" class="flex-1 p-2 border border-gray-300 rounded-md focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200" placeholder="Type answer...">
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        } else if (q.type === 'ordering') {
+            const items = [...(q.correctOrder || [])].sort(() => Math.random() - 0.5);
+            questionHtml = `
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">  
+                    <div class="flex items-start mb-3">
+                        <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3 shrink-0">  
+                            ${index + 1}
+                        </span>
+                        <div class="flex flex-col">
+                            <h4 class="text-lg font-semibold text-gray-800">${qText}</h4>
+                            <span class="text-sm text-gray-500 mt-1">Assign a ranking number to each item (1 = first, ${items.length} = last).</span>
+                        </div>
+                    </div>
+                    <div class="space-y-3 ml-11 mt-3">
+                        ${items.map((item, iIndex) => `
+                            <div class="flex items-center gap-3 p-2 bg-white rounded border border-gray-100 shadow-sm">
+                                <input type="number" min="1" max="${items.length}" name="question-${q.id}-order-${iIndex}" data-item="${item.replace(/"/g, '&quot;')}" class="w-16 p-2 border border-gray-300 rounded-md text-center focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200" placeholder="#">
+                                <span class="text-gray-700 font-medium">${item}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        } else if (q.type === 'long-answer') {
+            questionHtml = `
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">  
+                    <div class="flex items-start mb-3">
+                        <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3 shrink-0">  
+                            ${index + 1}
+                        </span>
+                        <h4 class="text-lg font-semibold text-gray-800">${qText}</h4>
+                    </div>
+                    <div class="mt-3 ml-11">
+                        <textarea name="question-${q.id}" rows="4" class="w-full p-3 border border-gray-300 rounded-md focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200" placeholder="Type your full answer here..."></textarea>
                     </div>
                 </div>
             `;
@@ -10075,35 +10155,100 @@ document.addEventListener('DOMContentLoaded', function() {
             let allAnswered = true;
 
             window.currentSectionQuestions.forEach(q => {
-                const selectedElements = document.querySelectorAll(`input[name="question-${q.id}"]:checked`);
-                if (!selectedElements || selectedElements.length === 0) {
-                    allAnswered = false;
-                    return;
+                let isCorrect = false;
+                let isAnswered = false;
+
+                if (q.type === 'multiple-choice' || q.type === 'true-false' || !q.type) {
+                    const selectedElements = document.querySelectorAll(`input[name="question-${q.id}"]:checked`);
+                    isAnswered = selectedElements && selectedElements.length > 0;
+                    
+                    if (isAnswered) {
+                        if (q.type === 'multiple-choice') {
+                            let userAnswers = Array.from(selectedElements).map(el => parseInt(el.value));
+                            let correctAnswers = Array.isArray(q.correctAnswer) ? q.correctAnswer : [q.correctAnswer];
+                            isCorrect = userAnswers.length === correctAnswers.length && userAnswers.every(val => correctAnswers.includes(val));
+                        } else {
+                            let userAnswer = selectedElements[0].value;
+                            if (q.type === 'true-false') {
+                                userAnswer = userAnswer === 'true';
+                            } else {
+                                userAnswer = parseInt(userAnswer);
+                            }
+                            isCorrect = (userAnswer === q.correctAnswer);
+                        }
+                    }
+                } else if (q.type === 'matching') {
+                    isAnswered = true;
+                    isCorrect = true;
+                    if (q.pairs && q.pairs.length > 0) {
+                        for (let pIndex = 0; pIndex < q.pairs.length; pIndex++) {
+                            const selectEl = document.querySelector(`select[name="question-${q.id}-pair-${pIndex}"]`);
+                            if (!selectEl || !selectEl.value) {
+                                isAnswered = false;
+                                isCorrect = false;
+                                break;
+                            }
+                            if (selectEl.value !== q.pairs[pIndex].definition) {
+                                isCorrect = false;
+                            }
+                        }
+                    }
+                } else if (q.type === 'fill-in-blank') {
+                    isAnswered = true;
+                    isCorrect = true;
+                    if (q.answers && q.answers.length > 0) {
+                        for (let aIndex = 0; aIndex < q.answers.length; aIndex++) {
+                            const inputEl = document.querySelector(`input[name="question-${q.id}-answer-${aIndex}"]`);
+                            if (!inputEl || !inputEl.value.trim()) {
+                                isAnswered = false;
+                                isCorrect = false;
+                                break;
+                            }
+                            if (inputEl.value.trim().toLowerCase() !== q.answers[aIndex].toLowerCase()) {
+                                isCorrect = false;
+                            }
+                        }
+                    }
+                } else if (q.type === 'ordering') {
+                    isAnswered = true;
+                    isCorrect = true;
+                    if (q.correctOrder && q.correctOrder.length > 0) {
+                        const userOrders = [];
+                        for (let iIndex = 0; iIndex < q.correctOrder.length; iIndex++) {
+                            const inputEl = document.querySelector(`input[name="question-${q.id}-order-${iIndex}"]`);
+                            if (!inputEl || !inputEl.value) {
+                                isAnswered = false;
+                                isCorrect = false;
+                                break;
+                            }
+                            userOrders.push({
+                                item: inputEl.getAttribute('data-item'),
+                                rank: parseInt(inputEl.value)
+                            });
+                        }
+                        
+                        if (isAnswered) {
+                            userOrders.sort((a, b) => a.rank - b.rank);
+                            const userSortedItems = userOrders.map(o => o.item);
+                            for (let i = 0; i < q.correctOrder.length; i++) {
+                                if (userSortedItems[i] !== q.correctOrder[i]) {
+                                    isCorrect = false;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                } else if (q.type === 'long-answer') {
+                    const textareaEl = document.querySelector(`textarea[name="question-${q.id}"]`);
+                    isAnswered = textareaEl && textareaEl.value.trim() !== '';
+                    // Automatically pass long answers for now or grade manually later
+                    isCorrect = isAnswered; 
                 }
 
-                if (q.type === 'multiple-choice') {
-                    // Because user can select multiple, extract all chosen int values
-                    let userAnswers = Array.from(selectedElements).map(el => parseInt(el.value));
-                    
-                    // q.correctAnswer could be an Array if created perfectly, but fallback to single var if old format
-                    let correctAnswers = Array.isArray(q.correctAnswer) ? q.correctAnswer : [q.correctAnswer];
-                    
-                    // Check if arrays perfectly match (same length and all elements match)
-                    let isCorrect = userAnswers.length === correctAnswers.length && 
-                                  userAnswers.every(val => correctAnswers.includes(val));
-                    if (isCorrect) score++;
-                } else {
-                    // For true-false or older single-choice where only one checkbox/radio is expected
-                    let userAnswer = selectedElements[0].value;
-                    if (q.type === 'true-false') {
-                        userAnswer = userAnswer === 'true';
-                    } else {
-                        userAnswer = parseInt(userAnswer);
-                    }
-
-                    if (userAnswer === q.correctAnswer) {
-                        score++;
-                    }
+                if (!isAnswered) {
+                    allAnswered = false;
+                } else if (isCorrect) {
+                    score++;
                 }
             });
 
