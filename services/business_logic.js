@@ -3551,18 +3551,19 @@ function loadSection(sectionId, courseId) {
     switchCourseMainView('videosContent');
 
     let course = allCoursesData.find(c => c.id === courseId) || studentCourses.find(c => c.id === courseId);
-    if (!course || !course.sections) return;
+    if (!course) return; let sections = course.sections || course.videos; if(!sections) return;
 
-    const section = course.sections.find(s => s.id === sectionId);
+    const section = sections.find(s => s.id === sectionId);
     if (!section) return;
 
     document.getElementById('sectionTitle').textContent = section.title;
-    document.getElementById('courseVideoDuration').textContent = section.videoDuration || 'N/A';
+    document.getElementById('courseVideoDuration').textContent = section.videoDuration || section.duration || 'N/A';
 
     const videoPlayer = document.getElementById('videoPlayer');
     if (videoPlayer) {
-        if (section.videoUrl) {
-            let embedUrl = section.videoUrl;
+        let vidUrl = section.videoUrl || section.url;
+        if (vidUrl) {
+            let embedUrl = vidUrl;
             let isYouTube = false;
             if (embedUrl.includes('youtube.com/watch?v=')) {
                 isYouTube = true;
@@ -3587,6 +3588,17 @@ function loadSection(sectionId, courseId) {
             } else {
                 videoPlayer.innerHTML = `<video class="w-full h-full" style="min-height: 24rem; background: #000;" src="${embedUrl}" controls title="Video Player"></video>`;
             }
+        } else if (section.fileName || section.isFile) {
+            videoPlayer.innerHTML = `
+                <div class="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center">
+                    <i class="las la-file-video text-6xl text-blue-400 mb-4 transition animate-pulse"></i>
+                    <p class="text-white text-xl font-medium mb-2">Simulated Local Video</p>
+                    <p class="text-gray-400 text-sm">File: ${section.fileName || 'uploaded_video.mp4'}</p>
+                    <div class="mt-6 w-64 bg-gray-700 rounded-full h-2 overflow-hidden">
+                        <div class="bg-blue-500 h-2 rounded-full w-1/3"></div>
+                    </div>
+                </div>
+            `;
         } else {
             videoPlayer.innerHTML = `
                 <div class="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center">

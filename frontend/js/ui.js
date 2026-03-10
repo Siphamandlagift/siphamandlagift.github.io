@@ -1956,9 +1956,10 @@ function viewStudentCourse(courseId, courseName) {
     // Render Sidebars
     const sectionsContainer = document.getElementById('courseSidebarSections');
     const sectionsWrap = document.getElementById('courseSidebarSectionsContainer');
-    if (hasVideos && course.sections) {
+    let displaySections = course.sections || course.videos;
+    if (hasVideos && displaySections) {
         sectionsWrap.classList.remove('hidden');
-        sectionsContainer.innerHTML = course.sections.map((s, idx) => `
+        sectionsContainer.innerHTML = displaySections.map((s, idx) => `
             <div class="sidebar-item px-3 py-2 rounded-md hover:bg-gray-800 cursor-pointer text-sm text-white flex items-center transition" onclick="loadSection(${s.id}, ${courseId})" id="sidebar-sec-${s.id}">
                 <i class="las la-play-circle mr-3 text-indigo-500"></i>
                 <span class="truncate truncate-lines-1">${s.title}</span>
