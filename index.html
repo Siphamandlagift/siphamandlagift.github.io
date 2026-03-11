@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ï»¿<!DOCTYPE html>
 <html lang="en-UK">
 <head>
 
@@ -9476,6 +9476,8 @@ window.viewStudentCourse = function viewStudentCourse(courseId, courseName) {
                  title: video.title || `Video ${index + 1}`,
                  videoDuration: video.duration || "N/A",
                  videoUrl: video.url || null,
+                 isFile: video.isFile || false,
+                 fileName: video.fileName || null,
                  questions: index === course.videos.length - 1 ? (course.questions || []) : []
             }));
         } else {
@@ -9695,6 +9697,15 @@ function loadSection(sectionId, courseId) {
             } else {
                 videoPlayer.innerHTML = `<video class="w-full h-full" style="min-height: 24rem; background: #000;" src="${embedUrl}" controls title="Video Player"></video>`;
             }
+        } else if (section.isFile) {
+            videoPlayer.innerHTML = `
+                <div class="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center p-6 text-center">
+                    <i class="las la-file-video text-6xl text-blue-400 mb-4"></i>
+                    <h3 class="text-xl font-semibold text-white mb-2">Simulated Local Video</h3>
+                    <p class="text-gray-300 mb-4">File: <span class="font-mono text-sm bg-gray-700 px-2 py-1 rounded border border-gray-600">${section.fileName || 'Local file'}</span></p>
+                    <p class="text-sm text-gray-400 max-w-sm">For security reasons, web browsers cannot automatically play local machine files. In a production environment, this video will stream via cloud storage.</p>
+                </div>
+            `;
         } else {
             videoPlayer.innerHTML = `
                 <div class="absolute inset-0 bg-gray-900 flex flex-col items-center justify-center">
@@ -10200,7 +10211,7 @@ function viewDocument(courseId, docId) {
                     <h2 class="text-2xl font-bold text-gray-800">${doc.title}</h2>
                     <p class="text-sm text-gray-600 mt-1">${(doc.type || '').toUpperCase()} ? ${doc.fileSize}</p>
                 </div>
-                <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700 text-3xl font-light">×</button>
+                <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700 text-3xl font-light">ï¿½</button>
             </div>
             <div class="flex-1 bg-gray-100 p-6 max-h-[70vh] overflow-y-auto">
                 <div class="bg-white rounded-lg p-8 text-center">
@@ -11246,7 +11257,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             <h2 class="text-2xl font-bold text-gray-800">${fileName}</h2>
                             <p class="text-sm text-gray-600 mt-1">${typeLabel}</p>
                         </div>
-                        <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700 text-3xl font-light">×</button>
+                        <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700 text-3xl font-light">ï¿½</button>
                     </div>
                     <div class="p-8">
                         <div class="bg-gradient-to-br from-${color}-50 to-gray-50 rounded-lg p-12 text-center border-2 border-${color}-200">
