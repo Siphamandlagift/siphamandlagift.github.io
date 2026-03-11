@@ -4700,7 +4700,19 @@ let allUsersData = [];
         // Show login modal on page load and initialize data
         document.addEventListener('DOMContentLoaded', function() {
             initializeData(); // Load data from localStorage or use defaults
-            
+
+            // ALWAYS require login on startup (disable auto-login)
+            loggedInUser = {
+                id: null,
+                name: '',
+                role: '',
+                fullName: '',
+                email: '',
+                contact: '',
+                address: '',
+                picture: 'https://placehold.co/96x96/ADD8E6/00008B?text=P'
+            };
+
             // Check if user was logged in from previous session
             if (loggedInUser && loggedInUser.id) {
                 // User was logged in, show the app
@@ -4752,10 +4764,18 @@ let allUsersData = [];
                 showSection('dashboardContent');
                 updateDashboardStats();
             } else {
-                // Show login modal
+                // Show login modal and ensure UI is firmly hidden
                 document.getElementById('loginModal').classList.remove('hidden');
+                
+                const sidebar = document.getElementById('sidebar');
+                const contentArea = document.getElementById('contentArea');
+                const main = document.querySelector('main');
+                
+                if (sidebar) sidebar.style.display = 'none';
+                if (contentArea) contentArea.style.display = 'none';
+                if (main) main.style.display = 'none';
             }
-            
+
             renderUserTable(); // Initial render of the user table with dummy data
             renderAllExistingCoursesTable(); // Initial render of the admin courses table
             
