@@ -2510,12 +2510,12 @@ body[class*="theme-"]:not(.theme-white) select {
                                                 <label class="block text-gray-700 text-sm font-semibold mb-2" for="questionTypeSelect">Select Question Type</label>
                                                 <select id="questionTypeSelect" class="w-full px-4 py-3 text-sm border-2 border-emerald-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white transition hover:border-emerald-300 cursor-pointer">
                                                     <option value="">-- Select type to begin --</option>
-                                                    <option value="multiple-choice">? Multiple Choice</option>
-                                                    <option value="true-false">?? True/False</option>
-                                                    <option value="matching">?? Matching</option>
-                                                    <option value="fill-in-blank">?? Fill in the Blank</option>
-                                                    <option value="ordering">?? Ordering/Sequence</option>
-                                                    <option value="long-answer">?? Long Answer</option>
+                                                    <option value="multiple-choice">📝 Multiple Choice</option>
+                                                    <option value="true-false">⚖️ True/False</option>
+                                                    <option value="matching">🔗 Matching</option>
+                                                    <option value="fill-in-blank">✏️ Fill in the Blank</option>
+                                                    <option value="ordering">🔢 Ordering/Sequence</option>
+                                                    <option value="long-answer">✍️ Long Answer</option>
                                                 </select>
                                             </div>
 
@@ -5649,22 +5649,22 @@ let allUsersData = [];
                 let icon = '';
                 
                 if (q.type === 'multiple-choice') {
-                    icon = '??';
+                    icon = '📝';
                     questionSummary = `MC: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 } else if (q.type === 'true-false') {
-                    icon = '?';
+                    icon = '⚖️';
                     questionSummary = `T/F: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 } else if (q.type === 'matching') {
-                    icon = '??';
+                    icon = '🔗';
                     questionSummary = `Matching: ${q.pairs.length} pairs ${marksText}`;
                 } else if (q.type === 'fill-in-blank') {
-                    icon = '??';
+                    icon = '✏️';
                     questionSummary = `Fill in Blank: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 } else if (q.type === 'ordering') {
-                    icon = '??';
+                    icon = '🔢';
                     questionSummary = `Ordering: ${q.correctOrder.length} items ${marksText}`;
                 } else if (q.type === 'long-answer') {
-                    icon = '??';
+                    icon = '✍️';
                     questionSummary = `Long Answer: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 }
 
@@ -11341,9 +11341,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
         function getEventTypeIcon(type) {
             const icons = {
-                'assignment': '??',
-                'test': '??',
-                'exam': '??'
+                'assignment': '📝',
+                'test': '📋',
+                'exam': '🎓'
             };
             return icons[type] || '??';
         }
