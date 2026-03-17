@@ -9882,27 +9882,27 @@ function loadSectionQuestions(questions) {
         } else if (q.type === 'ordering') {
             const items = [...(q.correctOrder || [])].sort(() => Math.random() - 0.5);
             questionHtml = `
-                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">  
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
                     <div class="flex items-start mb-3">
-                        <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3 shrink-0">  
+                        <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-indigo-600 text-white text-sm font-medium mr-3 shrink-0">
                             ${index + 1}
                         </span>
-                        <div class="flex flex-col">
+                        <div class="flex flex-col w-full">
                             <h4 class="text-lg font-semibold text-gray-800">${qText}</h4>
-                            <span class="text-sm text-gray-500 mt-1">Assign a ranking number to each item (1 = first, ${items.length} = last).</span>
+                            <span class="text-sm text-gray-500 mt-1">Drag and drop the items to arrange them in the correct order.</span>
                         </div>
                     </div>
-                    <div class="space-y-3 ml-11 mt-3">
-                        ${items.map((item, iIndex) => `
-                            <div class="flex items-center gap-3 p-2 bg-white rounded border border-gray-100 shadow-sm">
-                                <input type="number" min="1" max="${items.length}" name="question-${q.id}-order-${iIndex}" data-item="${item.replace(/"/g, '&quot;')}" class="w-16 p-2 border border-gray-300 rounded-md text-center focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200" placeholder="#">
-                                <span class="text-gray-700 font-medium">${item}</span>
+                    <div class="space-y-2 ml-11 mt-3 sortable-list" id="sortable-${q.id}" data-type="ordering" data-question-id="${q.id}">
+                        ${items.map((item) => `
+                            <div class="flex items-center gap-3 p-3 bg-white rounded border border-gray-200 shadow-sm cursor-grab hover:bg-gray-50 transition-colors drag-item" draggable="true" data-item="${item.replace(/"/g, '&quot;')}">
+                                <i class="las la-grip-vertical text-gray-400 text-lg"></i>
+                                <span class="text-gray-700 font-medium select-none pointer-events-none">${item}</span>
                             </div>
                         `).join('')}
                     </div>
                 </div>
             `;
-        } else if (q.type === 'long-answer') {
+        }else if (q.type === 'long-answer') {
             questionHtml = `
                 <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">  
                     <div class="flex items-start mb-3">
@@ -9921,6 +9921,54 @@ function loadSectionQuestions(questions) {
     });
 
     window.currentSectionQuestions = questions;
+    initDragAndDrop();
+}
+
+// Function to initialize drag and drop for ordering questions
+function initDragAndDrop() {
+    const draggables = document.querySelectorAll('.drag-item');
+    const sortableLists = document.querySelectorAll('.sortable-list');
+
+    draggables.forEach(draggable => {
+        draggable.addEventListener('dragstart', () => {
+            draggable.classList.add('opacity-50');
+            draggable.classList.add('dragging');
+        });
+
+        draggable.addEventListener('dragend', () => {
+            draggable.classList.remove('opacity-50');
+            draggable.classList.remove('dragging');
+        });
+    });
+
+    sortableLists.forEach(list => {
+        list.addEventListener('dragover', e => {
+            e.preventDefault();
+            const afterElement = getDragAfterElement(list, e.clientY);
+            const draggable = document.querySelector('.dragging');
+            if (draggable) {
+                if (afterElement == null) {
+                    list.appendChild(draggable);
+                } else {
+                    list.insertBefore(draggable, afterElement);
+                }
+            }
+        });
+    });
+}
+
+function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('.drag-item:not(.dragging)')];
+
+    return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
 // Function to close course viewer
@@ -10393,29 +10441,25 @@ document.addEventListener('DOMContentLoaded', function() {
                     isAnswered = true;
                     isCorrect = true;
                     if (q.correctOrder && q.correctOrder.length > 0) {
-                        const userOrders = [];
-                        for (let iIndex = 0; iIndex < q.correctOrder.length; iIndex++) {
-                            const inputEl = document.querySelector(`input[name="question-${q.id}-order-${iIndex}"]`);
-                            if (!inputEl || !inputEl.value) {
-                                isAnswered = false;
-                                isCorrect = false;
-                                break;
-                            }
-                            userOrders.push({
-                                item: inputEl.getAttribute('data-item'),
-                                rank: parseInt(inputEl.value)
-                            });
+                        const userSortedItems = [];
+                        const listContainer = document.getElementById(`sortable-${q.id}`);
+                        if (listContainer) {
+                            const itemsEl = listContainer.querySelectorAll('.drag-item');
+                            itemsEl.forEach(el => userSortedItems.push(el.getAttribute('data-item')));
+                        } else {
+                            isAnswered = false;
+                            isCorrect = false;
                         }
-                        
-                        if (isAnswered) {
-                            userOrders.sort((a, b) => a.rank - b.rank);
-                            const userSortedItems = userOrders.map(o => o.item);
+
+                        if (isAnswered && userSortedItems.length === q.correctOrder.length) {
                             for (let i = 0; i < q.correctOrder.length; i++) {
                                 if (userSortedItems[i] !== q.correctOrder[i]) {
                                     isCorrect = false;
                                     break;
                                 }
                             }
+                        } else {
+                            isCorrect = false;
                         }
                     }
                 } else if (q.type === 'long-answer') {
