@@ -9666,6 +9666,91 @@ function updateSidebarActiveItem(activeId) {
 
     // close mobile sidebar if open
     document.getElementById('courseMobileSidebar').classList.add('hidden');
+
+    // --- Dynamic Course Progress Tracking ---
+    if (window.currentViewingCourseId) {
+        let itemId = activeId.replace('sidebar-', ''); // 'sec-1', 'doc-2', 'ast-3'
+        markItemComplete(itemId, window.currentViewingCourseId);
+    }
+}
+
+// Function to calculate course progress dynamically
+function getCourseProgressPercentage(courseId) {
+    if (typeof loggedInUser === 'undefined' || !loggedInUser) return 0;
+    
+    const progressData = JSON.parse(localStorage.getItem('studentCourseProgress') || '{}');
+    if (!progressData[loggedInUser.id] || !progressData[loggedInUser.id][courseId]) {
+        return 0;
+    }
+    const completedItems = progressData[loggedInUser.id][courseId].completedItems || [];
+    
+    let course = allCoursesData.find(c => c.id === courseId);
+    if (!course) course = (typeof studentCourses !== 'undefined') ? studentCourses.find(c => c.id === courseId) : null;
+    if (!course) return 0;
+
+    let itemsCount = 0;
+    
+    // Calculate total trackable items
+    let tempCourse = { ...course };
+    if ((!tempCourse.sections || tempCourse.sections.length === 0) && ((tempCourse.videos && tempCourse.videos.length > 0) || (tempCourse.questions && tempCourse.questions.length > 0))) {
+        if (tempCourse.videos && tempCourse.videos.length > 0) {
+            itemsCount += tempCourse.videos.length;
+        } else {
+            itemsCount += 1;
+        }
+    } else if (tempCourse.sections) {
+        itemsCount += tempCourse.sections.length;
+    }
+    if (tempCourse.documents) itemsCount += tempCourse.documents.length;
+    if (tempCourse.assignments) itemsCount += tempCourse.assignments.length;
+
+    if (itemsCount === 0) return 0;
+    let prog = Math.floor((completedItems.length / itemsCount) * 100);
+    return Math.min(prog, 100);
+}
+
+function markItemComplete(itemId, courseId) {
+    if (typeof loggedInUser === 'undefined' || !loggedInUser || loggedInUser.role !== 'student') return;
+    
+    let progressData = JSON.parse(localStorage.getItem('studentCourseProgress') || '{}');
+    if (!progressData[loggedInUser.id]) progressData[loggedInUser.id] = {};
+    if (!progressData[loggedInUser.id][courseId]) progressData[loggedInUser.id][courseId] = { completedItems: [], progress: 0 };
+    
+    const strId = String(itemId);
+    if (!progressData[loggedInUser.id][courseId].completedItems.includes(strId)) {
+        progressData[loggedInUser.id][courseId].completedItems.push(strId);
+        localStorage.setItem('studentCourseProgress', JSON.stringify(progressData));
+        
+        let prog = getCourseProgressPercentage(courseId);
+        
+        // Check if fully complete and mark overall course
+        if (prog >= 100) {
+            let userIdx = allUsersData.findIndex(u => u.id === loggedInUser.id);
+            if(userIdx !== -1 && allUsersData[userIdx].coursesEnrolled) {
+                 let enrIdx = allUsersData[userIdx].coursesEnrolled.findIndex(e => e.courseId === courseId);
+                 if(enrIdx !== -1 && !allUsersData[userIdx].coursesEnrolled[enrIdx].completionDate) {
+                      allUsersData[userIdx].coursesEnrolled[enrIdx].completionDate = new Date().toISOString();
+                      saveToLocalStorage();
+                      if (typeof updateDashboardStats === 'function') updateDashboardStats();
+                 }
+            }
+        }
+
+        // Update viewer UI
+        const courseViewerProgress = document.getElementById('courseViewerProgress');
+        if (courseViewerProgress && window.currentViewingCourseId === courseId) {
+            courseViewerProgress.textContent = prog;
+            
+            // visually update the progress bar in the background dashboard
+            if (typeof showStudentCourses === 'function') {
+                 // Refresh if we were looking at "inprogress"
+                 const tabInProgress = document.getElementById("tabInProgress");
+                 if(tabInProgress && tabInProgress.classList.contains("bg-indigo-600")) {
+                     setTimeout(() => showStudentCourses('inprogress'), 50);
+                 }
+            }
+        }
+    }
 }
 
 function switchCourseMainView(viewName) {
