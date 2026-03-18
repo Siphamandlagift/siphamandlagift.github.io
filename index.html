@@ -935,12 +935,12 @@
                 <a href="#" class="sidebar-item" data-section="messages">
                     <i class="las la-envelope mr-3"></i>
                     <span class="sidebar-text">Messages</span>
-                    <span class="notification-badge msg-badge-ui bg-gradient-to-tr from-blue-500 to-indigo-600 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center shadow-md border-2 border-white">2</span>
+                    <span class="notification-badge msg-badge-ui bg-gradient-to-tr from-blue-500 to-indigo-600 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center shadow-md border-2 border-white hidden">0</span>
                 </a>
                 <a href="#" class="sidebar-item" data-section="notifications">
                     <i class="las la-bell mr-3"></i>
                     <span class="sidebar-text">Notifications</span>
-                    <span class="notification-badge notif-badge-ui bg-gradient-to-tr from-rose-500 to-red-600 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center shadow-md border-2 border-white">5</span>
+                    <span class="notification-badge notif-badge-ui bg-gradient-to-tr from-rose-500 to-red-600 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center shadow-md border-2 border-white hidden">0</span>
                 </a>
                 <a href="#" class="sidebar-item" id="logoutBtn">
                     <i class="las la-sign-out-alt mr-3"></i>
@@ -1004,22 +1004,15 @@
                         <div class="relative dropdown">
                             <button type="button" class="text-gray-600 hover:text-indigo-600 focus:outline-none relative transition" onclick="toggleDropdown(this)" title="Messages">
                                 <i class="las la-envelope text-xl"></i>
-                                <span class="notification-badge msg-badge-ui bg-gradient-to-tr from-blue-500 to-indigo-600 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center shadow-md border-2 border-white">2</span>
+                                <span class="notification-badge msg-badge-ui bg-gradient-to-tr from-blue-500 to-indigo-600 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center shadow-md border-2 border-white hidden">0</span>
                             </button>
                             <div class="dropdown-menu hidden absolute right-0 mt-2 w-72 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
                                 <div class="px-4 py-2 border-b border-gray-200">
                                     <h3 class="text-sm font-semibold text-gray-800">Messages</h3>
                                 </div>
                                 <div class="max-h-60 overflow-y-auto" id="dropdownMessagesList">
-                                    <a href="#" class="block px-4 py-3 border-b border-gray-100 hover:bg-gray-50" onclick="readDropdownMessage(this); showMessageModal('Message from Jane Manager', 'Subject: Assignment Submission Guidelines\n\nPlease ensure all assignments are submitted before the deadline. Guidelines are available in the course materials section...')">
-                                        <p class="text-sm font-semibold text-gray-800">Jane Manager</p>
-                                        <p class="text-xs text-gray-600 truncate">Assignment Submission Guidelines...</p>
-                                    </a>
-                                    <a href="#" class="block px-4 py-3 hover:bg-gray-50" onclick="readDropdownMessage(this); showMessageModal('Message from Admin User', 'Subject: System Maintenance Notice\n\nThe platform will go down for scheduled maintenance Sunday at 2 AM.')">
-                                        <p class="text-sm font-semibold text-gray-800">Admin User</p>
-                                        <p class="text-xs text-gray-600 truncate">System Maintenance Notice</p>
-                                    </a>
-                                </div>
+<p class="text-xs text-gray-500 text-center py-4">No new messages.</p>
+</div>
                                 <div class="px-4 py-2 border-t border-gray-200 text-center">
                                     <a href="#" class="text-xs text-indigo-600 hover:underline font-medium dropdown-nav-link" data-section="messages">View all messages</a>
                                 </div>
@@ -1030,17 +1023,14 @@
                         <div class="relative dropdown">
                             <button type="button" class="text-gray-600 hover:text-indigo-600 focus:outline-none relative transition" onclick="toggleDropdown(this)" title="Notifications">
                                 <i class="las la-bell text-xl"></i>
-                                <span class="notification-badge notif-badge-ui bg-gradient-to-tr from-rose-500 to-red-600 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center shadow-md border-2 border-white">5</span>
+                                <span class="notification-badge notif-badge-ui bg-gradient-to-tr from-rose-500 to-red-600 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center shadow-md border-2 border-white hidden">0</span>
                             </button>
                             <div class="dropdown-menu hidden absolute right-0 mt-2 w-72 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
                                 <div class="px-4 py-2 border-b border-gray-200">
                                     <h3 class="text-sm font-semibold text-gray-800">Notifications</h3>
                                 </div>
                                 <div class="max-h-60 overflow-y-auto">
-                                    <a href="#" class="block px-4 py-3 border-b border-gray-100 hover:bg-gray-50" onclick="readDropdownNotification(this); showMessageModal('Notification', 'React Project assignment is due in 3 days. Make sure to complete all required material before the deadline.')">
-                                        <p class="text-sm font-semibold text-gray-800">Assignment Due Soon</p>
-                                        <p class="text-xs text-gray-600 truncate">React Project assignment is due in 3 days</p>
-                                    </a>
+                                    
                                 </div>
                                 <div class="px-4 py-2 border-t border-gray-200 text-center">
                                     <a href="#" class="text-xs text-indigo-600 hover:underline font-medium dropdown-nav-link" data-section="notifications">View all notifications</a>
@@ -2508,46 +2498,7 @@
                     <div class="bg-white rounded-lg shadow p-6">
                         <h3 class="text-lg font-semibold text-gray-800 mb-4">Your Inbox</h3>
                         <div class="divide-y divide-gray-200" id="inboxMessagesList">
-                            <div class="p-4 hover:bg-gray-50 transition cursor-pointer border-l-4 border-indigo-600" onclick="readFullMessage(this)">
-                                <div class="flex justify-between items-start mb-2">
-                                    <h4 class="font-semibold text-gray-800">Jane Manager</h4>
-                                    <span class="text-xs text-gray-500">Jan 20, 2:30 PM</span>
-                                </div>
-                                <p class="text-sm font-medium text-gray-700 mb-1">Assignment Submission Guidelines</p>
-                                <p class="text-sm text-gray-600">Please ensure all assignments are submitted before the deadline. Guidelines are available in the course materials section...</p>
-                                <span class="inline-block mt-2 px-2 py-1 text-xs bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 rounded">Unread</span>
-                            </div>
                             
-                            <div class="p-4 hover:bg-gray-50 transition cursor-pointer">
-                                <div class="flex justify-between items-start mb-2">
-                                    <h4 class="font-semibold text-gray-800">Admin User</h4>
-                                    <span class="text-xs text-gray-500">Jan 18, 10:15 AM</span>
-                                </div>
-                                <p class="text-sm font-medium text-gray-700 mb-1">System Maintenance Notice</p>
-                                <p class="text-sm text-gray-600">The system will undergo maintenance on Jan 25 from 11 PM to 1 AM. Please plan your activities accordingly...</p>
-                                <span class="inline-block mt-2 px-2 py-1 text-xs bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20 rounded">Read</span>
-                            </div>
-                            
-                            <div class="p-4 hover:bg-gray-50 transition cursor-pointer border-l-4 border-indigo-600" onclick="readFullMessage(this)">
-                                <div class="flex justify-between items-start mb-2">
-                                    <h4 class="font-semibold text-gray-800">Jane Manager</h4>
-                                    <span class="text-xs text-gray-500">Jan 16, 3:45 PM</span>
-                                </div>
-                                <p class="text-sm font-medium text-gray-700 mb-1">Great Progress on Web Development Course!</p>
-                                <p class="text-sm text-gray-600">You're doing excellent in the Web Development course. Keep up the momentum and don't hesitate to reach out if you need help...</p>
-                                <span class="inline-block mt-2 px-2 py-1 text-xs bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 rounded">Unread</span>
-                            </div>
-                            
-                            <div class="p-4 hover:bg-gray-50 transition cursor-pointer">
-                                <div class="flex justify-between items-start mb-2">
-                                    <h4 class="font-semibold text-gray-800">Admin User</h4>
-                                    <span class="text-xs text-gray-500">Jan 14, 9:00 AM</span>
-                                </div>
-                                <p class="text-sm font-medium text-gray-700 mb-1">Welcome to SkillsConnect LMS</p>
-                                <p class="text-sm text-gray-600">Welcome aboard! We're excited to have you as part of our learning community. Start exploring courses and begin your learning journey...</p>
-                                <span class="inline-block mt-2 px-2 py-1 text-xs bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20 rounded">Read</span>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -2558,23 +2509,7 @@
                     
                     <div class="space-y-4">
                         <!-- Important Notification -->
-                        <div class="bg-white rounded-lg shadow p-6 border-l-4 border-red-500 hover:shadow-lg transition">
-                            <div class="flex justify-between items-start mb-3">
-                                <div class="flex items-start gap-4">
-                                    <div class="p-2 rounded-lg bg-red-100 text-red-600">
-                                        <i class="las la-exclamation-circle text-xl"></i>
-                                    </div>
-                                    <div>
-                                        <h3 class="font-semibold text-gray-800">Assignment Due Soon</h3>
-                                        <p class="text-sm text-gray-600">React Project assignment is due in 3 days</p>
-                                    </div>
-                                </div>
-                                <span class="text-xs text-gray-500">Jan 22, 2:15 PM</span>
-                            </div>
-                            <div class="ml-14">
-                                <button class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">View Assignment ?</button>
-                            </div>
-                        </div>
+                        
 
                         <!-- Success Notification -->
                         <div class="bg-white rounded-lg shadow p-6 border-l-4 border-green-500 hover:shadow-lg transition">
