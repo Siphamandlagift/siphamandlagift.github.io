@@ -1,7 +1,7 @@
 ﻿from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
-# Pydantic models define what data our API expects to receive and send
+# --- Users ---
 class UserCreate(BaseModel):
     name: str
     surname: str
@@ -22,3 +22,23 @@ class UserResponse(BaseModel):
 class UserLogin(BaseModel):
     email: str
     password: str
+
+# --- Courses ---
+class CourseCreate(BaseModel):
+    name: str
+    description: str
+    completionDeadline: Optional[str] = None
+    picture: Optional[str] = None
+    videos: Optional[List[Any]] = []
+    questions: Optional[List[Any]] = []
+    assignments: Optional[List[Any]] = []
+
+class CourseResponse(BaseModel):
+    id: int
+    name: str
+    description: str
+    completionDeadline: Optional[str] = None
+    picture: Optional[str] = None
+    videos: Optional[List[Any]] = []
+    questions: Optional[List[Any]] = []
+    assignments: Optional[List[Any]] = []

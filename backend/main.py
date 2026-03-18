@@ -2,13 +2,12 @@
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
+import json
 
-# Import our database code
-from database import SessionLocal, UserDB, engine, Base
-from models import UserCreate, UserResponse, UserLogin
+from database import SessionLocal, UserDB, CourseDB, engine, Base
+from models import UserCreate, UserResponse, UserLogin, CourseCreate, CourseResponse
 from auth import get_password_hash, verify_password, create_access_token
 
-# This actually constructs the local SQLite database file upon start
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="LMS API (Backend)")
@@ -21,7 +20,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Dependency that yields a database session per single request
 def get_db():
     db = SessionLocal()
     try:
@@ -29,24 +27,21 @@ def get_db():
     finally:
         db.close()
 
-@app.get("/")
-def read_root():
-    return {"status": "success", "message": "The LMS is connected to the SQLite Database!"}
-
+# --- USERS ROUTES ---
 @app.post("/api/users", response_model=UserResponse)
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
     db_user = db.query(UserDB).filter(UserDB.email == user.email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
         
-    hashed_pw = get_password_hash(user.password)
-        
+    hashed = get_password_hash(user.password)
+    
     new_user = UserDB(
-        name=user.name, 
-        surname=user.surname, 
-        email=user.email, 
-        role=user.role, 
-        password_hash=hashed_pw
+        name=user.name,
+        surname=user.surname,
+        email=user.email,
+        role=user.role,
+        password_hash=hashed
     )
     db.add(new_user)
     db.commit()
@@ -56,7 +51,6 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
 @app.get("/api/users")
 def get_users(db: Session = Depends(get_db)):
     users = db.query(UserDB).all()
-    # Format to match what the frontend expects exactly right now
     frontend_formatted = []
     for u in users:
          frontend_formatted.append({
@@ -66,24 +60,17 @@ def get_users(db: Session = Depends(get_db)):
              "email": u.email,
              "role": u.role
          })
-         
     return {"users": frontend_formatted}
 
 @app.post("/api/login")
 def login_user(login_data: UserLogin, db: Session = Depends(get_db)):
-    # 1. Find user in Database
     user = db.query(UserDB).filter(UserDB.email == login_data.email).first()
-    
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
-        
-    # 2. Check Password
     if not verify_password(login_data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
         
-    # 3. Create Session Token
     access_token = create_access_token(data={"sub": user.email, "role": user.role})
-    
     return {
         "success": True,
         "token": access_token,
@@ -96,19 +83,51 @@ def login_user(login_data: UserLogin, db: Session = Depends(get_db)):
         }
     }
 
-# Ensure there is an admin available to log in with
-@app.on_event("startup")
-def create_initial_admin():
-    db = SessionLocal()
-    admin = db.query(UserDB).filter(UserDB.email == "mandla1_z@yahoo.com").first()
-    if not admin:
-        new_admin = UserDB(
-            name="Mandla",
-            surname="Admin",
-            email="mandla1_z@yahoo.com",
-            role="administrator",
-            password_hash=get_password_hash("password123")
-        )
-        db.add(new_admin)
-        db.commit()
-    db.close()
+# --- COURSES ROUTES ---
+@app.post("/api/courses", response_model=CourseResponse)
+def add_course(course: CourseCreate, db: Session = Depends(get_db)):
+    # Convert lists to JSON strings for SQLite
+    v_json = json.dumps(course.videos) if course.videos else "[]"
+    q_json = json.dumps(course.questions) if course.questions else "[]"
+    a_json = json.dumps(course.assignments) if course.assignments else "[]"
+    
+    new_course = CourseDB(
+        name=course.name,
+        description=course.description,
+        completion_deadline=course.completionDeadline,
+        picture=course.picture,
+        videos_json=v_json,
+        questions_json=q_json,
+        assignments_json=a_json
+    )
+    db.add(new_course)
+    db.commit()
+    db.refresh(new_course)
+    
+    return CourseResponse(
+        id=new_course.id,
+        name=new_course.name,
+        description=new_course.description,
+        completionDeadline=new_course.completion_deadline,
+        picture=new_course.picture,
+        videos=json.loads(new_course.videos_json),
+        questions=json.loads(new_course.questions_json),
+        assignments=json.loads(new_course.assignments_json)
+    )
+
+@app.get("/api/courses")
+def get_courses(db: Session = Depends(get_db)):
+    courses = db.query(CourseDB).all()
+    results = []
+    for c in courses:
+        results.append({
+            "id": c.id,
+            "name": c.name,
+            "description": c.description,
+            "completionDeadline": c.completion_deadline,
+            "picture": c.picture,
+            "videos": json.loads(c.videos_json or "[]"),
+            "questions": json.loads(c.questions_json or "[]"),
+            "assignments": json.loads(c.assignments_json or "[]")
+        })
+    return {"courses": results}
