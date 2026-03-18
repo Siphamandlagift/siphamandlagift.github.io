@@ -932,6 +932,27 @@ body[class*="theme-"]:not(.theme-white) select {
                 </div>
             </div>
 
+                        <!-- Student Grade Result -->
+            <div id="studentGradeResultSection" class="mb-6 border-t pt-4 bg-green-50 p-4 rounded-lg" style="display: none;">
+                <h4 class="text-md font-semibold text-green-800 mb-2">
+                    <i class="las la-check-circle mr-2"></i>Grading Results
+                </h4>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <span class="text-sm text-gray-600 block">Score:</span>
+                        <span id="studentGradeScoreDisplay" class="text-lg font-bold text-gray-900"></span>
+                    </div>
+                    <div>
+                        <span class="text-sm text-gray-600 block">Status:</span>
+                        <span id="studentGradeStatusDisplay" class="text-md font-semibold text-gray-800"></span>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <span class="text-sm text-gray-600 block">Feedback:</span>
+                    <p id="studentGradeFeedbackDisplay" class="text-sm text-gray-800 italic mt-1"></p>
+                </div>
+            </div>
+
             <!-- Student Submission Section -->
             <div class="mb-6 border-t pt-4" id="studentSubmissionSection">
                 <h4 class="text-md font-semibold text-gray-800 mb-3">
@@ -11097,6 +11118,22 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (submitBtn) submitBtn.style.display = 'inline-block';
                 if (gradeBtn) gradeBtn.style.display = 'none';
                 
+                const gradeResultSection = document.getElementById('studentGradeResultSection');
+                if (gradeResultSection) {
+                    if (assignment.score !== undefined && assignment.score !== null && assignment.score !== '') {
+                        gradeResultSection.style.display = 'block';
+                        document.getElementById('studentGradeScoreDisplay').textContent = `${assignment.score} / ${assignment.totalMarks || 100}`;
+                        document.getElementById('studentGradeStatusDisplay').textContent = assignment.status || 'Graded';
+                        document.getElementById('studentGradeFeedbackDisplay').textContent = assignment.feedback || 'No formal feedback provided.';
+                        // Hide submission section if it's strictly finalized
+                        if (assignment.status === 'Graded' || String(assignment.status).toLowerCase() === 'completed') {
+                            // studentSection.style.display = 'none'; // Optional to hide 
+                        }
+                    } else {
+                        gradeResultSection.style.display = 'none';
+                    }
+                }
+                
                 // Show existing submission files if any
                 const existingFilesContainer = document.getElementById('existingSubmissionFiles');
                 if (existingFilesContainer) {
@@ -11330,7 +11367,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const container = document.getElementById('studentAssignmentsList');
             if (!container) return;
 
-            if (!loggedInUser || loggedInUser.role !== 'Student') {
+            if (!loggedInUser || loggedInUser.role !== 'student') {
                 container.innerHTML = '<div class="p-6 bg-white rounded-lg shadow text-gray-500 text-sm text-center">Only students have an assignment list here.</div>';
                 return;
             }
@@ -11390,7 +11427,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const container = document.getElementById('myGradesListContainer');
             if (!container) return;
 
-            if (!loggedInUser || loggedInUser.role !== 'Student') {
+            if (!loggedInUser || loggedInUser.role !== 'student') {
                 container.innerHTML = '<div class="text-center py-8 text-gray-500">Only students have grades.</div>';
                 return;
             }
