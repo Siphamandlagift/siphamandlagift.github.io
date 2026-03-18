@@ -7493,14 +7493,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // ====================================================
 
         let currentCalendarDate = new Date();
-        let calendarEvents = [
-            { date: new Date(2026, 0, 25), title: 'JavaScript Assignment Due', type: 'assignment', color: 'blue' },
-            { date: new Date(2026, 0, 28), title: 'Web Development Test', type: 'test', color: 'orange' },
-            { date: new Date(2026, 1, 5), title: 'Mid-term Exam', type: 'exam', color: 'red' },
-            { date: new Date(2026, 1, 10), title: 'React Project Due', type: 'assignment', color: 'blue' },
-            { date: new Date(2026, 1, 15), title: 'CSS Quiz', type: 'test', color: 'orange' },
-            { date: new Date(2026, 1, 22), title: 'Final Exam', type: 'exam', color: 'red' },
-        ];
+        let calendarEvents = [];
 
         function getEventTypeColor(type) {
             const colors = {
