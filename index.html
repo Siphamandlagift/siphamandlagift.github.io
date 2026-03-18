@@ -3324,7 +3324,7 @@ body[class*="theme-"]:not(.theme-white) select {
                             </div>
                             <div class="mb-4">
                                 <label class="block text-gray-700 text-sm font-medium mb-2" for="badgeIcon">Badge Icon (Emoji)</label>
-                                <input id="badgeIcon" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., ? or ??" maxlength="2">
+                                <input id="badgeIcon" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., ?? or ??" maxlength="2">
                             </div>
                             <div class="flex justify-end space-x-3">
                                 <button type="button" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none" onclick="resetBadgeForm()">
@@ -3846,6 +3846,9 @@ if (sectionId === 'course-contentContent') {
             // Logic for populating sections when they are shown
             if (sectionId === 'my-gradesContent') {
                 renderMyGrades();
+            }
+            if (sectionId === 'calendarContent') {
+                renderCalendar();
             }
             if (sectionId === 'course-contentContent') { // Admin's view of all courses
                 renderAllExistingCoursesTable();
@@ -6680,7 +6683,7 @@ const students = allUsersData.filter(user => user.role === 'student');
                         message += `\n\n?? Each newly assigned student has been enrolled in ${programmeLinkedCourses.length} course(s) from this programme.`;
                     }
                     
-                    showMessageModal('Programme Assignment Updated! ??', message);
+                    showMessageModal('Programme Assignment Updated! ?', message);
                     renderExistingProgramsTable(); // Re-render programme table
                     renderProgrammesForAssignmentTable(); // Re-render assignment table
                     renderAssignmentOverview(); // Update assignment overview
@@ -8503,17 +8506,17 @@ function populateAssignmentCourseSelect() {
 
                     // Validation
                     if (studentIds.length === 0) {
-                        showMessageModal('Selection Required ??', 'Please select at least one student to assign this assignment to.');
+                        showMessageModal('Selection Required ?', 'Please select at least one student to assign this assignment to.');
                         return;
                     }
 
                     if (!title || !instructions || !dueDate) {
-                        showMessageModal('Input Error ??', 'Please fill all required fields:\n? Assignment Title\n? Instructions\n? Due Date');
+                        showMessageModal('Input Error ?', 'Please fill all required fields:\n? Assignment Title\n? Instructions\n? Due Date');
                         return;
                     }
 
                     if (!documentFiles || documentFiles.length === 0) {
-                        showMessageModal('Document Required ??', 'Please upload at least one document (PDF, PPT, or Word file) for this assignment.');
+                        showMessageModal('Document Required ?', 'Please upload at least one document (PDF, PPT, or Word file) for this assignment.');
                         return;
                     }
 
@@ -8521,13 +8524,13 @@ function populateAssignmentCourseSelect() {
                     if (assignmentQuestions.length > 0) {
                         const invalidQuestion = assignmentQuestions.find(q => !q.text.trim());
                         if (invalidQuestion) {
-                            showMessageModal('Question Error ??', `Question ${invalidQuestion.number} is empty. Please enter question text or remove it.`);
+                            showMessageModal('Question Error ?', `Question ${invalidQuestion.number} is empty. Please enter question text or remove it.`);
                             return;
                         }
                         
                         const totalQuestionMarks = assignmentQuestions.reduce((sum, q) => sum + q.marks, 0);
                         if (totalQuestionMarks !== totalMarks && totalMarks > 0) {
-                            showMessageModal('Marks Mismatch ??', `Total question marks (${totalQuestionMarks}) must equal assignment total marks (${totalMarks}).`);
+                            showMessageModal('Marks Mismatch ?', `Total question marks (${totalQuestionMarks}) must equal assignment total marks (${totalMarks}).`);
                             return;
                         }
                     }
@@ -8607,7 +8610,7 @@ function populateAssignmentCourseSelect() {
                     const questionsInfo = assignmentQuestions.length > 0 ? `\n? Questions: ${assignmentQuestions.length}` : '';
                     const documentsInfo = documents.length > 1 ? `\n?? Documents: ${documents.length} files` : `\n?? Document: ${documents[0].fileName}`;
                     
-                    showMessageModal('Assignment Created Successfully! ??', 
+                    showMessageModal('Assignment Created Successfully! ?', 
                         `Assignment "${title}" ${typeInfo}${courseInfo} has been created and assigned to:\n\n?? ${studentList}\n\n?? Due Date: ${new Date(dueDate).toLocaleDateString()}${documentsInfo}${questionsInfo}`);
                     hideCreateAssignmentModal();
                 });
@@ -10732,7 +10735,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 name: 'Quick Learner',
                 hoursRequired: 5,
                 description: 'Completed 5 hours of learning',
-                icon: '??',
+                icon: '?',
                 creatorId: 1,
                 createdDate: '2024-01-01',
                 timesEarned: 0
@@ -10742,7 +10745,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 name: 'Dedicated Scholar',
                 hoursRequired: 25,
                 description: 'Completed 25 hours of learning',
-                icon: '??',
+                icon: '?',
                 creatorId: 1,
                 createdDate: '2024-01-01',
                 timesEarned: 0
@@ -10752,7 +10755,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 name: 'Learning Champion',
                 hoursRequired: 50,
                 description: 'Completed 50 hours of learning',
-                icon: '??',
+                icon: '?',
                 creatorId: 1,
                 createdDate: '2024-01-01',
                 timesEarned: 0
