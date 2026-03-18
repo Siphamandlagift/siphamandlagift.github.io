@@ -11327,8 +11327,63 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Render Student's Assignments List
         function renderStudentAssignmentsList() {
-            // This function would be implemented if there's a standalone student assignments view
-            // Currently assignments are shown within courses in the course viewer
+            const container = document.getElementById('studentAssignmentsList');
+            if (!container) return;
+
+            if (!loggedInUser || loggedInUser.role !== 'Student') {
+                container.innerHTML = '<div class="p-6 bg-white rounded-lg shadow text-gray-500 text-sm text-center">Only students have an assignment list here.</div>';
+                return;
+            }
+
+            // Get all assignments assigned to logged-in student
+            const myAssignments = (typeof allAssignmentsData !== 'undefined' ? allAssignmentsData : []).filter(a =>
+                String(a.assignedStudentId) === String(loggedInUser.id)
+            );
+
+            if (myAssignments.length === 0) {
+                container.innerHTML = '<div class="p-6 bg-white rounded-lg shadow text-gray-500 text-sm text-center">No assignments for you to display.</div>';
+                return;
+            }
+
+            let html = '<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">';
+            
+            myAssignments.forEach(assignment => {
+                const courseName = assignment.courseId ? ((typeof allCoursesData !== 'undefined' ? allCoursesData : []).find(c => String(c.id) === String(assignment.courseId))?.title || 'Unknown Course') : 'General Assignment';
+                
+                let statusColor = 'bg-gray-100 text-gray-800';
+                let statusIcon = 'la-clock';
+                
+                if (assignment.status === 'Submitted') {
+                    statusColor = 'bg-blue-100 text-blue-800';
+                    statusIcon = 'la-paper-plane';
+                } else if (assignment.status === 'Graded') {
+                    statusColor = 'bg-green-100 text-green-800';
+                    statusIcon = 'la-check-circle';
+                } else if (assignment.status === 'Needs Revision') {
+                    statusColor = 'bg-yellow-100 text-yellow-800';
+                    statusIcon = 'la-undo';
+                }
+
+                html += `<div class="bg-white p-5 rounded-lg shadow border border-gray-100 flex flex-col h-full">
+                    <div class="flex justify-between items-start mb-3">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor}">
+                            <i class="las ${statusIcon} mr-1"></i> ${assignment.status || 'Assigned'}
+                        </span>
+                        <span class="text-xs text-gray-500"><i class="las la-calendar mr-1"></i>${assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : 'No Date'}</span>
+                    </div>
+                    <h3 class="text-md font-semibold text-gray-900 mb-1">${assignment.title}</h3>
+                    <p class="text-xs text-indigo-600 mb-3 font-medium">${courseName}</p>
+                    <p class="text-sm text-gray-600 mb-4 line-clamp-2 flex-grow">${assignment.instructions}</p>
+                    <div class="mt-auto pt-4 border-t border-gray-100">
+                        <button onclick="showViewAssignmentModal('${assignment.id}')" class="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium py-2 px-4 rounded transition">
+                            ${assignment.status === 'Assigned' || assignment.status === 'Needs Revision' ? 'View & Submit' : 'View Details'}
+                        </button>
+                    </div>
+                </div>`;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
         }
 
         function renderMyGrades() {
