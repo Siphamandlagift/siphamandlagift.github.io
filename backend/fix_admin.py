@@ -11,10 +11,14 @@ try:
     import bcrypt 
     hashed = bcrypt.hashpw(b"admin123", bcrypt.gensalt()).decode("utf-8")
     
-    cursor.execute("INSERT INTO users (id, name, surname, email, role, _hashed_password) VALUES (2, 'System', 'Admin', 'admin@system.com', 'administrator', ?)", (hashed,))
+    cursor.execute("INSERT INTO users (id, name, surname, email, role, password_hash) VALUES (2, 'System', 'Admin', 'admin@system.com', 'administrator', ?)", (hashed,))
     conn.commit()
     print("SUCCESS: Default user 'admin@system.com' with password 'admin123' inserted.")
 except Exception as e:
     print(f"ERROR: {e}")
 finally:
     conn.close()
+
+cursor = conn.cursor()
+cursor.execute('SELECT email, password_hash FROM users')
+print('DB DUMP:', cursor.fetchall())
