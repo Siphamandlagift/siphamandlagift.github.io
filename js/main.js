@@ -1,4 +1,4 @@
-// Global variables for message modal
+﻿// Global variables for message modal
         const messageModal = document.getElementById('messageModal');
         const messageModalTitle = document.getElementById('messageModalTitle');
         const messageModalContent = document.getElementById('messageModalContent');
@@ -303,7 +303,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     picture: 'https://placehold.co/40x40/FF5733/FFFFFF?text=U'
                 };
 
+                
+            // Instead of just pushing to our fake frontend array, we actually save to the database!
+            if (typeof window.addUserToDatabase === 'function') {
+                window.addUserToDatabase(newUser);
+            } else {
                 allUsersData.push(newUser);
+            }
+
                 successCount++;
 
                 // Update progress bar
@@ -462,18 +469,33 @@ if (sectionId === 'course-contentContent') {
         }
 
         // Login functionality
-        document.getElementById('loginForm').addEventListener('submit', function(e) {
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             const username = document.getElementById('loginUsernameInput').value;
             const password = document.getElementById('loginPasswordInput').value;
             const role = document.getElementById('userRoleSelect').value;
             
-            // In a real app, you'd validate credentials against a backend
-            // For this demo, we just find the user by name and role
-            const userLoggedIn = allUsersData.find(u => u.name.toLowerCase() === username.toLowerCase() && u.role === role);
+            let userLoggedIn = null;
+
+            // Attempt Backend Login first
+            if (typeof window.loginViaBackend === 'function') {
+                const backendResult = await window.loginViaBackend(username, password);
+                if (backendResult.success) {
+                    userLoggedIn = backendResult.user;
+                } else if (backendResult.message !== 'Could not connect to server') {
+                     // Connected to backend but invalid creds
+                     showMessageModal('Login Error', backendResult.message);
+                     return;
+                }
+            }
+
+            // Fallback to local demo data
+            if (!userLoggedIn) {
+                userLoggedIn = allUsersData.find(u => (u.email && u.email.toLowerCase() === username.toLowerCase()) || (u.name.toLowerCase() === username.toLowerCase() && u.role === role));
+            }
 
             if (!userLoggedIn) {
-                showMessageModal('Login Error', 'Invalid username or role. Please try again.');
+                showMessageModal('Login Error', 'Invalid username/email or password. Please try again.');
                 return;
             }
 
@@ -1078,7 +1100,14 @@ let allUsersData = [];
                 coursesEnrolled: [],
                 totalHoursSpent: 0
             };
-            allUsersData.push(newUser); // Add new user to the global array
+            
+            // Instead of just pushing to our fake frontend array, we actually save to the database!
+            if (typeof window.addUserToDatabase === 'function') {
+                window.addUserToDatabase(newUser);
+            } else {
+                allUsersData.push(newUser);
+            }
+ // Add new user to the global array
             saveToLocalStorage(); // Save to localStorage
 
             renderUserTable(); // Re-render the user table to include the new user
@@ -2186,22 +2215,22 @@ let allUsersData = [];
                 let icon = '';
                 
                 if (q.type === 'multiple-choice') {
-                    icon = '📝';
+                    icon = 'ðŸ“';
                     questionSummary = `MC: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 } else if (q.type === 'true-false') {
-                    icon = '⚖️';
+                    icon = 'âš–ï¸';
                     questionSummary = `T/F: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 } else if (q.type === 'matching') {
-                    icon = '🔗';
+                    icon = 'ðŸ”—';
                     questionSummary = `Matching: ${q.pairs.length} pairs ${marksText}`;
                 } else if (q.type === 'fill-in-blank') {
-                    icon = '✏️';
+                    icon = 'âœï¸';
                     questionSummary = `Fill in Blank: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 } else if (q.type === 'ordering') {
-                    icon = '🔢';
+                    icon = 'ðŸ”¢';
                     questionSummary = `Ordering: ${q.correctOrder.length} items ${marksText}`;
                 } else if (q.type === 'long-answer') {
-                    icon = '✍️';
+                    icon = 'âœï¸';
                     questionSummary = `Long Answer: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 }
 
@@ -6915,7 +6944,7 @@ function viewDocument(courseId, docId) {
                     <h2 class="text-2xl font-bold text-gray-800">${doc.title}</h2>
                     <p class="text-sm text-gray-600 mt-1">${(doc.type || '').toUpperCase()} ? ${doc.fileSize}</p>
                 </div>
-                <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700 text-3xl font-light">�</button>
+                <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700 text-3xl font-light">ï¿½</button>
             </div>
             <div class="flex-1 bg-gray-100 p-6 max-h-[70vh] overflow-y-auto">
                 <div class="bg-white rounded-lg p-8 text-center">
@@ -8193,7 +8222,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             <h2 class="text-2xl font-bold text-gray-800">${fileName}</h2>
                             <p class="text-sm text-gray-600 mt-1">${typeLabel}</p>
                         </div>
-                        <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700 text-3xl font-light">�</button>
+                        <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700 text-3xl font-light">ï¿½</button>
                     </div>
                     <div class="p-8">
                         <div class="bg-gradient-to-br from-${color}-50 to-gray-50 rounded-lg p-12 text-center border-2 border-${color}-200">
@@ -8479,3 +8508,6 @@ document.addEventListener("DOMContentLoaded", () => {
         // ====================================================
         // INITIALIZE ON PAGE LOAD
         // ====================================================
+
+
+
