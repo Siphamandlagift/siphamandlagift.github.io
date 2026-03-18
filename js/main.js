@@ -1235,7 +1235,8 @@ let allUsersData = [];
 
         // Show login modal on page load and initialize data
         document.addEventListener('DOMContentLoaded', function() {
-            initializeData(); // Load data from localStorage or use defaults
+            initializeData();
+            fetchUsersFromBackend(); // Load from Python FastApi!
 
             // ALWAYS require login on startup (disable auto-login)
             loggedInUser = {
