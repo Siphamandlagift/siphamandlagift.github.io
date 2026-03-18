@@ -11442,10 +11442,34 @@ document.addEventListener("DOMContentLoaded", () => {
                 a.status === 'Graded' || (a.score !== undefined && a.score !== null && a.score !== '') || String(a.status).toLowerCase() === 'completed'
             );
 
-            let html = '';
+
+            let html = `
+            <div class="mb-4 border-b border-gray-200">
+                <ul class="flex flex-wrap -mb-px text-sm font-medium text-center" id="myGradesTabs" role="tablist">
+                    <li class="mr-2" role="presentation">
+                        <button class="inline-block p-4 border-b-2 rounded-t-lg text-indigo-600 border-indigo-600 focus:outline-none" id="grades-tab" type="button" role="tab" aria-controls="grades" aria-selected="true" onclick="
+                            document.getElementById('myGradesTabContent_grades').style.display='block';
+                            document.getElementById('myGradesTabContent_assignments').style.display='none';
+                            this.className='inline-block p-4 border-b-2 rounded-t-lg text-indigo-600 border-indigo-600 focus:outline-none';
+                            document.getElementById('assignments-tab').className='inline-block p-4 border-b-2 border-transparent rounded-t-lg text-gray-500 hover:text-gray-600 hover:border-gray-300 focus:outline-none';
+                        ">Formal Grades</button>
+                    </li>
+                    <li class="mr-2" role="presentation">
+                        <button class="inline-block p-4 border-b-2 border-transparent rounded-t-lg text-gray-500 hover:text-gray-600 hover:border-gray-300 focus:outline-none" id="assignments-tab" type="button" role="tab" aria-controls="assignments" aria-selected="false" onclick="
+                            document.getElementById('myGradesTabContent_assignments').style.display='block';
+                            document.getElementById('myGradesTabContent_grades').style.display='none';
+                            this.className='inline-block p-4 border-b-2 rounded-t-lg text-indigo-600 border-indigo-600 focus:outline-none';
+                            document.getElementById('grades-tab').className='inline-block p-4 border-b-2 border-transparent rounded-t-lg text-gray-500 hover:text-gray-600 hover:border-gray-300 focus:outline-none';
+                        ">Status View</button>
+                    </li>
+                </ul>
+            </div>
+            `;
 
             // 1. Table of Grades
+            html += `<div id="myGradesTabContent_grades" style="display:block;">`;
             if (gradedAssignments.length > 0) {
+
                 html += `<div class="mb-8">
                     <h4 class="text-md font-semibold text-gray-800 mb-4 px-1 border-l-4 border-indigo-600">Formal Grades</h4>
                     <div class="overflow-x-auto border border-gray-200 rounded-lg">
@@ -11489,8 +11513,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 </div>`;
             }
 
+            html += `</div>`; // End of Grades tab
+
             // 2. Cards for all assignments
-            html += `<h4 class="text-md font-semibold text-gray-800 mb-4 px-1 border-l-4 border-blue-500">All Assignments (Status View)</h4>`;
+            html += `<div id="myGradesTabContent_assignments" style="display:none;">`;
             
             if (myAssignments.length === 0) {
                 html += `<div class="text-center py-6 text-gray-500 text-sm">No assignments found for you.</div>`;
@@ -11553,6 +11579,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 });
                 html += '</div>';
             }
+            html += `</div>`; // End of Assignments tab
 
             container.innerHTML = html;
         }
