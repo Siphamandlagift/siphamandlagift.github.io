@@ -10277,7 +10277,7 @@ function loadCourseAssignments(courseId) {
                                         <button onclick="viewAssignmentDocument('${doc.fileUrl}', '${doc.fileName}', '${doc.fileType}')" class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1">
                                             <i class="fas fa-eye mr-1"></i>View
                                         </button>
-                                        ${(typeof loggedInUser !== "undefined" && loggedInUser && loggedInUser.role === "training-manager") ? `<a href="${doc.fileUrl}" download="${doc.fileName}" class="text-green-600 hover:text-green-800 text-xs px-2 py-1"><i class="las la-download"></i></a>` : ""}
+                                        ${(typeof loggedInUser !== "undefined" && loggedInUser && (loggedInUser.role === "training-manager" || loggedInUser.role === "training_manager" || loggedInUser.role === "Training Manager")) ? `<a href="${doc.fileUrl}" download="${doc.fileName}" class="text-green-600 hover:text-green-800 text-xs px-2 py-1"><i class="las la-download"></i></a>` : ""}
                                     </div>
                                 `;
                             }).join('')}
@@ -11083,7 +11083,7 @@ document.addEventListener("DOMContentLoaded", () => {
             
             // Determine if the current user is a student or TM
             const isStudent = loggedInUser && loggedInUser.role === 'student' && assignment.assignedStudentId === loggedInUser.id;
-            const isTrainingManager = loggedInUser && (loggedInUser.role === 'training-manager' || loggedInUser.role === 'training_manager');
+            const isTrainingManager = loggedInUser && ((loggedInUser.role === "training-manager" || loggedInUser.role === "training_manager" || loggedInUser.role === "Training Manager") || loggedInUser.role === 'training_manager' || loggedInUser.role === 'Training Manager');
             
             // Show/hide sections based on role
             const studentSection = document.getElementById('studentSubmissionSection');
@@ -11132,10 +11132,14 @@ document.addEventListener("DOMContentLoaded", () => {
                     submitBtn.innerHTML = '<i class="las la-check-circle mr-2"></i>Submit Assignment';
                 }
             } else if (isTrainingManager) {
+                const canGrade = ['Submitted', 'Graded', 'Needs Revision'].includes(assignment.status);
                 if (studentSection) studentSection.style.display = 'none';
-                if (tmGradeSection) tmGradeSection.style.display = assignment.status === 'Submitted' ? 'block' : 'none';
+                if (tmGradeSection) tmGradeSection.style.display = canGrade ? 'block' : 'none';
                 if (submitBtn) submitBtn.style.display = 'none';
-                if (gradeBtn) gradeBtn.style.display = assignment.status === 'Submitted' ? 'inline-block' : 'none';
+                if (gradeBtn) {
+                    gradeBtn.style.display = canGrade ? 'inline-block' : 'none';
+                    gradeBtn.innerHTML = assignment.status === 'Graded' ? '<i class="las la-edit mr-2"></i>Update Grade' : '<i class="las la-check-double mr-2"></i>Submit Grade';
+                }
                 
                 // Populate grade fields if already graded
                 if (assignment.score !== null && assignment.score !== undefined) {
@@ -11170,7 +11174,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             <button onclick="viewAssignmentDocument('${file.fileUrl}', '${file.fileName}', '${file.fileType}')" class="text-blue-600 hover:text-blue-800 text-xs px-2">
                                 <i class="fas fa-eye mr-1"></i>View
                             </button>
-                            ${(typeof loggedInUser !== "undefined" && loggedInUser && loggedInUser.role === "training-manager") ? `<a href="${file.fileUrl}" download="${file.fileName}" class="text-green-600 hover:text-green-800 text-xs px-2"><i class="las la-download"></i></a>` : ""}
+                            ${(typeof loggedInUser !== "undefined" && loggedInUser && (loggedInUser.role === "training-manager" || loggedInUser.role === "training_manager" || loggedInUser.role === "Training Manager")) ? `<a href="${file.fileUrl}" download="${file.fileName}" class="text-green-600 hover:text-green-800 text-xs px-2"><i class="las la-download"></i></a>` : ""}
                         `;
                         tmExistingFiles.appendChild(fileDiv);
                     });
@@ -11203,7 +11207,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         <button onclick="viewAssignmentDocument('${doc.fileUrl}', '${doc.fileName}', '${doc.fileType}')" class="text-blue-600 hover:text-blue-800 px-3 py-1 text-sm">
                             <i class="fas fa-eye mr-1"></i>View
                         </button>
-                        ${(typeof loggedInUser !== "undefined" && loggedInUser && loggedInUser.role === "training-manager") ? `<a href="${doc.fileUrl}" download="${doc.fileName}" class="text-green-600 hover:text-green-800 px-3 py-1 text-sm"><i class="las la-download"></i></a>` : ""}
+                        ${(typeof loggedInUser !== "undefined" && loggedInUser && (loggedInUser.role === "training-manager" || loggedInUser.role === "training_manager" || loggedInUser.role === "Training Manager")) ? `<a href="${doc.fileUrl}" download="${doc.fileName}" class="text-green-600 hover:text-green-800 px-3 py-1 text-sm"><i class="las la-download"></i></a>` : ""}
                     `;
                     documentsList.appendChild(docDiv);
                 });
@@ -11445,7 +11449,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             <i class="fas ${icon} text-${color}-500 mr-2"></i>${typeLabel}
                         </div>
                         <div class="flex space-x-3">
-                            ${(typeof loggedInUser !== "undefined" && loggedInUser && loggedInUser.role === "training-manager") ? `<a href="${fileUrl}" download="${fileName}" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition"><i class="las la-download mr-2"></i>Download</a>` : ""}
+                            ${(typeof loggedInUser !== "undefined" && loggedInUser && (loggedInUser.role === "training-manager" || loggedInUser.role === "training_manager" || loggedInUser.role === "Training Manager")) ? `<a href="${fileUrl}" download="${fileName}" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition"><i class="las la-download mr-2"></i>Download</a>` : ""}
                             <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 transition">
                                 Close
                             </button>
