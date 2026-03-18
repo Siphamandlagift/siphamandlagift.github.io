@@ -115,7 +115,7 @@ window.fetchUsersFromBackend = fetchUsersFromBackend;
 async function fetchCoursesFromBackend() {
     try {
         console.log('Fetching true courses from SQLite database...');
-        const response = await fetch(${API_BASE_URL}/courses);
+        const response = await fetch(`${API_BASE_URL}/courses`);
         if (!response.ok) throw new Error('Network response was not ok');
         const data = await response.json();
         
@@ -151,7 +151,7 @@ async function fetchCoursesFromBackend() {
 async function addCourseToDatabase(courseData) {
     try {
         console.log('Sending new course to backend database...', courseData);
-        const response = await fetch(${API_BASE_URL}/courses, {
+        const response = await fetch(`${API_BASE_URL}/courses`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
