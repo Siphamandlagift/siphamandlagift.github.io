@@ -8577,8 +8577,22 @@ function populateAssignmentCourseSelect() {
                             feedback: null,
                             creationDate: new Date().toISOString().slice(0, 10)
                         };
-                        allAssignmentsData.push(newAssignment);
-                        createdCount++;
+                          allAssignmentsData.push(newAssignment);
+                          
+                          // Create notification for student
+                          if (typeof studentNotifications !== 'undefined') {
+                              studentNotifications.unshift({
+                                  id: Date.now() + Math.random(),
+                                  studentId: studentId,
+                                  title: 'New Assignment: ' + title,
+                                  message: 'You have been assigned a new task: "' + title + '". Please check your My Grades tab.',
+                                  type: 'info',
+                                  timestamp: new Date().toISOString(),
+                                  read: false
+                              });
+                          }
+                          
+                          createdCount++;
                     });
                     
                     saveToLocalStorage(); // Save to localStorage
