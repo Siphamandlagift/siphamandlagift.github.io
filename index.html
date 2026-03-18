@@ -177,8 +177,8 @@
 
                 <div class="mb-4 bg-blue-50 p-3 rounded border border-blue-200">
                     <p class="text-xs text-blue-700"><strong>CSV Template Example:</strong></p>
-                    <p class="text-xs text-blue-600 font-mono mt-1">John Doe,john@example.com,EMP001,TechCorp,student,password123</p>
-                    <p class="text-xs text-blue-600 font-mono">Jane Smith,jane@example.com,EMP002,TechCorp,training_manager,password123</p>
+                    <p class="text-xs text-blue-600 font-mono mt-1">student_name,student@domain.com,12345,Company_A,student,strongpass</p>
+                    <p class="text-xs text-blue-600 font-mono">manager_name,manager@domain.com,67890,Company_B,training_manager,strongpass</p>
                 </div>
 
                 <div id="uploadProgress" class="mb-4 hidden">
@@ -266,9 +266,9 @@
             <div class="mb-4 h-64 overflow-y-auto border border-gray-300 p-2 rounded-md bg-gray-50 text-gray-700">
                 <p>Simulating PDF content here for: <span id="simulatedPdfContentFileName" class="font-medium"></span></p>
                 <p class="mt-2 text-sm text-gray-600">In a real application, an embedded PDF viewer (e.g., using PDF.js or a Google Docs Viewer iframe) would display the document here.</p>
-                <p class="mt-2 text-xs text-gray-500">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
-                <p class="mt-2 text-xs text-gray-500">Section 2: Detailed analysis and findings. Proin eget tortor risus. Curabitur arcu erat, accumsan id imperdiet et, porttitor at sem. Vestibulum ac diam sit amet quam vehicula elementum sed sit amet dui.</p>
-                <p class="mt-2 text-xs text-gray-500">Conclusion: Summary of key takeaways and next steps. Cras ultricies ligula sed magna dictum porta. Nulla porttitor accumsan tincidunt. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia Curae; Donec velit neque, auctor sit amet aliquam vel, ullamcorper sit amet ligula.</p>
+                
+                
+                
             </div>
             <div class="flex justify-end space-x-3">
                 <button
@@ -619,7 +619,7 @@
                 </div>
                 <h2 class="text-3xl font-bold text-amber-900 mb-2" id="certificateName">Certificate of Achievement</h2>
                 <p class="text-gray-600 mb-4">This certifies that</p>
-                <p class="text-2xl font-semibold text-gray-800 mb-6" id="certificateStudentName">Student Name</p>
+                <p class="text-2xl font-semibold text-gray-800 mb-6" id="certificateStudentName"></p>
                 <p class="text-gray-600 mb-2">has successfully completed</p>
                 <p class="text-lg font-semibold text-gray-800 mb-6" id="certificateCourseName">Course Name</p>
                 <p class="text-sm text-gray-600 mb-6">Date: <span id="certificateDate"></span></p>
@@ -1041,13 +1041,13 @@
                         <div class="relative dropdown">
                             <button type="button" class="flex items-center focus:outline-none" onclick="toggleDropdown(this)">
                                 <img src="https://placehold.co/32x32/FF5733/FFFFFF?text=U" alt="User" class="w-8 h-8 rounded-full" id="topNavUserAvatar">
-                                <span class="ml-2 text-gray-700 hidden md:inline" id="topNavUsername">Admin User</span>
+                                <span class="ml-2 text-gray-700 hidden md:inline" id="topNavUsername"></span>
                                 <i class="las la-chevron-down ml-1 text-gray-600 text-xs hidden md:inline"></i>
                             </button>
                             <div class="dropdown-menu hidden absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg py-1 border border-gray-200 z-50">
                                 <div class="px-4 py-3 border-b border-gray-200">
-                                    <p class="text-sm font-semibold text-gray-900" id="dropdownUserName">Admin User</p>
-                                    <p class="text-xs text-gray-500" id="dropdownUserEmail">admin@example.com</p>
+                                    <p class="text-sm font-semibold text-gray-900" id="dropdownUserName"></p>
+                                    <p class="text-xs text-gray-500" id="dropdownUserEmail"></p>
                                 </div>
                                 <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dropdown-nav-link" data-section="profile">
                                     <i class="las la-user mr-2 text-gray-500"></i> My Profile
