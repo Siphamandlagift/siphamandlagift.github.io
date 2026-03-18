@@ -11734,7 +11734,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 dayHTML += isToday ? ' bg-indigo-100 border-indigo-500' : hasEvent ? ' bg-blue-50 border-blue-300' : ' border-gray-200';
                 dayHTML += `" onclick="selectCalendarDate(new Date(${year}, ${month}, ${day}))">${day}`;
                 if (hasEvent) {
-                    dayHTML += '<span class="block text-xs text-blue-600 font-semibold mt-1">?</span>';
+                    dayHTML += '<span class="block text-xs text-blue-600 font-semibold mt-1"><i class="las la-star"></i></span>';
                 }
                 dayHTML += '</div>';
                 calendarDaysHTML += dayHTML;
