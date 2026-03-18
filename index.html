@@ -1055,7 +1055,7 @@ body[class*="theme-"]:not(.theme-white) select {
                 </button>
             </div>
             <div class="mb-4 text-center">
-                <div class="text-8xl mb-4" id="badgeViewerIcon">??</div>
+                <div class="text-8xl mb-4" id="badgeViewerIcon"><i class="las la-trophy text-yellow-500 text-2xl"></i></div>
                 <h2 class="text-2xl font-bold text-gray-900 mb-2" id="badgeViewerName">Badge Name</h2>
                 <p class="text-gray-600 mb-4" id="badgeViewerDescription">Badge description</p>
                 <div class="bg-blue-50 p-3 rounded-lg mb-4">
@@ -1673,22 +1673,22 @@ body[class*="theme-"]:not(.theme-white) select {
                         </div>
                         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4" id="badgesEarnedList">
                             <div class="text-center p-4 bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg border border-yellow-200">
-                                <div class="text-4xl mb-2">??</div>
+                                <div class="text-4xl mb-2"><i class="las la-trophy text-yellow-500 text-2xl"></i></div>
                                 <p class="text-xs font-semibold text-gray-700">Quick Learner</p>
                                 <p class="text-xs text-gray-500">Jan 15</p>
                             </div>
                             <div class="text-center p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg border border-blue-200">
-                                <div class="text-4xl mb-2">?</div>
+                                <div class="text-4xl mb-2"><i class="las la-star text-yellow-400"></i></div>
                                 <p class="text-xs font-semibold text-gray-700">Star Student</p>
                                 <p class="text-xs text-gray-500">Jan 10</p>
                             </div>
                             <div class="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200">
-                                <div class="text-4xl mb-2">??</div>
+                                <div class="text-4xl mb-2"><i class="las la-trophy text-yellow-500 text-2xl"></i></div>
                                 <p class="text-xs font-semibold text-gray-700">Goal Setter</p>
                                 <p class="text-xs text-gray-500">Jan 5</p>
                             </div>
                             <div class="text-center p-4 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg border border-purple-200">
-                                <div class="text-4xl mb-2">??</div>
+                                <div class="text-4xl mb-2"><i class="las la-trophy text-yellow-500 text-2xl"></i></div>
                                 <p class="text-xs font-semibold text-gray-700">Rising Star</p>
                                 <p class="text-xs text-gray-500">Dec 28</p>
                             </div>
@@ -3324,7 +3324,7 @@ body[class*="theme-"]:not(.theme-white) select {
                             </div>
                             <div class="mb-4">
                                 <label class="block text-gray-700 text-sm font-medium mb-2" for="badgeIcon">Badge Icon (Emoji)</label>
-                                <input id="badgeIcon" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., ?? or ??" maxlength="2">
+                                <input id="badgeIcon" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g., <i class="las la-trophy text-yellow-500 text-2xl"></i> or <i class="las la-trophy text-yellow-500 text-2xl"></i>" maxlength="2">
                             </div>
                             <div class="flex justify-end space-x-3">
                                 <button type="button" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none" onclick="resetBadgeForm()">
@@ -6680,7 +6680,7 @@ const students = allUsersData.filter(user => user.role === 'student');
                         message += `\n\n? Removed: ${removedCount} student(s)`;
                     }
                     if (addedCount > 0) {
-                        message += `\n\n?? Each newly assigned student has been enrolled in ${programmeLinkedCourses.length} course(s) from this programme.`;
+                        message += `\n\n<i class="las la-trophy text-yellow-500 text-2xl"></i> Each newly assigned student has been enrolled in ${programmeLinkedCourses.length} course(s) from this programme.`;
                     }
                     
                     showMessageModal('Programme Assignment Updated! ?', message);
@@ -8608,10 +8608,10 @@ function populateAssignmentCourseSelect() {
                         : `${assignedStudentNames.slice(0, 3).join(', ')} and ${assignedStudentNames.length - 3} more`;
                     const typeInfo = assignmentType === 'mark-as-read' ? '(Mark as Read)' : `(${totalMarks} marks)`;
                     const questionsInfo = assignmentQuestions.length > 0 ? `\n? Questions: ${assignmentQuestions.length}` : '';
-                    const documentsInfo = documents.length > 1 ? `\n?? Documents: ${documents.length} files` : `\n?? Document: ${documents[0].fileName}`;
+                    const documentsInfo = documents.length > 1 ? `\n<i class="las la-trophy text-yellow-500 text-2xl"></i> Documents: ${documents.length} files` : `\n<i class="las la-trophy text-yellow-500 text-2xl"></i> Document: ${documents[0].fileName}`;
                     
                     showMessageModal('Assignment Created Successfully! ?', 
-                        `Assignment "${title}" ${typeInfo}${courseInfo} has been created and assigned to:\n\n?? ${studentList}\n\n?? Due Date: ${new Date(dueDate).toLocaleDateString()}${documentsInfo}${questionsInfo}`);
+                        `Assignment "${title}" ${typeInfo}${courseInfo} has been created and assigned to:\n\n<i class="las la-trophy text-yellow-500 text-2xl"></i> ${studentList}\n\n<i class="las la-trophy text-yellow-500 text-2xl"></i> Due Date: ${new Date(dueDate).toLocaleDateString()}${documentsInfo}${questionsInfo}`);
                     hideCreateAssignmentModal();
                 });
             }
@@ -11695,11 +11695,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
         function getEventTypeIcon(type) {
             const icons = {
-                'assignment': '📝',
-                'test': '📋',
-                'exam': '🎓'
+                'assignment': '<i class="las la-file-signature text-blue-600 text-lg mr-1"></i>',
+                'test': '<i class="las la-clipboard-list text-orange-600 text-lg mr-1"></i>',
+                'exam': '<i class="las la-graduation-cap text-red-600 text-lg mr-1"></i>'
             };
-            return icons[type] || '??';
+            return icons[type] || '<i class="las la-calendar-day text-gray-600 text-lg mr-1"></i>';
         }
 
         function renderCalendar() {
