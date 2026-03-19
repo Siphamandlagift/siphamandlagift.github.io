@@ -7496,31 +7496,34 @@ document.addEventListener("DOMContentLoaded", () => {
         let calendarEvents = [];
 
         function populateCalendarEvents() {
-            if (!loggedInUser || loggedInUser.role !== 'student') return;
-            
-            calendarEvents = [];
-            const myAssignments = (typeof allAssignmentsData !== 'undefined' ? allAssignmentsData : []).filter(a => 
-                String(a.assignedStudentId) === String(loggedInUser.id)
-            );
-            
-            myAssignments.forEach(assignment => {
-                if (assignment.dueDate) {
-                    // Determine event type based on assignment title or type
-                    let evType = 'assignment';
-                    const titleLower = (assignment.title || '').toLowerCase();
-                    if (titleLower.includes('test') || titleLower.includes('quiz')) evType = 'test';
-                    else if (titleLower.includes('exam')) evType = 'exam';
-                    
-                    calendarEvents.push({
-                        id: assignment.id,
-                        title: assignment.title || 'Assignment Due',
-                        date: new Date(assignment.dueDate),
-                        type: evType,
-                        status: assignment.status || 'Pending'
-                    });
-                }
-            });
-        }
+            try {
+                if (!loggedInUser || loggedInUser.role !== 'student') return;      
+
+                calendarEvents = [];
+                const myAssignments = (typeof allAssignmentsData !== 'undefined' ? allAssignmentsData : []).filter(a => 
+                    String(a.assignedStudentId) === String(loggedInUser.id)        
+                );
+
+                myAssignments.forEach(assignment => {
+                    if (assignment.dueDate) {
+                        // Determine event type based on assignment title or type  
+                        let evType = 'assignment';
+                        const titleLower = (assignment.title || '').toLowerCase(); 
+                        if (titleLower.includes('test') || titleLower.includes('quiz')) evType = 'test';
+                        else if (titleLower.includes('exam')) evType = 'exam';     
+
+                        calendarEvents.push({
+                            id: assignment.id,
+                            title: assignment.title || 'Assignment Due',
+                            date: new Date(assignment.dueDate),
+                            type: evType,
+                            status: assignment.status || 'Pending'
+                        });
+                    }
+                });
+            } catch (err) {
+                console.error("Error populating calendar events:", err);
+            }
 
         function getEventTypeColor(type) {
             const colors = {
@@ -7541,60 +7544,64 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         function renderCalendar() {
-            populateCalendarEvents();
-            
-            const year = currentCalendarDate.getFullYear();
-            const month = currentCalendarDate.getMonth();
-            
-            // Set month/year display
-            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                              'July', 'August', 'September', 'October', 'November', 'December'];
-            document.getElementById('calendarMonthYear').textContent = monthNames[month] + ' ' + year;
-            
-            // Get first day of month and number of days
-            const firstDay = new Date(year, month, 1).getDay();
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-            const daysInPrevMonth = new Date(year, month, 0).getDate();
-            
-            let calendarDaysHTML = '';
-            
-            // Previous month's days
-            for (let i = firstDay - 1; i >= 0; i--) {
-                calendarDaysHTML += `<div class="p-2 text-center text-gray-400 bg-gray-50 rounded">${daysInPrevMonth - i}</div>`;
-            }
-            
-            // Current month's days
-            for (let day = 1; day <= daysInMonth; day++) {
-                const date = new Date(year, month, day);
-                const hasEvent = calendarEvents.some(e => 
-                    e.date.getDate() === day && 
-                    e.date.getMonth() === month && 
-                    e.date.getFullYear() === year
-                );
-                const isToday = date.toDateString() === new Date().toDateString();
+            try {
+                populateCalendarEvents();
                 
-                let dayHTML = `<div class="p-2 text-center rounded border-2 cursor-pointer hover:bg-indigo-50 transition`;
-                dayHTML += isToday ? ' bg-indigo-100 border-indigo-500' : hasEvent ? ' bg-blue-50 border-blue-300' : ' border-gray-200';
-                dayHTML += `" onclick="selectCalendarDate(new Date(${year}, ${month}, ${day}))">${day}`;
-                if (hasEvent) {
-                    dayHTML += '<span class="block text-xs text-blue-600 font-semibold mt-1"><i class="las la-star"></i></span>';
+                const year = currentCalendarDate.getFullYear();
+                const month = currentCalendarDate.getMonth();
+
+                // Set month/year display
+                const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                                  'July', 'August', 'September', 'October', 'November', 'December'];
+                document.getElementById('calendarMonthYear').textContent = monthNames[month] + ' ' + year;
+
+                // Get first day of month and number of days
+                const firstDay = new Date(year, month, 1).getDay();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+                let calendarDaysHTML = '';
+
+                // Previous month's days
+                for (let i = firstDay - 1; i >= 0; i--) {
+                    calendarDaysHTML += `<div class="p-2 text-center text-gray-400 bg-gray-50 rounded">${daysInPrevMonth - i}</div>`;
                 }
-                dayHTML += '</div>';
-                calendarDaysHTML += dayHTML;
+
+                // Current month's days
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const date = new Date(year, month, day);
+                    const hasEvent = calendarEvents.some(e => 
+                        e.date.getDate() === day &&
+                        e.date.getMonth() === month &&
+                        e.date.getFullYear() === year
+                    );
+                    const isToday = date.toDateString() === new Date().toDateString();
+
+                    let dayHTML = `<div class="p-2 text-center rounded border-2 cursor-pointer hover:bg-indigo-50 transition`;
+                    dayHTML += isToday ? ' bg-indigo-100 border-indigo-500' : hasEvent ? ' bg-blue-50 border-blue-300' : ' border-gray-200';
+                    dayHTML += `" onclick="selectCalendarDate(new Date(${year}, ${month}, ${day}))">${day}`;
+                    if (hasEvent) {
+                        dayHTML += '<span class="block text-xs text-blue-600 font-semibold mt-1"><i class="las la-star"></i></span>';
+                    }
+                    dayHTML += '</div>';
+                    calendarDaysHTML += dayHTML;
+                }
+
+                // Next month's days
+                const totalCellsMatch = calendarDaysHTML.match(/<div/g);
+                const totalCells = totalCellsMatch ? totalCellsMatch.length : 0;
+                for (let day = 1; day <= (42 - totalCells); day++) {
+                    calendarDaysHTML += `<div class="p-2 text-center text-gray-400 bg-gray-50 rounded">${day}</div>`;
+                }
+
+                document.getElementById('calendarDays').innerHTML = calendarDaysHTML;
+
+                // Populate upcoming events
+                updateUpcomingEvents();
+                updateAllEventsList();
+            } catch (err) {
+                console.error("Calendar rendering error:", err);
             }
-            
-            // Next month's days
-            const totalCells = calendarDaysHTML.match(/<div/g).length;
-            for (let day = 1; day <= (42 - totalCells - firstDay); day++) {
-                calendarDaysHTML += `<div class="p-2 text-center text-gray-400 bg-gray-50 rounded">${day}</div>`;
-            }
-            
-            document.getElementById('calendarDays').innerHTML = calendarDaysHTML;
-            
-            // Populate upcoming events
-            updateUpcomingEvents();
-            updateAllEventsList();
-        }
 
         function updateUpcomingEvents() {
             const today = new Date();
