@@ -1,4 +1,4 @@
-﻿// Global variables for message modal
+// Global variables for message modal
         const messageModal = document.getElementById('messageModal');
         const messageModalTitle = document.getElementById('messageModalTitle');
         const messageModalContent = document.getElementById('messageModalContent');
@@ -1767,22 +1767,22 @@ let allUsersData = [];
                 let icon = '';
                 
                 if (q.type === 'multiple-choice') {
-                    icon = 'ðŸ“';
+                    icon = '📝';
                     questionSummary = `MC: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 } else if (q.type === 'true-false') {
-                    icon = 'âš–ï¸';
+                    icon = '⚖️';
                     questionSummary = `T/F: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 } else if (q.type === 'matching') {
-                    icon = 'ðŸ”—';
+                    icon = '🔗';
                     questionSummary = `Matching: ${q.pairs.length} pairs ${marksText}`;
                 } else if (q.type === 'fill-in-blank') {
-                    icon = 'âœï¸';
+                    icon = '✏️';
                     questionSummary = `Fill in Blank: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 } else if (q.type === 'ordering') {
-                    icon = 'ðŸ”¢';
+                    icon = '🔢';
                     questionSummary = `Ordering: ${q.correctOrder.length} items ${marksText}`;
                 } else if (q.type === 'long-answer') {
-                    icon = 'âœï¸';
+                    icon = '✍️';
                     questionSummary = `Long Answer: ${q.text.substring(0, 40)}${q.text.length > 40 ? '...' : ''} ${marksText}`;
                 }
 
@@ -6228,7 +6228,7 @@ function viewDocument(courseId, docId) {
                     <h2 class="text-2xl font-bold text-gray-800">${doc.title}</h2>
                     <p class="text-sm text-gray-600 mt-1">${(doc.type || '').toUpperCase()} ? ${doc.fileSize}</p>
                 </div>
-                <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700 text-3xl font-light">ï¿½</button>
+                <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700 text-3xl font-light">�</button>
             </div>
             <div class="flex-1 bg-gray-100 p-6 max-h-[70vh] overflow-y-auto">
                 <div class="bg-white rounded-lg p-8 text-center">
@@ -7449,7 +7449,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             <h2 class="text-2xl font-bold text-gray-800">${fileName}</h2>
                             <p class="text-sm text-gray-600 mt-1">${typeLabel}</p>
                         </div>
-                        <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700 text-3xl font-light">ï¿½</button>
+                        <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700 text-3xl font-light">�</button>
                     </div>
                     <div class="p-8">
                         <div class="bg-gradient-to-br from-${color}-50 to-gray-50 rounded-lg p-12 text-center border-2 border-${color}-200">
@@ -7524,6 +7524,7 @@ document.addEventListener("DOMContentLoaded", () => {
             } catch (err) {
                 console.error("Error populating calendar events:", err);
             }
+        }
 
         function getEventTypeColor(type) {
             const colors = {
@@ -7764,6 +7765,8 @@ document.addEventListener("DOMContentLoaded", () => {
         // ====================================================
         // INITIALIZE ON PAGE LOAD
         // ====================================================
+
+
 
 
 
