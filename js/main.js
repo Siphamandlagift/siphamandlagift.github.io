@@ -7495,6 +7495,33 @@ document.addEventListener("DOMContentLoaded", () => {
         let currentCalendarDate = new Date();
         let calendarEvents = [];
 
+        function populateCalendarEvents() {
+            if (!loggedInUser || loggedInUser.role !== 'student') return;
+            
+            calendarEvents = [];
+            const myAssignments = (typeof allAssignmentsData !== 'undefined' ? allAssignmentsData : []).filter(a => 
+                String(a.assignedStudentId) === String(loggedInUser.id)
+            );
+            
+            myAssignments.forEach(assignment => {
+                if (assignment.dueDate) {
+                    // Determine event type based on assignment title or type
+                    let evType = 'assignment';
+                    const titleLower = (assignment.title || '').toLowerCase();
+                    if (titleLower.includes('test') || titleLower.includes('quiz')) evType = 'test';
+                    else if (titleLower.includes('exam')) evType = 'exam';
+                    
+                    calendarEvents.push({
+                        id: assignment.id,
+                        title: assignment.title || 'Assignment Due',
+                        date: new Date(assignment.dueDate),
+                        type: evType,
+                        status: assignment.status || 'Pending'
+                    });
+                }
+            });
+        }
+
         function getEventTypeColor(type) {
             const colors = {
                 'assignment': 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20 border-blue-300',
@@ -7514,6 +7541,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         function renderCalendar() {
+            populateCalendarEvents();
+            
             const year = currentCalendarDate.getFullYear();
             const month = currentCalendarDate.getMonth();
             
