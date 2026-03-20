@@ -7603,6 +7603,7 @@ document.addEventListener("DOMContentLoaded", () => {
             } catch (err) {
                 console.error("Calendar rendering error:", err);
             }
+        }
 
         function updateUpcomingEvents() {
             const today = new Date();
@@ -7765,6 +7766,8 @@ document.addEventListener("DOMContentLoaded", () => {
         // ====================================================
         // INITIALIZE ON PAGE LOAD
         // ====================================================
+
+
 
 
 
