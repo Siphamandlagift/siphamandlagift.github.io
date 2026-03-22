@@ -3,8 +3,8 @@
 // Automatically switch between local testing and the live Afrihost server
 const isLocalhost = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost';
 
-// Pointing to your new Afrihost Ubuntu server!
-const LIVE_API_URL = 'http://165.73.0.213:8000/api'; 
+// Pointing to your new Afrihost Ubuntu server with HTTPS!
+const LIVE_API_URL = 'https://skillsconnect-sa.co.za/api'; 
 
 const API_BASE_URL = isLocalhost ? 'http://127.0.0.1:8000/api' : LIVE_API_URL;
 
