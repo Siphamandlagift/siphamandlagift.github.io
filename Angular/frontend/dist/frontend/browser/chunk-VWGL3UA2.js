@@ -1,0 +1,1 @@
+import{$a as t,Sb as p,sb as n,tb as i,ub as m}from"./chunk-2NFC7Z2J.js";var a=class o{static \u0275fac=function(e){return new(e||o)};static \u0275cmp=t({type:o,selectors:[["app-mobile"]],decls:3,vars:0,template:function(e,s){e&1&&(n(0,"h2"),p(1,"Mobile Support"),i(),m(2,"div"))},encapsulation:2})};export{a as MobileComponent};

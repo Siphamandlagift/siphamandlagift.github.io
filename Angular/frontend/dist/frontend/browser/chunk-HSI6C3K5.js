@@ -1,0 +1,1 @@
+import{$a as s,Sb as m,sb as o,tb as t,ub as i}from"./chunk-2NFC7Z2J.js";var a=class n{static \u0275fac=function(e){return new(e||n)};static \u0275cmp=s({type:n,selectors:[["app-submissions"]],decls:3,vars:0,template:function(e,c){e&1&&(o(0,"h2"),m(1,"Submissions"),t(),i(2,"div"))},encapsulation:2})};export{a as SubmissionsComponent};
