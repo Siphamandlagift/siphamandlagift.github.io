@@ -1,0 +1,1 @@
+import{$a as n,Sb as a,sb as o,tb as i,ub as m}from"./chunk-2NFC7Z2J.js";var p=class t{static \u0275fac=function(e){return new(e||t)};static \u0275cmp=n({type:t,selectors:[["app-ui-ux"]],decls:3,vars:0,template:function(e,c){e&1&&(o(0,"h2"),a(1,"UI / UX"),i(),m(2,"div"))},encapsulation:2})};export{p as UiUxComponent};

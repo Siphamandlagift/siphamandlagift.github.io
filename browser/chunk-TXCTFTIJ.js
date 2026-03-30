@@ -1,0 +1,1 @@
+import{$a as t,Sb as m,sb as o,tb as a,ub as i}from"./chunk-2NFC7Z2J.js";var r=class n{static \u0275fac=function(e){return new(e||n)};static \u0275cmp=t({type:n,selectors:[["app-grading"]],decls:3,vars:0,template:function(e,d){e&1&&(o(0,"h2"),m(1,"Grading"),a(),i(2,"div"))},encapsulation:2})};export{r as GradingComponent};
