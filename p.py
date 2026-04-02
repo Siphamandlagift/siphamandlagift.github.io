@@ -1,6 +1,0 @@
-content = open('index.html', encoding='utf-8').read()
-content = content.replace('const courseChecks = document.querySelectorAll('input[name="groupCourseCheck"]:checked');', '')
-content = content.replace('const courses = Array.from(courseChecks).map(cb => cb.value);', '')
-content = content.replace('group.courses = courses;', '')
-content = content.replace('courses: courses', '')
-open('index.html', 'w', encoding='utf-8').write(content)

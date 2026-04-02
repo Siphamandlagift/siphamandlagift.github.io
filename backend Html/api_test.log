@@ -1,5 +1,0 @@
-Traceback (most recent call last):
-  File "<string>", line 1, in <module>
-    import requests; res=requests.post('http://127.0.0.1:8000/api/login', json={'email':'admin@system.com', 'password':'admin123'}); print(res.text)
-    ^^^^^^^^^^^^^^^
-ModuleNotFoundError: No module named 'requests'
