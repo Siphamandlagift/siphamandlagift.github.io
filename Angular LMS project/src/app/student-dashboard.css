@@ -1,0 +1,21 @@
+.dashboard-container {
+	margin: 2rem auto 0 auto;
+	padding: 1.5rem;
+	border: 1px solid #e0e0e0;
+	border-radius: 8px;
+	background: #f9f9f9;
+	max-width: 400px;
+}
+.dashboard-container h3 {
+	margin-top: 0;
+	color: #1976d2;
+	text-align: center;
+}
+.dashboard-container ul {
+	list-style: none;
+	padding: 0;
+}
+.dashboard-container li {
+	margin-bottom: 0.75rem;
+	font-size: 1.05rem;
+}

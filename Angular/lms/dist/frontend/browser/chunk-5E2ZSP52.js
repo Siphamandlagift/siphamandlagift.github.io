@@ -1,1 +1,0 @@
-import{$a as n,Sb as m,sb as t,tb as s,ub as r}from"./chunk-2NFC7Z2J.js";var p=class o{static \u0275fac=function(e){return new(e||o)};static \u0275cmp=n({type:o,selectors:[["app-progress"]],decls:3,vars:0,template:function(e,i){e&1&&(t(0,"h2"),m(1,"Progress Tracking"),s(),r(2,"div"))},encapsulation:2})};export{p as ProgressComponent};

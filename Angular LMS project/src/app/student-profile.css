@@ -1,0 +1,26 @@
+.profile-container {
+	max-width: 400px;
+	margin: 2rem auto;
+	padding: 2rem;
+	border: 1px solid #ccc;
+	border-radius: 8px;
+	background: #fff;
+	box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.profile-container h2 {
+	text-align: center;
+	color: #1976d2;
+	margin-bottom: 1.5rem;
+}
+.profile-field {
+	display: flex;
+	justify-content: space-between;
+	margin-bottom: 1rem;
+}
+.profile-field label {
+	font-weight: 600;
+	color: #333;
+}
+.profile-field span {
+	color: #555;
+}

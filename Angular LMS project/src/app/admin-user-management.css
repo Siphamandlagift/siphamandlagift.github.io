@@ -1,0 +1,80 @@
+.admin-user-management-container {
+  max-width: 900px;
+  margin: 2rem auto;
+  padding: 2rem;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.admin-user-management-container h2, .admin-user-management-container h3 {
+  text-align: center;
+  color: #1976d2;
+}
+.form-row {
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+}
+.form-row label {
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+input, select, button, textarea {
+  font-size: 1rem;
+  padding: 0.5rem;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+}
+button {
+  background: #1976d2;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-right: 0.5rem;
+}
+button:hover {
+  background: #1565c0;
+}
+.progress-bar {
+  width: 100%;
+  background: #eee;
+  border-radius: 4px;
+  margin: 1rem 0;
+  height: 24px;
+  overflow: hidden;
+}
+.progress {
+  background: #1976d2;
+  color: #fff;
+  height: 100%;
+  text-align: center;
+  line-height: 24px;
+  font-weight: 600;
+  transition: width 0.3s;
+}
+.success-message {
+  color: #388e3c;
+  font-weight: 600;
+  margin: 1rem 0;
+}
+.error-message {
+  color: #d32f2f;
+  font-weight: 600;
+  margin: 1rem 0;
+}
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+.users-table th, .users-table td {
+  border: 1px solid #ddd;
+  padding: 0.5rem;
+  text-align: left;
+}
+.users-table th {
+  background: #f5f5f5;
+}

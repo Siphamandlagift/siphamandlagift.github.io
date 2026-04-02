@@ -1,0 +1,17 @@
+<div class="manager-profile-container">
+	<h2>Training Manager Profile</h2>
+	<div class="manager-field">
+		<label>Name:</label>
+		<span>{{ manager().name }}</span>
+	</div>
+	<div class="manager-field">
+		<label>Email:</label>
+		<span>{{ manager().email }}</span>
+	</div>
+	<div class="manager-field">
+		<label>Managed Courses:</label>
+		<ul>
+			<li *ngFor="let course of manager().managedCourses">{{ course }}</li>
+		</ul>
+	</div>
+</div>

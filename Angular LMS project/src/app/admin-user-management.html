@@ -1,0 +1,76 @@
+<div class="admin-user-management-container">
+  <h2>User Management</h2>
+  <form [formGroup]="userForm" (ngSubmit)="editingUser() ? updateUser() : submitUser()" novalidate>
+    <div class="form-row">
+      <label>Name</label>
+      <input formControlName="name" required />
+    </div>
+    <div class="form-row">
+      <label>Surname</label>
+      <input formControlName="surname" required />
+    </div>
+    <div class="form-row">
+      <label>Email</label>
+      <input formControlName="email" type="email" required />
+    </div>
+    <div class="form-row">
+      <label>ID Number</label>
+      <input formControlName="idNumber" required />
+    </div>
+    <div class="form-row">
+      <label>Company</label>
+      <input formControlName="company" required />
+    </div>
+    <div class="form-row">
+      <label>Role</label>
+      <select formControlName="role" required>
+        <option value="student">Student</option>
+        <option value="manager">Manager</option>
+        <option value="provider">Provider</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Profile Picture</label>
+      <input type="file" (change)="handleFileInput($event)" />
+    </div>
+    <button type="submit" [disabled]="loading()">{{ editingUser() ? 'Update User' : 'Add User' }}</button>
+  </form>
+  <div class="progress-bar" *ngIf="loading() && progress() > 0">
+    <div class="progress" [style.width]="progress() + '%'">{{ progress() }}%</div>
+  </div>
+  <div *ngIf="success()" class="success-message">{{ success() }}</div>
+  <div *ngIf="error()" class="error-message">{{ error() }}</div>
+  <hr />
+  <h3>Bulk Upload Users (CSV)</h3>
+  <input type="file" accept=".csv" (change)="bulkUpload($event)" />
+  <hr />
+  <h3>All Users</h3>
+  <table class="users-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Surname</th>
+        <th>Email</th>
+        <th>ID Number</th>
+        <th>Company</th>
+        <th>Role</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let user of users()">
+        <td>{{ user.name }}</td>
+        <td>{{ user.surname }}</td>
+        <td>{{ user.email }}</td>
+        <td>{{ user.idNumber }}</td>
+        <td>{{ user.company }}</td>
+        <td>{{ user.role }}</td>
+        <td>
+          <button (click)="editUser(user)">Edit</button>
+          <button (click)="deleteUser(user)">Delete</button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>

@@ -1,0 +1,29 @@
+.admin-profile-container {
+  max-width: 400px;
+  margin: 2rem auto;
+  padding: 2rem;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.admin-profile-container h2 {
+  text-align: center;
+  color: #1976d2;
+  margin-bottom: 1.5rem;
+}
+.profile-field {
+  margin-bottom: 1rem;
+}
+.profile-field label {
+  display: block;
+  font-weight: 600;
+}
+.profile-field ul {
+  margin: 0.5rem 0 0 1rem;
+  padding: 0;
+}
+.profile-field li {
+  font-size: 1rem;
+  color: #333;
+}

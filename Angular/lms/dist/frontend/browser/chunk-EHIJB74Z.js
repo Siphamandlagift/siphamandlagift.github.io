@@ -1,1 +1,0 @@
-import{$a as t,Sb as r,sb as o,tb as m,ub as l}from"./chunk-2NFC7Z2J.js";var a=class n{static \u0275fac=function(e){return new(e||n)};static \u0275cmp=t({type:n,selectors:[["app-enrollment"]],decls:3,vars:0,template:function(e,p){e&1&&(o(0,"h2"),r(1,"Enrollment"),m(),l(2,"div"))},encapsulation:2})};export{a as EnrollmentComponent};

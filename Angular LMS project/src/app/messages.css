@@ -1,0 +1,67 @@
+.messages-container {
+  margin: 2rem auto 0 auto;
+  padding: 1.5rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: #f9f9f9;
+  max-width: 400px;
+}
+.messages-container h3 {
+  text-align: center;
+  color: #1976d2;
+  margin-top: 0;
+}
+.messages-container form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.messages-container input,
+.messages-container textarea {
+  padding: 0.5rem;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+.messages-container button[type="submit"] {
+  background: #1976d2;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.5rem;
+}
+.messages-container ul {
+  list-style: none;
+  padding: 0;
+}
+.messages-container li {
+  margin-bottom: 1.2rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid #ddd;
+}
+.msg-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95rem;
+}
+.msg-from {
+  font-weight: 600;
+}
+.msg-date {
+  color: #888;
+  font-size: 0.9rem;
+}
+.unread {
+  color: #d32f2f;
+  font-weight: 600;
+  margin-left: 0.5rem;
+}
+.msg-content {
+  margin-top: 0.3rem;
+  font-size: 1rem;
+}

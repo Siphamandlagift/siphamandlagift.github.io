@@ -1,0 +1,17 @@
+<div class="provider-profile-container">
+	<h2>Training Provider Profile</h2>
+	<div class="provider-field">
+		<label>Name:</label>
+		<span>{{ provider().name }}</span>
+	</div>
+	<div class="provider-field">
+		<label>Contact:</label>
+		<span>{{ provider().contact }}</span>
+	</div>
+	<div class="provider-field">
+		<label>Courses Offered:</label>
+		<ul>
+			<li *ngFor="let course of provider().courses">{{ course }}</li>
+		</ul>
+	</div>
+</div>

@@ -1,0 +1,15 @@
+<div class="settings-container">
+	<h3>Settings</h3>
+	<div class="setting-item">
+		<label>
+			<input type="checkbox" [checked]="settings().notifications" (change)="toggleSetting('notifications')" />
+			Email Notifications
+		</label>
+	</div>
+	<div class="setting-item">
+		<label>
+			<input type="checkbox" [checked]="settings().darkMode" (change)="toggleSetting('darkMode')" />
+			Dark Mode
+		</label>
+	</div>
+</div>

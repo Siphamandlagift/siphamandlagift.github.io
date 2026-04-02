@@ -1,0 +1,32 @@
+<div class="login-brand">
+	<h1>SkillsConnect</h1>
+</div>
+<form *ngIf="!forgotPassword()" [formGroup]="loginForm" (ngSubmit)="onSubmit()" novalidate aria-label="Login form">
+	<h2>Login</h2>
+	<div>
+		<label for="email">Email</label>
+		<input id="email" type="email" formControlName="email" required aria-required="true" [attr.aria-invalid]="email()!.invalid && (email()!.touched || submitted())" autofocus />
+		<div *ngIf="email()!.invalid && (email()!.touched || submitted())" class="error">
+			<span *ngIf="email()!.errors?.['required']">Email is required.</span>
+			<span *ngIf="email()!.errors?.['email']">Enter a valid email address.</span>
+		</div>
+	</div>
+	<div>
+		<label for="password">Password</label>
+		<input id="password" type="password" formControlName="password" required aria-required="true" minlength="6" [attr.aria-invalid]="password()!.invalid && (password()!.touched || submitted())" />
+		<div *ngIf="password()!.invalid && (password()!.touched || submitted())" class="error">
+			<span *ngIf="password()!.errors?.['required']">Password is required.</span>
+			<span *ngIf="password()!.errors?.['minlength']">Password must be at least 6 characters.</span>
+		</div>
+	</div>
+	<button type="submit">Login</button>
+	<div class="forgot-password-link">
+		<a href="#" (click)="onForgotPassword(); $event.preventDefault();">Forgot password?</a>
+	</div>
+</form>
+
+<div *ngIf="forgotPassword()" class="forgot-password-container">
+	<h2>Forgot Password</h2>
+	<p>Please contact your administrator or check your email for password reset instructions.</p>
+	<button (click)="forgotPassword.set(false)">Back to Login</button>
+</div>

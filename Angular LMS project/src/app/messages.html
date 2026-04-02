@@ -1,0 +1,22 @@
+<div class="messages-container">
+  <h3>Messages</h3>
+  <form (ngSubmit)="sendMessage()">
+    <input type="text" placeholder="Recipient" [(ngModel)]="recipient()" name="recipient" required />
+    <textarea placeholder="Type your message..." [(ngModel)]="content()" name="content" required></textarea>
+    <button type="submit">Send</button>
+  </form>
+  <ul *ngIf="messages().length; else noMsgs">
+    <li *ngFor="let msg of messages()">
+      <div class="msg-header">
+        <span class="msg-from">From: {{ msg.sender }}</span>
+        <span class="msg-date">{{ msg.timestamp | date:'short' }}</span>
+        <span *ngIf="!msg.read" class="unread">Unread</span>
+        <button *ngIf="!msg.read" (click)="markAsRead(msg.id)">Mark as Read</button>
+      </div>
+      <div class="msg-content">{{ msg.content }}</div>
+    </li>
+  </ul>
+  <ng-template #noMsgs>
+    <p>No messages yet.</p>
+  </ng-template>
+</div>

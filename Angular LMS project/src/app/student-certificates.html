@@ -1,0 +1,12 @@
+<div class="certificates-container">
+  <h3>My Certificates</h3>
+  <ul *ngIf="certificates().length; else noCerts">
+    <li *ngFor="let cert of certificates()">
+      <div class="cert-title">{{ cert.courseTitle }}</div>
+      <div class="cert-date">Issued: {{ cert.dateIssued }}</div>
+    </li>
+  </ul>
+  <ng-template #noCerts>
+    <p>No certificates issued yet.</p>
+  </ng-template>
+</div>

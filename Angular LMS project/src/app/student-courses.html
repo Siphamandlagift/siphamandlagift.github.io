@@ -1,0 +1,14 @@
+<div class="courses-container">
+	<h3>My Courses</h3>
+	<ul>
+		<li *ngFor="let course of courses(); let i = index">
+			<div class="course-title">{{ course.title }}</div>
+			<div class="course-progress">
+				<span>Progress: {{ course.progress }}%</span>
+				<span [class.completed]="course.status === 'Completed'">{{ course.status }}</span>
+			</div>
+			<button *ngIf="course.status !== 'Completed'" (click)="markAsCompleted(i)">Mark as Completed</button>
+			<span *ngIf="course.status === 'Completed'" class="certificate-issued">Certificate issued</span>
+		</li>
+	</ul>
+</div>

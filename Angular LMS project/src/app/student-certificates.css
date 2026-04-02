@@ -1,0 +1,31 @@
+.certificates-container {
+  margin: 2rem auto 0 auto;
+  padding: 1.5rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: #f9f9f9;
+  max-width: 400px;
+}
+.certificates-container h3 {
+  text-align: center;
+  color: #1976d2;
+  margin-top: 0;
+}
+.certificates-container ul {
+  list-style: none;
+  padding: 0;
+}
+.certificates-container li {
+  margin-bottom: 1.2rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid #ddd;
+}
+.cert-title {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 0.3rem;
+}
+.cert-date {
+  font-size: 0.95rem;
+  color: #555;
+}

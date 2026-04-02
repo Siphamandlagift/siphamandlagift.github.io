@@ -1,0 +1,22 @@
+<div class="admin-profile-container">
+  <h2>Administrator Profile</h2>
+  <div class="profile-field">
+    <label>Name:</label>
+    <span>{{ admin().name }}</span>
+  </div>
+  <div class="profile-field">
+    <label>Email:</label>
+    <span>{{ admin().email }}</span>
+  </div>
+  <div class="profile-field">
+    <label>Role:</label>
+    <span>{{ admin().role }}</span>
+  </div>
+  <div class="profile-field">
+    <label>Permissions:</label>
+    <ul>
+      <li *ngFor="let perm of admin().permissions">{{ perm }}</li>
+    </ul>
+  </div>
+</div>
+<app-admin-user-management></app-admin-user-management>

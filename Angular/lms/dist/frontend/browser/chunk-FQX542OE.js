@@ -1,1 +1,0 @@
-import{$a as t,Sb as i,sb as a,tb as m,ub as o}from"./chunk-2NFC7Z2J.js";var l=class n{static \u0275fac=function(e){return new(e||n)};static \u0275cmp=t({type:n,selectors:[["app-file-management"]],decls:3,vars:0,template:function(e,s){e&1&&(a(0,"h2"),i(1,"File Management"),m(),o(2,"div"))},encapsulation:2})};export{l as FileManagementComponent};

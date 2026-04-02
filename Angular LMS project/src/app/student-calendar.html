@@ -1,0 +1,12 @@
+<div class="calendar-container">
+	<h3>{{ month }} {{ year }}</h3>
+	<div class="calendar-grid">
+		<div class="calendar-day header" *ngFor="let d of ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']">{{ d }}</div>
+		<div *ngFor="let _ of [].constructor(firstDay)"></div>
+		<ng-container *ngFor="let day of [].constructor(daysInMonth); let i = index">
+			<div class="calendar-day" [class.activity]="activityDays().includes(i+1)">
+				{{ i + 1 }}
+			</div>
+		</ng-container>
+	</div>
+</div>

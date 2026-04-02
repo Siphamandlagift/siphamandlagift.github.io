@@ -1,1 +1,0 @@
-import{$a as t,Sb as a,sb as n,tb as m,ub as r}from"./chunk-2NFC7Z2J.js";var i=class o{static \u0275fac=function(e){return new(e||o)};static \u0275cmp=t({type:o,selectors:[["app-workflow"]],decls:3,vars:0,template:function(e,p){e&1&&(n(0,"h2"),a(1,"Workflow Features"),m(),r(2,"div"))},encapsulation:2})};export{i as WorkflowComponent};

@@ -1,0 +1,522 @@
+import React, { useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import { Upload, Users, BookOpen, Play, BarChart2, Settings, Shield, Layers, Building, Sparkles, CheckCircle2, PlusCircle, Search, Trash2, Save, UploadCloud, Image as ImageIcon } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from "recharts";
+
+/**
+ * Skillsconnect Frontend Starter (SPA demo)
+ * - Single-file React app demonstrating key LMS front-end flows:
+ *   - Tenant theming/branding, role switching (Admin/Learner)
+ *   - Catalog, Course Player shell, Quiz shell
+ *   - Admin: Course Builder (modules/lessons), Users, Reports, Settings
+ * - Tailwind + shadcn/ui + Recharts + Framer Motion
+ * - Replace mock data + fetch placeholders with real API endpoints later.
+ */
+
+// ---------- Mock Data ----------
+const mockTenant = {
+  id: "acme-industries",
+  name: "ACME Industries",
+  primary: "#0ea5e9", // tailwind sky-500
+  logoUrl: "https://dummyimage.com/160x40/0ea5e9/ffffff&text=ACME+LMS",
+};
+
+const mockCourses = [
+  { id: "c1", title: "Workplace Safety 101", level: "Beginner", tags: ["Compliance", "Safety"], duration: 45, status: "Published" },
+  { id: "c2", title: "Data Privacy (POPIA)", level: "Intermediate", tags: ["POPIA", "Legal"], duration: 60, status: "Published" },
+  { id: "c3", title: "Leadership Essentials", level: "Intermediate", tags: ["Leadership"], duration: 90, status: "Draft" },
+];
+
+const mockModules = [
+  { id: "m1", courseId: "c1", title: "Introduction", order: 1 },
+  { id: "m2", courseId: "c1", title: "Hazard Identification", order: 2 },
+  { id: "m3", courseId: "c1", title: "Quiz", order: 3 },
+];
+
+const mockLessons = [
+  { id: "l1", moduleId: "m1", type: "video", title: "Welcome", duration: 5 },
+  { id: "l2", moduleId: "m2", type: "doc", title: "Safety Guidelines (PDF)", duration: 10 },
+  { id: "l3", moduleId: "m2", type: "scorm", title: "SCORM Package: Hazards", duration: 20 },
+  { id: "l4", moduleId: "m3", type: "quiz", title: "Knowledge Check", duration: 10 },
+];
+
+const usageSeries = [
+  { date: "Aug 01", active: 120, completions: 40 },
+  { date: "Aug 08", active: 210, completions: 75 },
+  { date: "Aug 15", active: 360, completions: 140 },
+  { date: "Aug 22", active: 405, completions: 185 },
+];
+
+// ---------- Utilities ----------
+function cx(...classes: (string | false | null | undefined)[]) {
+  return classes.filter(Boolean).join(" ");
+}
+
+// Simulated API requests (replace with real fetch calls to /api/*)
+const api = {
+  async searchCatalog(q: string) {
+    await new Promise((r) => setTimeout(r, 250));
+    return mockCourses.filter((c) => c.title.toLowerCase().includes(q.toLowerCase()));
+  },
+  async createCourse(payload: any) {
+    await new Promise((r) => setTimeout(r, 300));
+    return { ...payload, id: `c${Math.floor(Math.random() * 10000)}` };
+  },
+};
+
+// ---------- Core Layout ----------
+function AppShell({ tenant, role, setRole }: { tenant: any; role: Role; setRole: (r: Role) => void }) {
+  return (
+    <div className="min-h-screen w-full bg-gray-50">
+      <TopBar tenant={tenant} role={role} setRole={setRole} />
+      <div className="max-w-7xl mx-auto p-4 md:p-6">
+        <MainTabs role={role} />
+      </div>
+    </div>
+  );
+}
+
+function TopBar({ tenant, role, setRole }: any) {
+  return (
+    <div className="sticky top-0 z-40 bg-white/90 backdrop-blur border-b">
+      <div className="max-w-7xl mx-auto flex items-center justify-between p-3">
+        <div className="flex items-center gap-3">
+          <img src={tenant.logoUrl} alt={tenant.name} className="h-8" />
+          <Separator orientation="vertical" className="h-6" />
+          <Badge variant="secondary" className="hidden sm:inline-flex gap-1"><Building className="h-3 w-3" /> {tenant.name}</Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <RoleSwitch role={role} onChange={(r) => setRole(r)} />
+          <Button variant="outline" size="sm"><Shield className="h-4 w-4 mr-1"/>Admin</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Role Switching ----------
+type Role = "learner" | "admin";
+function RoleSwitch({ role, onChange }: { role: Role; onChange: (r: Role) => void }) {
+  const isAdmin = role === "admin";
+  return (
+    <div className="flex items-center gap-2">
+      <Badge variant={isAdmin ? "secondary" : "outline"}>Learner</Badge>
+      <Switch checked={isAdmin} onCheckedChange={(v) => onChange(v ? "admin" : "learner")} />
+      <Badge variant={isAdmin ? "outline" : "secondary"}>Admin</Badge>
+    </div>
+  );
+}
+
+// ---------- Tabs ----------
+function MainTabs({ role }: { role: Role }) {
+  const [tab, setTab] = useState(role === "admin" ? "dashboard" : "catalog");
+  // Keep learner/admin default tab in sync when role flips
+  React.useEffect(() => setTab(role === "admin" ? "dashboard" : "catalog"), [role]);
+
+  return (
+    <Tabs value={tab} onValueChange={setTab} className="w-full">
+      <TabsList className="grid grid-cols-2 md:grid-cols-6">
+        {role === "admin" ? (
+          <>
+            <TabsTrigger value="dashboard"><BarChart2 className="h-4 w-4 mr-1"/>Dashboard</TabsTrigger>
+            <TabsTrigger value="courses"><BookOpen className="h-4 w-4 mr-1"/>Courses</TabsTrigger>
+            <TabsTrigger value="builder"><Layers className="h-4 w-4 mr-1"/>Builder</TabsTrigger>
+            <TabsTrigger value="users"><Users className="h-4 w-4 mr-1"/>Users</TabsTrigger>
+            <TabsTrigger value="reports"><BarChart2 className="h-4 w-4 mr-1"/>Reports</TabsTrigger>
+            <TabsTrigger value="settings"><Settings className="h-4 w-4 mr-1"/>Settings</TabsTrigger>
+          </>
+        ) : (
+          <>
+            <TabsTrigger value="catalog"><BookOpen className="h-4 w-4 mr-1"/>Catalog</TabsTrigger>
+            <TabsTrigger value="player"><Play className="h-4 w-4 mr-1"/>Player</TabsTrigger>
+          </>
+        )}
+      </TabsList>
+
+      {/* Admin Views */}
+      <TabsContent value="dashboard"><AdminDashboard /></TabsContent>
+      <TabsContent value="courses"><AdminCourses /></TabsContent>
+      <TabsContent value="builder"><CourseBuilder /></TabsContent>
+      <TabsContent value="users"><AdminUsers /></TabsContent>
+      <TabsContent value="reports"><AdminReports /></TabsContent>
+      <TabsContent value="settings"><AdminSettings /></TabsContent>
+
+      {/* Learner Views */}
+      <TabsContent value="catalog"><LearnerCatalog /></TabsContent>
+      <TabsContent value="player"><CoursePlayer /></TabsContent>
+    </Tabs>
+  );
+}
+
+// ---------- Admin: Dashboard ----------
+function AdminDashboard() {
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      <Card className="md:col-span-2">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><BarChart2 className="h-5 w-5"/>Weekly Activity</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={usageSeries}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="active" />
+                <Line type="monotone" dataKey="completions" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5"/>Highlights</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4"/> 185 completions this week</div>
+          <div className="flex items-center gap-2"><Users className="h-4 w-4"/> 2,140 active learners</div>
+          <div className="flex items-center gap-2"><BookOpen className="h-4 w-4"/> 26 published courses</div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ---------- Admin: Courses List ----------
+function AdminCourses() {
+  const [q, setQ] = useState("");
+  const [list, setList] = useState(mockCourses);
+
+  async function onSearch() {
+    const res = await api.searchCatalog(q);
+    setList(res);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 items-center">
+        <Input placeholder="Search courses…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Button onClick={onSearch}><Search className="h-4 w-4 mr-1"/>Search</Button>
+        <Button variant="outline"><PlusCircle className="h-4 w-4 mr-1"/>New Course</Button>
+      </div>
+      <div className="grid md:grid-cols-3 gap-4">
+        {list.map((c) => (
+          <Card key={c.id} className="hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center justify-between">
+                <span>{c.title}</span>
+                <Badge variant={c.status === "Published" ? "default" : "secondary"}>{c.status}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm space-y-2">
+              <div>Level: {c.level}</div>
+              <div>Duration: {c.duration} min</div>
+              <div className="flex gap-2 flex-wrap">{c.tags.map((t) => (<Badge key={t} variant="outline">{t}</Badge>))}</div>
+              <div className="flex gap-2 pt-2">
+                <Button size="sm" variant="outline">Edit</Button>
+                <Button size="sm">Open</Button>
+                <Button size="sm" variant="ghost" className="text-red-600"><Trash2 className="h-4 w-4"/></Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Admin: Course Builder ----------
+function CourseBuilder() {
+  const [courseTitle, setCourseTitle] = useState("New Course");
+  const [level, setLevel] = useState("Beginner");
+  const [modules, setModules] = useState<any[]>([...mockModules]);
+
+  function addModule() {
+    const next = { id: `m${modules.length + 10}`, courseId: "new", title: `Module ${modules.length + 1}`, order: modules.length + 1 };
+    setModules((m) => [...m, next]);
+  }
+
+  function addLesson(mid: string, type: string) {
+    const next = { id: `l${Math.floor(Math.random() * 10000)}`, moduleId: mid, type, title: `${type.toUpperCase()} Lesson`, duration: 5 };
+    mockLessons.push(next);
+  }
+
+  async function saveCourse() {
+    const payload = { title: courseTitle, level, modules };
+    const created = await api.createCourse(payload);
+    alert(`Saved course ${created.title} (id ${created.id})`);
+  }
+
+  return (
+    <div className="grid md:grid-cols-3 gap-4">
+      <Card className="md:col-span-2">
+        <CardHeader>
+          <CardTitle>Structure</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {modules.sort((a, b) => a.order - b.order).map((m) => (
+            <div key={m.id} className="rounded-2xl border p-3">
+              <div className="flex items-center justify-between">
+                <div className="font-medium">{m.order}. {m.title}</div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => addLesson(m.id, "video")}><Upload className="h-4 w-4 mr-1"/>Video</Button>
+                  <Button size="sm" variant="outline" onClick={() => addLesson(m.id, "doc")}><UploadCloud className="h-4 w-4 mr-1"/>Document</Button>
+                  <Button size="sm" variant="outline" onClick={() => addLesson(m.id, "scorm")}><Layers className="h-4 w-4 mr-1"/>SCORM</Button>
+                  <Button size="sm" variant="outline" onClick={() => addLesson(m.id, "quiz")}><PlusCircle className="h-4 w-4 mr-1"/>Quiz</Button>
+                </div>
+              </div>
+              <div className="mt-3 grid gap-2">
+                {mockLessons.filter((l) => l.moduleId === m.id).map((l) => (
+                  <div key={l.id} className="flex items-center justify-between rounded-xl border p-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      {l.type === "video" && <Play className="h-4 w-4"/>}
+                      {l.type === "doc" && <ImageIcon className="h-4 w-4"/>}
+                      {l.type === "scorm" && <Layers className="h-4 w-4"/>}
+                      {l.type === "quiz" && <CheckCircle2 className="h-4 w-4"/>}
+                      <span>{l.title}</span>
+                    </div>
+                    <Badge variant="outline">{l.duration} min</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Properties</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Input value={courseTitle} onChange={(e) => setCourseTitle(e.target.value)} />
+          <Select value={level} onValueChange={setLevel}>
+            <SelectTrigger><SelectValue placeholder="Level"/></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Beginner">Beginner</SelectItem>
+              <SelectItem value="Intermediate">Intermediate</SelectItem>
+              <SelectItem value="Advanced">Advanced</SelectItem>
+            </SelectContent>
+          </Select>
+          <Textarea placeholder="Description (optional)"/>
+          <Button onClick={saveCourse}><Save className="h-4 w-4 mr-1"/>Save Course</Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ---------- Admin: Users ----------
+function AdminUsers() {
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      <Card className="md:col-span-2">
+        <CardHeader><CardTitle>Users</CardTitle></CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <div className="flex items-center gap-2">
+            <Input placeholder="Search users…" />
+            <Button><Search className="h-4 w-4 mr-1"/>Search</Button>
+            <Button variant="outline"><UploadCloud className="h-4 w-4 mr-1"/>Import CSV</Button>
+          </div>
+          <div className="rounded-xl border">
+            <div className="grid grid-cols-4 gap-2 p-2 font-medium bg-gray-50">
+              <div>Name</div><div>Email</div><div>Role</div><div>Status</div>
+            </div>
+            {[1,2,3,4,5].map((i) => (
+              <div key={i} className="grid grid-cols-4 gap-2 p-2 border-t text-sm">
+                <div>User {i}</div>
+                <div>user{i}@example.com</div>
+                <div><Badge variant="secondary">Learner</Badge></div>
+                <div><Badge variant="outline">Active</Badge></div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle>Invite User</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          <Input placeholder="Full name"/>
+          <Input type="email" placeholder="Email"/>
+          <Select defaultValue="learner">
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="learner">Learner</SelectItem>
+              <SelectItem value="instructor">Instructor</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button>Send Invite</Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ---------- Admin: Reports ----------
+function AdminReports() {
+  const data = useMemo(() => usageSeries, []);
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <Card>
+        <CardHeader><CardTitle>Active Learners</CardTitle></CardHeader>
+        <CardContent className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="active" />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle>Completions</CardTitle></CardHeader>
+        <CardContent className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="completions" />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ---------- Admin: Settings (Branding/SSO stubs) ----------
+function AdminSettings() {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <Card>
+        <CardHeader><CardTitle>Branding</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          <Input placeholder="Tenant Name" defaultValue={mockTenant.name} />
+          <div className="flex items-center gap-2">
+            <Input type="color" defaultValue={mockTenant.primary} className="h-10 p-1"/>
+            <span className="text-sm text-gray-600">Primary Colour</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input placeholder="Logo URL" defaultValue={mockTenant.logoUrl} />
+            <Button variant="outline">Upload</Button>
+          </div>
+          <Button><Save className="h-4 w-4 mr-1"/>Save Branding</Button>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle>Single Sign-On (SAML)</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          <Input placeholder="Entity ID"/>
+          <Input placeholder="SSO URL"/>
+          <Textarea placeholder="X.509 Certificate"/>
+          <Button>Enable SSO</Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ---------- Learner: Catalog ----------
+function LearnerCatalog() {
+  const [q, setQ] = useState("");
+  const [list, setList] = useState(mockCourses.filter((c) => c.status === "Published"));
+  async function onSearch() {
+    const res = await api.searchCatalog(q);
+    setList(res.filter((c) => c.status === "Published"));
+  }
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 items-center">
+        <Input placeholder="Search catalog…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Button onClick={onSearch}><Search className="h-4 w-4 mr-1"/>Search</Button>
+      </div>
+      <div className="grid md:grid-cols-3 gap-4">
+        {list.map((c) => (
+          <motion.div key={c.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+            <Card className="hover:shadow-md transition-shadow">
+              <CardHeader><CardTitle className="text-base">{c.title}</CardTitle></CardHeader>
+              <CardContent className="text-sm space-y-2">
+                <div>Level: {c.level}</div>
+                <div>Duration: {c.duration} min</div>
+                <div className="flex gap-2 flex-wrap">{c.tags.map((t) => (<Badge key={t} variant="outline">{t}</Badge>))}</div>
+                <Button className="w-full mt-2">Start</Button>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Learner: Course Player (shell) ----------
+function CoursePlayer() {
+  const [progress, setProgress] = useState(35);
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      <Card className="md:col-span-2">
+        <CardHeader><CardTitle>Workplace Safety 101</CardTitle></CardHeader>
+        <CardContent>
+          <div className="aspect-video w-full bg-black/5 rounded-xl flex items-center justify-center">
+            <Play className="h-10 w-10"/>
+          </div>
+          <div className="mt-3 text-sm text-gray-600">Video player placeholder (integrate Vimeo or AWS MediaConvert)</div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle>Outline</CardTitle></CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          {mockModules.map((m) => (
+            <div key={m.id} className="border rounded-xl p-2">
+              <div className="font-medium">{m.title}</div>
+              <div className="mt-1 space-y-1">
+                {mockLessons.filter((l) => l.moduleId === m.id).map((l) => (
+                  <div key={l.id} className="flex items-center justify-between">
+                    <span className="truncate">• {l.title}</span>
+                    <Badge variant="outline">{l.duration}m</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          <Separator />
+          <div className="text-sm">Progress: {progress}%</div>
+          <div className="w-full bg-gray-200 rounded-full h-2"><div style={{ width: `${progress}%` }} className="h-2 rounded-full bg-blue-500"/></div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setProgress(Math.max(0, progress - 5))}>Back</Button>
+            <Button onClick={() => setProgress(Math.min(100, progress + 5))}>Next</Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ---------- Exported App ----------
+export default function SkillsconnectFrontendStarter() {
+  const [role, setRole] = useState<Role>("admin");
+  const tenant = mockTenant;
+  return <AppShell tenant={tenant} role={role} setRole={setRole} />;
+}

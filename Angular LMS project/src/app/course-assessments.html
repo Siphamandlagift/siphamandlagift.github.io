@@ -1,0 +1,23 @@
+<div class="assessments-container">
+	<h3>Add Assessment</h3>
+	<form (ngSubmit)="addAssessment()" #assessmentForm="ngForm">
+		<div class="form-field">
+			<label for="assessmentTitle">Title</label>
+			<input id="assessmentTitle" name="assessmentTitle" [(ngModel)]="title()" required />
+		</div>
+		<div class="form-field">
+			<label for="assessmentDescription">Description</label>
+			<textarea id="assessmentDescription" name="assessmentDescription" [(ngModel)]="description()" required></textarea>
+		</div>
+		<button type="submit">Add Assessment</button>
+	</form>
+
+	<div class="assessments-list" *ngIf="assessments().length">
+		<h4>Assessments</h4>
+		<ul>
+			<li *ngFor="let assessment of assessments()">
+				<strong>{{ assessment.title }}</strong>: {{ assessment.description }}
+			</li>
+		</ul>
+	</div>
+</div>
