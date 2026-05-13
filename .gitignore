@@ -35,6 +35,7 @@ yarn-error.log
 /connect.lock
 /coverage
 /libpeerconnection.log
+server/data/lms-data.json
 testem.log
 /typings
 __screenshots__/
@@ -42,3 +43,16 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# Environment / secrets
+.env
+.env.*
+
+# Local embedded Postgres data (dev only)
+.embedded-postgres/
+
+# Firebase CLI cache
+.firebase/
+
+# Uploaded files (stored on server disk / GCS, not in git)
+server/data/uploads/

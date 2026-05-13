@@ -1,0 +1,2484 @@
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { interval } from 'rxjs';
+import { LmsBackendService } from './lms-backend.service';
+import type { StudentMessage } from './student-data.service';
+
+export type ManagerPanel = 'dashboard' | 'requested-training' | 'courses' | 'mentorship' | 'enrollment' | 'messages';
+
+export type ManagerProfile = {
+  name: string;
+  role: string;
+  team: string;
+  email: string;
+};
+
+export type SystemTrainingManager = {
+  id: string;
+  name: string;
+  role: string;
+  team: string;
+  email: string;
+};
+
+export type TrainingOfferingType = 'Course' | 'Programme';
+export type LearningStatus = 'Completed' | 'In Progress' | 'Not Yet Started';
+export type TrainingAssessmentType = 'Quiz' | 'Assignment' | 'Mentorship' | 'Read and Acknowledge';
+export type TrainingContentKind = 'Video' | 'Assessment' | 'Document';
+export type TrainingQuestionType = 'Multiple Choice' | 'Short Answer' | 'Long Answer' | 'Document Upload' | 'True or False' | 'Matching';
+
+export type TrainingAssessment = {
+  title: string;
+  type: TrainingAssessmentType;
+};
+
+export type TrainingContentItem = {
+  id: string;
+  kind: TrainingContentKind;
+  title: string;
+  assessmentType: TrainingAssessmentType | null;
+  passMarkPercentage?: number;
+  maxAttempts?: number;
+  resourceLink: string;
+  uploadedFileName: string;
+  uploadedFileDataUrl?: string;
+  requiresAcknowledgement?: boolean;
+  questions: TrainingAssessmentQuestion[];
+};
+
+export type TrainingAssessmentQuestion = {
+  prompt: string;
+  questionType: TrainingQuestionType;
+  points: number;
+  choices: TrainingAssessmentChoice[];
+  matchingPairs: TrainingMatchingPair[];
+  dragAndDropEnabled: boolean;
+  attachmentFileName: string;
+  attachmentDataUrl?: string;
+};
+
+export type TrainingAssessmentChoice = {
+  text: string;
+  points: number;
+  isCorrect: boolean;
+};
+
+export type TrainingMatchingPair = {
+  prompt: string;
+  answer: string;
+};
+
+type LearnerSubmissionResult =
+  | { ok: true }
+  | { ok: false; message: string };
+
+export type TrainingOffering = {
+  id: string;
+  title: string;
+  type: TrainingOfferingType;
+  category: string;
+  description: string;
+  completionDeadline: string;
+  thumbnailDataUrl: string | null;
+  contentItems: TrainingContentItem[];
+  createdOn: string;
+  status: 'Published' | 'Draft';
+};
+
+export type TrainingOfferingUpdate = {
+  id: string;
+  title: string;
+  type: TrainingOfferingType;
+  category: string;
+  description: string;
+  completionDeadline: string;
+  status: TrainingOffering['status'];
+  thumbnailDataUrl: string | null;
+  contentItems?: TrainingContentItem[];
+};
+
+export type EnrollmentStudent = {
+  id: string;
+  name: string;
+  surname: string;
+  group: string;
+  dateEnrolled: string;
+  deadlineDate: string;
+  email: string;
+  jobTitle: string;
+  idNumber: string;
+  activeStatus: 'Active' | 'Inactive';
+  department: string;
+  lineManager: string;
+  status: LearningStatus;
+  assignedOfferingIds: string[];
+  role: 'student' | 'manager' | 'admin';
+};
+
+export type EnrollmentStudentInput = Omit<EnrollmentStudent, 'id' | 'status' | 'assignedOfferingIds' | 'jobTitle' | 'idNumber' | 'lineManager'> & {
+  jobTitle?: string;
+  idNumber?: string;
+  lineManager?: string;
+};
+
+export type ManagerDashboardCard = {
+  label: string;
+  value: string;
+  detail: string;
+  accent: string;
+};
+
+export type LearningActivityItem = {
+  label: LearningStatus;
+  count: number;
+  color: string;
+};
+
+export type ManagerMessage = {
+  id: string;
+  sender: string;
+  subject: string;
+  preview: string;
+  body: string;
+  time: string;
+  unread: boolean;
+  replies: ManagerMessageReply[];
+};
+
+export type ManagerMessageReply = {
+  id: string;
+  sender: string;
+  body: string;
+  time: string;
+  authorType: 'manager' | 'contact';
+  deliveryState?: 'Sent' | 'Delivered';
+};
+
+export type SubmissionReviewStatus = 'Pending Review' | 'Approved' | 'Needs Revision';
+export type MentorshipReviewStatus = SubmissionReviewStatus;
+export type AssignmentReviewStatus = SubmissionReviewStatus;
+
+export type ExternalTrainingRequestStatus = SubmissionReviewStatus;
+
+export type ExternalTrainingRequestRecord = {
+  id: string;
+  studentName: string;
+  studentEmail: string;
+  courseName: string;
+  provider: string;
+  trainingType: 'Accredited' | 'Workshop/Seminar' | 'Informal Training' | 'Short Course';
+  alignedToIdp: 'Yes' | 'No';
+  trainingStartDate: string;
+  trainingEndDate: string;
+  courseCost: string;
+  additionalCostRequired: 'Yes' | 'No';
+  travelCost: string;
+  examCost: string;
+  accommodationCost: string;
+  approvingManagerId: string;
+  approvingManagerName: string;
+  approvingManagerEmail: string;
+  invoiceFileName: string;
+  invoiceDataUrl: string;
+  brochureFileName: string;
+  brochureDataUrl: string;
+  submittedAt: string;
+  status: ExternalTrainingRequestStatus;
+  reviewerName: string | null;
+  reviewerFeedback: string;
+  reviewedAt: string | null;
+};
+
+export type ExternalTrainingRequestCreateInput = {
+  studentName: string;
+  studentEmail: string;
+  courseName: string;
+  provider: string;
+  trainingType: 'Accredited' | 'Workshop/Seminar' | 'Informal Training' | 'Short Course';
+  alignedToIdp: 'Yes' | 'No';
+  trainingStartDate: string;
+  trainingEndDate: string;
+  courseCost: string;
+  additionalCostRequired: 'Yes' | 'No';
+  travelCost: string;
+  examCost: string;
+  accommodationCost: string;
+  approvingManagerId: string;
+  invoiceFileName: string;
+  invoiceDataUrl: string;
+  brochureFileName: string;
+  brochureDataUrl: string;
+};
+
+export type ExternalTrainingRequestUpdateInput = ExternalTrainingRequestCreateInput & {
+  requestId: string;
+};
+
+export type ExternalTrainingRequestReviewInput = {
+  requestId: string;
+  reviewerName: string;
+  status: ExternalTrainingRequestStatus;
+  feedback?: string;
+};
+
+export type MentorshipAssignmentRecord = {
+  id: string;
+  menteeId: string;
+  menteeName: string;
+  menteeSurname: string;
+  mentorshipStartDate: string;
+  jobTitle: string;
+  mentorName: string;
+  mentorSurname: string;
+};
+
+export type MentorshipSubmissionRecord = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  courseId?: string;
+  offeringId: string;
+  offeringTitle: string;
+  assessmentId?: string;
+  assessmentStepId?: string;
+  assessmentTitle: string;
+  mentorName: string;
+  sessionDate: string;
+  actionPlan: string;
+  attemptsUsed?: number;
+  submittedAt: string;
+  status: MentorshipReviewStatus;
+  reviewerName: string | null;
+  reviewerFeedback: string;
+  reviewedAt: string | null;
+};
+
+export type AssignmentSubmissionRecord = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  courseId?: string;
+  offeringId: string;
+  offeringTitle: string;
+  assessmentId?: string;
+  assessmentStepId?: string;
+  assessmentTitle: string;
+  questionType: 'Short Answer' | 'Long Answer' | 'Document Upload';
+  responseText: string;
+  documentFileName: string;
+  documentDataUrl: string;
+  possiblePoints: number;
+  attemptsUsed?: number;
+  awardedPoints: number | null;
+  submittedAt: string;
+  status: AssignmentReviewStatus;
+  reviewerName: string | null;
+  reviewerFeedback: string;
+  reviewedAt: string | null;
+};
+
+@Injectable({ providedIn: 'root' })
+export class TrainingManagerDataService {
+  private static readonly offeringsStorageKey = 'lms-app.offerings';
+  private static readonly assignmentSubmissionsStorageKey = 'lms-app.assignment-submissions';
+  private static readonly legacySeedOfferingIds = new Set([
+    'company-induction',
+    'project-management-fundamentals',
+    'leadership-readiness-programme',
+  ]);
+
+  private readonly backend = inject(LmsBackendService);
+  private backendHydrated = false;
+
+  private readonly profileSignal = signal<ManagerProfile>({
+    name: 'Ava Mokoena',
+    role: 'Training Manager',
+    team: 'People Enablement',
+    email: 'ava.mokoena@skillsconnect.app',
+  });
+
+  private readonly offeringsSignal = signal<TrainingOffering[]>([]);
+  private readonly trainingManagersSignal = signal<SystemTrainingManager[]>([
+    {
+      id: 'manager-ava-mokoena',
+      name: 'Ava Mokoena',
+      role: 'Training Manager',
+      team: 'People Enablement',
+      email: 'ava.mokoena@skillsconnect.app',
+    },
+    {
+      id: 'manager-theo-naidoo',
+      name: 'Theo Naidoo',
+      role: 'Training Manager',
+      team: 'Capability Development',
+      email: 'theo.naidoo@skillsconnect.app',
+    },
+    {
+      id: 'manager-lerato-dlamini',
+      name: 'Lerato Dlamini',
+      role: 'Training Manager',
+      team: 'Learning Operations',
+      email: 'lerato.dlamini@skillsconnect.app',
+    },
+  ]);
+
+  private readonly managerMessagesSignal = signal<ManagerMessage[]>([]);
+
+  private readonly studentsSignal = signal<EnrollmentStudent[]>([
+    {
+      id: 'student-1',
+      name: 'Alice',
+      surname: 'Johnson',
+      group: 'Group A',
+      dateEnrolled: '2026-03-04',
+      deadlineDate: '2026-04-24',
+      email: 'alice.johnson@skillsconnect.app',
+      jobTitle: 'Operations Coordinator',
+      idNumber: '9201140082081',
+      activeStatus: 'Active',
+      department: 'Operations',
+      lineManager: 'Nandi Khumalo',
+      status: 'In Progress',
+      assignedOfferingIds: [],
+      role: 'student',
+    },
+    {
+      id: 'student-2',
+      name: 'Brian',
+      surname: 'Molefe',
+      group: 'Group B',
+      dateEnrolled: '2026-02-18',
+      deadlineDate: '2026-04-20',
+      email: 'brian.molefe@skillsconnect.app',
+      jobTitle: 'Customer Success Specialist',
+      idNumber: '9007285476086',
+      activeStatus: 'Active',
+      department: 'Customer Success',
+      lineManager: 'Thato Ncube',
+      status: 'Completed',
+      assignedOfferingIds: [],
+      role: 'student',
+    },
+    {
+      id: 'student-3',
+      name: 'Chloe',
+      surname: 'Peters',
+      group: 'Group A',
+      dateEnrolled: '2026-03-27',
+      deadlineDate: '2026-05-02',
+      email: 'chloe.peters@skillsconnect.app',
+      jobTitle: 'Finance Administrator',
+      idNumber: '9403051186080',
+      activeStatus: 'Inactive',
+      department: 'Finance',
+      lineManager: 'Michael Petersen',
+      status: 'Not Yet Started',
+      assignedOfferingIds: [],
+      role: 'student',
+    },
+    {
+      id: 'student-4',
+      name: 'Daniel',
+      surname: 'Naidoo',
+      group: 'Group C',
+      dateEnrolled: '2026-01-30',
+      deadlineDate: '2026-05-02',
+      email: 'daniel.naidoo@skillsconnect.app',
+      jobTitle: 'People Operations Partner',
+      idNumber: '8806125031089',
+      activeStatus: 'Active',
+      department: 'People Operations',
+      lineManager: 'Lerato Singh',
+      status: 'Completed',
+      assignedOfferingIds: [],
+      role: 'student',
+    },
+    {
+      id: 'student-5',
+      name: 'Ella',
+      surname: 'Dlamini',
+      group: 'Group B',
+      dateEnrolled: '2026-03-21',
+      deadlineDate: '2026-04-20',
+      email: 'ella.dlamini@skillsconnect.app',
+      jobTitle: 'Sales Consultant',
+      idNumber: '9509190248084',
+      activeStatus: 'Active',
+      department: 'Sales',
+      lineManager: 'Kabelo Maduna',
+      status: 'Not Yet Started',
+      assignedOfferingIds: [],
+      role: 'student',
+    },
+    {
+      id: 'student-6',
+      name: 'Farai',
+      surname: 'Khosa',
+      group: 'Group C',
+      dateEnrolled: '2026-02-06',
+      deadlineDate: '2026-04-24',
+      email: 'farai.khosa@skillsconnect.app',
+      jobTitle: 'Systems Support Analyst',
+      idNumber: '9102216354082',
+      activeStatus: 'Active',
+      department: 'IT',
+      lineManager: 'Ayanda Maseko',
+      status: 'Completed',
+      assignedOfferingIds: [],
+      role: 'student',
+    },
+  ]);
+
+  private readonly mentorshipAssignmentsSignal = signal<MentorshipAssignmentRecord[]>([]);
+  private readonly mentorshipSubmissionsSignal = signal<MentorshipSubmissionRecord[]>([]);
+  private readonly assignmentSubmissionsSignal = signal<AssignmentSubmissionRecord[]>([]);
+  private readonly externalTrainingRequestsSignal = signal<ExternalTrainingRequestRecord[]>([]);
+
+  readonly profile = this.profileSignal.asReadonly();
+  readonly offerings = this.offeringsSignal.asReadonly();
+  readonly trainingManagers = computed(() => this.buildTrainingManagers());
+  readonly managerMessages = this.managerMessagesSignal.asReadonly();
+  readonly unreadManagerMessagesCount = computed(() => this.managerMessages().filter((message) => message.unread).length);
+  readonly managerMessageRecipients = computed(() =>
+    this.students()
+      .map((student) => `${student.name} ${student.surname}`)
+      .sort((left, right) => left.localeCompare(right)),
+  );
+  readonly students = this.studentsSignal.asReadonly();
+  readonly mentorshipAssignments = computed(() =>
+    [...this.mentorshipAssignmentsSignal()].sort((left, right) =>
+      left.menteeName.localeCompare(right.menteeName) || left.menteeSurname.localeCompare(right.menteeSurname),
+    ),
+  );
+  readonly mentorshipSubmissions = computed(() =>
+    [...this.mentorshipSubmissionsSignal()].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt)),
+  );
+  readonly mentorshipSubmissionsForCurrentManager = computed(() => {
+    const currentManagerName = this.normalizePersonName(this.profile().name);
+
+    if (!currentManagerName) {
+      return this.mentorshipSubmissions();
+    }
+
+    const assignmentsByMenteeId = new Map(
+      this.mentorshipAssignmentsSignal().map((assignment) => [
+        assignment.menteeId,
+        this.normalizePersonName(`${assignment.mentorName} ${assignment.mentorSurname}`),
+      ]),
+    );
+
+    return this.mentorshipSubmissions().filter((submission) => {
+      const assignedMentorName = assignmentsByMenteeId.get(submission.studentId) ?? '';
+
+      if (assignedMentorName) {
+        return assignedMentorName === currentManagerName;
+      }
+
+      return this.normalizePersonName(submission.mentorName) === currentManagerName;
+    });
+  });
+  readonly assignmentSubmissions = computed(() =>
+    [...this.assignmentSubmissionsSignal()].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt)),
+  );
+  readonly externalTrainingRequests = computed(() =>
+    [...this.externalTrainingRequestsSignal()].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt)),
+  );
+  readonly pendingExternalTrainingRequestsCount = computed(() =>
+    this.externalTrainingRequests().filter((request) =>
+      request.approvingManagerEmail === this.profile().email && request.status === 'Pending Review').length,
+  );
+  readonly externalTrainingRequestsForCurrentManager = computed(() =>
+    this.externalTrainingRequests().filter((request) => request.approvingManagerEmail === this.profile().email),
+  );
+  readonly mentorshipPendingCount = computed(() =>
+    this.mentorshipSubmissionsForCurrentManager().filter((submission) => submission.status === 'Pending Review').length,
+  );
+  readonly mentorshipApprovedCount = computed(() =>
+    this.mentorshipSubmissionsForCurrentManager().filter((submission) => submission.status === 'Approved').length,
+  );
+  readonly mentorshipNeedsRevisionCount = computed(() =>
+    this.mentorshipSubmissionsForCurrentManager().filter((submission) => submission.status === 'Needs Revision').length,
+  );
+
+  readonly registeredStudentsCount = computed(() => this.students().length);
+  readonly publishedCoursesCount = computed(() => this.offerings().filter((offering) => offering.status === 'Published').length);
+  readonly programmesCount = computed(() => this.offerings().filter((offering) => offering.type === 'Programme').length);
+  readonly assignedStudentsCount = computed(() => this.students().filter((student) => student.assignedOfferingIds.length > 0).length);
+
+  readonly dashboardCards = computed<ManagerDashboardCard[]>(() => [
+    {
+      label: 'Students Registered',
+      value: String(this.registeredStudentsCount()),
+      detail: 'Active learners available for assignment right now.',
+      accent: 'linear-gradient(90deg, #0f766e, #14b8a6)',
+    },
+    {
+      label: 'Courses Published',
+      value: String(this.publishedCoursesCount()),
+      detail: 'Courses and programmes currently available in the manager workspace.',
+      accent: 'linear-gradient(90deg, #1d4ed8, #38bdf8)',
+    },
+    {
+      label: 'Students Assigned',
+      value: String(this.assignedStudentsCount()),
+      detail: 'Learners already mapped to at least one created offering.',
+      accent: 'linear-gradient(90deg, #f59e0b, #f97316)',
+    },
+    {
+      label: 'External Requests Pending',
+      value: String(this.pendingExternalTrainingRequestsCount()),
+      detail: 'External training requests waiting for this manager to review.',
+      accent: 'linear-gradient(90deg, #7c3aed, #2563eb)',
+    },
+  ]);
+
+  readonly learningActivity = computed<LearningActivityItem[]>(() => {
+    const students = this.students();
+    const countByStatus = (status: LearningStatus) => students.filter((student) => student.status === status).length;
+
+    return [
+      { label: 'Completed', count: countByStatus('Completed'), color: '#10b981' },
+      { label: 'In Progress', count: countByStatus('In Progress'), color: '#3b82f6' },
+      { label: 'Not Yet Started', count: countByStatus('Not Yet Started'), color: '#f59e0b' },
+    ];
+  });
+
+  constructor() {
+    this.backend.getBootstrap().subscribe({
+      next: (bootstrap) => {
+        const persistedOfferings = this.filterLegacySeedOfferings(bootstrap.offerings);
+        this.offeringsSignal.set(persistedOfferings);
+        this.saveOfferings(persistedOfferings);
+        this.studentsSignal.set(bootstrap.students);
+        this.managerMessagesSignal.set(bootstrap.managerMessages);
+        this.trainingManagersSignal.set(bootstrap.trainingManagers);
+        this.mentorshipAssignmentsSignal.set(bootstrap.mentorshipAssignments);
+        this.mentorshipSubmissionsSignal.set(bootstrap.mentorshipSubmissions);
+        this.assignmentSubmissionsSignal.set(this.hydrateAssignmentSubmissions(bootstrap.assignmentSubmissions));
+        this.externalTrainingRequestsSignal.set(bootstrap.externalTrainingRequests);
+        this.backendHydrated = true;
+
+        // Start polling for new messages after initial load.
+        interval(15000).subscribe(() => this.refreshManagerMessages());
+      },
+      error: () => {
+        const savedOfferings = this.loadOfferings();
+        if (savedOfferings.length) {
+          this.offeringsSignal.set(savedOfferings);
+        }
+
+        // Strip any legacy seed offering IDs that may remain in the in-memory student seed.
+        this.studentsSignal.update((students) =>
+          students.map((student) => ({
+            ...student,
+            assignedOfferingIds: student.assignedOfferingIds.filter(
+              (id) => !TrainingManagerDataService.legacySeedOfferingIds.has(id),
+            ),
+          })),
+        );
+
+        this.assignmentSubmissionsSignal.set(this.loadAssignmentSubmissions());
+
+        this.backendHydrated = true;
+      },
+    });
+  }
+
+  readonly offeringAssignmentCounts = computed(() => {
+    const counts = new Map<string, number>();
+
+    for (const student of this.students()) {
+      for (const offeringId of student.assignedOfferingIds) {
+        counts.set(offeringId, (counts.get(offeringId) ?? 0) + 1);
+      }
+    }
+
+    return counts;
+  });
+
+  createOffering(input: {
+    title: string;
+    type: TrainingOfferingType;
+    category: string;
+    description: string;
+    completionDeadline: string;
+    thumbnailDataUrl: string | null;
+    contentItems: Array<{
+      id?: string;
+      kind: TrainingContentKind;
+      title: string;
+      assessmentType: TrainingAssessmentType | null;
+      passMarkPercentage?: number;
+      maxAttempts?: number;
+      resourceLink: string;
+      uploadedFileName: string;
+      uploadedFileDataUrl?: string;
+      requiresAcknowledgement?: boolean;
+      questions: Array<{
+        prompt: string;
+        questionType: TrainingQuestionType;
+        points: number;
+        choices: Array<{
+          text: string;
+          points: number;
+          isCorrect: boolean;
+        }>;
+        matchingPairs: Array<{
+          prompt: string;
+          answer: string;
+        }>;
+        dragAndDropEnabled: boolean;
+        attachmentFileName: string;
+        attachmentDataUrl: string;
+      }>;
+    }>;
+  }): TrainingOffering | null {
+    const normalizedTitle = input.title.trim();
+    const normalizedCategory = input.category.trim();
+    const normalizedDescription = input.description.trim();
+    const normalizedContentItems = this.normalizeOfferingContentItems(input.contentItems, normalizedTitle);
+
+    if (!normalizedTitle || !normalizedCategory || !normalizedDescription || !input.completionDeadline) {
+      return null;
+    }
+
+    const offeringId = this.createUniqueOfferingId(normalizedTitle);
+
+    const newOffering: TrainingOffering = {
+      id: offeringId,
+      title: normalizedTitle,
+      type: input.type,
+      category: normalizedCategory,
+      description: normalizedDescription,
+      completionDeadline: input.completionDeadline,
+      thumbnailDataUrl: input.thumbnailDataUrl,
+      contentItems: normalizedContentItems,
+      createdOn: '06 Apr 2026',
+      status: 'Published',
+    };
+
+    this.offeringsSignal.update((items) => [newOffering, ...items]);
+    this.saveOfferings(this.offerings());
+
+    this.backend.createOffering(newOffering).subscribe({
+      next: (savedOffering) => {
+        this.offeringsSignal.update((items) =>
+          items.map((item) => (item.id === savedOffering.id ? savedOffering : item)),
+        );
+        this.saveOfferings(this.offerings());
+      },
+      error: () => {
+        this.saveOfferings(this.offerings());
+      },
+    });
+
+    return newOffering;
+  }
+
+  updateOffering(input: TrainingOfferingUpdate) {
+    const normalizedTitle = input.title.trim();
+    const normalizedCategory = input.category.trim();
+    const normalizedDescription = input.description.trim();
+    const normalizedContentItems = input.contentItems ? this.normalizeOfferingContentItems(input.contentItems, normalizedTitle) : undefined;
+
+    if (!normalizedTitle || !normalizedCategory || !normalizedDescription || !input.completionDeadline) {
+      return null;
+    }
+
+    let updatedOffering: TrainingOffering | null = null;
+    this.offeringsSignal.update((items) =>
+      items.map((item) =>
+        item.id === input.id
+          ? {
+              ...item,
+              title: normalizedTitle,
+              type: input.type,
+              category: normalizedCategory,
+              description: normalizedDescription,
+              completionDeadline: input.completionDeadline,
+              status: input.status,
+              thumbnailDataUrl: input.thumbnailDataUrl,
+              contentItems: normalizedContentItems ?? item.contentItems,
+            }
+          : item,
+      ),
+    );
+    updatedOffering = this.offerings().find((item) => item.id === input.id) ?? null;
+    this.saveOfferings(this.offerings());
+
+    this.backend.updateOffering({
+      ...input,
+      title: normalizedTitle,
+      category: normalizedCategory,
+      description: normalizedDescription,
+      contentItems: normalizedContentItems,
+    }).subscribe({
+      next: (savedOffering) => {
+        this.offeringsSignal.update((items) =>
+          items.map((item) => (item.id === savedOffering.id ? savedOffering : item)),
+        );
+        this.saveOfferings(this.offerings());
+      },
+      error: () => {
+        this.saveOfferings(this.offerings());
+      },
+    });
+
+    return updatedOffering;
+  }
+
+  deleteOffering(offeringId: string) {
+    const normalizedOfferingId = offeringId.trim();
+
+    if (!normalizedOfferingId || !this.offerings().some((offering) => offering.id === normalizedOfferingId)) {
+      return false;
+    }
+
+    this.offeringsSignal.update((items) => items.filter((item) => item.id !== normalizedOfferingId));
+    this.studentsSignal.update((students) =>
+      students.map((student) => {
+        if (!student.assignedOfferingIds.includes(normalizedOfferingId)) {
+          return student;
+        }
+
+        const assignedOfferingIds = student.assignedOfferingIds.filter((assignedId) => assignedId !== normalizedOfferingId);
+
+        return {
+          ...student,
+          ...this.resolveAssignmentState(student, assignedOfferingIds),
+        };
+      }),
+    );
+    this.assignmentSubmissionsSignal.update((submissions) =>
+      submissions.filter((submission) => submission.offeringId !== normalizedOfferingId),
+    );
+    this.mentorshipSubmissionsSignal.update((submissions) =>
+      submissions.filter((submission) => submission.offeringId !== normalizedOfferingId),
+    );
+
+    this.saveOfferings(this.offerings());
+    this.saveAssignmentSubmissions(this.assignmentSubmissionsSignal());
+
+    if (this.backendHydrated) {
+      this.backend.deleteOffering(normalizedOfferingId).subscribe({
+        error: () => {
+          // Keep local state if the API is temporarily unavailable.
+        },
+      });
+    }
+
+    return true;
+  }
+
+  private normalizeOfferingContentItems(
+    contentItems: Array<{
+      id?: string;
+      kind: TrainingContentKind;
+      title: string;
+      assessmentType: TrainingAssessmentType | null;
+      passMarkPercentage?: number;
+      maxAttempts?: number;
+      resourceLink: string;
+      uploadedFileName: string;
+      uploadedFileDataUrl?: string;
+      requiresAcknowledgement?: boolean;
+      questions: Array<{
+        prompt: string;
+        questionType: TrainingQuestionType;
+        points: number;
+        choices: Array<{
+          text: string;
+          points: number;
+          isCorrect: boolean;
+        }>;
+        matchingPairs: Array<{
+          prompt: string;
+          answer: string;
+        }>;
+        dragAndDropEnabled: boolean;
+        attachmentFileName: string;
+        attachmentDataUrl?: string;
+      }>;
+    }>,
+    normalizedTitle: string,
+  ) {
+    return contentItems
+      .map((item, index) => ({
+        id: item.id?.trim() || `${this.slugify(normalizedTitle || `item-${index + 1}`)}-${index + 1}`,
+        kind: item.kind,
+        title: item.title.trim(),
+        assessmentType: item.kind === 'Assessment' ? item.assessmentType ?? 'Quiz' : null,
+        passMarkPercentage: item.kind === 'Assessment' ? this.normalizePassMarkPercentage(item.passMarkPercentage) : undefined,
+        maxAttempts: item.kind === 'Assessment' ? this.normalizeMaxAttempts(item.maxAttempts) : undefined,
+        resourceLink: item.resourceLink.trim(),
+        uploadedFileName: item.uploadedFileName.trim(),
+        uploadedFileDataUrl: item.uploadedFileDataUrl?.trim() ?? '',
+        requiresAcknowledgement: item.kind === 'Document' ? Boolean(item.requiresAcknowledgement) : false,
+        questions: item.kind === 'Assessment'
+          ? item.questions
+              .map((question) => ({
+                prompt: question.prompt.trim(),
+                questionType: question.questionType,
+                points: Math.max(1, Number(question.points) || 1),
+                choices: question.questionType === 'Multiple Choice' || question.questionType === 'True or False'
+                  ? question.choices
+                      .map((choice) => ({
+                        text: choice.text.trim(),
+                        points: Math.max(0, Number(choice.points) || 0),
+                        isCorrect: Boolean(choice.isCorrect),
+                      }))
+                      .filter((choice) => choice.text.length > 0)
+                  : [],
+                matchingPairs: question.questionType === 'Matching'
+                  ? question.matchingPairs
+                      .map((pair) => ({
+                        prompt: pair.prompt.trim(),
+                        answer: pair.answer.trim(),
+                      }))
+                      .filter((pair) => pair.prompt.length > 0 && pair.answer.length > 0)
+                  : [],
+                dragAndDropEnabled: question.questionType === 'Matching' ? Boolean(question.dragAndDropEnabled) : false,
+                attachmentFileName: question.attachmentFileName.trim(),
+                attachmentDataUrl: question.attachmentDataUrl?.trim() ?? '',
+              }))
+              .filter((question) => question.prompt.length > 0)
+          : [],
+      }))
+      .filter((item) => item.title.length > 0);
+  }
+
+  private normalizePassMarkPercentage(value: number | undefined) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return undefined;
+    }
+
+    return Math.min(100, Math.max(1, Math.round(value)));
+  }
+
+  private normalizeMaxAttempts(value: number | undefined) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return undefined;
+    }
+
+    return Math.max(1, Math.round(value));
+  }
+
+  assignStudentToOffering(studentId: string, offeringId: string) {
+    const assignedOffering = this.offerings().find((offering) => offering.id === offeringId);
+
+    this.studentsSignal.update((students) =>
+      students.map((student) => {
+        if (student.id !== studentId || student.assignedOfferingIds.includes(offeringId)) {
+          return student;
+        }
+
+        const assignedOfferingIds = [...student.assignedOfferingIds, offeringId];
+
+        return {
+          ...student,
+          ...this.resolveAssignmentState(student, assignedOfferingIds, assignedOffering?.completionDeadline),
+        };
+      }),
+    );
+
+    this.persistStudents();
+  }
+
+  removeStudentFromOffering(studentId: string, offeringId: string) {
+    let removedCount = 0;
+
+    this.studentsSignal.update((students) =>
+      students.map((student) => {
+        if (student.id !== studentId || !student.assignedOfferingIds.includes(offeringId)) {
+          return student;
+        }
+
+        removedCount += 1;
+        const assignedOfferingIds = student.assignedOfferingIds.filter((assignedId) => assignedId !== offeringId);
+
+        return {
+          ...student,
+          ...this.resolveAssignmentState(student, assignedOfferingIds),
+        };
+      }),
+    );
+
+    this.persistStudents();
+
+    return removedCount;
+  }
+
+  updateStudent(studentId: string, input: EnrollmentStudentInput) {
+    const normalizedName = input.name.trim();
+    const normalizedSurname = input.surname.trim();
+    const normalizedGroup = input.group.trim();
+    const normalizedEmail = input.email.trim();
+    const normalizedDepartment = input.department.trim();
+
+    if (
+      !normalizedName ||
+      !normalizedSurname ||
+      !normalizedGroup ||
+      !input.dateEnrolled ||
+      !input.deadlineDate ||
+      !normalizedEmail ||
+      !normalizedDepartment
+    ) {
+      return;
+    }
+
+    this.studentsSignal.update((students) =>
+      students.map((student) =>
+        student.id === studentId
+          ? {
+              ...student,
+              name: normalizedName,
+              surname: normalizedSurname,
+              group: normalizedGroup,
+              dateEnrolled: input.dateEnrolled,
+              deadlineDate: input.deadlineDate,
+              email: normalizedEmail,
+              jobTitle: input.jobTitle === undefined ? student.jobTitle : input.jobTitle.trim(),
+              idNumber: input.idNumber === undefined ? student.idNumber : input.idNumber.trim(),
+              activeStatus: input.activeStatus,
+              department: normalizedDepartment,
+              lineManager: input.lineManager === undefined ? student.lineManager : input.lineManager.trim(),
+              role: input.role,
+            }
+          : student,
+      ),
+    );
+
+    this.persistStudents();
+  }
+
+  bulkUpsertStudents(inputs: EnrollmentStudentInput[]) {
+    const normalizedInputs = inputs
+      .map((input) => this.normalizeStudentInput(input))
+      .filter((input): input is EnrollmentStudentInput => input !== null);
+
+    if (!normalizedInputs.length) {
+      return { added: 0, updated: 0, skipped: inputs.length };
+    }
+
+    let added = 0;
+    let updated = 0;
+
+    this.studentsSignal.update((students) => {
+      const nextStudents = [...students];
+      const studentsByEmail = new Map(nextStudents.map((student) => [student.email.toLowerCase(), student]));
+      const usedIds = new Set(nextStudents.map((student) => student.id));
+
+      for (const input of normalizedInputs) {
+        const emailKey = input.email.toLowerCase();
+        const existing = studentsByEmail.get(emailKey);
+
+        if (existing) {
+          const existingIndex = nextStudents.findIndex((student) => student.id === existing.id);
+          if (existingIndex >= 0) {
+            nextStudents[existingIndex] = {
+              ...existing,
+              ...input,
+            };
+            studentsByEmail.set(emailKey, nextStudents[existingIndex]);
+            updated += 1;
+          }
+
+          continue;
+        }
+
+        const id = this.createUniqueStudentId(input, usedIds);
+        usedIds.add(id);
+
+        const newStudent: EnrollmentStudent = {
+          id,
+          ...input,
+          jobTitle: input.jobTitle?.trim() ?? '',
+          idNumber: input.idNumber?.trim() ?? '',
+          status: 'Not Yet Started',
+          assignedOfferingIds: [],
+          lineManager: input.lineManager?.trim() ?? '',
+        };
+
+        nextStudents.push(newStudent);
+        studentsByEmail.set(emailKey, newStudent);
+        added += 1;
+      }
+
+      return nextStudents;
+    });
+
+    this.persistStudents();
+
+    return {
+      added,
+      updated,
+      skipped: inputs.length - normalizedInputs.length,
+    };
+  }
+
+  deleteStudent(studentId: string) {
+    const normalizedStudentId = studentId.trim();
+
+    if (!normalizedStudentId) {
+      return;
+    }
+
+    this.studentsSignal.update((students) =>
+      students.filter((student) => student.id !== normalizedStudentId),
+    );
+
+    this.persistStudents();
+  }
+
+  assignGroupToOffering(groupName: string, offeringId: string) {
+    const normalizedGroupName = groupName.trim();
+    const assignedOffering = this.offerings().find((offering) => offering.id === offeringId);
+
+    if (!normalizedGroupName || !assignedOffering) {
+      return 0;
+    }
+
+    let assignedCount = 0;
+
+    this.studentsSignal.update((students) =>
+      students.map((student) => {
+        if (student.group !== normalizedGroupName || student.assignedOfferingIds.includes(offeringId)) {
+          return student;
+        }
+
+        assignedCount += 1;
+        const assignedOfferingIds = [...student.assignedOfferingIds, offeringId];
+
+        return {
+          ...student,
+          ...this.resolveAssignmentState(student, assignedOfferingIds, assignedOffering.completionDeadline),
+        };
+      }),
+    );
+
+    this.persistStudents();
+
+    return assignedCount;
+  }
+
+  removeGroupFromOffering(groupName: string, offeringId: string) {
+    const normalizedGroupName = groupName.trim();
+
+    if (!normalizedGroupName) {
+      return 0;
+    }
+
+    let removedCount = 0;
+
+    this.studentsSignal.update((students) =>
+      students.map((student) => {
+        if (student.group !== normalizedGroupName || !student.assignedOfferingIds.includes(offeringId)) {
+          return student;
+        }
+
+        removedCount += 1;
+        const assignedOfferingIds = student.assignedOfferingIds.filter((assignedId) => assignedId !== offeringId);
+
+        return {
+          ...student,
+          ...this.resolveAssignmentState(student, assignedOfferingIds),
+        };
+      }),
+    );
+
+    this.persistStudents();
+
+    return removedCount;
+  }
+
+  updateGroup(groupName: string, input: { name: string; startDate: string; endDate: string; additionalStudentIds?: string[]; removedStudentIds?: string[] }) {
+    const normalizedCurrentName = groupName.trim();
+    const normalizedNextName = input.name.trim();
+    const additionalStudentIds = new Set(input.additionalStudentIds ?? []);
+    const removedStudentIds = new Set(input.removedStudentIds ?? []);
+
+    if (!normalizedCurrentName || !normalizedNextName || !input.startDate || !input.endDate) {
+      return;
+    }
+
+    this.studentsSignal.update((students) =>
+      students.map((student) =>
+        removedStudentIds.has(student.id)
+          ? {
+              ...student,
+              group: 'Ungrouped',
+            }
+          : student.group === normalizedCurrentName || additionalStudentIds.has(student.id)
+          ? {
+              ...student,
+              group: normalizedNextName,
+              dateEnrolled: input.startDate,
+              deadlineDate: input.endDate,
+            }
+          : student,
+      ),
+    );
+
+    this.persistStudents();
+  }
+
+  createGroup(input: { name: string; startDate: string; endDate: string; studentIds: string[] }) {
+    const normalizedName = input.name.trim();
+    const studentIds = new Set(input.studentIds);
+
+    if (!normalizedName || !input.startDate || !input.endDate || studentIds.size === 0) {
+      return;
+    }
+
+    this.studentsSignal.update((students) =>
+      students.map((student) =>
+        studentIds.has(student.id)
+          ? {
+              ...student,
+              group: normalizedName,
+              dateEnrolled: input.startDate,
+              deadlineDate: input.endDate,
+            }
+          : student,
+      ),
+    );
+
+    this.persistStudents();
+  }
+
+  deleteGroup(groupName: string) {
+    const normalizedGroupName = groupName.trim();
+
+    if (!normalizedGroupName) {
+      return;
+    }
+
+    this.studentsSignal.update((students) =>
+      students.map((student) =>
+        student.group === normalizedGroupName
+          ? {
+              ...student,
+              group: 'Ungrouped',
+            }
+          : student,
+      ),
+    );
+
+    this.persistStudents();
+  }
+
+  offeringsForStudent(student: EnrollmentStudent) {
+    const assignments = new Set(student.assignedOfferingIds);
+    return this.offerings().filter((offering) => assignments.has(offering.id));
+  }
+
+  assignableOfferingsForStudent(student: EnrollmentStudent) {
+    const assignments = new Set(student.assignedOfferingIds);
+    return this.offerings().filter((offering) => !assignments.has(offering.id));
+  }
+
+  offeringsForGroup(students: EnrollmentStudent[]) {
+    const assignments = new Set(students.flatMap((student) => student.assignedOfferingIds));
+    return this.offerings().filter((offering) => assignments.has(offering.id));
+  }
+
+  assignableOfferingsForGroup(students: EnrollmentStudent[]) {
+    if (!students.length) {
+      return this.offerings();
+    }
+
+    return this.offerings().filter((offering) =>
+      students.some((student) => !student.assignedOfferingIds.includes(offering.id)),
+    );
+  }
+
+  markManagerMessageRead(messageId: string) {
+    this.managerMessagesSignal.update((messages) =>
+      messages.map((message) =>
+        message.id === messageId
+          ? {
+              ...message,
+              unread: false,
+            }
+          : message,
+      ),
+    );
+
+    this.persistManagerMessages();
+  }
+
+  sendManagerMessage(recipient: string, subject: string, message: string) {
+    const normalizedRecipient = recipient.trim();
+    const normalizedSubject = subject.trim();
+    const normalizedMessage = message.trim();
+
+    if (!normalizedRecipient || !normalizedSubject || !normalizedMessage) {
+      return;
+    }
+
+    this.managerMessagesSignal.update((messages) => [
+      {
+        id: `manager-message-${Date.now()}`,
+        sender: `To: ${normalizedRecipient}`,
+        subject: normalizedSubject,
+        preview: normalizedMessage,
+        body: normalizedMessage,
+        time: 'Just now',
+        unread: false,
+        replies: [],
+      },
+      ...messages,
+    ]);
+
+    this.persistManagerMessages();
+    this.deliverManagerMessageToStudent(normalizedRecipient, normalizedSubject, normalizedMessage);
+  }
+
+  replyToManagerMessage(messageId: string, message: string) {
+    const normalizedMessage = message.trim();
+
+    if (!normalizedMessage) {
+      return;
+    }
+
+    this.managerMessagesSignal.update((messages) =>
+      messages.map((item) =>
+        item.id === messageId
+          ? {
+              ...item,
+              replies: [
+                ...item.replies,
+                {
+                  id: `${messageId}-reply-${Date.now()}`,
+                  sender: this.profile().name,
+                  body: normalizedMessage,
+                  time: 'Just now',
+                  authorType: 'manager',
+                  deliveryState: 'Sent',
+                },
+              ],
+            }
+          : item,
+      ),
+    );
+
+    this.persistManagerMessages();
+  }
+
+  createMentorshipAssignment(input: {
+    menteeId: string;
+    mentorshipStartDate: string;
+    jobTitle: string;
+    mentorName: string;
+    mentorSurname: string;
+  }) {
+    const mentee = this.students().find((student) => student.id === input.menteeId.trim());
+    const mentorshipStartDate = input.mentorshipStartDate;
+    const jobTitle = input.jobTitle.trim();
+    const mentorName = input.mentorName.trim();
+    const mentorSurname = input.mentorSurname.trim();
+
+    if (!mentee || !mentorshipStartDate || !jobTitle || !mentorName || !mentorSurname) {
+      return;
+    }
+
+    const existingAssignment = this.mentorshipAssignmentsSignal().find((assignment) => assignment.menteeId === mentee.id);
+
+    if (existingAssignment) {
+      this.updateMentorshipAssignment(existingAssignment.id, {
+        menteeId: mentee.id,
+        mentorshipStartDate,
+        jobTitle,
+        mentorName,
+        mentorSurname,
+      });
+      return;
+    }
+
+    this.mentorshipAssignmentsSignal.update((assignments) => [
+      {
+        id: `mentorship-assignment-${mentee.id}`,
+        menteeId: mentee.id,
+        menteeName: mentee.name,
+        menteeSurname: mentee.surname,
+        mentorshipStartDate,
+        jobTitle,
+        mentorName,
+        mentorSurname,
+      },
+      ...assignments,
+    ]);
+
+    this.persistMentorshipAssignments();
+  }
+
+  createBulkMentorshipAssignments(input: { menteeIds: string[] }) {
+    const uniqueMenteeIds = Array.from(new Set(input.menteeIds.map((menteeId) => menteeId.trim()).filter(Boolean)));
+
+    if (!uniqueMenteeIds.length) {
+      return;
+    }
+
+    const today = new Date();
+    const mentorshipStartDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    for (const menteeId of uniqueMenteeIds) {
+      const mentee = this.students().find((student) => student.id === menteeId);
+      const existingAssignment = this.mentorshipAssignmentsSignal().find((assignment) => assignment.menteeId === menteeId);
+
+      if (!mentee || existingAssignment) {
+        continue;
+      }
+
+      this.mentorshipAssignmentsSignal.update((assignments) => [
+        {
+          id: `mentorship-assignment-${mentee.id}`,
+          menteeId: mentee.id,
+          menteeName: mentee.name,
+          menteeSurname: mentee.surname,
+          mentorshipStartDate,
+          jobTitle: mentee.jobTitle,
+          mentorName: '',
+          mentorSurname: '',
+        },
+        ...assignments,
+      ]);
+    }
+
+    this.persistMentorshipAssignments();
+  }
+
+  updateMentorshipAssignment(assignmentId: string, input: {
+    menteeId: string;
+    mentorshipStartDate: string;
+    jobTitle: string;
+    mentorName: string;
+    mentorSurname: string;
+  }) {
+    const normalizedAssignmentId = assignmentId.trim();
+    const mentee = this.students().find((student) => student.id === input.menteeId.trim());
+    const mentorshipStartDate = input.mentorshipStartDate;
+    const jobTitle = input.jobTitle.trim();
+    const mentorName = input.mentorName.trim();
+    const mentorSurname = input.mentorSurname.trim();
+
+    if (!normalizedAssignmentId || !mentee || !mentorshipStartDate || !jobTitle || !mentorName || !mentorSurname) {
+      return;
+    }
+
+    this.mentorshipAssignmentsSignal.update((assignments) =>
+      assignments.map((assignment) =>
+        assignment.id === normalizedAssignmentId
+          ? {
+              ...assignment,
+              menteeId: mentee.id,
+              menteeName: mentee.name,
+              menteeSurname: mentee.surname,
+              mentorshipStartDate,
+              jobTitle,
+              mentorName,
+              mentorSurname,
+            }
+          : assignment,
+      ),
+    );
+
+    this.persistMentorshipAssignments();
+  }
+
+  deleteMentorshipAssignment(assignmentId: string) {
+    const normalizedAssignmentId = assignmentId.trim();
+
+    if (!normalizedAssignmentId) {
+      return;
+    }
+
+    this.mentorshipAssignmentsSignal.update((assignments) =>
+      assignments.filter((assignment) => assignment.id !== normalizedAssignmentId),
+    );
+
+    this.persistMentorshipAssignments();
+  }
+
+  mentorshipSubmissionForStudentOffering(studentId: string, offeringId: string, assessmentStepId?: string, includeLegacyFallback = true) {
+    const submissions = this.mentorshipSubmissionsSignal().filter((submission) => submission.studentId === studentId && submission.offeringId === offeringId);
+    if (!assessmentStepId) {
+      return submissions[0] ?? null;
+    }
+
+    const matchingSubmission = submissions.find((submission) => submission.assessmentStepId === assessmentStepId);
+    if (matchingSubmission) {
+      return matchingSubmission;
+    }
+
+    return includeLegacyFallback
+      ? submissions.find((submission) => !submission.assessmentStepId) ?? null
+      : null;
+  }
+
+  assignmentSubmissionForStudentOffering(studentId: string, offeringId: string, assessmentStepId?: string, includeLegacyFallback = true) {
+    const submissions = this.assignmentSubmissionsSignal().filter((submission) => submission.studentId === studentId && submission.offeringId === offeringId);
+    if (!assessmentStepId) {
+      return submissions[0] ?? null;
+    }
+
+    const matchingSubmission = submissions.find((submission) => submission.assessmentStepId === assessmentStepId);
+    if (matchingSubmission) {
+      return matchingSubmission;
+    }
+
+    return includeLegacyFallback
+      ? submissions.find((submission) => !submission.assessmentStepId) ?? null
+      : null;
+  }
+
+  submitMentorshipSubmission(input: {
+    studentId: string;
+    offeringId: string;
+    assessmentStepId?: string;
+    assessmentTitle?: string;
+    mentorName: string;
+    sessionDate: string;
+    actionPlan: string;
+  }): LearnerSubmissionResult {
+    const student = this.students().find((item) => item.id === input.studentId);
+    const offering = this.offerings().find((item) => item.id === input.offeringId);
+    const mentorshipStep = this.findAssessmentStep(offering, 'Mentorship', input.assessmentStepId);
+    const mentorName = input.mentorName.trim();
+    const sessionDate = input.sessionDate.trim();
+    const actionPlan = input.actionPlan.trim();
+    const assessmentStepId = input.assessmentStepId?.trim() ?? '';
+    const assessmentTitle = input.assessmentTitle?.trim() || mentorshipStep?.item.title || '';
+
+    if (!student || !offering || !mentorshipStep || !assessmentTitle) {
+      return {
+        ok: false,
+        message: 'This mentorship response could not be submitted right now. Refresh the course and try again.',
+      };
+    }
+
+    if (!mentorName || !sessionDate || !actionPlan) {
+      return {
+        ok: false,
+        message: 'Complete the mentor name, session date, and action plan before submitting.',
+      };
+    }
+
+    const submittedAt = this.formatDisplayDate(new Date());
+    const maxAttempts = this.normalizeMaxAttempts(mentorshipStep.item.maxAttempts);
+    let submissionRejected = false;
+
+    this.mentorshipSubmissionsSignal.update((submissions) => {
+      const existingSubmission = submissions.find((submission) =>
+        submission.studentId === student.id
+        && submission.offeringId === offering.id
+        && (submission.assessmentStepId ?? '') === assessmentStepId,
+      );
+      const nextAttemptsUsed = (existingSubmission ? existingSubmission.attemptsUsed ?? 1 : 0) + 1;
+      const recordIdSuffix = assessmentStepId.replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '') || 'default';
+
+      if (maxAttempts !== undefined && nextAttemptsUsed > maxAttempts) {
+        submissionRejected = true;
+        return submissions;
+      }
+
+      if (!existingSubmission) {
+        return [
+          {
+            id: `mentorship-${student.id}-${offering.id}-${recordIdSuffix}`,
+            studentId: student.id,
+            studentName: `${student.name} ${student.surname}`,
+            studentEmail: student.email,
+            courseId: offering.id,
+            offeringId: offering.id,
+            offeringTitle: offering.title,
+            assessmentId: mentorshipStep.stepId,
+            assessmentStepId: assessmentStepId || undefined,
+            assessmentTitle,
+            mentorName,
+            sessionDate,
+            actionPlan,
+            attemptsUsed: nextAttemptsUsed,
+            submittedAt,
+            status: 'Pending Review',
+            reviewerName: null,
+            reviewerFeedback: '',
+            reviewedAt: null,
+          },
+          ...submissions,
+        ];
+      }
+
+      return submissions.map((submission) =>
+        submission.id === existingSubmission.id
+          ? {
+              ...submission,
+              courseId: offering.id,
+              assessmentId: mentorshipStep.stepId,
+              assessmentStepId: assessmentStepId || undefined,
+              assessmentTitle,
+              mentorName,
+              sessionDate,
+              actionPlan,
+              attemptsUsed: nextAttemptsUsed,
+              submittedAt,
+              status: 'Pending Review',
+              reviewerName: null,
+              reviewerFeedback: '',
+              reviewedAt: null,
+            }
+          : submission,
+      );
+    });
+
+    if (submissionRejected) {
+      return {
+        ok: false,
+        message: 'No attempts remain for this mentorship response.',
+      };
+    }
+
+    this.persistMentorshipSubmissions();
+    return { ok: true };
+  }
+
+  submitMentorshipFormSubmission(input: {
+    studentId: string;
+    studentName: string;
+    studentEmail: string;
+    mentorName: string;
+    formId: 'profile' | 'objectives' | 'progress-report';
+    formTitle: string;
+    actionPlan: string;
+    sessionDate?: string;
+  }) {
+    const studentId = input.studentId.trim();
+    const student = this.students().find((item) => item.id === studentId);
+    const studentName = student ? `${student.name} ${student.surname}` : input.studentName.trim();
+    const studentEmail = student?.email ?? input.studentEmail.trim();
+    const mentorName = input.mentorName.trim();
+    const formId = input.formId.trim();
+    const formTitle = input.formTitle.trim();
+    const actionPlan = input.actionPlan.trim();
+    const submittedAt = this.formatDisplayDate(new Date());
+    const sessionDate = input.sessionDate?.trim() || submittedAt;
+    const mentorshipFormsOfferingId = 'mentorship-workspace-forms';
+
+    if (!studentId || !studentName || !studentEmail || !mentorName || !formId || !formTitle || !actionPlan) {
+      return;
+    }
+
+    const nextSubmission: MentorshipSubmissionRecord = {
+      id: `mentorship-form-${studentId}-${formId}`,
+      studentId,
+      studentName,
+      studentEmail,
+      courseId: mentorshipFormsOfferingId,
+      offeringId: mentorshipFormsOfferingId,
+      offeringTitle: 'Mentorship Workspace',
+      assessmentId: `mentorship-form-${formId}`,
+      assessmentStepId: `mentorship-form-${formId}`,
+      assessmentTitle: formTitle,
+      mentorName,
+      sessionDate,
+      actionPlan,
+      submittedAt,
+      status: 'Pending Review',
+      reviewerName: null,
+      reviewerFeedback: '',
+      reviewedAt: null,
+    };
+
+    this.mentorshipSubmissionsSignal.update((submissions) => {
+      const existingSubmission = submissions.find((submission) => submission.id === nextSubmission.id);
+
+      if (!existingSubmission) {
+        return [nextSubmission, ...submissions];
+      }
+
+      return submissions.map((submission) =>
+        submission.id === existingSubmission.id ? nextSubmission : submission,
+      );
+    });
+
+    this.persistMentorshipSubmissions();
+  }
+
+  submitAssignmentSubmission(input: {
+    studentId: string;
+    offeringId: string;
+    assessmentStepId?: string;
+    assessmentTitle?: string;
+    questionType: 'Short Answer' | 'Long Answer' | 'Document Upload';
+    responseText?: string;
+    documentFileName?: string;
+    documentDataUrl?: string;
+  }): LearnerSubmissionResult {
+    const student = this.students().find((item) => item.id === input.studentId);
+    const offering = this.offerings().find((item) => item.id === input.offeringId);
+    const assignmentStep = this.findAssessmentStep(offering, 'Assignment', input.assessmentStepId);
+    const assignmentItem = assignmentStep?.item;
+    const assignmentQuestion = assignmentStep?.question;
+    const responseText = input.responseText?.trim() ?? '';
+    const documentFileName = input.documentFileName?.trim() ?? '';
+    const documentDataUrl = input.documentDataUrl?.trim() ?? '';
+    const assessmentStepId = input.assessmentStepId?.trim() ?? '';
+    const assessmentTitle = input.assessmentTitle?.trim() || assignmentItem?.title || '';
+
+    if (!student || !offering || !assignmentItem || !assignmentQuestion || !assessmentTitle) {
+      return {
+        ok: false,
+        message: 'This assignment could not be submitted right now. Refresh the course and try again.',
+      };
+    }
+
+    if (
+      assignmentQuestion.questionType !== 'Short Answer'
+      && assignmentQuestion.questionType !== 'Long Answer'
+      && assignmentQuestion.questionType !== 'Document Upload'
+    ) {
+      return {
+        ok: false,
+        message: 'This assignment question is not supported for learner submissions yet.',
+      };
+    }
+
+    if (assignmentQuestion.questionType !== input.questionType) {
+      return {
+        ok: false,
+        message: 'This assignment no longer matches the latest course version. Refresh the course and try again.',
+      };
+    }
+
+    if ((input.questionType === 'Short Answer' || input.questionType === 'Long Answer') && !responseText) {
+      return {
+        ok: false,
+        message: 'Enter your assignment response before submitting.',
+      };
+    }
+
+    if (input.questionType === 'Document Upload' && (!documentFileName || !documentDataUrl)) {
+      return {
+        ok: false,
+        message: 'Choose a document before submitting this assignment.',
+      };
+    }
+
+    const submittedAt = this.formatDisplayDate(new Date());
+    const maxAttempts = this.normalizeMaxAttempts(assignmentItem.maxAttempts);
+    const existingSubmission = this.assignmentSubmissionsSignal().find((submission) =>
+      submission.studentId === student.id
+      && submission.offeringId === offering.id
+      && (submission.assessmentStepId ?? '') === assessmentStepId,
+    );
+    const nextAttemptsUsed = (existingSubmission ? existingSubmission.attemptsUsed ?? 1 : 0) + 1;
+
+    if (maxAttempts !== undefined && nextAttemptsUsed > maxAttempts) {
+      return {
+        ok: false,
+        message: 'No attempts remain for this assignment.',
+      };
+    }
+
+    this.assignmentSubmissionsSignal.update((submissions) => {
+      const recordIdSuffix = assessmentStepId.replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '') || 'default';
+
+      const nextSubmission: AssignmentSubmissionRecord = {
+        id: existingSubmission?.id ?? `assignment-${student.id}-${offering.id}-${recordIdSuffix}`,
+        studentId: student.id,
+        studentName: `${student.name} ${student.surname}`,
+        studentEmail: student.email,
+        courseId: offering.id,
+        offeringId: offering.id,
+        offeringTitle: offering.title,
+        assessmentId: assignmentStep.stepId,
+        assessmentStepId: assessmentStepId || undefined,
+        assessmentTitle,
+        questionType: input.questionType,
+        responseText: input.questionType === 'Short Answer' || input.questionType === 'Long Answer' ? responseText : '',
+        documentFileName: input.questionType === 'Document Upload' ? documentFileName : '',
+        documentDataUrl: input.questionType === 'Document Upload' ? documentDataUrl : '',
+        possiblePoints: assignmentQuestion.points,
+        attemptsUsed: nextAttemptsUsed,
+        awardedPoints: null,
+        submittedAt,
+        status: 'Pending Review',
+        reviewerName: null,
+        reviewerFeedback: '',
+        reviewedAt: null,
+      };
+
+      const nextSubmissions = !existingSubmission
+        ? [nextSubmission, ...submissions]
+        : submissions.map((submission) =>
+        submission.id === existingSubmission.id ? nextSubmission : submission,
+      );
+
+      this.saveAssignmentSubmissions(nextSubmissions);
+      this.persistAssignmentSubmission(nextSubmission);
+      return nextSubmissions;
+    });
+
+    return { ok: true };
+  }
+
+  private findAssessmentStep(
+    offering: TrainingOffering | undefined,
+    assessmentType: 'Assignment' | 'Mentorship',
+    assessmentStepId?: string,
+  ) {
+    if (!offering) {
+      return null;
+    }
+
+    const normalizedStepId = assessmentStepId?.trim() ?? '';
+    for (let itemIndex = 0; itemIndex < offering.contentItems.length; itemIndex += 1) {
+      const item = offering.contentItems[itemIndex];
+      if (item.kind !== 'Assessment' || item.assessmentType !== assessmentType) {
+        continue;
+      }
+
+      if (!item.questions.length) {
+        continue;
+      }
+
+      for (let questionIndex = 0; questionIndex < item.questions.length; questionIndex += 1) {
+        const question = item.questions[questionIndex];
+        const stepId = this.createAssessmentStepId(offering.id, item.id, itemIndex, questionIndex);
+        if (!normalizedStepId || stepId === normalizedStepId) {
+          return { item, question, stepId };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private createAssessmentStepId(offeringId: string, itemId: string, itemIndex: number, questionIndex: number) {
+    const baseId = itemId || `${offeringId}-assessment-${itemIndex + 1}`;
+    return `${baseId}-question-${questionIndex + 1}`;
+  }
+
+  reviewAssignmentSubmission(input: {
+    submissionId: string;
+    reviewerName: string;
+    status: AssignmentReviewStatus;
+    feedback: string;
+    awardedPoints: number | null;
+  }) {
+    const submissionId = input.submissionId.trim();
+    const reviewerName = input.reviewerName.trim();
+    const feedback = input.feedback.trim();
+
+    if (!submissionId || !reviewerName || !feedback) {
+      return;
+    }
+
+    this.assignmentSubmissionsSignal.update((submissions) => {
+      const activeSubmission = submissions.find((submission) => submission.id === submissionId);
+      if (!activeSubmission) {
+        return submissions;
+      }
+
+      const awardedPoints = input.status === 'Approved'
+        ? (typeof input.awardedPoints === 'number' && Number.isFinite(input.awardedPoints)
+          ? Math.max(0, Math.min(activeSubmission.possiblePoints, Math.round(input.awardedPoints)))
+          : null)
+        : null;
+
+      if (input.status === 'Approved' && awardedPoints === null) {
+        return submissions;
+      }
+
+      const nextSubmissions = submissions.map((submission) =>
+        submission.id === submissionId
+          ? {
+              ...submission,
+              reviewerName,
+              reviewerFeedback: feedback,
+              awardedPoints,
+              status: input.status,
+              reviewedAt: this.formatDisplayDate(new Date()),
+            }
+          : submission,
+      );
+
+      const updatedSubmission = nextSubmissions.find((submission) => submission.id === submissionId);
+
+      this.saveAssignmentSubmissions(nextSubmissions);
+      if (updatedSubmission) {
+        this.persistAssignmentSubmission(updatedSubmission);
+      }
+      return nextSubmissions;
+    });
+  }
+
+  private persistAssignmentSubmission(submission: AssignmentSubmissionRecord) {
+    this.backend.upsertAssignmentSubmission(submission).subscribe({
+      error: () => {
+        // Keep local persistence if the backend is temporarily unavailable.
+      },
+    });
+  }
+
+  reviewMentorshipSubmission(input: {
+    submissionId: string;
+    reviewerName: string;
+    status: MentorshipReviewStatus;
+    feedback: string;
+  }) {
+    const submissionId = input.submissionId.trim();
+    const reviewerName = input.reviewerName.trim();
+    const feedback = input.feedback.trim();
+
+    if (!submissionId || !reviewerName || !feedback) {
+      return;
+    }
+
+    this.mentorshipSubmissionsSignal.update((submissions) =>
+      submissions.map((submission) =>
+        submission.id === submissionId
+          ? {
+              ...submission,
+              reviewerName,
+              reviewerFeedback: feedback,
+              status: input.status,
+              reviewedAt: this.formatDisplayDate(new Date()),
+            }
+          : submission,
+      ),
+    );
+
+    this.persistMentorshipSubmissions();
+  }
+
+  submitExternalTrainingRequest(input: ExternalTrainingRequestCreateInput) {
+    const studentName = input.studentName.trim();
+    const studentEmail = input.studentEmail.trim();
+    const courseName = input.courseName.trim();
+    const provider = input.provider.trim();
+    const trainingType = input.trainingType;
+    const alignedToIdp = input.alignedToIdp;
+    const trainingStartDate = input.trainingStartDate.trim();
+    const trainingEndDate = input.trainingEndDate.trim();
+    const courseCost = input.courseCost.trim();
+    const additionalCostRequired = input.additionalCostRequired;
+    const travelCost = input.travelCost.trim();
+    const examCost = input.examCost.trim();
+    const accommodationCost = input.accommodationCost.trim();
+    const approvingManager = this.trainingManagers().find((manager) => manager.id === input.approvingManagerId.trim());
+
+    if (!studentName || !studentEmail || !courseName || !provider || !trainingStartDate || !trainingEndDate || !courseCost || !approvingManager) {
+      return;
+    }
+
+    if (additionalCostRequired === 'Yes' && (!travelCost || !examCost || !accommodationCost)) {
+      return;
+    }
+
+    const temporaryRequestId = `external-training-request-${Date.now()}`;
+    const nextRequest: ExternalTrainingRequestRecord = {
+      id: temporaryRequestId,
+      studentName,
+      studentEmail,
+      courseName,
+      provider,
+      trainingType,
+      alignedToIdp,
+      trainingStartDate,
+      trainingEndDate,
+      courseCost,
+      additionalCostRequired,
+      travelCost: additionalCostRequired === 'Yes' ? travelCost : '',
+      examCost: additionalCostRequired === 'Yes' ? examCost : '',
+      accommodationCost: additionalCostRequired === 'Yes' ? accommodationCost : '',
+      approvingManagerId: approvingManager.id,
+      approvingManagerName: approvingManager.name,
+      approvingManagerEmail: approvingManager.email,
+      invoiceFileName: input.invoiceFileName.trim(),
+      invoiceDataUrl: input.invoiceDataUrl,
+      brochureFileName: input.brochureFileName.trim(),
+      brochureDataUrl: input.brochureDataUrl,
+      submittedAt: this.formatDisplayDate(new Date()),
+      status: 'Pending Review',
+      reviewerName: null,
+      reviewerFeedback: '',
+      reviewedAt: null,
+    };
+
+    this.externalTrainingRequestsSignal.update((requests) => [nextRequest, ...requests]);
+    this.persistExternalTrainingRequestCreate(temporaryRequestId, {
+      studentName,
+      studentEmail,
+      courseName,
+      provider,
+      trainingType,
+      alignedToIdp,
+      trainingStartDate,
+      trainingEndDate,
+      courseCost,
+      additionalCostRequired,
+      travelCost,
+      examCost,
+      accommodationCost,
+      approvingManagerId: approvingManager.id,
+      invoiceFileName: input.invoiceFileName.trim(),
+      invoiceDataUrl: input.invoiceDataUrl,
+      brochureFileName: input.brochureFileName.trim(),
+      brochureDataUrl: input.brochureDataUrl,
+    });
+  }
+
+  updateExternalTrainingRequest(input: ExternalTrainingRequestUpdateInput) {
+    const requestId = input.requestId.trim();
+    const existingRequest = this.externalTrainingRequestsSignal().find((request) => request.id === requestId);
+    const studentName = input.studentName.trim();
+    const studentEmail = input.studentEmail.trim();
+    const courseName = input.courseName.trim();
+    const provider = input.provider.trim();
+    const trainingType = input.trainingType;
+    const alignedToIdp = input.alignedToIdp;
+    const trainingStartDate = input.trainingStartDate.trim();
+    const trainingEndDate = input.trainingEndDate.trim();
+    const courseCost = input.courseCost.trim();
+    const additionalCostRequired = input.additionalCostRequired;
+    const travelCost = input.travelCost.trim();
+    const examCost = input.examCost.trim();
+    const accommodationCost = input.accommodationCost.trim();
+    const approvingManager = this.trainingManagers().find((manager) => manager.id === input.approvingManagerId.trim());
+
+    if (
+      !requestId
+      || !existingRequest
+      || existingRequest.status !== 'Needs Revision'
+      || !studentName
+      || !studentEmail
+      || !courseName
+      || !provider
+      || !trainingStartDate
+      || !trainingEndDate
+      || !courseCost
+      || !approvingManager
+    ) {
+      return;
+    }
+
+    if (additionalCostRequired === 'Yes' && (!travelCost || !examCost || !accommodationCost)) {
+      return;
+    }
+
+    const nextRequest: ExternalTrainingRequestRecord = {
+      ...existingRequest,
+      studentName,
+      studentEmail,
+      courseName,
+      provider,
+      trainingType,
+      alignedToIdp,
+      trainingStartDate,
+      trainingEndDate,
+      courseCost,
+      additionalCostRequired,
+      travelCost: additionalCostRequired === 'Yes' ? travelCost : '',
+      examCost: additionalCostRequired === 'Yes' ? examCost : '',
+      accommodationCost: additionalCostRequired === 'Yes' ? accommodationCost : '',
+      approvingManagerId: approvingManager.id,
+      approvingManagerName: approvingManager.name,
+      approvingManagerEmail: approvingManager.email,
+      invoiceFileName: input.invoiceFileName.trim(),
+      invoiceDataUrl: input.invoiceDataUrl,
+      brochureFileName: input.brochureFileName.trim(),
+      brochureDataUrl: input.brochureDataUrl,
+      submittedAt: this.formatDisplayDate(new Date()),
+      status: 'Pending Review',
+      reviewerName: null,
+      reviewerFeedback: '',
+      reviewedAt: null,
+    };
+
+    this.externalTrainingRequestsSignal.update((requests) =>
+      requests.map((request) => request.id === requestId ? nextRequest : request),
+    );
+    this.persistExternalTrainingRequestUpdate({
+      requestId,
+      studentName,
+      studentEmail,
+      courseName,
+      provider,
+      trainingType,
+      alignedToIdp,
+      trainingStartDate,
+      trainingEndDate,
+      courseCost,
+      additionalCostRequired,
+      travelCost,
+      examCost,
+      accommodationCost,
+      approvingManagerId: approvingManager.id,
+      invoiceFileName: input.invoiceFileName.trim(),
+      invoiceDataUrl: input.invoiceDataUrl,
+      brochureFileName: input.brochureFileName.trim(),
+      brochureDataUrl: input.brochureDataUrl,
+    });
+  }
+
+  reviewExternalTrainingRequest(input: ExternalTrainingRequestReviewInput) {
+    const requestId = input.requestId.trim();
+    const reviewerName = input.reviewerName.trim();
+
+    if (!requestId || !reviewerName) {
+      return;
+    }
+
+    this.externalTrainingRequestsSignal.update((requests) => {
+      const nextRequests = requests.map((request) =>
+        request.id === requestId
+          ? {
+              ...request,
+              reviewerName,
+              reviewerFeedback: input.feedback?.trim() ?? '',
+              status: input.status,
+              reviewedAt: this.formatDisplayDate(new Date()),
+            }
+          : request,
+      );
+
+      this.persistExternalTrainingRequestReview({
+        requestId,
+        reviewerName,
+        status: input.status,
+        feedback: input.feedback?.trim() ?? '',
+      });
+      return nextRequests;
+    });
+  }
+
+  private persistStudents() {
+    if (!this.backendHydrated) {
+      return;
+    }
+
+    this.backend.patchManagerState({ students: this.students() }).subscribe({
+      error: () => {
+        // Keep local state if the API is temporarily unavailable.
+      },
+    });
+  }
+
+  private persistManagerMessages() {
+    if (!this.backendHydrated) {
+      return;
+    }
+
+    this.backend.patchManagerState({ managerMessages: this.managerMessagesSignal() }).subscribe({
+      error: () => {
+        // Keep local state if the API is temporarily unavailable.
+      },
+    });
+  }
+
+  private refreshManagerMessages() {
+    this.backend.getManagerMessages().subscribe({
+      next: (messages) => {
+        // Merge: keep in-memory messages the server doesn't know yet, update the rest.
+        const serverById = new Map(messages.map((m) => [m.id, m]));
+        const onlyLocal = this.managerMessagesSignal().filter((m) => !serverById.has(m.id));
+        this.managerMessagesSignal.set([...messages, ...onlyLocal]);
+      },
+      error: () => { /* Silently skip failed polls */ },
+    });
+  }
+
+  private persistMentorshipAssignments() {
+    if (!this.backendHydrated) {
+      return;
+    }
+
+    this.backend.patchManagerState({ mentorshipAssignments: this.mentorshipAssignmentsSignal() }).subscribe({
+      error: () => {
+        // Keep local state if the API is temporarily unavailable.
+      },
+    });
+  }
+
+  private persistMentorshipSubmissions() {
+    if (!this.backendHydrated) {
+      return;
+    }
+
+    this.backend.patchManagerState({ mentorshipSubmissions: this.mentorshipSubmissionsSignal() }).subscribe({
+      error: () => {
+        // Keep local state if the API is temporarily unavailable.
+      },
+    });
+  }
+
+  private persistExternalTrainingRequestCreate(temporaryRequestId: string, input: ExternalTrainingRequestCreateInput) {
+    if (!this.backendHydrated) {
+      return;
+    }
+
+    this.backend.createExternalTrainingRequest(input).subscribe({
+      next: (savedRequest) => {
+        this.externalTrainingRequestsSignal.update((requests) =>
+          requests.map((request) => request.id === temporaryRequestId ? savedRequest : request),
+        );
+      },
+      error: () => {
+        // Keep local state if the API is temporarily unavailable.
+      },
+    });
+  }
+
+  private persistExternalTrainingRequestUpdate(input: ExternalTrainingRequestUpdateInput) {
+    if (!this.backendHydrated) {
+      return;
+    }
+
+    this.backend.updateExternalTrainingRequest(input).subscribe({
+      next: (savedRequest) => {
+        this.externalTrainingRequestsSignal.update((requests) =>
+          requests.map((request) => request.id === savedRequest.id ? savedRequest : request),
+        );
+      },
+      error: () => {
+        // Keep local state if the API is temporarily unavailable.
+      },
+    });
+  }
+
+  private persistExternalTrainingRequestReview(input: ExternalTrainingRequestReviewInput) {
+    if (!this.backendHydrated) {
+      return;
+    }
+
+    this.backend.reviewExternalTrainingRequest(input).subscribe({
+      next: (savedRequest) => {
+        this.externalTrainingRequestsSignal.update((requests) =>
+          requests.map((request) => request.id === savedRequest.id ? savedRequest : request),
+        );
+      },
+      error: () => {
+        // Keep local state if the API is temporarily unavailable.
+      },
+    });
+  }
+
+  private slugify(value: string) {
+    return value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+  }
+
+  private createUniqueOfferingId(title: string) {
+    const baseId = this.slugify(title) || 'course';
+    const existingIds = new Set(this.offerings().map((offering) => offering.id));
+
+    if (!existingIds.has(baseId)) {
+      return baseId;
+    }
+
+    let suffix = 2;
+    let nextId = `${baseId}-${suffix}`;
+
+    while (existingIds.has(nextId)) {
+      suffix += 1;
+      nextId = `${baseId}-${suffix}`;
+    }
+
+    return nextId;
+  }
+
+  private normalizeStudentInput(input: EnrollmentStudentInput) {
+    const normalizedName = input.name.trim();
+    const normalizedSurname = input.surname.trim();
+    const normalizedGroup = input.group.trim();
+    const normalizedEmail = input.email.trim();
+    const normalizedDepartment = input.department.trim();
+
+    if (
+      !normalizedName ||
+      !normalizedSurname ||
+      !normalizedGroup ||
+      !input.dateEnrolled ||
+      !input.deadlineDate ||
+      !normalizedEmail ||
+      !normalizedDepartment
+    ) {
+      return null;
+    }
+
+    return {
+      name: normalizedName,
+      surname: normalizedSurname,
+      group: normalizedGroup,
+      dateEnrolled: input.dateEnrolled,
+      deadlineDate: input.deadlineDate,
+      email: normalizedEmail,
+      ...(input.jobTitle !== undefined ? { jobTitle: input.jobTitle.trim() } : {}),
+      ...(input.idNumber !== undefined ? { idNumber: input.idNumber.trim() } : {}),
+      activeStatus: input.activeStatus,
+      department: normalizedDepartment,
+      ...(input.lineManager !== undefined ? { lineManager: input.lineManager.trim() } : {}),
+      role: input.role,
+    };
+  }
+
+  private buildTrainingManagers() {
+    const managers = [...this.trainingManagersSignal()];
+    const seenEmails = new Set(managers.map((manager) => manager.email.trim().toLowerCase()));
+
+    for (const student of this.students()) {
+      if (student.role !== 'manager' || student.activeStatus !== 'Active') {
+        continue;
+      }
+
+      const normalizedEmail = student.email.trim().toLowerCase();
+      if (!normalizedEmail || seenEmails.has(normalizedEmail)) {
+        continue;
+      }
+
+      seenEmails.add(normalizedEmail);
+      managers.push(this.buildTrainingManagerFromStudent(student));
+    }
+
+    return managers.sort((left, right) => left.name.localeCompare(right.name) || left.email.localeCompare(right.email));
+  }
+
+  private buildTrainingManagerFromStudent(student: EnrollmentStudent): SystemTrainingManager {
+    return {
+      id: `uploaded-manager-${student.id}`,
+      name: `${student.name} ${student.surname}`.trim(),
+      role: student.jobTitle.trim() || 'Training Manager',
+      team: student.department.trim() || 'Learning Operations',
+      email: student.email.trim(),
+    };
+  }
+
+  private createUniqueStudentId(input: EnrollmentStudentInput, usedIds: Set<string>) {
+    const baseId = this.slugify(`${input.name}-${input.surname}-${input.email.split('@')[0]}`) || 'student';
+    let nextId = baseId;
+    let suffix = 2;
+
+    while (usedIds.has(nextId)) {
+      nextId = `${baseId}-${suffix}`;
+      suffix += 1;
+    }
+
+    return nextId;
+  }
+
+  private deliverManagerMessageToStudent(recipient: string, subject: string, message: string) {
+    const student = this.findStudentByMessageRecipient(recipient);
+
+    if (!student) {
+      return;
+    }
+
+    this.backend.getStudentSnapshot(student.id).subscribe({
+      next: (snapshot) => {
+        const nextMessage: StudentMessage = {
+          id: `student-message-${Date.now()}`,
+          sender: this.profile().name,
+          subject,
+          preview: message,
+          body: message,
+          time: 'Just now',
+          unread: true,
+          replies: [],
+        };
+
+        this.backend.updateStudentSnapshot({
+          ...snapshot,
+          messages: [nextMessage, ...snapshot.messages],
+        }, student.id).subscribe({
+          error: () => {
+            // Keep manager-side send success even if learner delivery fails.
+          },
+        });
+      },
+      error: () => {
+        // Ignore learner delivery if the backend snapshot is unavailable.
+      },
+    });
+  }
+
+  private findStudentByMessageRecipient(recipient: string) {
+    const normalizedRecipient = recipient.trim().toLocaleLowerCase();
+
+    if (!normalizedRecipient) {
+      return null;
+    }
+
+    return this.students().find((student) => {
+      const fullName = `${student.name} ${student.surname}`.trim().toLocaleLowerCase();
+      return fullName === normalizedRecipient || student.email.trim().toLocaleLowerCase() === normalizedRecipient;
+    }) ?? null;
+  }
+
+  private loadAssignmentSubmissions() {
+    if (typeof localStorage === 'undefined') {
+      return [];
+    }
+
+    try {
+      const raw = localStorage.getItem(TrainingManagerDataService.assignmentSubmissionsStorageKey);
+      if (!raw) {
+        return [];
+      }
+
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? this.hydrateAssignmentSubmissions(parsed) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private hydrateAssignmentSubmissions(submissions: Array<Partial<AssignmentSubmissionRecord>>) {
+    return submissions.map((submission) => ({
+      ...submission,
+      possiblePoints: this.resolveAssignmentPossiblePoints(submission) ?? 0,
+      awardedPoints: typeof submission?.awardedPoints === 'number' && Number.isFinite(submission.awardedPoints) ? submission.awardedPoints : null,
+      status: submission?.status ?? 'Pending Review',
+      reviewerName: submission?.reviewerName ?? null,
+      reviewerFeedback: submission?.reviewerFeedback ?? '',
+      reviewedAt: submission?.reviewedAt ?? null,
+    })) as AssignmentSubmissionRecord[];
+  }
+
+  private loadOfferings() {
+    if (typeof localStorage === 'undefined') {
+      return [];
+    }
+
+    try {
+      const raw = localStorage.getItem(TrainingManagerDataService.offeringsStorageKey);
+      if (!raw) {
+        return [];
+      }
+
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed)
+        ? this.filterLegacySeedOfferings(parsed as TrainingOffering[])
+        : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private filterLegacySeedOfferings(offerings: TrainingOffering[]) {
+    return offerings.filter((offering) => !TrainingManagerDataService.legacySeedOfferingIds.has(offering.id));
+  }
+
+  private saveOfferings(offerings: TrainingOffering[]) {
+    if (typeof localStorage === 'undefined') {
+      return;
+    }
+
+    try {
+      localStorage.setItem(TrainingManagerDataService.offeringsStorageKey, JSON.stringify(offerings));
+    } catch {
+      return;
+    }
+  }
+
+  private saveAssignmentSubmissions(submissions: AssignmentSubmissionRecord[]) {
+    if (typeof localStorage === 'undefined') {
+      return;
+    }
+
+    try {
+      localStorage.setItem(TrainingManagerDataService.assignmentSubmissionsStorageKey, JSON.stringify(submissions));
+    } catch {
+      return;
+    }
+  }
+
+  private resolveAssignmentPossiblePoints(submission: Partial<AssignmentSubmissionRecord>) {
+    if (typeof submission.possiblePoints === 'number' && Number.isFinite(submission.possiblePoints) && submission.possiblePoints > 0) {
+      return submission.possiblePoints;
+    }
+
+    const offering = this.offerings().find((item) => item.id === submission.offeringId);
+    if (!offering) {
+      return null;
+    }
+
+    const normalizedStepId = submission.assessmentStepId?.trim() ?? '';
+    const normalizedAssessmentId = submission.assessmentId?.trim() ?? '';
+    const normalizedAssessmentTitle = submission.assessmentTitle?.trim().toLocaleLowerCase() ?? '';
+    let fallbackPoints: number | null = null;
+
+    for (let itemIndex = 0; itemIndex < offering.contentItems.length; itemIndex += 1) {
+      const item = offering.contentItems[itemIndex];
+      if (item.kind !== 'Assessment' || item.assessmentType !== 'Assignment') {
+        continue;
+      }
+
+      if (fallbackPoints === null) {
+        fallbackPoints = item.questions[0]?.points ?? null;
+      }
+
+      if (normalizedAssessmentTitle && item.title.trim().toLocaleLowerCase() === normalizedAssessmentTitle) {
+        fallbackPoints = item.questions[0]?.points ?? fallbackPoints;
+      }
+
+      if (normalizedAssessmentId && item.id === normalizedAssessmentId) {
+        fallbackPoints = item.questions[0]?.points ?? fallbackPoints;
+      }
+
+      for (let questionIndex = 0; questionIndex < item.questions.length; questionIndex += 1) {
+        const question = item.questions[questionIndex];
+        const stepId = this.createAssessmentStepId(offering.id, item.id, itemIndex, questionIndex);
+
+        if ((normalizedStepId && stepId === normalizedStepId) || (!normalizedStepId && normalizedAssessmentId && stepId === normalizedAssessmentId)) {
+          return question.points;
+        }
+      }
+    }
+
+    return fallbackPoints;
+  }
+
+  private normalizePersonName(value: string) {
+    return value.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+  }
+
+  private formatDisplayDate(date: Date) {
+    return new Intl.DateTimeFormat('en-ZA', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).format(date);
+  }
+
+  private resolveAssignmentState(student: EnrollmentStudent, assignedOfferingIds: string[], latestAssignedDeadline?: string) {
+    const resolvedDeadline = latestAssignedDeadline
+      ?? this.offerings()
+        .filter((offering) => assignedOfferingIds.includes(offering.id))
+        .map((offering) => offering.completionDeadline)
+        .filter(Boolean)
+        .sort()
+        .at(-1)
+      ?? student.deadlineDate;
+
+    if (!assignedOfferingIds.length) {
+      return {
+        assignedOfferingIds,
+        deadlineDate: resolvedDeadline,
+        activeStatus: 'Inactive' as const,
+        status: 'Not Yet Started' as LearningStatus,
+      };
+    }
+
+    return {
+      assignedOfferingIds,
+      deadlineDate: resolvedDeadline,
+      activeStatus: 'Active' as const,
+      status: student.status === 'Not Yet Started' ? 'In Progress' as LearningStatus : student.status,
+    };
+  }
+}

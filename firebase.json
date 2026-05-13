@@ -1,0 +1,56 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "functions": {
+    "source": ".",
+    "runtime": "nodejs20",
+    "ignore": [
+      ".angular/**",
+      ".firebase/**",
+      ".github/**",
+      "dist/lms-app/**",
+      "dist/server/**",
+      "public/**",
+      "server/data/**",
+      "server/sql/**",
+      "src/**",
+      "**/node_modules/**",
+      ".git",
+      ".git/**",
+      ".embedded-postgres",
+      ".embedded-postgres/**",
+      ".angular",
+      ".angular/**",
+      ".vscode",
+      ".vscode/**",
+      ".firebase",
+      ".firebase/**"
+    ],
+    "predeploy": [
+      "npm run firebase:functions:build"
+    ]
+  },
+  "hosting": {
+    "public": "dist/lms-app/browser",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "api{,/**}",
+        "function": "api"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

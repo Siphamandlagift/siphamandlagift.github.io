@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: skillsconnect-lms-api
+    env: node
+    buildCommand: npm install && npm run server:build
+    startCommand: npm run server:start
+    healthCheckPath: /health
+    disk:
+      name: lms-uploads
+      mountPath: /opt/render/lms-uploads
+      sizeGB: 10
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: LMS_APP_BASE_URL
+        value: https://skillsconnect-f2275.web.app
+      - key: LMS_ALLOWED_ORIGINS
+        value: http://localhost:4200,https://skillsconnect-f2275.web.app,https://skillsconnect-f2275.firebaseapp.com
+      - key: LMS_UPLOADS_DIRECTORY
+        value: /opt/render/lms-uploads

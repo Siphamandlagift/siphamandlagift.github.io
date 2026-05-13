@@ -1,0 +1,121 @@
+<div class="login-bg">
+	<div class="login-card improved">
+		<!-- Logo removed for cleaner look -->
+		<h2 class="subtitle">Sign in to your account</h2>
+		<form (ngSubmit)="onSubmit()" #loginForm="ngForm" autocomplete="off">
+			<div class="input-group">
+				<label for="username">
+					<span class="input-icon"><svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path fill="#4f46e5" d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 2.3-5 5 2.3 5 5 5Zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5Z"/></svg></span>
+					Username or email
+				</label>
+				<input type="text" id="username" name="username" [(ngModel)]="username" required placeholder="Enter your username or email" />
+			</div>
+			<div class="input-group">
+				<label for="password">
+					<span class="input-icon"><svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path fill="#4f46e5" d="M12 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm6-7V8a6 6 0 1 0-12 0v2a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2Zm-8-2a4 4 0 1 1 8 0v2H6V8Zm10 11H6v-7h12v7Z"/></svg></span>
+					Password
+				</label>
+				<input type="password" id="password" name="password" [(ngModel)]="password" required placeholder="Enter your password" />
+			</div>
+			<div class="input-group input-group-role">
+				<label for="role">Select Role</label>
+				<select id="role" name="role" [(ngModel)]="selectedRole" aria-label="Select user role">
+					@for (role of roleOptions; track role.value) {
+						<option [value]="role.value">{{ role.label }}</option>
+					}
+				</select>
+			</div>
+			<p class="login-hint">{{ roleHint() }}</p>
+			<div class="forgot-password">
+				<a href="#" (click)="openForgotPassword($event)">Forgot Password?</a>
+			</div>
+			<button type="submit" [disabled]="!loginForm.form.valid || signingIn">{{ signingIn ? 'Signing in...' : 'Login' }}</button>
+			<div *ngIf="errorMessage" class="error">{{ errorMessage }}</div>
+		</form>
+		<div class="login-footer">
+			<span>Need a different role?</span>
+			<a href="#" (click)="openContactAdmin($event)">Contact your LMS administrator</a>
+		</div>
+	</div>
+
+	@if (activeDialog === 'forgot-password') {
+		<button type="button" class="login-dialog-backdrop" aria-label="Close forgot password dialog" (click)="closeDialog()"></button>
+		<section class="login-dialog" role="dialog" aria-modal="true" aria-labelledby="forgot-password-title">
+			<div class="login-dialog-header">
+				<div>
+					<p class="login-dialog-eyebrow">Account Recovery</p>
+					<h3 id="forgot-password-title">Forgot Password</h3>
+					<p class="login-dialog-copy">Enter your email address and we will send a password reset link if the account exists.</p>
+				</div>
+				<button type="button" class="login-dialog-close" (click)="closeDialog()">Close</button>
+			</div>
+
+			<form class="login-dialog-form" (ngSubmit)="submitForgotPassword()" #forgotPasswordForm="ngForm">
+				<label class="login-dialog-field">
+					<span>Account Email</span>
+					<input
+						type="email"
+						inputmode="email"
+						name="forgotPasswordEmail"
+						[(ngModel)]="forgotPasswordEmail"
+						required
+						placeholder="Enter your account email" />
+				</label>
+
+				<p class="login-dialog-copy login-dialog-copy-compact">
+					We will email a secure reset link that opens the password update page.
+				</p>
+
+				@if (forgotPasswordError) {
+					<div class="error login-dialog-inline-error">{{ forgotPasswordError }}</div>
+				}
+
+				<div class="login-dialog-actions">
+					<button type="submit" class="login-dialog-primary" [disabled]="!forgotPasswordForm.form.valid || sendingReset">{{ sendingReset ? 'Sending...' : 'Send reset link' }}</button>
+					<button type="button" class="login-dialog-secondary" (click)="closeDialog()">Cancel</button>
+				</div>
+
+				@if (forgotPasswordSubmitted) {
+					<div class="login-dialog-message" role="status" aria-live="polite">
+						<strong>Reset email sent.</strong>
+						<span>{{ forgotPasswordMessage }}</span>
+					</div>
+				}
+			</form>
+		</section>
+	}
+
+	@if (activeDialog === 'contact-admin') {
+		<button type="button" class="login-dialog-backdrop" aria-label="Close contact administrator dialog" (click)="closeDialog()"></button>
+		<section class="login-dialog" role="dialog" aria-modal="true" aria-labelledby="contact-admin-title">
+			<div class="login-dialog-header">
+				<div>
+					<p class="login-dialog-eyebrow">Support</p>
+					<h3 id="contact-admin-title">Contact Administrator</h3>
+					<p class="login-dialog-copy">Use the details below for account access, role changes, or login support.</p>
+				</div>
+				<button type="button" class="login-dialog-close" (click)="closeDialog()">Close</button>
+			</div>
+
+			<div class="login-dialog-stack">
+				<div class="login-contact-card">
+					<span>Administrator email</span>
+					<strong>{{ adminEmail }}</strong>
+				</div>
+				<div class="login-contact-card">
+					<span>General support</span>
+					<strong>{{ supportEmail }}</strong>
+				</div>
+				<div class="login-contact-card">
+					<span>Recommended details</span>
+					<strong>{{ roleLabel(selectedRole) }} account, username, and issue summary</strong>
+				</div>
+			</div>
+
+			<div class="login-dialog-actions">
+				<a class="login-dialog-primary" [href]="contactAdminMailtoLink()">Email administrator</a>
+				<a class="login-dialog-secondary" [href]="'mailto:' + supportEmail">Email support</a>
+			</div>
+		</section>
+	}
+</div>
