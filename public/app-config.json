@@ -1,4 +1,3 @@
 {
-  "lmsApiBaseUrl": "https://skillsconnect-lms-api.onrender.com/api",
-  "tenantApiBaseUrl": "https://your-tenant-api-host.example.com"
+  "tenantApiBaseUrl": "https://skillsconnect-tenant-api.onrender.com"
 }

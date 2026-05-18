@@ -1,5 +1,25 @@
 services:
   - type: web
+    name: skillsconnect-tenant-api
+    env: node
+    buildCommand: npm install && npm run tenant:server:build
+    startCommand: npm run tenant:server:start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: MULTITENANT_DATABASE_URL
+        sync: false
+      - key: MULTITENANT_JWT_SECRET
+        sync: false
+      - key: MULTITENANT_CORS_ORIGIN
+        value: https://skillsconnect-f2275.web.app,https://skillsconnect-f2275.firebaseapp.com,https://skillsconnect-sa.co.za
+      - key: MULTITENANT_JWT_EXPIRES_IN
+        value: 8h
+      - key: MULTITENANT_BCRYPT_SALT_ROUNDS
+        value: 10
+
+  - type: web
     name: skillsconnect-lms-api
     env: node
     buildCommand: npm install && npm run server:build
