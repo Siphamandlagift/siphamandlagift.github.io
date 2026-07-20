@@ -3,7 +3,15 @@ import path from 'node:path';
 import { getApp, getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, type Firestore, type WriteBatch } from 'firebase-admin/firestore';
 import { createDefaultData } from './default-data.js';
-import { createPasswordCredentials, generatePasswordResetToken, hashPasswordResetToken, verifyPassword } from './auth-utils.js';
+import {
+  createPasswordCredentials,
+  generatePasswordResetToken,
+  hashPasswordResetToken,
+  isDefaultDemoCredentialLogin,
+  isStrongPassword,
+  shouldBlockDefaultDemoCredentialLogin,
+  verifyPassword,
+} from './auth-utils.js';
 import {
   AuthAccountRecord,
   AssignmentSubmissionRecord,
@@ -21,6 +29,7 @@ import {
   ManagedUserCredentialsUpsertResponse,
   PasswordResetTokenStatus,
   QuizSubmissionRecord,
+  StudentIdpEntryRecord,
   StudentNotificationRecord,
   StudentSnapshotUpdate,
   StudentRecord,
@@ -36,24 +45,6 @@ const dataFilePath = path.join(dataDirectory, 'lms-data.json');
 const backupDataFilePath = path.join(dataDirectory, 'lms-data.backup.json');
 const tempDataFilePath = path.join(dataDirectory, 'lms-data.json.tmp');
 const defaultCourseImage = 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=400&q=80';
-const legacySeedOfferingIds = new Set([
-  'company-induction',
-  'project-management-fundamentals',
-  'leadership-readiness-programme',
-]);
-const legacySeedCourseTitles = new Set([
-  'Company Induction',
-  'Project Management Fundamentals',
-  'Leadership Readiness Programme',
-  'Sexual Harassment In The Workplace',
-  'Workplace Communication Essentials',
-  'Data Protection And Compliance',
-]);
-const legacySeedNotificationIds = new Set(['notification-quiz-reminder']);
-const legacySeedMessageIds = new Set(['student-message-1', 'student-message-2']);
-const legacySeedManagerMessageIds = new Set(['manager-message-1', 'manager-message-2', 'manager-message-3']);
-const legacySeedNotificationTitles = new Set(['Mathematics quiz opens tomorrow']);
-const legacySeedMessageSubjects = new Set(['Reminder: Mathematics quiz', 'Assignment feedback posted', 'Session moved to Friday']);
 const passwordResetLifetimeMs = 60 * 60 * 1000;
 const defaultStudentTemplate = createDefaultData().students[0];
 const firestoreCollectionNames = [
@@ -275,6 +266,29 @@ function buildStudentFullName(student: Pick<EnrollmentStudentRecord, 'name' | 's
   return [student.name.trim(), student.surname.trim()].filter(Boolean).join(' ');
 }
 
+function normalizeStudentIdpEntries(entries: unknown): StudentIdpEntryRecord[] {
+  if (!Array.isArray(entries)) {
+    return [];
+  }
+
+  return entries.map((entry) => {
+    const candidate = entry as Partial<StudentIdpEntryRecord>;
+    const rawStatus = candidate.status;
+    const status = rawStatus === 'Not Started' || rawStatus === 'In Progress' || rawStatus === 'Completed' || rawStatus === 'On Hold'
+      ? rawStatus
+      : 'Not Started';
+
+    return {
+      developmentNeed: typeof candidate.developmentNeed === 'string' ? candidate.developmentNeed : '',
+      plannedAction: typeof candidate.plannedAction === 'string' ? candidate.plannedAction : '',
+      supportRequired: typeof candidate.supportRequired === 'string' ? candidate.supportRequired : '',
+      dateCaptured: typeof candidate.dateCaptured === 'string' ? candidate.dateCaptured : '',
+      targetDate: typeof candidate.targetDate === 'string' ? candidate.targetDate : '',
+      status,
+    };
+  });
+}
+
 function createStudentRecordFromEnrollment(student: EnrollmentStudentRecord): StudentRecord {
   return {
     ...student,
@@ -298,6 +312,7 @@ function createStudentRecordFromEnrollment(student: EnrollmentStudentRecord): St
     messages: [],
     notifiedOfferingIds: [],
     assessmentAttempts: {},
+    idpEntries: [],
   };
 }
 
@@ -325,7 +340,7 @@ function mergeEnrollmentStudentRecord(existing: StudentRecord | undefined, stude
 
 function normalizeData(data: LmsDataStore): LmsDataStore {
   const defaults = createDefaultData();
-  const offerings = (data.offerings ?? defaults.offerings).filter((offering) => !legacySeedOfferingIds.has(offering.id));
+  const offerings = data.offerings ?? defaults.offerings;
   const students = data.students.map((student) => {
     const defaultStudent = defaults.students.find((entry) => entry.id === student.id);
     const role = normalizeEnrollmentRole((student.role ?? defaultStudent?.role ?? 'student') as EnrollmentStudentRecord['role'] | LoginRole);
@@ -333,24 +348,12 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
       ...(defaultStudent?.settings ?? defaults.students[0]?.settings),
       ...(student.settings ?? {}),
     };
-    const courses = (student.courses ?? defaultStudent?.courses ?? []).filter((course) => {
-      if (course.offeringId && legacySeedOfferingIds.has(course.offeringId)) {
-        return false;
-      }
-
-      return !legacySeedCourseTitles.has(course.name);
-    });
-    const assignedOfferingIds = (student.assignedOfferingIds ?? defaultStudent?.assignedOfferingIds ?? [])
-      .filter((offeringId) => !legacySeedOfferingIds.has(offeringId));
-    const notifiedOfferingIds = (student.notifiedOfferingIds ?? defaultStudent?.notifiedOfferingIds ?? [])
-      .filter((offeringId) => !legacySeedOfferingIds.has(offeringId));
-    const notifications = (student.notifications ?? defaultStudent?.notifications ?? [])
-      .filter((notification) => !notification.id.startsWith('course-company-induction')
-        && !notification.id.startsWith('course-project-management-fundamentals')
-        && !notification.id.startsWith('course-leadership-readiness-programme'))
-      .filter((notification) => !legacySeedNotificationIds.has(notification.id) && !legacySeedNotificationTitles.has(notification.title));
-    const messages = (student.messages ?? defaultStudent?.messages ?? [])
-      .filter((message) => !legacySeedMessageIds.has(message.id) && !legacySeedMessageSubjects.has(message.subject));
+    const courses = student.courses ?? defaultStudent?.courses ?? [];
+    const assignedOfferingIds = student.assignedOfferingIds ?? defaultStudent?.assignedOfferingIds ?? [];
+    const notifiedOfferingIds = student.notifiedOfferingIds ?? defaultStudent?.notifiedOfferingIds ?? [];
+    const notifications = student.notifications ?? defaultStudent?.notifications ?? [];
+    const messages = student.messages ?? defaultStudent?.messages ?? [];
+    const idpEntries = normalizeStudentIdpEntries(student.idpEntries ?? defaultStudent?.idpEntries ?? []);
 
     return {
       ...defaultStudent,
@@ -362,6 +365,7 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
       courses,
       notifications,
       messages,
+      idpEntries,
       notifiedOfferingIds,
     } satisfies StudentRecord;
   });
@@ -372,7 +376,7 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
     students,
     branding: data.branding ?? defaults.branding,
     trainingManagers: data.trainingManagers ?? defaults.trainingManagers,
-    managerMessages: (data.managerMessages ?? defaults.managerMessages).filter((msg) => !legacySeedManagerMessageIds.has(msg.id)),
+    managerMessages: data.managerMessages ?? defaults.managerMessages,
     mentorshipAssignments: data.mentorshipAssignments ?? defaults.mentorshipAssignments,
     mentorshipSubmissions: data.mentorshipSubmissions ?? defaults.mentorshipSubmissions,
     assignmentSubmissions: data.assignmentSubmissions ?? defaults.assignmentSubmissions,
@@ -493,10 +497,15 @@ export class LmsRepository {
 
   async getBootstrap() {
     const data = await this.read();
+    const idpEntriesByStudent = Object.fromEntries(
+      data.students.map((student) => [student.id, student.idpEntries ?? []]),
+    );
+
     return {
       offerings: data.offerings,
       branding: data.branding,
-      students: data.students.map(({ courses, notifications, messages, notifiedOfferingIds, ...student }) => student),
+      students: data.students.map(({ courses, notifications, messages, notifiedOfferingIds, idpEntries, ...student }) => student),
+      idpEntriesByStudent,
       trainingManagers: data.trainingManagers,
       managerMessages: data.managerMessages,
       mentorshipAssignments: data.mentorshipAssignments,
@@ -513,8 +522,14 @@ export class LmsRepository {
     return student
       ? {
           studentId,
-          profile: student.profile,
+          profile: {
+            ...student.profile,
+            idNumber: student.idNumber || student.profile.idNumber || '',
+            department: student.department || (student.profile as any).department || (student.profile as any).programme || 'General',
+            jobTitle: student.jobTitle || (student.profile as any).jobTitle || 'Not set',
+          },
           badgeState: student.badgeState,
+          certificatesAndLicences: student.certificatesAndLicences ?? [],
           settings: student.settings,
           mentorshipProfile: student.mentorshipProfile,
           mentorshipObjectives: student.mentorshipObjectives,
@@ -524,6 +539,7 @@ export class LmsRepository {
           messages: student.messages,
           notifiedOfferingIds: student.notifiedOfferingIds,
           assessmentAttempts: student.assessmentAttempts ?? {},
+          idpEntries: student.idpEntries ?? [],
         }
       : null;
   }
@@ -540,13 +556,35 @@ export class LmsRepository {
     const nextFirstName = profileNameParts[0] ?? data.students[studentIndex].name;
     const nextSurname = profileNameParts.slice(1).join(' ') || data.students[studentIndex].surname;
 
+    // Derive learning status from actual course completion data so it stays accurate
+    // as students progress through their assigned offerings.
+    const assignedIds = new Set(data.students[studentIndex].assignedOfferingIds ?? []);
+    let derivedStatus: 'Completed' | 'In Progress' | 'Not Yet Started' | undefined;
+    if (assignedIds.size > 0) {
+      const assignedCourseRecords = (snapshot.courses ?? []).filter(
+        (c) => c.offeringId && assignedIds.has(c.offeringId),
+      );
+      if (assignedCourseRecords.length > 0) {
+        if (assignedCourseRecords.every((c) => c.completed)) {
+          derivedStatus = 'Completed';
+        } else if (assignedCourseRecords.some((c) => c.completed || (c.progress ?? 0) > 0)) {
+          derivedStatus = 'In Progress';
+        } else {
+          derivedStatus = 'Not Yet Started';
+        }
+      }
+    }
+
     data.students[studentIndex] = {
       ...data.students[studentIndex],
       name: nextFirstName,
       surname: nextSurname,
       email: snapshot.profile.email,
+      idNumber: snapshot.profile.idNumber,
+      ...(derivedStatus !== undefined ? { status: derivedStatus } : {}),
       profile: snapshot.profile,
       badgeState: snapshot.badgeState,
+      certificatesAndLicences: snapshot.certificatesAndLicences ?? data.students[studentIndex].certificatesAndLicences ?? [],
       settings: snapshot.settings,
       mentorshipProfile: snapshot.mentorshipProfile,
       mentorshipObjectives: snapshot.mentorshipObjectives,
@@ -556,6 +594,7 @@ export class LmsRepository {
       messages: snapshot.messages,
       notifiedOfferingIds: snapshot.notifiedOfferingIds,
       assessmentAttempts: snapshot.assessmentAttempts,
+      idpEntries: normalizeStudentIdpEntries(snapshot.idpEntries ?? data.students[studentIndex].idpEntries ?? []),
     };
 
     syncLinkedAuthAccounts(data);
@@ -567,6 +606,7 @@ export class LmsRepository {
           studentId,
           profile: student.profile,
           badgeState: student.badgeState,
+          certificatesAndLicences: student.certificatesAndLicences ?? [],
           settings: student.settings,
           mentorshipProfile: student.mentorshipProfile,
           mentorshipObjectives: student.mentorshipObjectives,
@@ -576,6 +616,7 @@ export class LmsRepository {
           messages: student.messages,
           notifiedOfferingIds: student.notifiedOfferingIds,
           assessmentAttempts: student.assessmentAttempts ?? {},
+          idpEntries: student.idpEntries ?? [],
         }
       : null;
   }
@@ -926,26 +967,33 @@ export class LmsRepository {
     return next.externalTrainingRequests.find((entry) => entry.id === requestId) ?? null;
   }
 
-  async authenticate(input: LoginRequestInput) {
+  async authenticateSso(input: { email: string; role?: LoginRole }) {
     const data = await this.read();
-    const role = input.role;
-    const username = input.username.trim();
-    const normalizedUsername = username.toLowerCase();
-    const password = input.password;
+    const normalizedEmail = input.email.trim().toLowerCase();
+    const requestedRole = input.role;
 
-    if (!username || !password) {
+    if (!normalizedEmail) {
       return null;
     }
 
-    const account = data.authAccounts.find(
-      (entry) => entry.role === role
-        && (entry.username.toLowerCase() === normalizedUsername || entry.email.toLowerCase() === normalizedUsername),
-    );
+    const account = data.authAccounts.find((entry) => entry.email.toLowerCase() === normalizedEmail);
     if (!account) {
       return null;
     }
 
-    if (!verifyPassword(password, account.passwordSalt, account.passwordHash)) {
+    if (requestedRole && requestedRole !== account.role) {
+      // Allow manager credentials to open the learner workspace when the manager
+      // has a linked learner profile.
+      if (requestedRole === 'student' && account.role === 'training-manager' && account.linkedStudentId) {
+        return {
+          role: 'student' as const,
+          route: '/student-profile',
+          username: account.username,
+          email: account.email,
+          studentId: account.linkedStudentId,
+        };
+      }
+
       return null;
     }
 
@@ -958,6 +1006,125 @@ export class LmsRepository {
     };
   }
 
+  async authenticate(input: LoginRequestInput) {
+    const data = await this.read();
+    const role = input.role;
+    const username = input.username.trim();
+    const normalizedUsername = username.toLowerCase();
+    const password = input.password;
+
+    if (!username || !password) {
+      return null;
+    }
+
+    if (shouldBlockDefaultDemoCredentialLogin() && isDefaultDemoCredentialLogin(role, username, password)) {
+      return null;
+    }
+
+    // Primary lookup: find an account whose stored role matches the requested role exactly.
+    let account = data.authAccounts.find(
+      (entry) => entry.role === role
+        && (entry.username.toLowerCase() === normalizedUsername || entry.email.toLowerCase() === normalizedUsername),
+    );
+
+    // Dual-access: a line manager is enrolled as a student AND has training-manager credentials.
+    // Their auth account role is 'training-manager' with a linkedStudentId pointing to their own
+    // student record. Allow them to log in as 'student' using the same credentials.
+    let lineManagerStudentId: string | undefined;
+    if (!account && role === 'student') {
+      const managerAccount = data.authAccounts.find(
+        (entry) => entry.role === 'training-manager'
+          && entry.linkedStudentId
+          && (entry.username.toLowerCase() === normalizedUsername || entry.email.toLowerCase() === normalizedUsername),
+      );
+      if (managerAccount) {
+        account = managerAccount;
+        lineManagerStudentId = managerAccount.linkedStudentId ?? undefined;
+      }
+    }
+
+    if (!account) {
+      return null;
+    }
+
+    if (!verifyPassword(password, account.passwordSalt, account.passwordHash)) {
+      return null;
+    }
+
+    // Line manager logging in as student: return student context instead of manager context.
+    if (lineManagerStudentId) {
+      return {
+        role: 'student' as const,
+        route: '/student-profile',
+        username: account.username,
+        email: account.email,
+        studentId: lineManagerStudentId,
+      };
+    }
+
+    return {
+      role: account.role,
+      route: account.route,
+      username: account.username,
+      email: account.email,
+      studentId: resolveStudentIdForAccount(data, account),
+    };
+  }
+
+  async resolveRoles(input: { username: string; password: string }): Promise<Array<{
+    role: LoginRole;
+    route: string;
+    username: string;
+    email: string;
+    studentId?: string;
+  }>> {
+    const data = await this.read();
+    const username = input.username.trim();
+    const normalizedUsername = username.toLowerCase();
+    const password = input.password;
+
+    if (!username || !password) {
+      return [];
+    }
+
+    const results: Array<{ role: LoginRole; route: string; username: string; email: string; studentId?: string }> = [];
+
+    const matchingAccounts = data.authAccounts.filter(
+      (a) => a.username.toLowerCase() === normalizedUsername || a.email.toLowerCase() === normalizedUsername,
+    );
+
+    for (const account of matchingAccounts) {
+      if (shouldBlockDefaultDemoCredentialLogin() && isDefaultDemoCredentialLogin(account.role, username, password)) {
+        continue;
+      }
+
+      if (!verifyPassword(password, account.passwordSalt, account.passwordHash)) {
+        continue;
+      }
+
+      results.push({
+        role: account.role,
+        route: account.route,
+        username: account.username,
+        email: account.email,
+        studentId: resolveStudentIdForAccount(data, account),
+      });
+
+      // Dual-access: a training manager with a linked student profile can also enter the student workspace.
+      if (account.role === 'training-manager' && account.linkedStudentId) {
+        results.push({
+          role: 'student' as const,
+          route: '/student-profile',
+          username: account.username,
+          email: account.email,
+          studentId: account.linkedStudentId,
+        });
+      }
+    }
+
+    return results;
+  }
+
   async upsertManagedUserCredentials(inputs: ManagedUserCredentialInput[]): Promise<ManagedUserCredentialsUpsertResponse> {
     const data = await this.read();
     let created = 0;
@@ -968,7 +1135,7 @@ export class LmsRepository {
       const studentId = input.studentId.trim();
       const password = input.password.trim();
 
-      if (!studentId || password.length < 8) {
+      if (!studentId || !isStrongPassword(password)) {
         skipped += 1;
         continue;
       }
@@ -1082,7 +1249,7 @@ export class LmsRepository {
 
   async resetPassword(token: string, nextPassword: string) {
     const password = nextPassword.trim();
-    if (password.length < 8) {
+    if (!isStrongPassword(password)) {
       return null;
     }
 
@@ -1128,7 +1295,7 @@ export class LmsRepository {
     const email = input.email.trim().toLowerCase();
     const password = input.password.trim();
 
-    if (!email || password.length < 8) {
+    if (!email || !isStrongPassword(password)) {
       return null;
     }
 

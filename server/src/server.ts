@@ -1,24 +1,73 @@
 import 'dotenv/config';
 // ...existing code...
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 import jwt from 'jsonwebtoken';
 import multer from 'multer';
 import rateLimit from 'express-rate-limit';
+import { unzipSync } from 'fflate';
 import { z } from 'zod';
 import { getApp, getApps, initializeApp } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 import { createDefaultData } from './default-data.js';
 import { createLmsRepository } from './repository.js';
 import { PasswordResetEmailService } from './email-service.js';
+import { isStrongPassword, passwordPolicyMessage } from './auth-utils.js';
 
-// Set the base URL for the app, defaulting to the Angular frontend
-const appBaseUrl = process.env['LMS_APP_BASE_URL'] || 'http://localhost:4200';
+function requireEnv(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
+// Prefer an explicitly configured app URL, but fall back to request origin
+// so hosted deployments behind Firebase rewrites do not produce localhost links.
+const configuredAppBaseUrl = process.env['LMS_APP_BASE_URL']?.trim();
+const appBaseUrl = configuredAppBaseUrl?.replace(/\/$/, '') || 'http://localhost:4200';
+const isHostedRuntime = Boolean(process.env['K_SERVICE'] || process.env['FUNCTION_TARGET'] || process.env['FUNCTION_NAME']);
+
+function resolveAppBaseUrl(request?: express.Request): string {
+  if (configuredAppBaseUrl) {
+    return appBaseUrl;
+  }
+
+  if (!request) {
+    return appBaseUrl;
+  }
+
+  const forwardedProtoHeader = request.headers['x-forwarded-proto'];
+  const forwardedHostHeader = request.headers['x-forwarded-host'];
+  const forwardedProto = typeof forwardedProtoHeader === 'string'
+    ? forwardedProtoHeader.split(',')[0]?.trim()
+    : undefined;
+  const forwardedHost = typeof forwardedHostHeader === 'string'
+    ? forwardedHostHeader.split(',')[0]?.trim()
+    : undefined;
+
+  const protocol = forwardedProto || request.protocol;
+  const host = forwardedHost || request.get('host');
+
+  if (!host) {
+    return appBaseUrl;
+  }
+
+  return `${protocol}://${host}`.replace(/\/$/, '');
+}
+const defaultAllowedOrigins = isHostedRuntime
+  ? 'https://skillsconnect-f2275.web.app,https://skillsconnect-f2275.firebaseapp.com,https://skillsconnect-sa.co.za'
+  : 'http://localhost:4200,https://skillsconnect-f2275.web.app,https://skillsconnect-f2275.firebaseapp.com,https://skillsconnect-sa.co.za';
+
 const allowedOrigins = new Set(
-  (process.env['LMS_ALLOWED_ORIGINS'] || 'http://localhost:4200,https://skillsconnect-f2275.web.app,https://skillsconnect-f2275.firebaseapp.com')
+  (process.env['LMS_ALLOWED_ORIGINS'] || defaultAllowedOrigins)
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean)
@@ -41,14 +90,18 @@ app.use(helmet());
 const repository = createLmsRepository();
 const emailService = new PasswordResetEmailService();
 const port = Number(process.env['PORT'] || process.env['LMS_API_PORT'] || 3000);
-const jwtSecret = process.env['LMS_JWT_SECRET'] || 'lms-dev-secret-change-in-production';
+const jwtSecret = requireEnv('LMS_JWT_SECRET');
 const jwtExpiresIn = '12h';
 
 // Routes that do not require a JWT token.
 const publicPaths = new Set([
   '/health',
+  '/api/health',
   '/api/branding',
   '/api/auth/login',
+  '/api/auth/resolve-roles',
+  '/api/auth/sso/microsoft/start',
+  '/api/auth/sso/microsoft/callback',
   '/api/auth/password-reset/request',
   '/api/auth/password-reset/validate',
   '/api/auth/password-reset/confirm',
@@ -56,7 +109,7 @@ const publicPaths = new Set([
 
 function requireAuth(request: express.Request, response: express.Response, next: express.NextFunction) {
   // Publicly readable uploaded files do not require auth.
-  if (publicPaths.has(request.path) || request.path.startsWith('/api/files/')) {
+  if (publicPaths.has(request.path) || request.path.startsWith('/api/files/') || request.path.startsWith('/api/storage/scorm')) {
     next();
     return;
   }
@@ -76,15 +129,33 @@ function requireAuth(request: express.Request, response: express.Response, next:
   }
 }
 
-// --- LMS RESET ENDPOINTS ---
-app.post('/api/admin/reset-data', async (_request, response, next) => {
-  try {
-    await repository.write(createDefaultData());
-    response.json({ message: 'LMS data reset to default.' });
-  } catch (error) {
-    next(error);
+function requireAdministrator(request: express.Request, response: express.Response, next: express.NextFunction) {
+  const authHeader = request.headers['authorization'];
+  const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : null;
+
+  if (!token) {
+    response.status(401).json({ message: 'Authentication required. Please log in.' });
+    return;
   }
-});
+
+  try {
+    const decoded = jwt.verify(token, jwtSecret);
+    const role = typeof decoded === 'object' && decoded !== null && 'role' in decoded
+      ? String((decoded as { role?: unknown }).role || '')
+      : '';
+
+    if (role !== 'administrator') {
+      response.status(403).json({ message: 'Administrator access is required for this action.' });
+      return;
+    }
+
+    next();
+  } catch {
+    response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+  }
+}
 
 
 const trainingAssessmentChoiceSchema = z.object({
@@ -111,7 +182,7 @@ const trainingAssessmentQuestionSchema = z.object({
 
 const trainingContentItemSchema = z.object({
   id: z.string().min(1),
-  kind: z.enum(['Video', 'Assessment', 'Document']),
+  kind: z.enum(['Video', 'Assessment', 'Document', 'Scorm']),
   title: z.string().min(1),
   assessmentType: z.enum(['Quiz', 'Assignment', 'Mentorship', 'Read and Acknowledge']).nullable(),
   passMarkPercentage: z.number().int().min(1).max(100).optional(),
@@ -119,6 +190,7 @@ const trainingContentItemSchema = z.object({
   resourceLink: z.string(),
   uploadedFileName: z.string(),
   uploadedFileDataUrl: z.string().optional(),
+  convertedPdfUrl: z.string().optional(),
   requiresAcknowledgement: z.boolean().optional(),
   questions: z.array(trainingAssessmentQuestionSchema),
 });
@@ -383,6 +455,7 @@ const enrollmentStudentSchema = z.object({
   activeStatus: z.enum(['Active', 'Inactive']),
   department: z.string().min(1),
   lineManager: z.string(),
+  lineManagerId: z.string().optional(),
   status: z.enum(['Completed', 'In Progress', 'Not Yet Started']),
   assignedOfferingIds: z.array(z.string()),
   role: enrollmentStudentRoleSchema,
@@ -430,14 +503,16 @@ const studentCourseSchema = z.object({
 const studentProfileSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
+  idNumber: z.string(),
   age: z.number().min(1),
   contactNumber: z.string().min(1),
   address: z.string().min(1),
-  programme: z.string().min(1),
-  level: z.string().min(1),
+  department: z.string(),
+  jobTitle: z.string(),
   joined: z.string().min(1),
   learningStreak: z.string().min(1),
   profileImageDataUrl: z.string().nullable(),
+  profileImageUrl: z.string().nullable().optional().default(null),
   passwordUpdatedAt: z.string().min(1),
 });
 
@@ -480,6 +555,19 @@ const studentBadgeStateSchema = z.object({
   earnedBadgeIds: z.array(z.string()),
 });
 
+const studentCertificateLicenceSchema = z.object({
+  id: z.string().min(1),
+  certificationName: z.string().min(1),
+  completionDate: z.string(),
+  expiryDate: z.string(),
+  fileName: z.string(),
+  fileDataUrl: z.string(),
+  status: z.enum(['Active', 'Expired', 'Pending Renewal']),
+  renewalRequired: z.enum(['Yes', 'No']),
+  reminderNotification: z.enum(['Yes', 'No']),
+  reminderDaysBeforeExpiry: z.number().int().min(0),
+});
+
 const studentAssessmentAttemptSchema = z.object({
   attemptsUsed: z.number().int().min(1),
   passed: z.boolean(),
@@ -487,6 +575,15 @@ const studentAssessmentAttemptSchema = z.object({
   lastScoreEarned: z.number().min(0),
   lastScorePossible: z.number().min(0),
   lastSubmittedAt: z.string().min(1),
+});
+
+const studentIdpEntrySchema = z.object({
+  developmentNeed: z.string(),
+  plannedAction: z.string(),
+  supportRequired: z.string(),
+  dateCaptured: z.string(),
+  targetDate: z.string(),
+  status: z.enum(['Not Started', 'In Progress', 'Completed', 'On Hold']),
 });
 
 const studentNotificationPreferencesSchema = z.object({
@@ -518,6 +615,7 @@ const brandingSettingsSchema = z.object({
 const studentSnapshotUpdateSchema = z.object({
   profile: studentProfileSchema,
   badgeState: studentBadgeStateSchema,
+  certificatesAndLicences: z.array(studentCertificateLicenceSchema).optional().default([]),
   settings: studentSettingsSchema,
   mentorshipProfile: studentMentorshipProfileSchema,
   mentorshipObjectives: studentMentorshipObjectivesSchema,
@@ -527,6 +625,7 @@ const studentSnapshotUpdateSchema = z.object({
   messages: z.array(studentMessageSchema),
   notifiedOfferingIds: z.array(z.string()),
   assessmentAttempts: z.record(z.string(), studentAssessmentAttemptSchema),
+  idpEntries: z.array(studentIdpEntrySchema).optional(),
 });
 
 const managerStatePatchSchema = z.object({
@@ -544,34 +643,142 @@ const loginRequestSchema = z.object({
   password: z.string().min(1),
 });
 
+const resolveRolesRequestSchema = z.object({
+  username: z.string().min(1),
+  password: z.string().min(1),
+});
+
 const passwordResetRequestSchema = z.object({
   email: z.string().email(),
 });
 
+const strongPasswordSchema = z.string().refine(isStrongPassword, {
+  message: passwordPolicyMessage,
+});
+
 const passwordResetConfirmSchema = z.object({
   token: z.string().min(1),
-  password: z.string().min(8),
+  password: strongPasswordSchema,
 });
 
 const changePasswordSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
+  password: strongPasswordSchema,
 });
 
 const managedUserCredentialSchema = z.object({
   studentId: z.string().min(1),
   email: z.string().email(),
   role: enrollmentStudentRoleSchema,
-  password: z.string().min(8),
+  password: strongPasswordSchema,
 });
 
 const managedUserCredentialsUpsertSchema = z.object({
   users: z.array(managedUserCredentialSchema),
 });
 
+const ssoRoleSchema = z.enum(['administrator', 'training-manager', 'student']);
+const microsoftSsoStartQuerySchema = z.object({
+  role: ssoRoleSchema.optional(),
+});
+
+type SsoRole = z.infer<typeof ssoRoleSchema>;
+
+type MicrosoftSsoState = {
+  nonce: string;
+  role?: SsoRole;
+  appBaseUrl: string;
+};
+
+type MicrosoftSsoConfig = {
+  clientId: string;
+  clientSecret: string;
+  tenantId: string;
+  redirectUri: string;
+  allowedEmailDomains: Set<string>;
+};
+
+function resolveMicrosoftSsoConfig(request: express.Request): MicrosoftSsoConfig | null {
+  const clientId = process.env['LMS_SSO_MICROSOFT_CLIENT_ID']?.trim();
+  const clientSecret = process.env['LMS_SSO_MICROSOFT_CLIENT_SECRET']?.trim();
+
+  if (!clientId || !clientSecret) {
+    return null;
+  }
+
+  const tenantId = process.env['LMS_SSO_MICROSOFT_TENANT_ID']?.trim() || 'organizations';
+  const redirectUri = process.env['LMS_SSO_MICROSOFT_REDIRECT_URI']?.trim()
+    || `${resolveAppBaseUrl(request)}/api/auth/sso/microsoft/callback`;
+  const allowedDomainsRaw = process.env['LMS_SSO_ALLOWED_EMAIL_DOMAINS']?.trim() || '';
+
+  return {
+    clientId,
+    clientSecret,
+    tenantId,
+    redirectUri,
+    allowedEmailDomains: new Set(
+      allowedDomainsRaw
+        .split(',')
+        .map((domain) => domain.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  };
+}
+
+function encodeBase64UrlJson(value: unknown) {
+  return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  const segments = token.split('.');
+  if (segments.length < 2) {
+    return null;
+  }
+
+  try {
+    const decoded = JSON.parse(Buffer.from(segments[1], 'base64url').toString('utf8')) as unknown;
+    if (!decoded || typeof decoded !== 'object') {
+      return null;
+    }
+    return decoded as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function resolveMicrosoftSsoEmail(claims: Record<string, unknown>): string | null {
+  const candidates = [claims['preferred_username'], claims['email'], claims['upn']];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim().toLowerCase();
+    }
+  }
+
+  return null;
+}
+
+function buildMicrosoftSsoRedirect(baseUrl: string, params: Record<string, string>) {
+  const target = new URL(baseUrl);
+  for (const [key, value] of Object.entries(params)) {
+    target.searchParams.set(key, value);
+  }
+  return target.toString();
+}
+
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(requireAuth);
+
+// --- LMS RESET ENDPOINTS ---
+app.post('/api/admin/reset-data', requireAdministrator, async (_request, response, next) => {
+  try {
+    await repository.write(createDefaultData());
+    response.json({ message: 'LMS data reset to default.' });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Rate-limit the login endpoint: max 10 attempts per 15 minutes per IP.
 const loginRateLimiter = rateLimit({
@@ -584,54 +791,169 @@ const loginRateLimiter = rateLimit({
 });
 
 app.use('/api/auth/login', loginRateLimiter);
+app.use('/api/auth/resolve-roles', loginRateLimiter);
 
 // --- FILE UPLOAD ---
-const storageBucket = process.env['LMS_STORAGE_BUCKET'] || '';
+// Auto-detect the Firebase Storage bucket from the runtime FIREBASE_CONFIG when
+// LMS_STORAGE_BUCKET is not explicitly set. Only resolve from FIREBASE_CONFIG in the
+// actual Cloud Function runtime (FUNCTION_NAME / K_SERVICE are set there but NOT during
+// the Firebase CLI's local code-analysis step — which would otherwise keep the process
+// alive through the pending GCS CORS call and trigger a 10-second loading timeout).
+function resolveStorageBucket(): string {
+  const explicit = process.env['LMS_STORAGE_BUCKET']?.trim();
+  if (explicit) return explicit;
+  const isCloudRuntime = process.env['FUNCTION_NAME'] || process.env['K_SERVICE'];
+  if (!isCloudRuntime) return '';
+  const firebaseConfigRaw = process.env['FIREBASE_CONFIG'];
+  if (firebaseConfigRaw) {
+    try {
+      const config = JSON.parse(firebaseConfigRaw) as { storageBucket?: string };
+      if (config.storageBucket) return config.storageBucket;
+    } catch {
+      // ignore parse errors
+    }
+  }
+  return '';
+}
+const storageBucket = resolveStorageBucket();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 9 * 1024 * 1024 }, // 9 MB safety cap for small/thumbnail uploads
 });
 
-// Disk-based upload storage — no file size limit, persists independently of GCS.
+// Legacy local uploads directory (read-only compatibility for older links).
 const uploadsDirectory = path.resolve(
   process.env['LMS_UPLOADS_DIRECTORY'] ||
   path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1')), '../../data/uploads')
 );
-fs.mkdirSync(uploadsDirectory, { recursive: true });
+try {
+  fs.mkdirSync(uploadsDirectory, { recursive: true });
+} catch {
+  // In Cloud Functions environments the deployment directory is read-only;
+  // local-disk upload endpoints are unused there — files go through Firebase Storage (GCS).
+}
 
-const diskUpload = multer({
-  storage: multer.diskStorage({
-    destination(_req, file, cb) {
-      // Folder is parsed from the multipart field before multer processes the file;
-      // fall back to 'uploads' for safety.
-      const rawFolder = ((_req.body as { folder?: string }).folder || 'uploads').replace(/[^a-zA-Z0-9_-]/g, '');
-      const dest = path.join(uploadsDirectory, rawFolder);
-      fs.mkdirSync(dest, { recursive: true });
-      cb(null, dest);
-    },
-    filename(_req, file, cb) {
-      const ext = path.extname(file.originalname);
-      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-    },
-  }),
-  // No fileSize limit — supports documents, images, and large uploads.
+const scormUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 80 * 1024 * 1024 },
 });
+
+function normalizeScormRelativePath(inputPath: string) {
+  const normalized = inputPath.replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!normalized || normalized.includes('..')) {
+    return '';
+  }
+
+  return normalized
+    .split('/')
+    .filter(Boolean)
+    .join('/');
+}
+
+function contentTypeForFile(filePath: string) {
+  const extension = path.extname(filePath).toLowerCase();
+
+  switch (extension) {
+    case '.html':
+    case '.htm':
+      return 'text/html; charset=utf-8';
+    case '.js':
+      return 'application/javascript; charset=utf-8';
+    case '.css':
+      return 'text/css; charset=utf-8';
+    case '.json':
+      return 'application/json; charset=utf-8';
+    case '.xml':
+      return 'application/xml; charset=utf-8';
+    case '.svg':
+      return 'image/svg+xml';
+    case '.png':
+      return 'image/png';
+    case '.jpg':
+    case '.jpeg':
+      return 'image/jpeg';
+    case '.gif':
+      return 'image/gif';
+    case '.webp':
+      return 'image/webp';
+    case '.mp4':
+      return 'video/mp4';
+    case '.mp3':
+      return 'audio/mpeg';
+    case '.woff':
+      return 'font/woff';
+    case '.woff2':
+      return 'font/woff2';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
+function resolveScormLaunchEntry(filePaths: string[], manifestContent: string | null) {
+  const normalizedPaths = filePaths.map((filePath) => normalizeScormRelativePath(filePath)).filter(Boolean);
+  const pathSet = new Set(normalizedPaths);
+
+  if (manifestContent) {
+    const hrefMatch = manifestContent.match(/<resource[^>]*href\s*=\s*"([^"]+)"/i);
+    const manifestHref = normalizeScormRelativePath(hrefMatch?.[1] ?? '');
+    if (manifestHref && pathSet.has(manifestHref)) {
+      return manifestHref;
+    }
+  }
+
+  if (pathSet.has('index.html')) {
+    return 'index.html';
+  }
+
+  if (pathSet.has('index.htm')) {
+    return 'index.htm';
+  }
+
+  const firstHtmlPath = normalizedPaths.find((filePath) => filePath.toLowerCase().endsWith('.html') || filePath.toLowerCase().endsWith('.htm'));
+  if (firstHtmlPath) {
+    return firstHtmlPath;
+  }
+
+  return normalizedPaths[0] || '';
+}
+
+function encodePathSegments(value: string) {
+  return value
+    .split('/')
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+}
 
 // Serve uploaded files publicly (no auth required).
 app.use('/api/files', express.static(uploadsDirectory, { maxAge: '30d', fallthrough: false }));
 
-// Direct disk upload endpoint — used as fallback when GCS is not configured.
-app.post('/api/storage/upload-file', diskUpload.fields([{ name: 'file', maxCount: 1 }]), (request, response, next) => {
+// Backward-compatible upload endpoint that now targets Firebase Storage.
+app.post('/api/storage/upload-file', upload.single('file'), async (request, response, next) => {
   try {
-    const files = request.files as Record<string, Express.Multer.File[]> | undefined;
-    const uploadedFile = files?.['file']?.[0];
-    if (!uploadedFile) {
+    if (!storageBucket) {
+      response.status(503).json({ message: 'Firebase Storage is not configured on this server.' });
+      return;
+    }
+    if (!request.file) {
       response.status(400).json({ message: 'No file provided.' });
       return;
     }
-    const rawFolder = ((request.body as { folder?: string }).folder || 'uploads').replace(/[^a-zA-Z0-9_-]/g, '');
-    const publicUrl = `${appBaseUrl}/api/files/${rawFolder}/${uploadedFile.filename}`;
-    response.json({ url: publicUrl, path: `${rawFolder}/${uploadedFile.filename}` });
+
+    const folder = (request.body as { folder?: string }).folder?.replace(/[^a-zA-Z0-9_-]/g, '') || 'uploads';
+    const ext = request.file.originalname.split('.').pop() ?? '';
+    const safeName = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext ? '.' + ext : ''}`;
+    const filePath = `lms-uploads/${folder}/${safeName}`;
+
+    const adminApp = getApps().length > 0 ? getApp() : initializeApp();
+    const bucket = getStorage(adminApp).bucket(storageBucket);
+    const storageFile = bucket.file(filePath);
+
+    await storageFile.save(request.file.buffer, { contentType: request.file.mimetype });
+    await storageFile.makePublic();
+
+    const publicUrl = `https://storage.googleapis.com/${storageBucket}/${filePath}`;
+    response.json({ url: publicUrl, path: filePath });
   } catch (error) {
     next(error);
   }
@@ -639,7 +961,11 @@ app.post('/api/storage/upload-file', diskUpload.fields([{ name: 'file', maxCount
 
 // Configure GCS bucket CORS at startup so browsers can PUT directly to Firebase Storage.
 // This runs once per Cloud Function instance (fire-and-forget — non-critical).
-if (storageBucket) {
+// Guard with FUNCTION_NAME/K_SERVICE so the async GCS call does NOT run during the
+// Firebase CLI's local code-analysis step (where LMS_STORAGE_BUCKET may still be set
+// via .env but the process must exit quickly for the 10-second backend-spec timeout).
+const isActualCloudRuntime = Boolean(process.env['FUNCTION_NAME'] || process.env['K_SERVICE']);
+if (storageBucket && isActualCloudRuntime) {
   void (async () => {
     try {
       const adminApp = getApps().length > 0 ? getApp() : initializeApp();
@@ -656,7 +982,7 @@ if (storageBucket) {
         ],
       });
     } catch {
-      // Non-critical — direct uploads will still attempt, small file path remains as fallback.
+      // Non-critical — direct uploads will still attempt.
     }
   })();
 }
@@ -665,7 +991,7 @@ if (storageBucket) {
 app.post('/api/storage/upload', upload.single('file'), async (request, response, next) => {
   try {
     if (!storageBucket) {
-      response.status(503).json({ message: 'File storage is not configured on this server.' });
+      response.status(503).json({ message: 'Firebase Storage is not configured on this server.' });
       return;
     }
     if (!request.file) {
@@ -686,6 +1012,104 @@ app.post('/api/storage/upload', upload.single('file'), async (request, response,
 
     const publicUrl = `https://storage.googleapis.com/${storageBucket}/${filePath}`;
     response.json({ url: publicUrl, path: filePath });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/storage/upload-scorm', scormUpload.single('file'), async (request, response, next) => {
+  try {
+    const file = request.file;
+    if (!file) {
+      response.status(400).json({ message: 'No SCORM package provided.' });
+      return;
+    }
+
+    if (!/\.zip$/i.test(file.originalname)) {
+      response.status(400).json({ message: 'SCORM uploads must be .zip packages.' });
+      return;
+    }
+
+    const packageId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const packagePrefix = `lms-scorm/${packageId}`;
+    const zipEntries = unzipSync(new Uint8Array(file.buffer));
+
+    const safeEntries = Object.entries(zipEntries)
+      .map(([entryPath, content]) => ({
+        entryPath: normalizeScormRelativePath(entryPath),
+        content,
+      }))
+      .filter((entry) => entry.entryPath.length > 0 && !entry.entryPath.endsWith('/'));
+
+    if (!safeEntries.length) {
+      response.status(400).json({ message: 'The SCORM package did not contain any readable files.' });
+      return;
+    }
+
+    const manifestEntry = safeEntries.find((entry) => entry.entryPath.toLowerCase().endsWith('imsmanifest.xml'));
+    const manifestContent = manifestEntry ? Buffer.from(manifestEntry.content).toString('utf-8') : null;
+    const launchEntryPath = resolveScormLaunchEntry(safeEntries.map((entry) => entry.entryPath), manifestContent);
+
+    if (!launchEntryPath) {
+      response.status(400).json({ message: 'Unable to determine a SCORM launch file.' });
+      return;
+    }
+
+    if (!storageBucket) {
+      response.status(503).json({ message: 'Firebase Storage is not configured on this server.' });
+      return;
+    }
+
+    const adminApp = getApps().length > 0 ? getApp() : initializeApp();
+    const bucket = getStorage(adminApp).bucket(storageBucket);
+
+    for (const entry of safeEntries) {
+      const storageFile = bucket.file(`${packagePrefix}/${entry.entryPath}`);
+      await storageFile.save(Buffer.from(entry.content), {
+        contentType: contentTypeForFile(entry.entryPath),
+        resumable: false,
+      });
+      await storageFile.makePublic();
+    }
+
+    const launchUrl = `${resolveAppBaseUrl(request)}/api/storage/scorm?packageId=${encodeURIComponent(packageId)}&file=${encodePathSegments(launchEntryPath)}`;
+    response.status(201).json({ packageId, entryPath: launchEntryPath, launchUrl });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/storage/scorm', async (request, response, next) => {
+  try {
+    const packageId = normalizeScormRelativePath(String(request.query['packageId'] || ''));
+    const filePath = normalizeScormRelativePath(String(request.query['file'] || ''));
+
+    if (!packageId || !filePath) {
+      response.status(400).json({ message: 'packageId and file are required.' });
+      return;
+    }
+
+    response.setHeader('Cache-Control', 'public, max-age=3600');
+    response.setHeader('Content-Type', contentTypeForFile(filePath));
+
+    if (!storageBucket) {
+      response.status(503).json({ message: 'Firebase Storage is not configured on this server.' });
+      return;
+    }
+
+    const adminApp = getApps().length > 0 ? getApp() : initializeApp();
+    const bucket = getStorage(adminApp).bucket(storageBucket);
+    const storageFile = bucket.file(`lms-scorm/${packageId}/${filePath}`);
+    const [exists] = await storageFile.exists();
+
+    if (!exists) {
+      response.status(404).json({ message: 'SCORM asset not found.' });
+      return;
+    }
+
+    storageFile.createReadStream()
+      .on('error', next)
+      .pipe(response);
   } catch (error) {
     next(error);
   }
@@ -719,13 +1143,176 @@ app.post('/api/storage/upload-url', async (request, response, next) => {
     });
 
     const publicUrl = `https://storage.googleapis.com/${storageBucket}/${filePath}`;
-    response.json({ uploadUrl, publicUrl });
+    response.json({ uploadUrl, publicUrl, path: filePath });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// --- PPTX-to-PDF conversion endpoint ---
+
+const execFileAsync = promisify(execFile);
+
+function findLibreOfficeBinary(): string | null {
+  if (process.platform === 'win32') {
+    const candidates = [
+      'C:\\Program Files\\LibreOffice\\program\\soffice.exe',
+      'C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe',
+    ];
+    return candidates.find((p) => fs.existsSync(p)) ?? null;
+  }
+  // Linux/macOS — try well-known paths, then rely on PATH
+  const candidates = ['/usr/bin/libreoffice', '/usr/bin/soffice', '/usr/local/bin/libreoffice', '/usr/local/bin/soffice'];
+  const found = candidates.find((p) => fs.existsSync(p));
+  return found ?? 'libreoffice';
+}
+
+/**
+ * Converts a PPTX buffer to PDF using the Google Drive API.
+ * The service account uploads the file, Drive converts it to Google Slides,
+ * then we export it as PDF and delete the temporary Drive file.
+ * Requires the Drive API to be enabled in the GCP project.
+ */
+async function convertPptxViaDriveApi(fileBuffer: Buffer): Promise<Buffer> {
+  const { GoogleAuth } = await import('google-auth-library');
+  const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/drive'] });
+  const token = await auth.getAccessToken();
+  if (!token) throw new Error('Unable to obtain Drive API access token.');
+
+  const boundary = `pptx_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const metadata = JSON.stringify({
+    name: `pptx_temp_${Date.now()}.pptx`,
+    mimeType: 'application/vnd.google-apps.presentation',
+  });
+  const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+
+  const bodyParts = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: ${PPTX_MIME}\r\n\r\n`),
+    fileBuffer,
+    Buffer.from(`\r\n--${boundary}--`),
+  ]);
+
+  const uploadRes = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': `multipart/related; boundary="${boundary}"`,
+        'Content-Length': String(bodyParts.length),
+      },
+      body: bodyParts,
+    }
+  );
+
+  if (!uploadRes.ok) {
+    const errText = await uploadRes.text().catch(() => uploadRes.statusText);
+    throw new Error(`Drive upload failed (${uploadRes.status}): ${errText}`);
+  }
+
+  const { id: fileId } = (await uploadRes.json()) as { id: string };
+
+  try {
+    const exportRes = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=application/pdf`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    );
+
+    if (!exportRes.ok) {
+      const errText = await exportRes.text().catch(() => exportRes.statusText);
+      throw new Error(`Drive export failed (${exportRes.status}): ${errText}`);
+    }
+
+    return Buffer.from(await exportRes.arrayBuffer());
+  } finally {
+    // Best-effort: delete the temporary Drive file after export
+    fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` },
+    }).catch(() => {});
+  }
+}
+
+// Separate multer instance for PPTX conversion — allow larger files (up to 50 MB).
+const pptxUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+});
+
+app.post('/api/storage/convert-pptx', pptxUpload.single('file'), async (request, response, next) => {
+  try {
+    const file = request.file;
+    if (!file) {
+      response.status(400).json({ message: 'No file provided.' });
+      return;
+    }
+    const lowerName = file.originalname.toLowerCase();
+    if (!lowerName.endsWith('.pptx') && !lowerName.endsWith('.ppt')) {
+      response.status(400).json({ message: 'Only .pptx or .ppt files are supported for conversion.' });
+      return;
+    }
+
+    let pdfBuffer: Buffer;
+
+    const soffice = findLibreOfficeBinary();
+    if (soffice) {
+      // LibreOffice path (local dev or servers with LibreOffice installed)
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lms-pptx-'));
+      const pptxPath = path.join(tmpDir, 'presentation' + path.extname(file.originalname));
+      fs.writeFileSync(pptxPath, file.buffer);
+
+      try {
+        await execFileAsync(soffice, ['--headless', '--convert-to', 'pdf', '--outdir', tmpDir, pptxPath]);
+
+        const pdfPath = path.join(tmpDir, 'presentation.pdf');
+        if (!fs.existsSync(pdfPath)) {
+          response.status(500).json({ message: 'PDF conversion failed: the output file was not produced.' });
+          return;
+        }
+
+        pdfBuffer = fs.readFileSync(pdfPath);
+      } finally {
+        try {
+          fs.rmSync(tmpDir, { recursive: true, force: true });
+        } catch {
+          // Non-critical cleanup failure — temp files will be cleaned by the OS.
+        }
+      }
+    } else {
+      // Fallback: Google Drive API (works in Firebase Cloud Functions / Cloud Run)
+      pdfBuffer = await convertPptxViaDriveApi(file.buffer);
+    }
+
+    const safeName = `${Date.now()}-${Math.random().toString(36).slice(2)}.pdf`;
+    let pdfUrl: string;
+
+    if (!storageBucket) {
+      response.status(503).json({ message: 'Firebase Storage is not configured on this server.' });
+      return;
+    }
+
+    const filePath = `lms-uploads/content-items/${safeName}`;
+    const adminApp = getApps().length > 0 ? getApp() : initializeApp();
+    const bucket = getStorage(adminApp).bucket(storageBucket);
+    const storageFile = bucket.file(filePath);
+    await storageFile.save(pdfBuffer, { contentType: 'application/pdf' });
+    await storageFile.makePublic();
+    pdfUrl = `https://storage.googleapis.com/${storageBucket}/${filePath}`;
+
+    response.json({ pdfUrl });
   } catch (error) {
     next(error);
   }
 });
 
 app.get('/health', (_request, response) => {
+  response.json({
+    status: 'ok',
+    passwordResetEmailConfigured: emailService.isConfigured(),
+  });
+});
+
+app.get('/api/health', (_request, response) => {
   response.json({
     status: 'ok',
     passwordResetEmailConfigured: emailService.isConfigured(),
@@ -778,6 +1365,205 @@ app.post('/api/auth/login', async (request, response, next) => {
   }
 });
 
+app.post('/api/auth/resolve-roles', async (request, response, next) => {
+  try {
+    const credentials = resolveRolesRequestSchema.parse(request.body);
+    const roles = await repository.resolveRoles(credentials);
+
+    if (roles.length === 0) {
+      response.status(401).json({ message: 'Invalid login credentials.' });
+      return;
+    }
+
+    const rolesWithTokens = roles.map((r) => ({
+      ...r,
+      token: jwt.sign(
+        { role: r.role, username: r.username, email: r.email },
+        jwtSecret,
+        { expiresIn: jwtExpiresIn },
+      ),
+    }));
+
+    response.json({ roles: rolesWithTokens });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/auth/sso/microsoft/start', async (request, response, next) => {
+  try {
+    const config = resolveMicrosoftSsoConfig(request);
+    if (!config) {
+      response.status(503).json({ message: 'Microsoft SSO is not configured on the server.' });
+      return;
+    }
+
+    const query = microsoftSsoStartQuerySchema.parse({
+      role: typeof request.query['role'] === 'string' ? request.query['role'] : undefined,
+    });
+
+    const nonce = randomUUID();
+    const appBaseUrl = resolveAppBaseUrl(request);
+    const stateToken = jwt.sign(
+      {
+        nonce,
+        role: query.role,
+        appBaseUrl,
+      } satisfies MicrosoftSsoState,
+      jwtSecret,
+      { expiresIn: '10m' },
+    );
+
+    const authorizeUrl = new URL(`https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/authorize`);
+    authorizeUrl.searchParams.set('client_id', config.clientId);
+    authorizeUrl.searchParams.set('response_type', 'code');
+    authorizeUrl.searchParams.set('redirect_uri', config.redirectUri);
+    authorizeUrl.searchParams.set('response_mode', 'query');
+    authorizeUrl.searchParams.set('scope', 'openid profile email');
+    authorizeUrl.searchParams.set('state', stateToken);
+    authorizeUrl.searchParams.set('nonce', nonce);
+    authorizeUrl.searchParams.set('prompt', 'select_account');
+
+    response.redirect(authorizeUrl.toString());
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/auth/sso/microsoft/callback', async (request, response, next) => {
+  try {
+    const config = resolveMicrosoftSsoConfig(request);
+    const appBaseUrl = resolveAppBaseUrl(request);
+
+    if (!config) {
+      response.redirect(buildMicrosoftSsoRedirect(appBaseUrl, {
+        ssoError: 'Microsoft SSO is not configured on the server.',
+      }));
+      return;
+    }
+
+    const providerError = typeof request.query['error'] === 'string' ? request.query['error'] : null;
+    if (providerError) {
+      const providerErrorDescription = typeof request.query['error_description'] === 'string'
+        ? request.query['error_description']
+        : 'Sign-in was canceled or rejected by Microsoft.';
+      response.redirect(buildMicrosoftSsoRedirect(appBaseUrl, {
+        ssoError: providerErrorDescription,
+      }));
+      return;
+    }
+
+    const code = typeof request.query['code'] === 'string' ? request.query['code'] : '';
+    const stateToken = typeof request.query['state'] === 'string' ? request.query['state'] : '';
+
+    if (!code || !stateToken) {
+      response.redirect(buildMicrosoftSsoRedirect(appBaseUrl, {
+        ssoError: 'SSO callback is missing required parameters.',
+      }));
+      return;
+    }
+
+    const verifiedState = jwt.verify(stateToken, jwtSecret) as MicrosoftSsoState;
+    const stateAppBaseUrl = typeof verifiedState.appBaseUrl === 'string' && verifiedState.appBaseUrl.trim()
+      ? verifiedState.appBaseUrl
+      : appBaseUrl;
+
+    const tokenResponse = await fetch(`https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: config.redirectUri,
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      response.redirect(buildMicrosoftSsoRedirect(stateAppBaseUrl, {
+        ssoError: 'Microsoft token exchange failed. Please try again.',
+      }));
+      return;
+    }
+
+    const tokenPayload = await tokenResponse.json() as { id_token?: string };
+    if (!tokenPayload.id_token) {
+      response.redirect(buildMicrosoftSsoRedirect(stateAppBaseUrl, {
+        ssoError: 'Microsoft SSO response was incomplete.',
+      }));
+      return;
+    }
+
+    const idTokenClaims = decodeJwtPayload(tokenPayload.id_token);
+    if (!idTokenClaims) {
+      response.redirect(buildMicrosoftSsoRedirect(stateAppBaseUrl, {
+        ssoError: 'Microsoft ID token could not be read.',
+      }));
+      return;
+    }
+
+    const tokenNonce = typeof idTokenClaims['nonce'] === 'string' ? idTokenClaims['nonce'] : '';
+    if (!tokenNonce || tokenNonce !== verifiedState.nonce) {
+      response.redirect(buildMicrosoftSsoRedirect(stateAppBaseUrl, {
+        ssoError: 'SSO validation failed. Please sign in again.',
+      }));
+      return;
+    }
+
+    const email = resolveMicrosoftSsoEmail(idTokenClaims);
+    if (!email) {
+      response.redirect(buildMicrosoftSsoRedirect(stateAppBaseUrl, {
+        ssoError: 'No corporate email address was provided by Microsoft.',
+      }));
+      return;
+    }
+
+    if (config.allowedEmailDomains.size) {
+      const domain = email.split('@')[1]?.toLowerCase() || '';
+      if (!domain || !config.allowedEmailDomains.has(domain)) {
+        response.redirect(buildMicrosoftSsoRedirect(stateAppBaseUrl, {
+          ssoError: 'Your email domain is not allowed for SSO access.',
+        }));
+        return;
+      }
+    }
+
+    const authenticated = await repository.authenticateSso({
+      email,
+      role: verifiedState.role,
+    });
+
+    if (!authenticated) {
+      response.redirect(buildMicrosoftSsoRedirect(stateAppBaseUrl, {
+        ssoError: 'This Microsoft account is not linked to an LMS user.',
+      }));
+      return;
+    }
+
+    const token = jwt.sign(
+      { role: authenticated.role, username: authenticated.username, email: authenticated.email },
+      jwtSecret,
+      { expiresIn: jwtExpiresIn },
+    );
+
+    const ssoPayload = encodeBase64UrlJson({
+      role: authenticated.role,
+      route: authenticated.route,
+      username: authenticated.username,
+      email: authenticated.email,
+      studentId: authenticated.studentId,
+      token,
+    });
+
+    response.redirect(buildMicrosoftSsoRedirect(stateAppBaseUrl, { sso: ssoPayload }));
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post('/api/auth/password-reset/request', async (request, response, next) => {
   try {
     const payload = passwordResetRequestSchema.parse(request.body);
@@ -790,7 +1576,7 @@ app.post('/api/auth/password-reset/request', async (request, response, next) => 
     const resetRequest = await repository.createPasswordResetRequest(payload.email);
 
     if (resetRequest) {
-      const resetUrl = `${appBaseUrl.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(resetRequest.token)}`;
+      const resetUrl = `${resolveAppBaseUrl(request)}/reset-password?token=${encodeURIComponent(resetRequest.token)}`;
       await emailService.sendPasswordResetEmail({
         to: resetRequest.accountEmail,
         username: resetRequest.username,
@@ -983,7 +1769,7 @@ app.put('/api/manager-state', async (request, response, next) => {
             studentName: `${student.name} ${student.surname}`.trim(),
             offeringTitle: title,
             deadline: offeringDeadlineById.get(offeringId) ?? '',
-            appUrl: appBaseUrl,
+            appUrl: resolveAppBaseUrl(request),
           }).catch(() => { /* non-critical — do not fail the request */ });
         }
       }
@@ -1035,7 +1821,7 @@ app.post('/api/external-training-requests', async (request, response, next) => {
         startDate: created.trainingStartDate,
         endDate: created.trainingEndDate,
         cost: created.courseCost,
-        appUrl: appBaseUrl,
+        appUrl: resolveAppBaseUrl(request),
       }).catch(() => { /* non-critical — do not fail the request */ });
     }
 

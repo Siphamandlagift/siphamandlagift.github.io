@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Inject, Injectable, inject } from '@angular/core';
 import { Observable, switchMap, map, catchError } from 'rxjs';
+import { FirebaseStorageService, UploadEvent } from './firebase-storage.service';
 import { LMS_API_CONFIG, LmsApiConfig } from './lms-api.config';
 import type {
   AssignmentSubmissionRecord,
@@ -12,6 +13,7 @@ import type {
   ManagerMessage,
   MentorshipAssignmentRecord,
   MentorshipSubmissionRecord,
+  StudentIdpEntry,
   SystemTrainingManager,
   TrainingOffering,
   TrainingQuestionType,
@@ -20,6 +22,7 @@ import type {
 import type {
   StudentAssessmentAttempt,
   StudentBadgeState,
+  StudentCertificateLicence,
   StudentCourse,
   StudentMentorshipObjectives,
   StudentMentorshipProfile,
@@ -36,6 +39,7 @@ export type LmsBootstrapResponse = {
   offerings: TrainingOffering[];
   branding: BrandingSettings;
   students: EnrollmentStudent[];
+  idpEntriesByStudent?: Record<string, StudentIdpEntry[]>;
   trainingManagers: SystemTrainingManager[];
   managerMessages: ManagerMessage[];
   mentorshipAssignments: MentorshipAssignmentRecord[];
@@ -79,6 +83,7 @@ export type StudentSnapshotResponse = {
   studentId: string;
   profile: StudentProfileData;
   badgeState: StudentBadgeState;
+  certificatesAndLicences: StudentCertificateLicence[];
   settings: StudentSettingsData;
   mentorshipProfile: StudentMentorshipProfile;
   mentorshipObjectives: StudentMentorshipObjectives;
@@ -88,9 +93,16 @@ export type StudentSnapshotResponse = {
   messages: StudentMessage[];
   notifiedOfferingIds: string[];
   assessmentAttempts: Record<string, StudentAssessmentAttempt>;
+  idpEntries?: StudentIdpEntry[];
 };
 
 export type StudentSnapshotUpdate = Omit<StudentSnapshotResponse, 'studentId'>;
+
+export type ScormUploadResponse = {
+  packageId: string;
+  entryPath: string;
+  launchUrl: string;
+};
 
 export type ManagerStatePatch = {
   students?: EnrollmentStudent[];
@@ -116,6 +128,24 @@ export type LoginResponse = {
   email: string;
   studentId?: string;
   token: string;
+};
+
+export type ResolveRolesRequest = {
+  username: string;
+  password: string;
+};
+
+export type ResolveRolesEntry = {
+  role: LoginRole;
+  route: string;
+  username: string;
+  email: string;
+  studentId?: string;
+  token: string;
+};
+
+export type ResolveRolesResponse = {
+  roles: ResolveRolesEntry[];
 };
 
 export type ManagedUserCredentialInput = {
@@ -177,6 +207,7 @@ export type ChangePasswordResponse = PasswordResetConfirmResponse;
 @Injectable({ providedIn: 'root' })
 export class LmsBackendService {
   private readonly http = inject(HttpClient);
+  private readonly firebaseStorage = inject(FirebaseStorageService);
 
   constructor(@Inject(LMS_API_CONFIG) private readonly config: LmsApiConfig) {}
 
@@ -194,6 +225,18 @@ export class LmsBackendService {
 
   login(input: LoginRequest): Observable<LoginResponse> {
     return this.http.post<LoginResponse>(`${this.config.baseUrl}/auth/login`, input);
+  }
+
+  resolveRoles(input: ResolveRolesRequest): Observable<ResolveRolesResponse> {
+    return this.http.post<ResolveRolesResponse>(`${this.config.baseUrl}/auth/resolve-roles`, input);
+  }
+
+  microsoftSsoStartUrl(role?: LoginRole): string {
+    const target = new URL(`${this.config.baseUrl}/auth/sso/microsoft/start`, window.location.origin);
+    if (role) {
+      target.searchParams.set('role', role);
+    }
+    return target.toString();
   }
 
   requestPasswordReset(input: PasswordResetRequest): Observable<PasswordResetRequestResponse> {
@@ -243,32 +286,25 @@ export class LmsBackendService {
   }
 
   uploadFile(file: File, folder: string): Observable<{ url: string; path: string }> {
-    // Try GCS resumable upload first (no server body-size limit).
-    // On any error (bucket not configured, network, CORS), fall back to direct disk upload.
-    return this.http
-      .post<{ uploadUrl: string; publicUrl: string }>(`${this.config.baseUrl}/storage/upload-url`, {
-        folder,
-        fileName: file.name,
-        contentType: file.type || 'application/octet-stream',
-      })
-      .pipe(
-        switchMap(({ uploadUrl, publicUrl }) =>
-          this.http
-            .put(uploadUrl, file, { headers: { 'Content-Type': file.type || 'application/octet-stream' } })
-            .pipe(map(() => ({ url: publicUrl, path: '' })))
-        ),
-        catchError(() => {
-          // GCS not configured or unreachable — upload directly to the server disk.
-          const formData = new FormData();
-          // Append folder BEFORE the file so multer can resolve the destination path.
-          formData.append('folder', folder);
-          formData.append('file', file, file.name);
-          return this.http.post<{ url: string; path: string }>(
-            `${this.config.baseUrl}/storage/upload-file`,
-            formData
-          );
-        })
-      );
+    return this.firebaseStorage.upload(file, folder);
+  }
+
+  /** Emits progress events (`{ type: 'progress', percent: number }`) while uploading,
+   *  then a final completion event (`{ type: 'complete', url, path }`). */
+  uploadFileWithProgress(file: File, folder: string): Observable<UploadEvent> {
+    return this.firebaseStorage.uploadWithProgress(file, folder);
+  }
+
+  uploadScormPackage(file: File): Observable<ScormUploadResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<ScormUploadResponse>(`${this.config.baseUrl}/storage/upload-scorm`, formData);
+  }
+
+  convertPptxToPdf(file: File): Observable<{ pdfUrl: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<{ pdfUrl: string }>(`${this.config.baseUrl}/storage/convert-pptx`, formData);
   }
 
   getStudentSnapshot(studentId = this.config.defaultStudentId): Observable<StudentSnapshotResponse> {

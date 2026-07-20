@@ -1,17 +1,26 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs';
-import { LmsBackendService } from '../lms-backend.service';
+import { LmsBackendService, ResolveRolesEntry } from '../lms-backend.service';
+import { LmsBrandingService } from '../lms-branding.service';
+import { createLmsSessionRecord } from '../session-auth';
 
 type LoginRole = 'administrator' | 'training-manager' | 'student';
 
-type LoginRoleMeta = {
-  hint: string;
-};
-
 type LoginDialog = 'forgot-password' | 'contact-admin' | null;
+
+type LoginStep = 'credentials' | 'pick-role';
+
+type SsoLoginPayload = {
+  role: LoginRole;
+  route: string;
+  username: string;
+  email: string;
+  studentId?: string;
+  token: string;
+};
 
 @Component({
   selector: 'app-login',
@@ -24,30 +33,22 @@ type LoginDialog = 'forgot-password' | 'contact-admin' | null;
   styleUrl: './login.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class Login {
+export class Login implements OnInit {
   private readonly router = inject(Router);
+  private readonly activatedRoute = inject(ActivatedRoute);
   private readonly backend = inject(LmsBackendService);
+  readonly branding = inject(LmsBrandingService);
   readonly adminEmail = 'admin@skillsconnect.app';
   readonly supportEmail = 'help@skillsconnect.app';
-  private readonly roleMeta: Record<LoginRole, LoginRoleMeta> = {
-    administrator: {
-      hint: 'Use admin/admin to open the administrator workspace.',
-    },
-    'training-manager': {
-      hint: 'Use manager/manager to open the training manager workspace.',
-    },
-    student: {
-      hint: 'Use student/student to open the student workspace.',
-    },
+  readonly roleLabels: Record<LoginRole, string> = {
+    'administrator': 'Administrator',
+    'training-manager': 'Training Manager',
+    'student': 'Student',
   };
 
-  readonly roleOptions: ReadonlyArray<{ value: LoginRole; label: string }> = [
-    { value: 'administrator', label: 'Administrator' },
-    { value: 'training-manager', label: 'Training Manager' },
-    { value: 'student', label: 'Student' },
-  ];
+  loginStep: LoginStep = 'credentials';
+  resolvedRoles: ResolveRolesEntry[] = [];
 
-  selectedRole: LoginRole = 'training-manager';
   username = '';
   password = '';
   errorMessage = '';
@@ -58,6 +59,16 @@ export class Login {
   forgotPasswordSubmitted = false;
   signingIn = false;
   sendingReset = false;
+  showPassword = false;
+  readonly shaking = signal(false);
+
+  ngOnInit() {
+    this.consumeSsoQueryParams();
+  }
+
+  togglePassword() {
+    this.showPassword = !this.showPassword;
+  }
 
   onSubmit() {
     if (this.signingIn) {
@@ -66,38 +77,49 @@ export class Login {
 
     this.errorMessage = '';
     this.signingIn = true;
-    this.backend.login({
-      role: this.selectedRole,
+    this.backend.resolveRoles({
       username: this.username.trim(),
       password: this.password,
     })
       .pipe(finalize(() => (this.signingIn = false)))
       .subscribe({
         next: (response) => {
-          // Store session info for auth guard
-          localStorage.setItem('lms-session', JSON.stringify({
-            role: response.role,
-            username: response.username,
-            email: response.email,
-            studentId: response.studentId ?? null,
-          }));
-          localStorage.setItem('lms-token', response.token);
-          this.router.navigate([response.route]);
+          if (response.roles.length === 1) {
+            this.persistAuthenticatedSession(response.roles[0]);
+            void this.router.navigate([response.roles[0].route]);
+          } else {
+            this.resolvedRoles = response.roles;
+            this.loginStep = 'pick-role';
+          }
         },
         error: (error) => {
           this.errorMessage = error?.status === 401
-            ? `Invalid ${this.roleLabel(this.selectedRole).toLowerCase()} login. Check your username and password.`
+            ? 'Invalid login. Check your username and password.'
             : 'Login is unavailable right now. Please try again.';
+          this.shaking.set(true);
+          setTimeout(() => this.shaking.set(false), 600);
         },
       });
   }
 
-  roleHint() {
-    return this.roleMeta[this.selectedRole].hint;
+  selectRole(entry: ResolveRolesEntry) {
+    this.persistAuthenticatedSession(entry);
+    void this.router.navigate([entry.route]);
+  }
+
+  backToCredentials() {
+    this.loginStep = 'credentials';
+    this.resolvedRoles = [];
+    this.errorMessage = '';
+  }
+
+  startMicrosoftSso() {
+    const url = this.backend.microsoftSsoStartUrl();
+    window.location.assign(url);
   }
 
   roleLabel(role: LoginRole) {
-    return this.roleOptions.find((option) => option.value === role)?.label ?? 'User';
+    return this.roleLabels[role] ?? 'User';
   }
 
   openForgotPassword(event: Event) {
@@ -150,8 +172,73 @@ export class Login {
   contactAdminMailtoLink() {
     const subject = encodeURIComponent('LMS account support request');
     const body = encodeURIComponent(
-      `Hello LMS Administrator,\n\nI need help with my LMS account.\n\nRole: ${this.roleLabel(this.selectedRole)}\nUsername: ${this.username.trim() || 'Not provided'}\n\nPlease assist.`,
+      `Hello LMS Administrator,\n\nI need help with my LMS account.\n\nUsername: ${this.username.trim() || 'Not provided'}\n\nPlease assist.`,
     );
     return `mailto:${this.adminEmail}?subject=${subject}&body=${body}`;
+  }
+
+  private consumeSsoQueryParams() {
+    const query = this.activatedRoute.snapshot.queryParamMap;
+    const ssoPayloadEncoded = query.get('sso');
+    const ssoError = query.get('ssoError');
+
+    if (ssoPayloadEncoded) {
+      const parsedPayload = this.parseSsoPayload(ssoPayloadEncoded);
+
+      if (parsedPayload) {
+        this.persistAuthenticatedSession(parsedPayload);
+        void this.router.navigate([parsedPayload.route], { replaceUrl: true });
+        return;
+      }
+
+      this.errorMessage = 'Single sign-on could not be completed. Please try again.';
+      void this.router.navigate([], { queryParams: {}, replaceUrl: true });
+      return;
+    }
+
+    if (ssoError) {
+      this.errorMessage = ssoError;
+      void this.router.navigate([], { queryParams: {}, replaceUrl: true });
+    }
+  }
+
+  private parseSsoPayload(encodedPayload: string): SsoLoginPayload | null {
+    try {
+      const normalized = encodedPayload.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+      const rawJson = atob(padded);
+      const payload = JSON.parse(rawJson) as Partial<SsoLoginPayload>;
+
+      if (
+        (payload.role !== 'administrator' && payload.role !== 'training-manager' && payload.role !== 'student')
+        || typeof payload.route !== 'string'
+        || typeof payload.username !== 'string'
+        || typeof payload.email !== 'string'
+        || typeof payload.token !== 'string'
+      ) {
+        return null;
+      }
+
+      return {
+        role: payload.role,
+        route: payload.route,
+        username: payload.username,
+        email: payload.email,
+        studentId: payload.studentId,
+        token: payload.token,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private persistAuthenticatedSession(payload: SsoLoginPayload | ResolveRolesEntry) {
+    localStorage.setItem('lms-session', JSON.stringify(createLmsSessionRecord({
+      role: payload.role,
+      username: payload.username,
+      email: payload.email,
+      studentId: payload.studentId ?? null,
+    })));
+    localStorage.setItem('lms-token', payload.token);
   }
 }
