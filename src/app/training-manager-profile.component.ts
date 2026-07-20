@@ -15,6 +15,7 @@ import {
   LearningActivityItem,
   ManagerPanel,
   MentorshipAssignmentRecord,
+  MentorshipSubmissionRecord,
   TrainingAssessmentType,
   TrainingManagerDataService,
   TrainingMatchingPair,
@@ -23,7 +24,8 @@ import {
   TrainingQuestionType,
 } from './training-manager-data.service';
 import { LmsBrandingService } from './lms-branding.service';
-import { LmsBackendService } from './lms-backend.service';
+import { LmsBackendService, type ResolveRolesEntry } from './lms-backend.service';
+import { clearLmsAuthSession, createLmsSessionRecord } from './session-auth';
 
 type CoursesPanelView = 'create' | 'created' | 'submissions';
 type AssignmentSubmissionFilter = 'All' | 'Pending Review' | 'Approved' | 'Needs Revision';
@@ -78,7 +80,9 @@ type ContentItemFormGroup = FormGroup<{
   resourceLink: FormControl<string>;
   uploadedFileName: FormControl<string>;
   uploadedFileDataUrl: FormControl<string>;
+  convertedPdfUrl: FormControl<string>;
   requiresAcknowledgement: FormControl<boolean>;
+  allowDownload: FormControl<boolean>;
   questions: FormArray<AssessmentQuestionFormGroup>;
 }>;
 
@@ -86,6 +90,17 @@ type PowerPointPreviewState = {
   fileName: string;
   message: string;
 };
+
+type IdpStatus = 'Not Started' | 'In Progress' | 'Completed' | 'On Hold';
+
+type IdpEntryFormGroup = FormGroup<{
+  developmentNeed: FormControl<string | null>;
+  plannedAction: FormControl<string | null>;
+  supportRequired: FormControl<string | null>;
+  dateCaptured: FormControl<string | null>;
+  targetDate: FormControl<string | null>;
+  status: FormControl<IdpStatus | null>;
+}>;
 
 @Component({
   selector: 'training-manager-profile',
@@ -100,7 +115,7 @@ type PowerPointPreviewState = {
       [style.--brand-primary]="branding.currentTheme().primary"
       [style.--brand-secondary]="branding.currentTheme().secondary"
       [style.--brand-tint]="branding.currentTheme().tint"
-      [style.--surface-tone]="branding.currentTheme().surface">
+      [style.--brand-surface]="branding.currentTheme().surface">
       @if (showWelcomeBanner()) {
         <div class="manager-welcome-banner" [class.manager-welcome-banner-leaving]="welcomeBannerLeaving()" role="status" aria-live="polite">
           <div>
@@ -126,18 +141,130 @@ type PowerPointPreviewState = {
         </div>
 
         <div class="manager-topbar-user">
-          <span class="manager-avatar">{{ managerInitials() }}</span>
-          <div>
-            <div class="manager-user-name">{{ managerData.profile().name }}</div>
-            <div class="manager-user-copy">{{ managerData.profile().role }}</div>
+          <div class="manager-topbar-dropdown-wrap">
+            <button
+              type="button"
+              class="manager-icon-btn"
+              aria-label="Pending requests"
+              [class.manager-icon-btn-active]="topbarDropdown() === 'notifications'"
+              [attr.aria-expanded]="topbarDropdown() === 'notifications'"
+              (click)="toggleTopbarDropdown('notifications')">
+              <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path fill="#64748b" d="M12 2a6 6 0 0 0-6 6v3.09c0 .36-.19.7-.5.88A3.01 3.01 0 0 0 4 15v1c0 .55.45 1 1 1h14a1 1 0 0 0 1-1v-1c0-1.13-.61-2.16-1.5-2.69-.31-.18-.5-.52-.5-.88V8a6 6 0 0 0-6-6Zm0 20a2.5 2.5 0 0 1-2.45-2h4.9A2.5 2.5 0 0 1 12 22Z"/></svg>
+              @if (managerData.pendingExternalTrainingRequestsCount()) {
+                <span class="manager-icon-counter">{{ managerData.pendingExternalTrainingRequestsCount() }}</span>
+              }
+            </button>
+
+            @if (topbarDropdown() === 'notifications') {
+              <div class="manager-topbar-preview-panel" role="dialog" aria-label="Pending request notifications">
+                <div class="manager-topbar-preview-title">Notifications</div>
+                @if (!recentTopbarNotifications().length) {
+                  <div class="manager-topbar-preview-empty">No recent notifications.</div>
+                }
+                @for (request of recentTopbarNotifications(); track request.id) {
+                  <button type="button" class="manager-topbar-preview-item" (click)="openTopbarNotificationPreview(request.id)">
+                    <strong>{{ request.studentName }}</strong>
+                    <span>Requested {{ request.courseName }}</span>
+                    <small>{{ request.submittedAt }}</small>
+                  </button>
+                }
+                <button type="button" class="manager-topbar-preview-link" (click)="openTopbarNotificationsPanel()">View all requests</button>
+              </div>
+            }
+          </div>
+
+          <div class="manager-topbar-dropdown-wrap">
+            <button
+              type="button"
+              class="manager-icon-btn"
+              aria-label="Messages"
+              [class.manager-icon-btn-active]="topbarDropdown() === 'messages'"
+              [attr.aria-expanded]="topbarDropdown() === 'messages'"
+              (click)="toggleTopbarDropdown('messages')">
+              <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path fill="#64748b" d="M21 6.5a2.5 2.5 0 0 0-2.5-2.5h-13A2.5 2.5 0 0 0 3 6.5v11A2.5 2.5 0 0 0 5.5 20h13a2.5 2.5 0 0 0 2.5-2.5v-11Zm-2.5-.5a.5.5 0 0 1 .5.5v.13l-7 4.67-7-4.67V6.5a.5.5 0 0 1 .5-.5h13ZM20 17.5a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5V8.37l6.65 4.43a1 1 0 0 0 1.1 0L20 8.37v9.13Z"/></svg>
+              @if (managerData.unreadManagerMessagesCount()) {
+                <span class="manager-icon-counter">{{ managerData.unreadManagerMessagesCount() }}</span>
+              }
+            </button>
+
+            @if (topbarDropdown() === 'messages') {
+              <div class="manager-topbar-preview-panel" role="dialog" aria-label="Unread messages preview">
+                <div class="manager-topbar-preview-title">Messages</div>
+                @if (!recentTopbarMessages().length) {
+                  <div class="manager-topbar-preview-empty">No recent messages.</div>
+                }
+                @for (message of recentTopbarMessages(); track message.id) {
+                  <button type="button" class="manager-topbar-preview-item" (click)="openTopbarMessagePreview(message.id)">
+                    <strong>{{ message.sender }}</strong>
+                    <span>{{ message.subject }}</span>
+                    <small>{{ message.time }}</small>
+                  </button>
+                }
+                <button type="button" class="manager-topbar-preview-link" (click)="openMessagesPanel()">View all messages</button>
+              </div>
+            }
+          </div>
+
+          <div class="manager-topbar-dropdown-wrap">
+            <button
+              type="button"
+              class="manager-topbar-profile-btn"
+              aria-label="Manager profile"
+              [attr.aria-expanded]="topbarProfileMenuOpen()"
+              [disabled]="switchingRole()"
+              (click)="openTopbarProfile()">
+              <span class="manager-avatar">{{ managerInitials() }}</span>
+              <span class="manager-user-name">{{ managerData.profile().name }}</span>
+              <svg class="manager-topbar-caret" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="m7 10 5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+
+            @if (topbarProfileMenuOpen()) {
+              <div class="manager-topbar-menu" role="dialog" aria-label="Manager menu">
+                <button type="button" class="manager-topbar-menu-item" (click)="openTopbarProfileDashboard()">Dashboard</button>
+                <button type="button" class="manager-topbar-menu-item" (click)="openTopbarProfileMessages()">Messages</button>
+                <div class="manager-topbar-menu-divider"></div>
+                <div class="manager-topbar-menu-section-label">Switch role</div>
+                <button type="button" class="manager-topbar-menu-item" (click)="switchToRole('student')">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path fill="currentColor" d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82ZM12 3 1 9l11 6 9-4.91V17h2V9L12 3Z"/></svg>
+                  Student
+                </button>
+                <div class="manager-topbar-menu-divider"></div>
+                <button type="button" class="manager-topbar-menu-item manager-topbar-menu-item-danger" (click)="logout()">Log out</button>
+              </div>
+            }
           </div>
         </div>
       </header>
 
-      <div class="manager-layout">
-        <aside class="manager-sidebar" aria-label="Training manager navigation">
+      @if (topbarProfileMenuOpen()) {
+        <button type="button" class="manager-topbar-menu-backdrop" aria-label="Close manager menu" (click)="closeTopbarProfileMenu()"></button>
+      }
+
+      @if (topbarDropdown()) {
+        <button type="button" class="manager-topbar-menu-backdrop" aria-label="Close topbar previews" (click)="closeTopbarDropdown()"></button>
+      }
+
+      <div class="manager-layout" [class.manager-layout-sidebar-collapsed]="managerSidebarCollapsed()">
+        <aside class="manager-sidebar" [class.manager-sidebar-collapsed]="managerSidebarCollapsed()" aria-label="Training manager navigation">
+          <div class="manager-sidebar-header">
+            <button
+              type="button"
+              class="manager-sidebar-toggle"
+              [attr.aria-label]="managerSidebarCollapsed() ? 'Expand navigation panel' : 'Collapse navigation panel'"
+              [attr.aria-expanded]="!managerSidebarCollapsed()"
+              (click)="toggleManagerSidebar()">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M6 7.5h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                <path d="M6 12h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                <path d="M6 16.5h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+              </svg>
+            </button>
+          </div>
+
           @for (item of navItems; track item.value) {
-            <button type="button" [class.active]="selectedPanel() === item.value" (click)="selectPanel(item.value)">
+            <button type="button" [class.active]="selectedPanel() === item.value" [attr.aria-label]="item.label" (click)="selectPanel(item.value)">
               <span class="manager-nav-icon" aria-hidden="true">
                 @switch (item.value) {
                   @case ('dashboard') {
@@ -182,23 +309,36 @@ type PowerPointPreviewState = {
                       <path d="m5 8 7 5 7-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                   }
+                  @case ('idp') {
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                      <path d="M12 3L12 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      <path d="M5 6h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      <path d="M7 10h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      <path d="M7 14h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      <path d="M9 18h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    </svg>
+                  }
                 }
               </span>
               <span class="manager-nav-label">{{ item.label }}</span>
             </button>
           }
 
-          <button type="button" class="logout" (click)="logout()">Log out</button>
+          <button type="button" class="logout" aria-label="Log out" (click)="logout()">
+            <span class="manager-nav-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M10 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+                <path d="M14 16l4-4-4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+                <path d="M18 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+              </svg>
+            </span>
+            <span class="manager-nav-label">Log out</span>
+          </button>
         </aside>
 
         <main class="manager-main-panel">
           @if (selectedPanel() === 'dashboard') {
             <section class="manager-panel">
-              <div class="section-heading-block">
-                <p class="eyebrow">Dashboard</p>
-                <h1>Training manager overview</h1>
-                <p class="section-copy">Monitor student registrations, published courses, and overall learning activity.</p>
-              </div>
 
               <div class="dashboard-card-grid">
                 @for (card of managerData.dashboardCards(); track card.label) {
@@ -254,11 +394,6 @@ type PowerPointPreviewState = {
 
           @if (selectedPanel() === 'courses') {
             <section class="manager-panel">
-              <div class="section-heading-block">
-                <p class="eyebrow">Courses</p>
-                <h1>Create courses and programmes</h1>
-                <p class="section-copy">Build new learning items for students, then publish them for enrollment.</p>
-              </div>
 
               <div class="courses-panel-shell">
                 <div class="courses-tab-nav" aria-label="Courses panel navigation">
@@ -720,7 +855,17 @@ type PowerPointPreviewState = {
                                   </span>
                                   <strong>Upload a file</strong>
                                   <span class="course-studio-upload-caption">{{ activeItem.controls.uploadedFileName.value || 'or drag-and-drop here' }}</span>
-                                  <input class="course-studio-upload-input" [accept]="activeItem.controls.kind.value === 'Video' ? 'video/*' : '.pdf,.doc,.docx,.ppt,.pptx,.xlsx,.txt'" type="file" (change)="onContentFileSelected(activeContentItemIndex(), $event)" />
+                                  @if (contentUploadProgresses()[activeContentItemIndex()] !== null && contentUploadProgresses()[activeContentItemIndex()] !== undefined) {
+                                    @if (contentUploadProgresses()[activeContentItemIndex()] === -1) {
+                                      <span class="course-studio-upload-progress-label">Converting to PDF…</span>
+                                    } @else {
+                                      <span class="course-studio-upload-progress-bar" aria-hidden="true">
+                                        <span class="course-studio-upload-progress-fill" [style.width.%]="contentUploadProgresses()[activeContentItemIndex()]"></span>
+                                      </span>
+                                      <span class="course-studio-upload-progress-label">{{ contentUploadProgresses()[activeContentItemIndex()] }}%</span>
+                                    }
+                                  }
+                                  <input class="course-studio-upload-input" [accept]="contentUploadAccept(activeItem.controls.kind.value)" type="file" (change)="onContentFileSelected(activeContentItemIndex(), $event)" />
                                 </label>
 
                                 <label class="course-studio-upload-card course-studio-upload-card-link" title="Paste a hosted link if this item lives online.">
@@ -740,7 +885,11 @@ type PowerPointPreviewState = {
                                       <p class="form-section-eyebrow">PowerPoint file</p>
                                       <h3>{{ presentationPreview.fileName }}</h3>
                                     </div>
-                                    <span class="create-section-status-pill">Open in app</span>
+                                    @if (activeItem.controls.convertedPdfUrl.value) {
+                                      <span class="create-section-status-pill">PDF ready for students</span>
+                                    } @else {
+                                      <span class="create-section-status-pill">Open in app</span>
+                                    }
                                   </div>
 
                                   <powerpoint-window
@@ -755,6 +904,10 @@ type PowerPointPreviewState = {
                                 <label class="assessment-drag-toggle form-grid-span-two" [class.assessment-drag-toggle-active]="activeItem.controls.requiresAcknowledgement.value">
                                   <input formControlName="requiresAcknowledgement" type="checkbox" />
                                   <span>Require learners to open this document in the LMS and acknowledge that they have read it.</span>
+                                </label>
+                                <label class="assessment-drag-toggle form-grid-span-two" [class.assessment-drag-toggle-active]="activeItem.controls.allowDownload.value">
+                                  <input formControlName="allowDownload" type="checkbox" />
+                                  <span>Allow students to download or open this document in a new tab.</span>
                                 </label>
                               }
                             }
@@ -783,6 +936,13 @@ type PowerPointPreviewState = {
                                 </span>
                                 <strong>Add a document unit</strong>
                                 <span>Attach a learner document and decide if acknowledgement is required.</span>
+                              </button>
+                              <button type="button" class="course-studio-empty-card" (click)="addContentItemFromMenu('Scorm')">
+                                <span class="course-studio-upload-icon" aria-hidden="true">
+                                  <svg width="38" height="38" viewBox="0 0 24 24" fill="none"><path d="M7.5 4.75h9A1.75 1.75 0 0 1 18.25 6.5v11A1.75 1.75 0 0 1 16.5 19.25h-9A1.75 1.75 0 0 1 5.75 17.5v-11A1.75 1.75 0 0 1 7.5 4.75Z" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 9.5h7M8.5 12h7M8.5 14.5h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                                </span>
+                                <strong>Add a SCORM unit</strong>
+                                <span>Upload a SCORM package (.zip) or provide a hosted launch link.</span>
                               </button>
                               <button type="button" class="course-studio-empty-card" (click)="addContentItemFromMenu('Assessment')">
                                 <span class="course-studio-upload-icon" aria-hidden="true">
@@ -978,8 +1138,8 @@ type PowerPointPreviewState = {
             <section class="manager-panel">
               <div class="section-heading-block">
                 <p class="eyebrow">Mentorship</p>
-                <h1>Mentorship workspace</h1>
-                <p class="section-copy">Manage mentorship assignments and submissions from one workspace.</p>
+                <h1>Mentorship</h1>
+                <p class="section-copy">View mentorship details and submissions for your team.</p>
               </div>
 
               <div class="mentorship-panel-nav" aria-label="Mentorship sections">
@@ -992,11 +1152,7 @@ type PowerPointPreviewState = {
                   <div class="section-heading-row mentorship-review-heading-row">
                     <div>
                       <h2>Mentorship List</h2>
-                      <span>Assign mentorship to listed employees and manage mentor pairings.</span>
-                    </div>
-                    <div class="student-chip-row">
-                      <button type="button" class="builder-secondary-btn" (click)="openBulkAssignMentorship()">Bulk Assign</button>
-                      <button type="button" class="assign-btn" (click)="openAssignMentorship()">Assign Mentorship</button>
+                      <span>Mentorship details for your team members.</span>
                     </div>
                   </div>
 
@@ -1007,8 +1163,7 @@ type PowerPointPreviewState = {
                       <span role="columnheader">Mentorship Start Date</span>
                       <span role="columnheader">Job Title</span>
                       <span role="columnheader">Mentor Name and Surname</span>
-                      <span role="columnheader">Edit</span>
-                      <span role="columnheader">Delete</span>
+                      <span role="columnheader">Profile Form</span>
                     </div>
 
                     @for (assignment of mentorshipAssignments(); track assignment.id) {
@@ -1019,16 +1174,18 @@ type PowerPointPreviewState = {
                         <span class="mentorship-list-cell" role="cell">{{ assignment.jobTitle }}</span>
                         <span class="mentorship-list-cell" role="cell">{{ formatMentorshipMentorDisplay(assignment) }}</span>
                         <div class="mentorship-list-actions" role="cell">
-                          <button type="button" class="edit-btn" (click)="openEditMentorshipAssignment(assignment)">Edit</button>
-                        </div>
-                        <div class="mentorship-list-actions" role="cell">
-                          <button type="button" class="group-delete-btn" (click)="deleteMentorshipAssignment(assignment)">Delete</button>
+                          @if (mentorshipProfileSubmissionByMenteeId().get(assignment.menteeId); as profileSub) {
+                            <span class="mentorship-review-status-pill" [class.mentorship-review-status-pill-approved]="profileSub.status === 'Approved'" [class.mentorship-review-status-pill-revision]="profileSub.status === 'Needs Revision'">{{ profileSub.status }}</span>
+                            <button type="button" class="edit-btn" (click)="viewMentorshipListSubmission(profileSub.id)">View</button>
+                          } @else {
+                            <span class="mentorship-review-status-pill">Not submitted</span>
+                          }
                         </div>
                       </article>
                     }
 
                     @if (!mentorshipAssignments().length) {
-                      <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">No mentorship assignments yet. Use Assign Mentorship to add the first employee.</div>
+                      <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">No mentorship assignments have been set up yet.</div>
                     }
                   </div>
                 </section>
@@ -1124,129 +1281,6 @@ type PowerPointPreviewState = {
                     <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">No mentorship forms have been submitted yet.</div>
                   }
                 </section>
-              }
-
-              @if (mentorshipAssignmentModalOpen()) {
-                <div class="enrollment-modal" aria-label="Assign mentorship" role="dialog" aria-modal="true">
-                  <button type="button" class="enrollment-modal-backdrop" aria-label="Close mentorship dialog" (click)="closeMentorshipAssignmentModal()"></button>
-
-                  <section class="enrollment-modal-card mentorship-assignment-modal-card">
-                    <div class="enrollment-modal-header">
-                      <div class="enrollment-modal-header-copy">
-                        <p class="form-section-eyebrow">Mentorship list</p>
-                        <h3>{{ editingMentorshipAssignment() ? 'Edit mentorship assignment' : 'Assign mentorship' }}</h3>
-                        <p class="enrollment-modal-copy">Select an employee and capture the mentor pairing details.</p>
-                      </div>
-                      <button type="button" class="builder-secondary-btn" (click)="closeMentorshipAssignmentModal()">Close</button>
-                    </div>
-
-                    <form class="form-grid form-grid-two enrollment-edit-form" [formGroup]="mentorshipAssignmentForm" (ngSubmit)="saveMentorshipAssignment()">
-                      <label class="form-grid-span-two enrollment-edit-field">
-                        Employee
-                        <select formControlName="menteeId">
-                          <option value="">Select employee</option>
-                          @for (employee of mentorshipEmployees(); track employee.id) {
-                            <option [value]="employee.id">{{ employee.name }} {{ employee.surname }}</option>
-                          }
-                        </select>
-                      </label>
-
-                      <label class="enrollment-edit-field">
-                        Mentorship Start Date
-                        <input formControlName="mentorshipStartDate" type="date" />
-                      </label>
-
-                      <label class="enrollment-edit-field">
-                        Job Title
-                        <input formControlName="jobTitle" type="text" placeholder="Enter job title" />
-                      </label>
-
-                      <label class="enrollment-edit-field">
-                        Mentor Name
-                        <input formControlName="mentorName" type="text" placeholder="Enter mentor name" />
-                      </label>
-
-                      <label class="enrollment-edit-field">
-                        Mentor Surname
-                        <input formControlName="mentorSurname" type="text" placeholder="Enter mentor surname" />
-                      </label>
-
-                      <div class="enrollment-modal-actions form-grid-span-two">
-                        <button type="button" class="builder-secondary-btn" (click)="closeMentorshipAssignmentModal()">Cancel</button>
-                        <button type="submit" class="assign-btn" [disabled]="mentorshipAssignmentForm.invalid">{{ editingMentorshipAssignment() ? 'Save changes' : 'Assign mentorship' }}</button>
-                      </div>
-                    </form>
-                  </section>
-                </div>
-              }
-
-              @if (bulkMentorshipAssignmentModalOpen()) {
-                <div class="enrollment-modal" aria-label="Bulk assign mentorship" role="dialog" aria-modal="true">
-                  <button type="button" class="enrollment-modal-backdrop" aria-label="Close bulk mentorship dialog" (click)="closeBulkMentorshipAssignmentModal()"></button>
-
-                  <section class="enrollment-modal-card enrollment-group-create-card">
-                    <div class="enrollment-modal-header">
-                      <div class="enrollment-modal-header-copy">
-                        <p class="form-section-eyebrow">Mentorship list</p>
-                        <h3>Bulk assign mentorship</h3>
-                        <p class="enrollment-modal-copy">Select the employees who should appear on the mentorship list. Students will complete their own mentor details later.</p>
-                      </div>
-                      <button type="button" class="builder-secondary-btn" (click)="closeBulkMentorshipAssignmentModal()">Close</button>
-                    </div>
-
-                    <form class="form-grid form-grid-two enrollment-edit-form" [formGroup]="bulkMentorshipAssignmentForm" (ngSubmit)="saveBulkMentorshipAssignments()">
-                      <div class="form-grid-span-two enrollment-student-picker">
-                        <div class="enrollment-student-picker-header">
-                          <div>
-                            <div class="student-assignment-label">Select employees</div>
-                            <p class="enrollment-group-toolbar-copy">Choose every employee who should be added to the mentorship list.</p>
-                          </div>
-                          <div class="enrollment-student-picker-header-actions">
-                            <span class="student-search-count">{{ selectedEmployeesForBulkMentorshipCount() }} selected</span>
-                            @if (filteredBulkMentorshipEmployees().length) {
-                              <button type="button" class="builder-secondary-btn" (click)="toggleSelectAllEmployeesForBulkMentorship()">
-                                {{ allFilteredEmployeesSelectedForBulkMentorship() ? 'Clear visible' : 'Select all visible' }}
-                              </button>
-                            }
-                          </div>
-                        </div>
-
-                        <label class="student-search-field enrollment-student-picker-search">
-                          <span class="student-search-label">Search employees</span>
-                          <input
-                            type="search"
-                            [value]="bulkMentorshipSearchTerm()"
-                            (input)="bulkMentorshipSearchTerm.set($any($event.target).value)"
-                            placeholder="Search by name, surname, group, email, or department" />
-                        </label>
-
-                        @if (filteredBulkMentorshipEmployees().length) {
-                          <div class="enrollment-student-picker-list">
-                            @for (employee of filteredBulkMentorshipEmployees(); track employee.id) {
-                              <label class="enrollment-student-picker-item" [class.enrollment-student-picker-item-selected]="isEmployeeSelectedForBulkMentorship(employee.id)">
-                                <input
-                                  type="checkbox"
-                                  [checked]="isEmployeeSelectedForBulkMentorship(employee.id)"
-                                  (change)="toggleEmployeeForBulkMentorship(employee.id, $any($event.target).checked)" />
-                                <div class="enrollment-student-picker-copy">
-                                  <span class="enrollment-student-picker-name">{{ employee.name }} {{ employee.surname }}</span>
-                                  <span class="enrollment-student-picker-meta">{{ employee.group }} • {{ employee.department }}</span>
-                                </div>
-                              </label>
-                            }
-                          </div>
-                        } @else {
-                          <p class="enrollment-group-toolbar-copy">No employees match your search.</p>
-                        }
-                      </div>
-
-                      <div class="enrollment-modal-actions form-grid-span-two">
-                        <button type="button" class="builder-secondary-btn" (click)="closeBulkMentorshipAssignmentModal()">Cancel</button>
-                        <button type="submit" class="assign-btn" [disabled]="selectedEmployeesForBulkMentorshipCount() === 0">Assign mentorship in bulk</button>
-                      </div>
-                    </form>
-                  </section>
-                </div>
               }
             </section>
           }
@@ -1422,7 +1456,7 @@ type PowerPointPreviewState = {
               <div class="section-heading-block">
                 <p class="eyebrow">Student Enrollment</p>
                 <h1>Assign students to created courses</h1>
-                <p class="section-copy">Review each learner in one list, edit their details, and assign courses or programmes from the row actions.</p>
+                <p class="section-copy">Review each learner in one list and assign courses or programmes from the row actions.</p>
               </div>
 
               <div class="enrollment-tab-nav" aria-label="Enrollment views">
@@ -1483,7 +1517,6 @@ type PowerPointPreviewState = {
                       </span>
                       <span class="student-list-cell" role="cell">{{ student.department }}</span>
                       <div class="student-list-actions" role="cell">
-                        <button type="button" class="edit-btn" (click)="openEnrollmentEdit(student)">Edit</button>
                         <button type="button" class="assign-btn" (click)="openEnrollmentAssign(student)">Assign</button>
                       </div>
                     </article>
@@ -1710,75 +1743,6 @@ type PowerPointPreviewState = {
                 </div>
               }
 
-              @if (editingEnrollmentStudent()) {
-                <div class="enrollment-modal" aria-label="Edit student details" role="dialog" aria-modal="true">
-                  <button type="button" class="enrollment-modal-backdrop" aria-label="Close edit student dialog" (click)="closeEnrollmentEdit()"></button>
-
-                  <section class="enrollment-modal-card enrollment-edit-modal-card">
-                    <div class="enrollment-modal-header">
-                      <div class="enrollment-modal-header-copy">
-                        <p class="form-section-eyebrow">Edit student</p>
-                        <h3>Edit {{ editingEnrollmentStudent()!.name }} {{ editingEnrollmentStudent()!.surname }}</h3>
-                        <p class="enrollment-modal-copy">Update learner details, contact information, and active status from one focused editor.</p>
-                      </div>
-                      <button type="button" class="builder-secondary-btn" (click)="closeEnrollmentEdit()">Close</button>
-                    </div>
-
-                    <div class="enrollment-edit-hero">
-                      <div class="enrollment-edit-avatar">{{ editingEnrollmentStudent()!.name[0] }}{{ editingEnrollmentStudent()!.surname[0] }}</div>
-                      <div class="enrollment-edit-hero-copy">
-                        <div class="enrollment-edit-hero-name">{{ editingEnrollmentStudent()!.name }} {{ editingEnrollmentStudent()!.surname }}</div>
-                        <div class="enrollment-edit-hero-meta">{{ editingEnrollmentStudent()!.department }} • {{ editingEnrollmentStudent()!.group }}</div>
-                      </div>
-                      <span class="student-active-pill" [class.student-active-pill-inactive]="editingEnrollmentStudent()!.activeStatus === 'Inactive'">{{ editingEnrollmentStudent()!.activeStatus }}</span>
-                    </div>
-
-                    <form class="form-grid form-grid-two enrollment-edit-form" [formGroup]="enrollmentEditForm" (ngSubmit)="saveEnrollmentEdit()">
-                      <label class="enrollment-edit-field">
-                        Name
-                        <input formControlName="name" type="text" />
-                      </label>
-                      <label class="enrollment-edit-field">
-                        Surname
-                        <input formControlName="surname" type="text" />
-                      </label>
-                      <label class="enrollment-edit-field">
-                        Group
-                        <input formControlName="group" type="text" />
-                      </label>
-                      <label class="enrollment-edit-field">
-                        Department
-                        <input formControlName="department" type="text" />
-                      </label>
-                      <label class="enrollment-edit-field">
-                        Date Enrolled
-                        <input formControlName="dateEnrolled" type="date" />
-                      </label>
-                      <label class="enrollment-edit-field">
-                        Deadline Date
-                        <input formControlName="deadlineDate" type="date" />
-                      </label>
-                      <label class="form-grid-span-two enrollment-edit-field">
-                        Email Address
-                        <input formControlName="email" type="email" />
-                      </label>
-                      <label class="enrollment-edit-field">
-                        Active Status
-                        <select formControlName="activeStatus">
-                          <option value="Active">Active</option>
-                          <option value="Inactive">Inactive</option>
-                        </select>
-                      </label>
-
-                      <div class="enrollment-modal-actions form-grid-span-two">
-                        <button type="button" class="builder-secondary-btn" (click)="closeEnrollmentEdit()">Cancel</button>
-                        <button type="submit" class="assign-btn">Save changes</button>
-                      </div>
-                    </form>
-                  </section>
-                </div>
-              }
-
               @if (assigningEnrollmentStudent()) {
                 <div class="enrollment-modal" aria-label="Assign student" role="dialog" aria-modal="true">
                   <button type="button" class="enrollment-modal-backdrop" aria-label="Close assign student dialog" (click)="closeEnrollmentAssign()"></button>
@@ -1949,6 +1913,192 @@ type PowerPointPreviewState = {
                       <p class="student-search-empty">No course or programme matches your search.</p>
                     }
                   </section>
+                </div>
+              }
+            </section>
+          }
+
+          @if (selectedPanel() === 'idp') {
+            <section class="manager-panel">
+              <div class="section-heading-block">
+                <p class="eyebrow">Individual Development Plan</p>
+                <h1>IDP Management</h1>
+                <p class="section-copy">Review and manage individual development plans for your learners.</p>
+              </div>
+
+              @if (!selectedIdpStudentId()) {
+                <!-- Team member list -->
+                <div class="idp-member-grid">
+                  @for (student of managerData.students(); track student.id) {
+                    <button type="button" class="idp-member-card" (click)="selectIdpStudent(student.id)">
+                      <div class="idp-member-avatar" aria-hidden="true">{{ student.name[0] }}{{ student.surname[0] }}</div>
+                      <div class="idp-member-info">
+                        <strong class="idp-member-name">{{ student.name }} {{ student.surname }}</strong>
+                        <span class="idp-member-meta">{{ student.jobTitle || student.group }}</span>
+                        <span class="idp-member-dept">{{ student.department }}</span>
+                      </div>
+                      <div class="idp-member-status">
+                        @if (idpEntryCountForStudent(student.id) > 0) {
+                          <span class="idp-program-count">{{ idpEntryCountForStudent(student.id) }} {{ idpEntryCountForStudent(student.id) === 1 ? 'entry' : 'entries' }}</span>
+                        } @else {
+                          <span class="idp-member-no-entries">No IDP</span>
+                        }
+                        <span class="idp-member-chevron" aria-hidden="true">›</span>
+                      </div>
+                    </button>
+                  }
+                  @if (!managerData.students().length) {
+                    <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">No team members found.</div>
+                  }
+                </div>
+              } @else if (selectedIdpStudent(); as student) {
+                <!-- Per-student IDP form -->
+                <div class="idp-detail-header">
+                  <button type="button" class="idp-back-btn" (click)="clearIdpStudent()">← Back to team</button>
+                  <div class="idp-detail-identity">
+                    <div class="idp-member-avatar idp-member-avatar-lg" aria-hidden="true">{{ student.name[0] }}{{ student.surname[0] }}</div>
+                    <div>
+                      <h2 class="idp-detail-name">{{ student.name }} {{ student.surname }}</h2>
+                      <span class="idp-detail-meta">{{ student.jobTitle }} · {{ student.department }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="activity-card mentorship-review-card">
+                  @if (idpHasSavedEntries() && !idpEditMode()) {
+                    <!-- Read-only view -->
+                    <div class="idp-program-card">
+                      <div class="idp-program-card-header">
+                        <div class="idp-program-card-title-shell">
+                          <span class="idp-program-card-title">Saved IDP Entries</span>
+                          <span class="idp-program-count" aria-hidden="true">{{ savedIdpEntries().length }} {{ savedIdpEntries().length === 1 ? 'entry' : 'entries' }}</span>
+                        </div>
+                        <button type="button" class="idp-program-add" (click)="openIdpEdit()">Edit form</button>
+                      </div>
+
+                      <div class="idp-program-card-body">
+                        @for (entry of savedIdpEntries(); track $index) {
+                          <div class="idp-program-entry">
+                            <div class="idp-program-entry-top">
+                              <div class="idp-program-entry-heading">
+                                <span class="idp-row-number" aria-hidden="true">{{ $index + 1 }}</span>
+                                <span class="idp-program-entry-label">Entry {{ $index + 1 }}</span>
+                              </div>
+                              <span class="idp-status-badge"
+                                [class.idp-status-in-progress]="entry.status === 'In Progress'"
+                                [class.idp-status-completed]="entry.status === 'Completed'"
+                                [class.idp-status-on-hold]="entry.status === 'On Hold'">
+                                {{ entry.status }}
+                              </span>
+                            </div>
+
+                            <div class="idp-readonly-grid">
+                              <div class="idp-readonly-field idp-readonly-field-full">
+                                <span>Development Need</span>
+                                <strong>{{ entry.developmentNeed || 'Not provided' }}</strong>
+                              </div>
+                              <div class="idp-readonly-field idp-readonly-field-full">
+                                <span>Planned Action</span>
+                                <strong>{{ entry.plannedAction || 'Not provided' }}</strong>
+                              </div>
+                              <div class="idp-readonly-field">
+                                <span>Support Required</span>
+                                <strong>{{ entry.supportRequired || 'Not provided' }}</strong>
+                              </div>
+                              <div class="idp-readonly-field">
+                                <span>Date Captured</span>
+                                <strong>{{ entry.dateCaptured || 'Not provided' }}</strong>
+                              </div>
+                              <div class="idp-readonly-field">
+                                <span>Target Date</span>
+                                <strong>{{ entry.targetDate || 'Not provided' }}</strong>
+                              </div>
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  } @else {
+                    <!-- Editable form -->
+                    <form [formGroup]="idpForm" (ngSubmit)="saveIdpEntries()">
+                      <div class="idp-program-card" formArrayName="entries">
+                        <div class="idp-program-card-header">
+                          <div class="idp-program-card-title-shell">
+                            <span class="idp-program-card-title">Development Plan Entries</span>
+                            <span class="idp-program-count" aria-hidden="true">{{ idpEntriesControls().length }}</span>
+                          </div>
+                          <button class="idp-program-add" type="button" (click)="addIdpEntry()">+ Add Entry</button>
+                        </div>
+
+                        <div class="idp-program-card-body">
+                          @for (entryControl of idpEntriesControls(); track $index) {
+                            <div class="idp-program-entry" [formGroupName]="$index">
+                              <div class="idp-program-entry-top">
+                                <div class="idp-program-entry-heading">
+                                  <span class="idp-row-number" aria-hidden="true">{{ $index + 1 }}</span>
+                                  <span class="idp-program-entry-label">Entry {{ $index + 1 }}</span>
+                                </div>
+                                <button
+                                  class="idp-program-remove"
+                                  type="button"
+                                  [disabled]="idpEntriesControls().length === 1"
+                                  (click)="removeIdpEntry($index)">
+                                  Remove
+                                </button>
+                              </div>
+
+                              <label class="idp-form-field">
+                                <span>Development Need</span>
+                                <textarea rows="2" formControlName="developmentNeed" placeholder="Describe the development need..."></textarea>
+                              </label>
+
+                              <label class="idp-form-field">
+                                <span>Planned Action</span>
+                                <textarea rows="2" formControlName="plannedAction" placeholder="Describe the planned action..."></textarea>
+                              </label>
+
+                              <label class="idp-form-field">
+                                <span>Support Required</span>
+                                <input type="text" formControlName="supportRequired" placeholder="What support is needed?" />
+                              </label>
+
+                              <label class="idp-form-field">
+                                <span>Date Captured</span>
+                                <input type="date" formControlName="dateCaptured" />
+                              </label>
+
+                              <div class="idp-program-date-grid">
+                                <label class="idp-form-field">
+                                  <span>Target Date</span>
+                                  <input type="date" formControlName="targetDate" />
+                                </label>
+
+                                <label class="idp-form-field">
+                                  <span>Status</span>
+                                  <select formControlName="status">
+                                    <option value="Not Started">Not Started</option>
+                                    <option value="In Progress">In Progress</option>
+                                    <option value="Completed">Completed</option>
+                                    <option value="On Hold">On Hold</option>
+                                  </select>
+                                </label>
+                              </div>
+                            </div>
+                          }
+                        </div>
+                      </div>
+
+                      <div class="idp-program-actions">
+                        @if (idpSaved()) {
+                          <p class="idp-form-status" role="status" aria-live="polite">IDP entries saved.</p>
+                        }
+                        @if (idpHasSavedEntries()) {
+                          <button type="button" class="idp-cancel-btn" (click)="cancelIdpEdit()">Cancel</button>
+                        }
+                        <button class="idp-save-button" type="submit">Save</button>
+                      </div>
+                    </form>
+                  }
                 </div>
               }
             </section>
@@ -2178,6 +2328,8 @@ type PowerPointPreviewState = {
     }
 
     .manager-topbar {
+      position: relative;
+      z-index: 20;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -2192,6 +2344,279 @@ type PowerPointPreviewState = {
       display: flex;
       align-items: center;
       gap: calc(0.9rem * var(--ui-scale));
+    }
+
+    .manager-topbar-user {
+      gap: calc(0.55rem * var(--ui-scale));
+    }
+
+    .manager-topbar-dropdown-wrap {
+      position: relative;
+      z-index: 35;
+    }
+
+    .manager-icon-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: calc(2.8rem * var(--ui-scale));
+      height: calc(2.8rem * var(--ui-scale));
+      border: 1px solid var(--brand-tint);
+      border-radius: calc(16px * var(--ui-scale));
+      background: var(--brand-surface);
+      color: #64748b;
+      cursor: pointer;
+      transition: box-shadow 0.15s ease, background 0.15s ease;
+    }
+
+    .manager-icon-btn-active {
+      border-color: var(--brand-secondary);
+      background: var(--brand-tint);
+    }
+
+    .manager-icon-btn:hover,
+    .manager-icon-btn:focus-visible {
+      outline: none;
+      background: var(--brand-tint);
+      box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+    }
+
+    .manager-icon-counter {
+      position: absolute;
+      top: calc(-0.2rem * var(--ui-scale));
+      right: calc(-0.2rem * var(--ui-scale));
+      min-width: calc(1.15rem * var(--ui-scale));
+      height: calc(1.15rem * var(--ui-scale));
+      padding: 0 calc(0.25rem * var(--ui-scale));
+      border-radius: 999px;
+      background: #ef4444;
+      color: #fff;
+      font-size: calc(0.72rem * var(--ui-scale));
+      font-weight: 800;
+      line-height: calc(1.15rem * var(--ui-scale));
+      text-align: center;
+      box-shadow: 0 6px 12px rgba(239, 68, 68, 0.25);
+    }
+
+    .manager-topbar-profile-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: calc(0.7rem * var(--ui-scale));
+      min-height: calc(2.8rem * var(--ui-scale));
+      padding: calc(0.25rem * var(--ui-scale)) calc(0.4rem * var(--ui-scale)) calc(0.25rem * var(--ui-scale)) calc(0.25rem * var(--ui-scale));
+      border: 1px solid transparent;
+      border-radius: 999px;
+      background: transparent;
+      color: #475569;
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .manager-topbar-profile-btn:hover,
+    .manager-topbar-profile-btn:focus-visible {
+      outline: none;
+      background: var(--brand-surface);
+      border-color: var(--brand-tint);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    .manager-topbar-profile-copy {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .manager-topbar-preview-panel {
+      position: absolute;
+      top: calc(100% + calc(0.75rem * var(--ui-scale)));
+      right: 0;
+      z-index: 40;
+      width: min(17rem, calc(100vw - 2rem));
+      padding: calc(0.4rem * var(--ui-scale)) 0;
+      border-radius: calc(18px * var(--ui-scale));
+      border: 1px solid var(--brand-tint);
+      background: var(--brand-surface);
+      box-shadow: 0 22px 48px rgba(15, 23, 42, 0.18);
+      overflow: hidden;
+    }
+
+    .manager-topbar-preview-title {
+      display: grid;
+      gap: calc(0.2rem * var(--ui-scale));
+      padding: calc(0.7rem * var(--ui-scale)) calc(0.85rem * var(--ui-scale)) calc(0.8rem * var(--ui-scale));
+      font-weight: 700;
+      color: var(--brand-primary);
+      font-size: calc(0.94rem * var(--ui-scale));
+    }
+
+    .manager-topbar-preview-empty {
+      color: #64748b;
+      font-size: calc(0.82rem * var(--ui-scale));
+      padding: calc(0.2rem * var(--ui-scale)) calc(0.85rem * var(--ui-scale)) calc(0.6rem * var(--ui-scale));
+    }
+
+    .manager-topbar-preview-item {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: calc(0.18rem * var(--ui-scale));
+      width: calc(100% - calc(0.76rem * var(--ui-scale)));
+      margin: 0 calc(0.38rem * var(--ui-scale));
+      border: none;
+      border-radius: calc(12px * var(--ui-scale));
+      background: transparent;
+      color: #475569;
+      text-align: left;
+      padding: calc(0.58rem * var(--ui-scale)) calc(0.62rem * var(--ui-scale));
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .manager-topbar-preview-item strong {
+      width: 100%;
+      font-size: calc(0.9rem * var(--ui-scale));
+      color: #1e293b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .manager-topbar-preview-item span {
+      width: 100%;
+      font-size: calc(0.8rem * var(--ui-scale));
+      color: #64748b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .manager-topbar-preview-item small {
+      width: 100%;
+      font-size: calc(0.72rem * var(--ui-scale));
+      color: #94a3b8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .manager-topbar-preview-item:hover,
+    .manager-topbar-preview-item:focus-visible {
+      outline: none;
+      background: var(--brand-tint);
+      color: var(--brand-primary);
+    }
+
+    .manager-topbar-preview-link {
+      width: calc(100% - calc(0.76rem * var(--ui-scale)));
+      margin: calc(0.25rem * var(--ui-scale)) calc(0.38rem * var(--ui-scale)) 0;
+      padding: calc(0.55rem * var(--ui-scale)) calc(0.62rem * var(--ui-scale));
+      border: none;
+      border-top: 1px solid var(--brand-tint);
+      border-radius: calc(12px * var(--ui-scale));
+      background: transparent;
+      color: #475569;
+      font-weight: 600;
+      text-align: left;
+      font-size: calc(0.9rem * var(--ui-scale));
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .manager-topbar-preview-link:hover,
+    .manager-topbar-preview-link:focus-visible {
+      outline: none;
+      background: var(--brand-tint);
+      color: var(--brand-primary);
+    }
+
+    .manager-topbar-menu {
+      position: absolute;
+      top: calc(100% + 0.5rem);
+      right: 0;
+      z-index: 40;
+      min-width: calc(13rem * var(--ui-scale));
+      display: grid;
+      gap: calc(0.2rem * var(--ui-scale));
+      border: 1px solid var(--brand-tint);
+      border-radius: calc(18px * var(--ui-scale));
+      background: var(--brand-surface);
+      box-shadow: 0 22px 48px rgba(15, 23, 42, 0.18);
+      padding: calc(0.35rem * var(--ui-scale));
+      backdrop-filter: blur(8px);
+    }
+
+    .manager-topbar-caret {
+      color: #94a3b8;
+      flex-shrink: 0;
+    }
+
+    .manager-topbar-menu-item {
+      border: none;
+      border-radius: calc(12px * var(--ui-scale));
+      background: transparent;
+      color: #0f172a;
+      text-align: left;
+      font-weight: 600;
+      font-size: calc(0.9rem * var(--ui-scale));
+      padding: calc(0.6rem * var(--ui-scale)) calc(0.85rem * var(--ui-scale));
+      cursor: pointer;
+      transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .manager-topbar-menu-item:hover,
+    .manager-topbar-menu-item:focus-visible {
+      outline: none;
+      background: var(--brand-tint);
+      color: var(--brand-primary);
+    }
+
+    .manager-topbar-menu-item-danger {
+      color: #b91c1c;
+    }
+
+    .manager-topbar-menu-item-danger:hover,
+    .manager-topbar-menu-item-danger:focus-visible {
+      background: rgba(185, 28, 28, 0.1);
+      color: #991b1b;
+    }
+
+    .manager-topbar-menu-item {
+      display: flex;
+      align-items: center;
+      gap: calc(0.55rem * var(--ui-scale));
+    }
+
+    .manager-topbar-menu-divider {
+      height: 1px;
+      background: var(--brand-tint);
+      margin: calc(0.2rem * var(--ui-scale)) calc(0.6rem * var(--ui-scale));
+    }
+
+    .manager-topbar-menu-section-label {
+      padding: calc(0.35rem * var(--ui-scale)) calc(0.85rem * var(--ui-scale)) calc(0.1rem * var(--ui-scale));
+      font-size: calc(0.72rem * var(--ui-scale));
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+
+    .manager-topbar-profile-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .manager-topbar-menu-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 19;
+      border: none;
+      background: transparent;
+      padding: 0;
+      margin: 0;
+      cursor: default;
     }
 
     .manager-brand-mark,
@@ -2213,11 +2638,12 @@ type PowerPointPreviewState = {
     }
 
     .manager-avatar {
-      width: calc(2.7rem * var(--ui-scale));
-      height: calc(2.7rem * var(--ui-scale));
-      border-radius: calc(16px * var(--ui-scale));
-      background: linear-gradient(135deg, #818cf8, #38bdf8);
+      width: calc(2.25rem * var(--ui-scale));
+      height: calc(2.25rem * var(--ui-scale));
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
       flex: 0 0 auto;
+      font-size: calc(0.88rem * var(--ui-scale));
     }
 
     .manager-brand-name,
@@ -2235,6 +2661,16 @@ type PowerPointPreviewState = {
     .manager-user-name {
       font-size: calc(1.02rem * var(--ui-scale));
       font-weight: 800;
+    }
+
+    .manager-user-name {
+      max-width: calc(11rem * var(--ui-scale));
+      color: #475569;
+      font-size: calc(0.98rem * var(--ui-scale));
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .manager-brand-copy,
@@ -2270,6 +2706,10 @@ type PowerPointPreviewState = {
       align-items: start;
     }
 
+    .manager-layout.manager-layout-sidebar-collapsed {
+      grid-template-columns: calc(92px * var(--ui-scale)) minmax(0, 1fr);
+    }
+
     .manager-sidebar {
       position: sticky;
       top: calc(1rem * var(--ui-scale));
@@ -2280,7 +2720,40 @@ type PowerPointPreviewState = {
       border-radius: calc(24px * var(--ui-scale));
     }
 
-    .manager-sidebar button,
+    .manager-sidebar-header {
+      display: flex;
+      justify-content: center;
+    }
+
+    .manager-sidebar-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: calc(2.5rem * var(--ui-scale));
+      height: calc(2.5rem * var(--ui-scale));
+      border: 1px solid var(--brand-tint);
+      border-radius: calc(14px * var(--ui-scale));
+      background: var(--brand-surface);
+      color: var(--brand-primary);
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease, color 0.15s ease;
+    }
+
+    .manager-sidebar-toggle:hover,
+    .manager-sidebar-toggle:focus-visible {
+      background: var(--brand-tint);
+      border-color: var(--brand-primary);
+      outline: none;
+      transform: translateY(-1px);
+    }
+
+    .manager-sidebar-toggle svg {
+      width: calc(1.1rem * var(--ui-scale));
+      height: calc(1.1rem * var(--ui-scale));
+      stroke: currentColor;
+    }
+
+    .manager-sidebar button:not(.manager-sidebar-toggle),
     .assign-btn,
     .course-form button {
       border: none;
@@ -2288,7 +2761,7 @@ type PowerPointPreviewState = {
       font: inherit;
     }
 
-    .manager-sidebar button {
+    .manager-sidebar button:not(.manager-sidebar-toggle) {
       display: flex;
       align-items: center;
       gap: calc(0.75rem * var(--ui-scale));
@@ -2305,9 +2778,10 @@ type PowerPointPreviewState = {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: calc(2rem * var(--ui-scale));
-      height: calc(2rem * var(--ui-scale));
-      border-radius: calc(12px * var(--ui-scale));
+      flex: 0 0 calc(2.35rem * var(--ui-scale));
+      width: calc(2.35rem * var(--ui-scale));
+      height: calc(2.35rem * var(--ui-scale));
+      border-radius: calc(14px * var(--ui-scale));
       background: rgba(148, 163, 184, 0.12);
       color: currentColor;
       flex-shrink: 0;
@@ -2316,44 +2790,69 @@ type PowerPointPreviewState = {
 
     .manager-nav-icon svg {
       display: block;
+      width: calc(1.15rem * var(--ui-scale));
+      height: calc(1.15rem * var(--ui-scale));
     }
 
     .manager-nav-label {
       min-width: 0;
     }
 
-    .manager-sidebar button:hover,
-    .manager-sidebar button:focus-visible {
+    .manager-sidebar-collapsed {
+      gap: calc(0.55rem * var(--ui-scale));
+      padding-inline: calc(0.7rem * var(--ui-scale));
+    }
+
+    .manager-sidebar-collapsed .manager-sidebar-header {
+      justify-content: center;
+    }
+
+    .manager-sidebar-collapsed button {
+      justify-content: center;
+      padding-inline: calc(0.7rem * var(--ui-scale));
+    }
+
+    .manager-sidebar-collapsed .manager-nav-label {
+      display: none;
+    }
+
+    .manager-sidebar-collapsed .manager-nav-icon {
+      flex-basis: calc(2.6rem * var(--ui-scale));
+      width: calc(2.6rem * var(--ui-scale));
+    }
+
+    .manager-sidebar button:not(.manager-sidebar-toggle):hover,
+    .manager-sidebar button:not(.manager-sidebar-toggle):focus-visible {
       background: #f8fafc;
       color: #334155;
       outline: none;
       transform: translateX(2px);
     }
 
-    .manager-sidebar button.active {
+    .manager-sidebar button:not(.manager-sidebar-toggle).active {
       background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
       color: #fff;
       box-shadow: 0 12px 24px rgba(79, 70, 229, 0.18);
     }
 
-    .manager-sidebar button:hover .manager-nav-icon,
-    .manager-sidebar button:focus-visible .manager-nav-icon {
+    .manager-sidebar button:not(.manager-sidebar-toggle):hover .manager-nav-icon,
+    .manager-sidebar button:not(.manager-sidebar-toggle):focus-visible .manager-nav-icon {
       background: rgba(148, 163, 184, 0.18);
     }
 
-    .manager-sidebar button.active .manager-nav-icon {
+    .manager-sidebar button:not(.manager-sidebar-toggle).active .manager-nav-icon {
       background: rgba(255, 255, 255, 0.18);
     }
 
-    .manager-sidebar button.logout {
+    .manager-sidebar button:not(.manager-sidebar-toggle).logout {
       margin-top: auto;
       background: #fee2e2;
       color: #b91c1c;
       border-color: #fecaca;
     }
 
-    .manager-sidebar button.logout:hover,
-    .manager-sidebar button.logout:focus-visible {
+    .manager-sidebar button:not(.manager-sidebar-toggle).logout:hover,
+    .manager-sidebar button:not(.manager-sidebar-toggle).logout:focus-visible {
       background: #fecaca;
       color: #991b1b;
     }
@@ -3663,6 +4162,29 @@ type PowerPointPreviewState = {
       line-height: 1.45;
     }
 
+    .course-studio-upload-progress-bar {
+      display: block;
+      width: 100%;
+      height: 6px;
+      background: #e5e7eb;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .course-studio-upload-progress-fill {
+      display: block;
+      height: 100%;
+      background: var(--brand-primary, #2563eb);
+      border-radius: 999px;
+      transition: width 0.2s ease;
+    }
+
+    .course-studio-upload-progress-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--brand-primary, #2563eb);
+    }
+
     .course-studio-upload-card-link {
       justify-items: stretch;
       align-content: stretch;
@@ -3722,10 +4244,31 @@ type PowerPointPreviewState = {
         grid-template-columns: 1fr;
       }
 
+      .manager-layout.manager-layout-sidebar-collapsed {
+        grid-template-columns: 1fr;
+      }
+
       .manager-sidebar {
         position: static;
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      }
+
+      .manager-sidebar-header {
+        grid-column: 1 / -1;
+        justify-content: center;
+      }
+
+      .manager-sidebar-collapsed {
+        padding-inline: calc(1rem * var(--ui-scale));
+      }
+
+      .manager-sidebar-collapsed button {
+        justify-content: flex-start;
+      }
+
+      .manager-sidebar-collapsed .manager-nav-label {
+        display: inline;
       }
 
       .course-studio-form {
@@ -3944,6 +4487,353 @@ type PowerPointPreviewState = {
         font-size: 0.76rem;
         font-weight: 800;
       }
+
+      /* ── IDP Form ──────────────────────────────────────────────────── */
+      .idp-program-hero {
+        padding: 1.5rem 0 1rem;
+        border-bottom: 1px solid #f1f5f9;
+        margin-bottom: 1.5rem;
+      }
+      .idp-program-hero h3 {
+        font-size: 1.05rem;
+        font-weight: 700;
+        margin: 0 0 0.2rem;
+        color: #0f172a;
+      }
+      .idp-program-hero p {
+        font-size: 0.85rem;
+        color: #64748b;
+        margin: 0;
+      }
+      .idp-program-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        margin-bottom: 1.25rem;
+        overflow: hidden;
+      }
+      .idp-program-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid #f1f5f9;
+      }
+      .idp-program-card-title-shell {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .idp-program-card-title {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #0f172a;
+      }
+      .idp-program-count {
+        font-size: 0.72rem;
+        font-weight: 800;
+        padding: 0.15rem 0.55rem;
+        border-radius: 999px;
+        background: #eff6ff;
+        color: #1d4ed8;
+      }
+      .idp-program-add {
+        font-size: 0.8rem;
+        padding: 0.35rem 0.9rem;
+        border-radius: 6px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        color: #334155;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .idp-program-add:hover { background: #e2e8f0; }
+      .idp-program-card-body {
+        padding: 0.75rem 1.25rem;
+      }
+      .idp-program-entry {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+      }
+      .idp-program-entry-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+      }
+      .idp-program-entry-heading {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .idp-row-number {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: #e2e8f0;
+        color: #64748b;
+        font-size: 0.72rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .idp-program-entry-label {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #334155;
+      }
+      .idp-program-remove {
+        font-size: 0.78rem;
+        color: #ef4444;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+      }
+      .idp-program-remove:hover { background: #fef2f2; }
+      .idp-program-remove:disabled { color: #cbd5e1; cursor: not-allowed; }
+      .idp-form-field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        margin-bottom: 0.75rem;
+      }
+      .idp-form-field span {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+      }
+      .idp-form-field input,
+      .idp-form-field textarea,
+      .idp-form-field select {
+        width: 100%;
+        padding: 0.55rem 0.75rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 7px;
+        font-size: 0.875rem;
+        color: #0f172a;
+        background: #fff;
+        box-sizing: border-box;
+        font-family: inherit;
+      }
+      .idp-form-field input:focus,
+      .idp-form-field textarea:focus,
+      .idp-form-field select:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      }
+      .idp-program-date-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+      }
+      .idp-program-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        padding-top: 1rem;
+        border-top: 1px solid #f1f5f9;
+        margin-top: 0.5rem;
+      }
+      .idp-save-button {
+        padding: 0.6rem 1.5rem;
+        background: #1d4ed8;
+        color: #fff;
+        border: none;
+        border-radius: 7px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .idp-save-button:hover { background: #1e40af; }
+      .idp-form-status {
+        font-size: 0.82rem;
+        color: #22c55e;
+        font-weight: 600;
+      }
+
+      /* IDP Member List */
+      .idp-member-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+      }
+      .idp-member-card {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem 1.25rem;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        cursor: pointer;
+        text-align: left;
+        width: 100%;
+        transition: border-color 0.15s, box-shadow 0.15s;
+      }
+      .idp-member-card:hover {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.08);
+      }
+      .idp-member-avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-size: 0.9rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        text-transform: uppercase;
+      }
+      .idp-member-avatar-lg {
+        width: 52px;
+        height: 52px;
+        font-size: 1.1rem;
+      }
+      .idp-member-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+        min-width: 0;
+      }
+      .idp-member-name {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #0f172a;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .idp-member-meta {
+        font-size: 0.8rem;
+        color: #475569;
+      }
+      .idp-member-dept {
+        font-size: 0.75rem;
+        color: #94a3b8;
+      }
+      .idp-member-status {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.25rem;
+        flex-shrink: 0;
+      }
+      .idp-member-no-entries {
+        font-size: 0.72rem;
+        color: #94a3b8;
+      }
+      .idp-member-chevron {
+        font-size: 1.2rem;
+        color: #94a3b8;
+        line-height: 1;
+      }
+
+      /* IDP Detail Header */
+      /* IDP Read-only view */
+      .idp-readonly-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.6rem;
+        margin-top: 0.5rem;
+      }
+      .idp-readonly-field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        padding: 0.6rem 0.75rem;
+        background: #fff;
+        border: 1px solid #f1f5f9;
+        border-radius: 7px;
+      }
+      .idp-readonly-field span {
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .idp-readonly-field strong {
+        font-size: 0.875rem;
+        color: #0f172a;
+        font-weight: 500;
+        line-height: 1.4;
+      }
+      .idp-readonly-field-full { grid-column: 1 / -1; }
+      .idp-status-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.2rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        background: #f1f5f9;
+        color: #475569;
+      }
+      .idp-status-badge.idp-status-in-progress { background: #eff6ff; color: #1d4ed8; }
+      .idp-status-badge.idp-status-completed { background: #f0fdf4; color: #15803d; }
+      .idp-status-badge.idp-status-on-hold { background: #fff7ed; color: #c2410c; }
+      .idp-cancel-btn {
+        padding: 0.55rem 1.1rem;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 7px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #475569;
+        cursor: pointer;
+      }
+      .idp-cancel-btn:hover { background: #e2e8f0; }
+
+      .idp-detail-header { margin-bottom: 1.25rem; }
+      .idp-back-btn {
+        background: none;
+        border: none;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #3b82f6;
+        cursor: pointer;
+        padding: 0.4rem 0;
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+      }
+      .idp-back-btn:hover { color: #1d4ed8; }
+      .idp-detail-identity {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem 1.25rem;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+      }
+      .idp-detail-name {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0 0 0.2rem;
+      }
+      .idp-detail-meta {
+        font-size: 0.83rem;
+        color: #64748b;
+      }
   `],
 })
 export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
@@ -3957,7 +4847,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   private readonly _welcomeBannerLeaving = signal(false);
   readonly welcomeBannerLeaving = computed(() => this._welcomeBannerLeaving());
   readonly assessmentTypeOptions: ReadonlyArray<TrainingAssessmentType> = ['Quiz', 'Assignment'];
-  readonly contentKindOptions: ReadonlyArray<TrainingContentKind> = ['Video', 'Assessment', 'Document'];
+  readonly contentKindOptions: ReadonlyArray<TrainingContentKind> = ['Video', 'Assessment', 'Document', 'Scorm'];
   readonly questionTypeOptions: ReadonlyArray<TrainingQuestionType> = ['Multiple Choice', 'Short Answer', 'True or False', 'Matching'];
   readonly assignmentQuestionTypeOptions: ReadonlyArray<TrainingQuestionType> = ['Long Answer', 'Document Upload'];
   readonly createSectionOptions: ReadonlyArray<CreateSectionOption> = [
@@ -3971,10 +4861,12 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     { label: 'Courses', value: 'courses' },
     { label: 'Mentorship', value: 'mentorship' },
     { label: 'Student Enrollment', value: 'enrollment' },
+    { label: 'IDP', value: 'idp' },
     { label: 'Messages', value: 'messages' },
   ];
 
   readonly selectedPanel = signal<ManagerPanel>('dashboard');
+  readonly managerSidebarCollapsed = signal(false);
   readonly selectedCoursesView = signal<CoursesPanelView>('create');
   readonly selectedEnrollmentView = signal<EnrollmentPanelView>('students');
   readonly selectedManagerMessageSection = signal<ManagerMessageSection>(null);
@@ -4012,14 +4904,13 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   readonly submittedAssessmentByItem = signal<Record<number, boolean>>({});
   readonly addItemMenuOpen = signal(false);
   readonly managerMessageSent = signal(false);
-  readonly mentorshipAssignmentModalOpen = signal(false);
-  readonly bulkMentorshipAssignmentModalOpen = signal(false);
-  readonly editingMentorshipAssignmentId = signal<string | null>(null);
+  readonly topbarDropdown = signal<'notifications' | 'messages' | null>(null);
+  readonly topbarProfileMenuOpen = signal(false);
+  readonly switchingRole = signal(false);
   readonly selectedMentorshipReviewId = signal<string | null>(null);
-  readonly bulkMentorshipSearchTerm = signal('');
-  readonly selectedEmployeesForBulkMentorship = signal<Record<string, boolean>>({});
   readonly editingCourseId = signal<string | null>(null);
   readonly presentationPreviewByItem = signal<Map<ContentItemFormGroup, PowerPointPreviewState>>(new Map());
+  readonly contentUploadProgresses = signal<Record<number, number | null>>({});
   private readonly courseCreatedSignal = signal(false);
   readonly courseCreated = computed(() => this.courseCreatedSignal());
   readonly selectedPublishedOffering = computed(() => {
@@ -4038,6 +4929,16 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
     return this.managerData.managerMessages().find((message) => message.id === selectedId) ?? null;
   });
+  readonly dismissedTopbarNotificationIds = signal<Record<string, boolean>>({});
+  readonly recentTopbarNotifications = computed(() =>
+    this.managerData.externalTrainingRequestsForCurrentManager()
+      .filter((request) => request.status === 'Pending Review')
+      .filter((request) => !this.dismissedTopbarNotificationIds()[request.id])
+      .slice(0, 4),
+  );
+  readonly recentTopbarMessages = computed(() =>
+    this.managerData.managerMessages().filter((message) => message.unread).slice(0, 4),
+  );
   readonly filteredAssignmentSubmissions = computed<AssignmentSubmissionRecord[]>(() => {
     const query = this.assignmentSubmissionSearchTerm().trim().toLowerCase();
     const status = this.assignmentSubmissionStatusFilter();
@@ -4090,42 +4991,14 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     return this.managerData.mentorshipSubmissionsForCurrentManager().find((submission) => submission.id === selectedId) ?? null;
   });
   readonly mentorshipAssignments = computed(() => this.managerData.mentorshipAssignments());
-  readonly mentorshipEmployees = computed(() =>
-    [...this.managerData.students()].sort((left, right) => `${left.name} ${left.surname}`.localeCompare(`${right.name} ${right.surname}`)),
-  );
-  readonly filteredBulkMentorshipEmployees = computed(() => {
-    const query = this.bulkMentorshipSearchTerm().trim().toLowerCase();
-    const employees = this.mentorshipEmployees();
-
-    if (!query) {
-      return employees;
+  readonly mentorshipProfileSubmissionByMenteeId = computed(() => {
+    const map = new Map<string, MentorshipSubmissionRecord>();
+    for (const submission of this.managerData.mentorshipSubmissionsForCurrentManager()) {
+      if (submission.assessmentId === 'mentorship-form-profile') {
+        map.set(submission.studentId, submission);
+      }
     }
-
-    return employees.filter((employee) =>
-      [employee.name, employee.surname, employee.group, employee.email, employee.department]
-        .some((value) => value.toLowerCase().includes(query)),
-    );
-  });
-  readonly selectedEmployeesForBulkMentorshipCount = computed(() =>
-    Object.values(this.selectedEmployeesForBulkMentorship()).filter(Boolean).length,
-  );
-  readonly allFilteredEmployeesSelectedForBulkMentorship = computed(() => {
-    const employees = this.filteredBulkMentorshipEmployees();
-
-    if (!employees.length) {
-      return false;
-    }
-
-    const selected = this.selectedEmployeesForBulkMentorship();
-    return employees.every((employee) => selected[employee.id]);
-  });
-  readonly editingMentorshipAssignment = computed(() => {
-    const selectedId = this.editingMentorshipAssignmentId();
-    if (!selectedId) {
-      return null;
-    }
-
-    return this.mentorshipAssignments().find((assignment) => assignment.id === selectedId) ?? null;
+    return map;
   });
   readonly editingEnrollmentStudent = computed(() => {
     const selectedId = this.editingEnrollmentStudentId();
@@ -4348,14 +5221,6 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     awardedPoints: new FormControl<number | null>(null, { validators: [Validators.min(0)] }),
     feedback: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(6)] }),
   });
-  readonly mentorshipAssignmentForm = new FormGroup({
-    menteeId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    mentorshipStartDate: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    jobTitle: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    mentorName: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    mentorSurname: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-  });
-  readonly bulkMentorshipAssignmentForm = new FormGroup({});
   readonly assignmentSubmissionFilterOptions: ReadonlyArray<AssignmentSubmissionFilter> = ['All', 'Pending Review', 'Approved', 'Needs Revision'];
 
   get contentItemsArray() {
@@ -4398,6 +5263,9 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   }
 
   selectPanel(panel: ManagerPanel) {
+    this.closeTopbarDropdown();
+    this.closeTopbarProfileMenu();
+
     if (panel !== 'courses') {
       if (this.editingCourseId()) {
         this.resetCourseBuilder();
@@ -4408,8 +5276,6 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     }
 
     if (panel !== 'mentorship') {
-      this.closeMentorshipAssignmentModal();
-      this.closeBulkMentorshipAssignmentModal();
       this.clearMentorshipReview();
     }
 
@@ -4426,6 +5292,64 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     }
 
     this.selectedPanel.set(panel);
+  }
+
+  toggleManagerSidebar() {
+    this.managerSidebarCollapsed.update((collapsed) => !collapsed);
+  }
+
+  toggleTopbarDropdown(dropdown: 'notifications' | 'messages') {
+    this.closeTopbarProfileMenu();
+    this.topbarDropdown.set(this.topbarDropdown() === dropdown ? null : dropdown);
+  }
+
+  openTopbarNotificationsPanel() {
+    this.closeTopbarDropdown();
+    this.selectPanel('requested-training');
+  }
+
+  openTopbarNotificationPreview(requestId: string) {
+    this.dismissedTopbarNotificationIds.update((current) => ({
+      ...current,
+      [requestId]: true,
+    }));
+    this.closeTopbarDropdown();
+    this.selectPanel('requested-training');
+    this.openExternalTrainingRequestReview(requestId);
+  }
+
+  openMessagesPanel() {
+    this.closeTopbarDropdown();
+    this.selectPanel('messages');
+    this.selectManagerMessageSection('inbox');
+  }
+
+  openTopbarMessagePreview(messageId: string) {
+    this.openMessagesPanel();
+    this.openManagerMessage(messageId);
+  }
+
+  closeTopbarDropdown() {
+    this.topbarDropdown.set(null);
+  }
+
+  openTopbarProfile() {
+    this.closeTopbarDropdown();
+    this.topbarProfileMenuOpen.update((isOpen) => !isOpen);
+  }
+
+  closeTopbarProfileMenu() {
+    this.topbarProfileMenuOpen.set(false);
+  }
+
+  openTopbarProfileDashboard() {
+    this.closeTopbarProfileMenu();
+    this.selectPanel('dashboard');
+  }
+
+  openTopbarProfileMessages() {
+    this.closeTopbarProfileMenu();
+    this.openMessagesPanel();
   }
 
   selectManagerMessageSection(section: Exclude<ManagerMessageSection, null>) {
@@ -4456,6 +5380,11 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.selectedMentorshipReviewId.set(submissionId);
     const activeReview = this.managerData.mentorshipSubmissionsForCurrentManager().find((submission) => submission.id === submissionId) ?? null;
     this.mentorshipReviewForm.reset({ feedback: activeReview?.reviewerFeedback ?? '' });
+  }
+
+  viewMentorshipListSubmission(submissionId: string) {
+    this.selectedMentorshipSection.set('submissions');
+    this.openMentorshipReview(submissionId);
   }
 
   openExternalTrainingRequestReview(requestId: string) {
@@ -4652,137 +5581,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.selectedEnrollmentView.set(view);
   }
 
-  openAssignMentorship() {
-    this.closeBulkMentorshipAssignmentModal();
-    this.editingMentorshipAssignmentId.set(null);
-    this.mentorshipAssignmentForm.reset({
-      menteeId: '',
-      mentorshipStartDate: '',
-      jobTitle: '',
-      mentorName: '',
-      mentorSurname: '',
-    });
-    this.mentorshipAssignmentModalOpen.set(true);
-  }
-
-  openBulkAssignMentorship() {
-    this.closeMentorshipAssignmentModal();
-    this.bulkMentorshipAssignmentForm.reset();
-    this.selectedEmployeesForBulkMentorship.set({});
-    this.bulkMentorshipSearchTerm.set('');
-    this.bulkMentorshipAssignmentModalOpen.set(true);
-  }
-
-  openEditMentorshipAssignment(assignment: MentorshipAssignmentRecord) {
-    this.editingMentorshipAssignmentId.set(assignment.id);
-    this.mentorshipAssignmentForm.reset({
-      menteeId: assignment.menteeId,
-      mentorshipStartDate: assignment.mentorshipStartDate,
-      jobTitle: assignment.jobTitle,
-      mentorName: assignment.mentorName,
-      mentorSurname: assignment.mentorSurname,
-    });
-    this.mentorshipAssignmentModalOpen.set(true);
-  }
-
-  closeMentorshipAssignmentModal() {
-    this.mentorshipAssignmentModalOpen.set(false);
-    this.editingMentorshipAssignmentId.set(null);
-    this.mentorshipAssignmentForm.reset({
-      menteeId: '',
-      mentorshipStartDate: '',
-      jobTitle: '',
-      mentorName: '',
-      mentorSurname: '',
-    });
-  }
-
-  closeBulkMentorshipAssignmentModal() {
-    this.bulkMentorshipAssignmentModalOpen.set(false);
-    this.bulkMentorshipAssignmentForm.reset();
-    this.selectedEmployeesForBulkMentorship.set({});
-    this.bulkMentorshipSearchTerm.set('');
-  }
-
-  saveMentorshipAssignment() {
-    if (this.mentorshipAssignmentForm.invalid) {
-      this.mentorshipAssignmentForm.markAllAsTouched();
-      return;
-    }
-
-    const payload = {
-      menteeId: this.mentorshipAssignmentForm.controls.menteeId.value,
-      mentorshipStartDate: this.mentorshipAssignmentForm.controls.mentorshipStartDate.value,
-      jobTitle: this.mentorshipAssignmentForm.controls.jobTitle.value,
-      mentorName: this.mentorshipAssignmentForm.controls.mentorName.value,
-      mentorSurname: this.mentorshipAssignmentForm.controls.mentorSurname.value,
-    };
-
-    const editingAssignment = this.editingMentorshipAssignment();
-
-    if (editingAssignment) {
-      this.managerData.updateMentorshipAssignment(editingAssignment.id, payload);
-    } else {
-      this.managerData.createMentorshipAssignment(payload);
-    }
-
-    this.closeMentorshipAssignmentModal();
-  }
-
-  toggleEmployeeForBulkMentorship(employeeId: string, checked: boolean) {
-    this.selectedEmployeesForBulkMentorship.update((current) => ({
-      ...current,
-      [employeeId]: checked,
-    }));
-  }
-
-  toggleSelectAllEmployeesForBulkMentorship() {
-    const employees = this.filteredBulkMentorshipEmployees();
-
-    if (!employees.length) {
-      return;
-    }
-
-    const shouldSelectAll = !this.allFilteredEmployeesSelectedForBulkMentorship();
-
-    this.selectedEmployeesForBulkMentorship.update((current) => {
-      const nextSelection = { ...current };
-
-      for (const employee of employees) {
-        nextSelection[employee.id] = shouldSelectAll;
-      }
-
-      return nextSelection;
-    });
-  }
-
-  isEmployeeSelectedForBulkMentorship(employeeId: string) {
-    return this.selectedEmployeesForBulkMentorship()[employeeId] ?? false;
-  }
-
-  saveBulkMentorshipAssignments() {
-    if (this.selectedEmployeesForBulkMentorshipCount() === 0) {
-      return;
-    }
-
-    const menteeIds = Object.entries(this.selectedEmployeesForBulkMentorship())
-      .filter(([, selected]) => selected)
-      .map(([employeeId]) => employeeId);
-
-    this.managerData.createBulkMentorshipAssignments({
-      menteeIds,
-    });
-
-    this.closeBulkMentorshipAssignmentModal();
-  }
-
-  deleteMentorshipAssignment(assignment: MentorshipAssignmentRecord) {
-    this.managerData.deleteMentorshipAssignment(assignment.id);
-
-    if (this.editingMentorshipAssignmentId() === assignment.id) {
-      this.closeMentorshipAssignmentModal();
-    }
-  }
+  deleteMentorshipAssignment(_assignment: MentorshipAssignmentRecord) {}
 
   openCreateEnrollmentGroup() {
     this.createEnrollmentGroupForm.reset({
@@ -4839,8 +5638,13 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   }
 
   handleOverlayEscape() {
-    if (this.selectedPanel() === 'mentorship' && this.mentorshipAssignmentModalOpen()) {
-      this.closeMentorshipAssignmentModal();
+    if (this.topbarDropdown()) {
+      this.closeTopbarDropdown();
+      return;
+    }
+
+    if (this.topbarProfileMenuOpen()) {
+      this.closeTopbarProfileMenu();
       return;
     }
 
@@ -4996,8 +5800,20 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       case 'basics':
         return 'Capture the course name, schedule, type, thumbnail, and learner-facing description before publishing.';
       case 'content':
-        return 'Build the learning flow as cards when you are ready. You can also publish first and return later to add videos, documents, and assessments.';
+        return 'Build the learning flow as cards when you are ready. You can also publish first and return later to add videos, documents, SCORM packages, and assessments.';
     }
+  }
+
+  contentUploadAccept(kind: TrainingContentKind) {
+    if (kind === 'Video') {
+      return 'video/*';
+    }
+
+    if (kind === 'Scorm') {
+      return '.zip,application/zip,application/x-zip-compressed';
+    }
+
+    return '.pdf,.doc,.docx,.ppt,.pptx,.xlsx,.txt';
   }
 
   courseStudioItemTitle(index: number) {
@@ -5097,9 +5913,32 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.openCreateSection(this.createSectionOrder[currentIndex + 1]);
   }
 
+  switchToRole(targetRole: ResolveRolesEntry['role']) {
+    if (this.switchingRole()) {
+      return;
+    }
+
+    this.switchingRole.set(true);
+    this.closeTopbarProfileMenu();
+    this.backend.switchRole(targetRole).subscribe({
+      next: (result) => {
+        localStorage.setItem('lms-session', JSON.stringify(createLmsSessionRecord({
+          role: result.role,
+          username: result.username,
+          email: result.email,
+          studentId: result.studentId ?? null,
+        })));
+        localStorage.setItem('lms-token', result.token);
+        void this.router.navigate([result.route]);
+      },
+      error: () => {
+        this.switchingRole.set(false);
+      },
+    });
+  }
+
   logout() {
-    localStorage.removeItem('lms-token');
-    localStorage.removeItem('lms-session');
+    clearLmsAuthSession();
     this.router.navigate(['/']);
   }
 
@@ -5131,7 +5970,9 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       resourceLink: new FormControl(item?.resourceLink ?? '', { nonNullable: true }),
       uploadedFileName: new FormControl(item?.uploadedFileName ?? '', { nonNullable: true }),
       uploadedFileDataUrl: new FormControl(item?.uploadedFileDataUrl ?? '', { nonNullable: true }),
+      convertedPdfUrl: new FormControl(item?.convertedPdfUrl ?? '', { nonNullable: true }),
       requiresAcknowledgement: new FormControl(Boolean(item?.requiresAcknowledgement), { nonNullable: true }),
+      allowDownload: new FormControl(item?.allowDownload !== false, { nonNullable: true }),
       questions: new FormArray<AssessmentQuestionFormGroup>(
         item?.questions?.map((question) => this.createQuestionGroup(question.questionType, question)) ?? [],
       ),
@@ -5534,6 +6375,10 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
     if (item.controls.kind.value === 'Document' && item.controls.requiresAcknowledgement.value) {
       return 'Acknowledgement required';
+    }
+
+    if (item.controls.kind.value === 'Scorm') {
+      return 'SCORM package';
     }
 
     if (item.controls.uploadedFileName.value) {
@@ -5962,19 +6807,73 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     }
 
     const item = this.contentItemsArray.at(index);
+    if (item.controls.kind.value === 'Scorm' && !/\.zip$/i.test(file.name)) {
+      input.value = '';
+      alert('SCORM uploads must be .zip packages. Please choose a SCORM package file.');
+      return;
+    }
+
+    if (item.controls.kind.value === 'Scorm') {
+      item.patchValue({ uploadedFileName: `Uploading ${file.name}…`, uploadedFileDataUrl: '' });
+      this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: 0 }));
+      input.value = '';
+
+      this.backend.uploadScormPackage(file).subscribe({
+        next: (result) => {
+          this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
+          item.patchValue({
+            uploadedFileName: file.name,
+            uploadedFileDataUrl: '',
+            resourceLink: result.launchUrl,
+            requiresAcknowledgement: false,
+            allowDownload: false,
+          });
+        },
+        error: () => {
+          this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
+          item.patchValue({ uploadedFileName: '', uploadedFileDataUrl: '' });
+          alert(`Failed to process SCORM package "${file.name}". Please ensure it contains a valid launch file and try again.`);
+        },
+      });
+
+      return;
+    }
+
     item.patchValue({ uploadedFileName: `Uploading ${file.name}…`, uploadedFileDataUrl: '' });
+    this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: 0 }));
     input.value = '';
 
-    this.backend.uploadFile(file, 'content-items').subscribe({
-      next: ({ url }) => {
-        item.patchValue({
-          uploadedFileName: file.name,
-          uploadedFileDataUrl: '',
-          resourceLink: url,
-        });
-        this.updatePresentationPreview(item, file.name, '');
+    this.backend.uploadFileWithProgress(file, 'content-items').subscribe({
+      next: (event) => {
+        if (event.type === 'progress') {
+          this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: event.percent }));
+        } else {
+          this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
+          item.patchValue({
+            uploadedFileName: file.name,
+            uploadedFileDataUrl: '',
+            resourceLink: event.url,
+          });
+          this.updatePresentationPreview(item, file.name, '');
+
+          // After a successful PPTX upload, convert it to PDF for inline student preview.
+          if (/\.pptx?$/i.test(file.name)) {
+            this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: -1 })); // -1 signals converting state
+            this.backend.convertPptxToPdf(file).subscribe({
+              next: (result) => {
+                item.patchValue({ convertedPdfUrl: result.pdfUrl });
+                this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
+              },
+              error: () => {
+                // Conversion failed — students will see the download-only fallback. Non-fatal.
+                this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
+              },
+            });
+          }
+        }
       },
       error: () => {
+        this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
         item.patchValue({ uploadedFileName: '', uploadedFileDataUrl: '' });
         alert(`Failed to upload "${file.name}". Please check your connection and try again. For large videos, use a YouTube or Vimeo link instead.`);
       },
@@ -6253,9 +7152,11 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   offeringContentSummary(offering: TrainingOffering) {
     const videos = offering.contentItems.filter((item) => item.kind === 'Video').length;
     const documents = offering.contentItems.filter((item) => item.kind === 'Document').length;
+    const scormPackages = offering.contentItems.filter((item) => item.kind === 'Scorm').length;
     const parts = [
       videos ? `${videos} video${videos === 1 ? '' : 's'}` : '',
       documents ? `${documents} document${documents === 1 ? '' : 's'}` : '',
+      scormPackages ? `${scormPackages} SCORM package${scormPackages === 1 ? '' : 's'}` : '',
     ].filter(Boolean);
 
     return parts.length ? parts.join(' • ') : 'Assessment only';
@@ -6273,18 +7174,9 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     return this.managerData.assignmentSubmissions().filter((submission) => submission.offeringId === offeringId);
   }
 
-  openEnrollmentEdit(student: EnrollmentStudent) {
-    this.enrollmentEditForm.reset({
-      name: student.name,
-      surname: student.surname,
-      group: student.group,
-      dateEnrolled: student.dateEnrolled,
-      deadlineDate: student.deadlineDate,
-      email: student.email,
-      activeStatus: student.activeStatus,
-      department: student.department,
-    });
-    this.editingEnrollmentStudentId.set(student.id);
+  openEnrollmentEdit(_student: EnrollmentStudent) {
+    // Managers are intentionally restricted from editing student details in enrollment.
+    this.editingEnrollmentStudentId.set(null);
   }
 
   openEnrollmentGroupEdit(group: EnrollmentGroupSummary) {
@@ -6309,27 +7201,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   }
 
   saveEnrollmentEdit() {
-    const studentId = this.editingEnrollmentStudentId();
-    if (!studentId) {
-      return;
-    }
-
-    if (this.enrollmentEditForm.invalid) {
-      this.enrollmentEditForm.markAllAsTouched();
-      return;
-    }
-
-    this.managerData.updateStudent(studentId, {
-      name: this.enrollmentEditForm.controls.name.value,
-      surname: this.enrollmentEditForm.controls.surname.value,
-      group: this.enrollmentEditForm.controls.group.value,
-      dateEnrolled: this.enrollmentEditForm.controls.dateEnrolled.value,
-      deadlineDate: this.enrollmentEditForm.controls.deadlineDate.value,
-      email: this.enrollmentEditForm.controls.email.value,
-      activeStatus: this.enrollmentEditForm.controls.activeStatus.value,
-      department: this.enrollmentEditForm.controls.department.value,
-      role: this.enrollmentEditForm.controls.role.value,
-    });
+    // Managers are intentionally restricted from editing student details in enrollment.
     this.closeEnrollmentEdit();
   }
 
@@ -6525,5 +7397,118 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
         ? `${student.name} ${student.surname} was unassigned from ${offering.title}.`
         : `${student.name} ${student.surname} did not have ${offering.title}.`,
     );
+  }
+
+  // ── IDP ────────────────────────────────────────────────────────────────
+  readonly selectedIdpStudentId = signal<string | null>(null);
+  readonly idpSaved = signal(false);
+  readonly idpEditMode = signal(false);
+  private readonly idpEntriesByStudent = this.managerData.idpEntriesByStudent;
+
+  readonly selectedIdpStudent = computed(() => {
+    const id = this.selectedIdpStudentId();
+    return id ? this.managerData.students().find((s) => s.id === id) ?? null : null;
+  });
+
+  readonly savedIdpEntries = computed(() => {
+    const id = this.selectedIdpStudentId();
+    return id ? (this.idpEntriesByStudent()[id] ?? []) : [];
+  });
+
+  readonly idpHasSavedEntries = computed(() => this.savedIdpEntries().length > 0);
+
+  private createIdpEntryGroup(): IdpEntryFormGroup {
+    return new FormGroup({
+      developmentNeed: new FormControl<string | null>(''),
+      plannedAction: new FormControl<string | null>(''),
+      supportRequired: new FormControl<string | null>(''),
+      dateCaptured: new FormControl<string | null>(this.todayIsoDate()),
+      targetDate: new FormControl<string | null>(''),
+      status: new FormControl<IdpStatus | null>('Not Started'),
+    }) as IdpEntryFormGroup;
+  }
+
+  private todayIsoDate() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  readonly idpForm = new FormGroup({
+    entries: new FormArray<IdpEntryFormGroup>([this.createIdpEntryGroup()]),
+  });
+
+  idpEntriesControls(): IdpEntryFormGroup[] {
+    return this.idpForm.controls.entries.controls as IdpEntryFormGroup[];
+  }
+
+  idpEntryCountForStudent(studentId: string): number {
+    return this.idpEntriesByStudent()[studentId]?.length ?? 0;
+  }
+
+  private loadIdpFormForStudent(studentId: string) {
+    const entriesArray = this.idpForm.controls.entries;
+    while (entriesArray.length > 0) entriesArray.removeAt(0);
+    const saved = this.idpEntriesByStudent()[studentId];
+    if (saved?.length) {
+      for (const entry of saved) {
+        const g = this.createIdpEntryGroup();
+        g.setValue(entry);
+        entriesArray.push(g);
+      }
+    } else {
+      entriesArray.push(this.createIdpEntryGroup());
+    }
+  }
+
+  selectIdpStudent(studentId: string) {
+    this.selectedIdpStudentId.set(studentId);
+    this.loadIdpFormForStudent(studentId);
+    // start in read-only if entries already saved, else jump straight to form
+    const hasSaved = (this.idpEntriesByStudent()[studentId]?.length ?? 0) > 0;
+    this.idpEditMode.set(!hasSaved);
+    this.idpSaved.set(false);
+  }
+
+  clearIdpStudent() {
+    this.selectedIdpStudentId.set(null);
+    this.idpEditMode.set(false);
+    this.idpSaved.set(false);
+  }
+
+  openIdpEdit() {
+    const id = this.selectedIdpStudentId();
+    if (id) this.loadIdpFormForStudent(id);
+    this.idpEditMode.set(true);
+  }
+
+  cancelIdpEdit() {
+    const id = this.selectedIdpStudentId();
+    if (id) this.loadIdpFormForStudent(id);
+    this.idpEditMode.set(false);
+    this.idpSaved.set(false);
+  }
+
+  addIdpEntry() {
+    this.idpForm.controls.entries.push(this.createIdpEntryGroup());
+  }
+
+  removeIdpEntry(index: number) {
+    this.idpForm.controls.entries.removeAt(index);
+  }
+
+  saveIdpEntries() {
+    const studentId = this.selectedIdpStudentId();
+    if (!studentId) return;
+    const entries = this.idpForm.controls.entries.controls.map((g) => ({
+      developmentNeed: g.controls.developmentNeed.value ?? '',
+      plannedAction: g.controls.plannedAction.value ?? '',
+      supportRequired: g.controls.supportRequired.value ?? '',
+      dateCaptured: g.controls.dateCaptured.value ?? '',
+      targetDate: g.controls.targetDate.value ?? '',
+      status: (g.controls.status.value ?? 'Not Started') as IdpStatus,
+    }));
+    this.managerData.setIdpEntriesForStudent(studentId, entries);
+    this.idpEditMode.set(false);
+    this.idpSaved.set(true);
+    setTimeout(() => this.idpSaved.set(false), 3000);
   }
 }
