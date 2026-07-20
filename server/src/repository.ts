@@ -1125,6 +1125,50 @@ export class LmsRepository {
     return results;
   }
 
+  async resolveRolesByEmail(email: string): Promise<Array<{
+    role: LoginRole;
+    route: string;
+    username: string;
+    email: string;
+    studentId?: string;
+  }>> {
+    const data = await this.read();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      return [];
+    }
+
+    const results: Array<{ role: LoginRole; route: string; username: string; email: string; studentId?: string }> = [];
+
+    const matchingAccounts = data.authAccounts.filter(
+      (a) => a.email.toLowerCase() === normalizedEmail,
+    );
+
+    for (const account of matchingAccounts) {
+      results.push({
+        role: account.role,
+        route: account.route,
+        username: account.username,
+        email: account.email,
+        studentId: resolveStudentIdForAccount(data, account),
+      });
+
+      // Dual-access: a training manager with a linked student profile can also enter the student workspace.
+      if (account.role === 'training-manager' && account.linkedStudentId) {
+        results.push({
+          role: 'student' as const,
+          route: '/student-profile',
+          username: account.username,
+          email: account.email,
+          studentId: account.linkedStudentId,
+        });
+      }
+    }
+
+    return results;
+  }
+
   async upsertManagedUserCredentials(inputs: ManagedUserCredentialInput[]): Promise<ManagedUserCredentialsUpsertResponse> {
     const data = await this.read();
     let created = 0;

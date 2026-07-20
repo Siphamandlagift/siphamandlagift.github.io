@@ -231,6 +231,10 @@ export class LmsBackendService {
     return this.http.post<ResolveRolesResponse>(`${this.config.baseUrl}/auth/resolve-roles`, input);
   }
 
+  switchRole(targetRole: LoginRole): Observable<ResolveRolesEntry> {
+    return this.http.post<ResolveRolesEntry>(`${this.config.baseUrl}/auth/switch-role`, { targetRole });
+  }
+
   microsoftSsoStartUrl(role?: LoginRole): string {
     const target = new URL(`${this.config.baseUrl}/auth/sso/microsoft/start`, window.location.origin);
     if (role) {

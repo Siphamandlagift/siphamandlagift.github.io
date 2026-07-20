@@ -5,9 +5,10 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { EnrollmentStudent, EnrollmentStudentInput, TrainingManagerDataService } from './training-manager-data.service';
-import { LmsBackendService, type ManagedUserCredentialInput } from './lms-backend.service';
+import { LmsBackendService, type ManagedUserCredentialInput, type ResolveRolesEntry } from './lms-backend.service';
 import { LmsBrandThemeId, LmsBrandingService } from './lms-branding.service';
-import type { StudentCourse } from './student-data.service';
+import type { StudentCertificateLicence, StudentCourse } from './student-data.service';
+import { clearLmsAuthSession, createLmsSessionRecord } from './session-auth';
 
 type AdminPanel = 'dashboard' | 'users' | 'reports' | 'settings';
 
@@ -25,7 +26,7 @@ type ReportFieldOption = {
 
 type ReportAccessFilter = 'All' | 'Active' | 'Inactive';
 type ReportDownloadFormat = 'CSV' | 'XLSX';
-type AdminReportView = 'annual-training' | 'user-reports';
+type AdminReportView = 'annual-training' | 'user-reports' | 'idp-report' | 'certificate-licence-report';
 
 type LearnerReportRow = {
   id: string;
@@ -47,11 +48,41 @@ type AnnualTrainingReportRow = {
   trainingType: string;
   alignedToIdp: string;
   trainingStartDate: string;
+  trainingStartDateValue: string;
   trainingEndDate: string;
+  trainingEndDateValue: string;
   courseCost: string;
   approvedBy: string;
   approvedDate: string;
   approvedDateValue: string;
+};
+
+type IdpReportRow = {
+  id: string;
+  name: string;
+  surname: string;
+  manager: string;
+  developmentNeed: string;
+  plannedAction: string;
+  supportRequired: string;
+  dateCaptured: string;
+  dateCapturedValue: string;
+  targetDate: string;
+  targetDateValue: string;
+  status: string;
+};
+
+type CertificateLicenceReportRow = {
+  id: string;
+  name: string;
+  surname: string;
+  idNumber: string;
+  department: string;
+  certificateName: string;
+  expiryDate: string;
+  expiryDateValue: string;
+  renewalRequired: 'Yes' | 'No';
+  status: string;
 };
 
 type ManagedUserUploadRow = {
@@ -67,7 +98,7 @@ type UserFormControls = {
   jobTitle: FormControl<string>;
   idNumber: FormControl<string>;
   department: FormControl<string>;
-  lineManager: FormControl<string>;
+  lineManagerId: FormControl<string>;
   group: FormControl<string>;
   dateEnrolled: FormControl<string>;
   deadlineDate: FormControl<string>;
@@ -92,6 +123,8 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
   { key: 'dateEnrolled', label: 'Start Date' },
   { key: 'deadlineDate', label: 'End Date' },
 ];
+
+const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
 
 @Component({
   selector: 'admin-profile',
@@ -129,24 +162,117 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
           </div>
         </div>
 
-        <div class="admin-topbar-user">
-          <span class="admin-avatar">{{ adminInitials() }}</span>
-          <div>
-            <div class="admin-user-name">{{ adminName() }}</div>
-            <div class="admin-user-copy">{{ adminEmail() }}</div>
-          </div>
+        <div class="admin-topbar-dropdown-wrap">
+          <button
+            type="button"
+            class="admin-topbar-profile-btn"
+            aria-label="Admin profile menu"
+            [attr.aria-expanded]="topbarProfileMenuOpen()"
+            [disabled]="switchingRole()"
+            (click)="openTopbarProfileMenu()">
+            <span class="admin-avatar" [class.admin-avatar-has-image]="!!adminProfileImageDataUrl()">
+              @if (adminProfileImageDataUrl()) {
+                <img [src]="adminProfileImageDataUrl()!" alt="Admin profile picture" />
+              } @else {
+                {{ adminInitials() }}
+              }
+            </span>
+            <div>
+              <div class="admin-user-name">{{ adminName() }}</div>
+              <div class="admin-user-copy">{{ adminEmail() }}</div>
+            </div>
+            <svg class="admin-topbar-caret" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="m7 10 5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+
+          @if (topbarProfileMenuOpen()) {
+            <div class="admin-topbar-menu" role="dialog" aria-label="Admin profile menu">
+              <div class="admin-topbar-menu-section-label">Switch role</div>
+              <button type="button" class="admin-topbar-menu-item" (click)="switchToRole('training-manager')">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path fill="currentColor" d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3Zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5Zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5Z"/></svg>
+                Training Manager
+              </button>
+              <button type="button" class="admin-topbar-menu-item" (click)="switchToRole('student')">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path fill="currentColor" d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82ZM12 3 1 9l11 6 9-4.91V17h2V9L12 3Z"/></svg>
+                Student
+              </button>
+              <div class="admin-topbar-menu-divider"></div>
+              <button type="button" class="admin-topbar-menu-item admin-topbar-menu-item-danger" (click)="logout()">Log out</button>
+            </div>
+          }
         </div>
       </header>
 
-      <div class="admin-layout">
-        <aside class="admin-sidebar" aria-label="Admin navigation">
+      @if (topbarProfileMenuOpen()) {
+        <button type="button" class="admin-topbar-menu-backdrop" aria-label="Close admin profile menu" (click)="closeTopbarProfileMenu()"></button>
+      }
+
+      <div class="admin-layout" [class.admin-layout-sidebar-collapsed]="adminSidebarCollapsed()">
+        <aside class="admin-sidebar" [class.admin-sidebar-collapsed]="adminSidebarCollapsed()" aria-label="Admin navigation">
+          <div class="admin-sidebar-header">
+            <button
+              type="button"
+              class="admin-sidebar-toggle"
+              [attr.aria-label]="adminSidebarCollapsed() ? 'Expand navigation panel' : 'Collapse navigation panel'"
+              [attr.aria-expanded]="!adminSidebarCollapsed()"
+              (click)="toggleAdminSidebar()">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M6 7.5h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                <path d="M6 12h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                <path d="M6 16.5h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+              </svg>
+            </button>
+          </div>
+
           <ng-container *ngFor="let item of navItems">
-            <button type="button" [class.active]="selectedPanel() === item.value" (click)="selectPanel(item.value)">
-              {{ item.label }}
+            <button type="button" [class.active]="selectedPanel() === item.value" [attr.aria-label]="item.label" (click)="selectPanel(item.value)">
+              <span class="admin-nav-icon" aria-hidden="true">
+                @switch (item.value) {
+                  @case ('dashboard') {
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                      <rect x="3.5" y="3.5" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.8"></rect>
+                      <rect x="13.5" y="3.5" width="7" height="4.5" rx="2" stroke="currentColor" stroke-width="1.8"></rect>
+                      <rect x="13.5" y="11" width="7" height="9.5" rx="2" stroke="currentColor" stroke-width="1.8"></rect>
+                      <rect x="3.5" y="13.5" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.8"></rect>
+                    </svg>
+                  }
+                  @case ('users') {
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                      <circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.8"></circle>
+                      <path d="M4 18c0-2.8 2.6-4.5 5-4.5s5 1.7 5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+                      <circle cx="17" cy="9" r="2.5" stroke="currentColor" stroke-width="1.8"></circle>
+                      <path d="M14.5 18c.45-1.75 1.95-2.9 4.2-2.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+                    </svg>
+                  }
+                  @case ('reports') {
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                      <path d="M5 5.5A2.5 2.5 0 0 1 7.5 3h9A2.5 2.5 0 0 1 19 5.5v13a1 1 0 0 1-1.52.85L12 16l-5.48 3.35A1 1 0 0 1 5 18.5v-13Z" stroke="currentColor" stroke-width="1.8"></path>
+                      <path d="M8 7.5h8M8 10.5h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+                    </svg>
+                  }
+                  @case ('settings') {
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.8"></circle>
+                      <path d="M19.4 12a7.4 7.4 0 0 0-.08-1l2-1.55-1.8-3.1-2.38.96a7.45 7.45 0 0 0-1.72-1l-.36-2.55H11l-.36 2.55a7.45 7.45 0 0 0-1.72 1l-2.38-.96-1.8 3.1 2 1.55a7.4 7.4 0 0 0 0 2l-2 1.55 1.8 3.1 2.38-.96c.52.42 1.1.76 1.72 1l.36 2.55h3.94l.36-2.55c.62-.24 1.2-.58 1.72-1l2.38.96 1.8-3.1-2-1.55c.05-.33.08-.67.08-1Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path>
+                    </svg>
+                  }
+                }
+              </span>
+              <span class="admin-nav-label">{{ item.label }}</span>
             </button>
           </ng-container>
 
-          <button type="button" class="logout" (click)="logout()">Log out</button>
+          <button type="button" class="logout" aria-label="Log out" (click)="logout()">
+            <span class="admin-nav-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M10 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+                <path d="M14 16l4-4-4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+                <path d="M18 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+              </svg>
+            </span>
+            <span class="admin-nav-label">Log out</span>
+          </button>
         </aside>
         <main class="admin-main-panel">
           @if (editingUser(); as activeUser) {
@@ -187,7 +313,12 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
                   </label>
                   <label>
                     Line Manager
-                    <input type="text" formControlName="lineManager" />
+                    <select formControlName="lineManagerId" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
+                      <option value="">-- None --</option>
+                      @for (option of lineManagerOptions(); track option.id) {
+                        <option [value]="option.id">{{ option.name }} {{ option.surname }}</option>
+                      }
+                    </select>
                   </label>
                   <label>
                     Group
@@ -272,7 +403,12 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
                   </label>
                   <label>
                     Line Manager
-                    <input type="text" formControlName="lineManager" />
+                    <select formControlName="lineManagerId" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
+                      <option value="">-- None --</option>
+                      @for (option of lineManagerOptions(); track option.id) {
+                        <option [value]="option.id">{{ option.name }} {{ option.surname }}</option>
+                      }
+                    </select>
                   </label>
                   <label>
                     Group
@@ -313,12 +449,6 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
 
           @if (selectedPanel() === 'dashboard') {
             <section class="admin-panel">
-              <div class="section-heading-block">
-                <p class="eyebrow">Dashboard</p>
-                <h1>Administrator overview</h1>
-                <p class="section-copy">Monitor access, learner progress, and LMS activity from one place.</p>
-              </div>
-
                 <div class="admin-metric-grid">
                   <article class="admin-metric-card">
                     <div class="admin-metric-label">Total Users</div>
@@ -399,20 +529,8 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
 
           @if (selectedPanel() === 'users') {
             <section class="admin-panel">
-              <div class="section-heading-block">
-                <p class="eyebrow">User Management</p>
-                <h1>LMS user management</h1>
-                <p class="section-copy">View, update, and remove student users currently listed on the LMS.</p>
-              </div>
-
-
               <section class="admin-section-card">
                 <div class="admin-bulk-upload-panel">
-                  <div>
-                    <div class="admin-bulk-upload-title">Bulk upload users</div>
-                    <p class="section-copy">Upload a CSV or Excel file using the same user fields shown in the editor: Name, Surname, Email, Department, Group, Start Date, End Date, and optional Password, Job Title, ID Number, Line Manager, Training Manager, and Access.</p>
-                  </div>
-
                   <div class="admin-bulk-upload-actions">
                     <label class="admin-settings-field admin-report-download-field admin-bulk-upload-template-field">
                       <span>Template format</span>
@@ -500,8 +618,9 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
                         </div>
                         <div class="admin-user-cell">
                           <div class="admin-user-field-label">Learning Status</div>
-                          <span class="admin-status-pill" [class.admin-status-pill-complete]="student.status === 'Completed'" [class.admin-status-pill-progress]="student.status === 'In Progress'" [class.admin-status-pill-pending]="student.status === 'Not Yet Started'">
-                            {{ student.status }}
+                          @let effectiveStatus = resolveStudentOverallStatus(student);
+                          <span class="admin-status-pill" [class.admin-status-pill-complete]="effectiveStatus === 'Completed'" [class.admin-status-pill-progress]="effectiveStatus === 'In Progress'" [class.admin-status-pill-pending]="effectiveStatus === 'Not Yet Started'">
+                            {{ effectiveStatus }}
                           </span>
                         </div>
                         <div class="admin-user-cell">
@@ -529,18 +648,12 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
 
           @if (selectedPanel() === 'reports') {
             <section class="admin-panel">
-              <div class="section-heading-block">
-                <p class="eyebrow">Reports</p>
-                <h1>Admin reports</h1>
-                <p class="section-copy">Choose a report from the list, then review the summary or export the current learner report.</p>
-              </div>
-
               <div class="admin-report-picker">
                 @if (!selectedReportView()) {
                   <article class="admin-section-card admin-report-menu-card">
                     <div class="admin-section-card-header">
                       <h2>Report List</h2>
-                      <span>2 available</span>
+                      <span>4 available</span>
                     </div>
 
                     <div class="admin-report-menu" role="list" aria-label="Admin report list">
@@ -551,6 +664,14 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
                       <button type="button" class="admin-report-menu-item" (click)="selectReportView('user-reports')">
                         <strong>User Reports</strong>
                         <span>Current learner report with filters, preview, and export.</span>
+                      </button>
+                      <button type="button" class="admin-report-menu-item" (click)="selectReportView('idp-report')">
+                        <strong>IDP Report</strong>
+                        <span>Employee IDP entries with manager and development details.</span>
+                      </button>
+                      <button type="button" class="admin-report-menu-item" (click)="selectReportView('certificate-licence-report')">
+                        <strong>Certificates and Licences Report</strong>
+                        <span>Track employee certificate and licence expiry, renewal, and status.</span>
                       </button>
                     </div>
                   </article>
@@ -568,6 +689,16 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
                         @if (selectedReportView() === 'user-reports') {
                           <h2>User Reports</h2>
                           <span>{{ filteredReportUsers().length }} of {{ totalUsersCount() }} users</span>
+                        }
+
+                        @if (selectedReportView() === 'idp-report') {
+                          <h2>IDP Report</h2>
+                          <span>{{ idpReportRows().length }} IDP entries</span>
+                        }
+
+                        @if (selectedReportView() === 'certificate-licence-report') {
+                          <h2>Certificates and Licences Report</h2>
+                          <span>{{ certificateLicenceReportRows().length }} records</span>
                         }
                       </div>
 
@@ -599,8 +730,13 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
                             </label>
 
                             <label class="admin-report-filter-field">
-                              <span>Training Date</span>
-                              <input type="date" [value]="selectedAnnualReportTrainingDate()" (input)="updateAnnualReportTrainingDate($event)" />
+                              <span>Training Start Date</span>
+                              <input type="date" [value]="selectedAnnualReportTrainingStartDate()" (input)="updateAnnualReportTrainingStartDate($event)" />
+                            </label>
+
+                            <label class="admin-report-filter-field">
+                              <span>Training End Date</span>
+                              <input type="date" [value]="selectedAnnualReportTrainingEndDate()" (input)="updateAnnualReportTrainingEndDate($event)" />
                             </label>
 
                           </div>
@@ -631,8 +767,8 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
                                   <th>Provider Name</th>
                                   <th>Type of Training</th>
                                   <th>IDP Aligned</th>
-                                  <th>Start Date</th>
-                                  <th>End Date</th>
+                                  <th>Training Start Date</th>
+                                  <th>Training End Date</th>
                                   <th>Course Cost</th>
                                   <th>Approved By</th>
                                   <th>Approved Date</th>
@@ -661,6 +797,136 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
                           </div>
                         } @else {
                           <div class="admin-empty-state">No approved external training requests match the current filters.</div>
+                        }
+                      </div>
+                    }
+
+                    @if (selectedReportView() === 'idp-report') {
+                      <div class="admin-report-content-stack">
+                        <article class="admin-section-card">
+                          <div class="admin-section-card-header">
+                            <h2>Report preview</h2>
+                            <span>{{ idpReportRows().length }} rows</span>
+                          </div>
+
+                          <div class="admin-report-preview-meta">
+                            <span class="admin-chip">9 fields</span>
+                            <span class="admin-chip">{{ idpReportRows().length }} rows included</span>
+                          </div>
+
+                          <div class="admin-report-actions">
+                            <label class="admin-report-filter-field admin-report-download-field">
+                              <span>Download As</span>
+                              <select [value]="selectedIdpReportDownloadFormat()" (change)="updateIdpReportDownloadFormat($event)">
+                                <option value="CSV">CSV</option>
+                                <option value="XLSX">XLSX</option>
+                              </select>
+                            </label>
+                            <button type="button" class="admin-primary-btn" [disabled]="!canDownloadIdpReport()" (click)="downloadIdpReport()">Download report</button>
+                          </div>
+
+                          @if (!idpReportRows().length) {
+                            <div class="admin-empty-state">No IDP entries were found for the current LMS users.</div>
+                          }
+                        </article>
+
+                        @if (idpReportRows().length) {
+                          <div class="admin-report-table-wrap">
+                            <table class="admin-report-table">
+                              <thead>
+                                <tr>
+                                  <th>Name</th>
+                                  <th>Surname</th>
+                                  <th>Manager</th>
+                                  <th>Development Need</th>
+                                  <th>Planned Action</th>
+                                  <th>Support Required</th>
+                                  <th>Date Captured</th>
+                                  <th>Target Date</th>
+                                  <th>Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                @for (row of idpReportRows(); track row.id) {
+                                  <tr>
+                                    <td>{{ row.name }}</td>
+                                    <td>{{ row.surname }}</td>
+                                    <td>{{ row.manager }}</td>
+                                    <td>{{ row.developmentNeed }}</td>
+                                    <td>{{ row.plannedAction }}</td>
+                                    <td>{{ row.supportRequired }}</td>
+                                    <td>{{ row.dateCaptured }}</td>
+                                    <td>{{ row.targetDate }}</td>
+                                    <td>{{ row.status }}</td>
+                                  </tr>
+                                }
+                              </tbody>
+                            </table>
+                          </div>
+                        }
+                      </div>
+                    }
+
+                    @if (selectedReportView() === 'certificate-licence-report') {
+                      <div class="admin-report-content-stack">
+                        <article class="admin-section-card">
+                          <div class="admin-section-card-header">
+                            <h2>Report preview</h2>
+                            <span>{{ certificateLicenceReportRows().length }} rows</span>
+                          </div>
+
+                          <div class="admin-report-preview-meta">
+                            <span class="admin-chip">8 fields</span>
+                            <span class="admin-chip">{{ certificateLicenceReportRows().length }} rows included</span>
+                          </div>
+
+                          <div class="admin-report-actions">
+                            <label class="admin-report-filter-field admin-report-download-field">
+                              <span>Download As</span>
+                              <select [value]="selectedCertificateReportDownloadFormat()" (change)="updateCertificateReportDownloadFormat($event)">
+                                <option value="CSV">CSV</option>
+                                <option value="XLSX">XLSX</option>
+                              </select>
+                            </label>
+                            <button type="button" class="admin-primary-btn" [disabled]="!canDownloadCertificateLicenceReport()" (click)="downloadCertificateLicenceReport()">Download report</button>
+                          </div>
+
+                          @if (!certificateLicenceReportRows().length) {
+                            <div class="admin-empty-state">No certificate or licence records were found for current learners.</div>
+                          }
+                        </article>
+
+                        @if (certificateLicenceReportRows().length) {
+                          <div class="admin-report-table-wrap">
+                            <table class="admin-report-table">
+                              <thead>
+                                <tr>
+                                  <th>Full Name</th>
+                                  <th>Surname</th>
+                                  <th>ID Number</th>
+                                  <th>Department</th>
+                                  <th>Certificate Name</th>
+                                  <th>Expiry Date</th>
+                                  <th>Renewal Required</th>
+                                  <th>Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                @for (row of certificateLicenceReportRows(); track row.id) {
+                                  <tr>
+                                    <td>{{ row.name }}</td>
+                                    <td>{{ row.surname }}</td>
+                                    <td>{{ row.idNumber }}</td>
+                                    <td>{{ row.department }}</td>
+                                    <td>{{ row.certificateName }}</td>
+                                    <td>{{ row.expiryDate }}</td>
+                                    <td>{{ row.renewalRequired }}</td>
+                                    <td>{{ row.status }}</td>
+                                  </tr>
+                                }
+                              </tbody>
+                            </table>
+                          </div>
                         }
                       </div>
                     }
@@ -776,13 +1042,35 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
 
           @if (selectedPanel() === 'settings') {
             <section class="admin-panel">
-              <div class="section-heading-block">
-                <p class="eyebrow">LMS Settings</p>
-                <h1>Brand and theme settings</h1>
-                <p class="section-copy">Upload a company logo for the workspace and apply the selected theme across admin, manager, and student views.</p>
-              </div>
-
               <div class="admin-settings-list" role="list" aria-label="System options">
+                <article class="admin-section-card admin-settings-item" role="listitem">
+                  <div class="admin-settings-item-main">
+                    <div class="admin-section-card-header">
+                      <h2>Admin profile picture</h2>
+                      <span>{{ adminProfileImageDataUrl() ? 'Uploaded' : 'Using initials avatar' }}</span>
+                    </div>
+                    <p class="admin-settings-item-copy">Upload a profile picture for the admin topbar avatar.</p>
+                  </div>
+
+                  <div class="admin-settings-item-controls admin-logo-panel">
+                    <div class="admin-logo-preview" [class.admin-logo-preview-has-image]="!!adminProfileImageDataUrl()">
+                      @if (adminProfileImageDataUrl()) {
+                        <img [src]="adminProfileImageDataUrl()!" alt="Admin profile picture preview" />
+                      } @else {
+                        <span>{{ adminInitials() }}</span>
+                      }
+                    </div>
+
+                    <div class="admin-logo-actions">
+                      <label class="admin-upload-btn">
+                        <span>Upload picture</span>
+                        <input type="file" accept="image/*" (change)="onAdminProfileImageSelected($event)" />
+                      </label>
+                      <button type="button" class="admin-secondary-btn" [disabled]="!adminProfileImageDataUrl()" (click)="clearAdminProfileImage()">Remove picture</button>
+                    </div>
+                  </div>
+                </article>
+
                 <article class="admin-section-card admin-settings-item" role="listitem">
                   <div class="admin-settings-item-main">
                     <div class="admin-section-card-header">
@@ -891,6 +1179,118 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
       box-sizing: border-box;
     }
 
+    .admin-topbar-dropdown-wrap {
+      position: relative;
+      z-index: 35;
+    }
+
+    .admin-topbar-profile-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: calc(0.7rem * var(--ui-scale));
+      padding: calc(0.25rem * var(--ui-scale)) calc(0.55rem * var(--ui-scale)) calc(0.25rem * var(--ui-scale)) calc(0.25rem * var(--ui-scale));
+      border: 1px solid transparent;
+      border-radius: 999px;
+      background: transparent;
+      color: #475569;
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .admin-topbar-profile-btn:hover,
+    .admin-topbar-profile-btn:focus-visible {
+      outline: none;
+      background: rgba(15, 23, 42, 0.04);
+      border-color: rgba(15, 23, 42, 0.1);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    .admin-topbar-profile-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .admin-topbar-caret {
+      color: #94a3b8;
+      flex-shrink: 0;
+    }
+
+    .admin-topbar-menu {
+      position: absolute;
+      top: calc(100% + 0.5rem);
+      right: 0;
+      z-index: 40;
+      min-width: calc(14rem * var(--ui-scale));
+      display: grid;
+      gap: calc(0.2rem * var(--ui-scale));
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      border-radius: calc(18px * var(--ui-scale));
+      background: rgba(255, 255, 255, 0.97);
+      box-shadow: 0 22px 48px rgba(15, 23, 42, 0.18);
+      padding: calc(0.4rem * var(--ui-scale));
+      backdrop-filter: blur(8px);
+    }
+
+    .admin-topbar-menu-section-label {
+      padding: calc(0.45rem * var(--ui-scale)) calc(0.85rem * var(--ui-scale)) calc(0.2rem * var(--ui-scale));
+      font-size: calc(0.72rem * var(--ui-scale));
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+
+    .admin-topbar-menu-item {
+      display: flex;
+      align-items: center;
+      gap: calc(0.55rem * var(--ui-scale));
+      border: none;
+      border-radius: calc(12px * var(--ui-scale));
+      background: transparent;
+      color: #0f172a;
+      text-align: left;
+      font-weight: 600;
+      font-size: calc(0.9rem * var(--ui-scale));
+      padding: calc(0.6rem * var(--ui-scale)) calc(0.85rem * var(--ui-scale));
+      cursor: pointer;
+      transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .admin-topbar-menu-item:hover,
+    .admin-topbar-menu-item:focus-visible {
+      outline: none;
+      background: rgba(15, 23, 42, 0.06);
+      color: var(--admin-primary);
+    }
+
+    .admin-topbar-menu-item-danger {
+      color: #b91c1c;
+    }
+
+    .admin-topbar-menu-item-danger:hover,
+    .admin-topbar-menu-item-danger:focus-visible {
+      background: rgba(185, 28, 28, 0.08);
+      color: #991b1b;
+    }
+
+    .admin-topbar-menu-divider {
+      height: 1px;
+      background: rgba(148, 163, 184, 0.18);
+      margin: calc(0.2rem * var(--ui-scale)) calc(0.6rem * var(--ui-scale));
+    }
+
+    .admin-topbar-menu-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 19;
+      border: none;
+      background: transparent;
+      padding: 0;
+      margin: 0;
+      cursor: default;
+    }
+
     .admin-brand-block,
     .admin-topbar-user,
     .admin-profile-card-header,
@@ -931,12 +1331,14 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
     }
 
     .admin-brand-logo-has-image,
+    .admin-avatar-has-image,
     .admin-logo-preview-has-image {
       background: #fff;
       border: 1px solid rgba(148, 163, 184, 0.22);
     }
 
     .admin-brand-logo img,
+    .admin-avatar img,
     .admin-logo-preview img {
       width: 100%;
       height: 100%;
@@ -990,6 +1392,10 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
       align-items: start;
     }
 
+    .admin-layout.admin-layout-sidebar-collapsed {
+      grid-template-columns: calc(92px * var(--ui-scale)) minmax(0, 1fr);
+    }
+
     .admin-sidebar {
       position: sticky;
       top: calc(1rem * var(--ui-scale));
@@ -1000,7 +1406,40 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
       border-radius: calc(24px * var(--ui-scale));
     }
 
-    .admin-sidebar button,
+    .admin-sidebar-header {
+      display: flex;
+      justify-content: center;
+    }
+
+    .admin-sidebar-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: calc(2.5rem * var(--ui-scale));
+      height: calc(2.5rem * var(--ui-scale));
+      border: 1px solid var(--admin-tint);
+      border-radius: calc(14px * var(--ui-scale));
+      background: var(--admin-surface);
+      color: var(--admin-primary);
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease, color 0.15s ease;
+    }
+
+    .admin-sidebar-toggle:hover,
+    .admin-sidebar-toggle:focus-visible {
+      background: var(--admin-tint);
+      border-color: var(--admin-primary);
+      outline: none;
+      transform: translateY(-1px);
+    }
+
+    .admin-sidebar-toggle svg {
+      width: calc(1.1rem * var(--ui-scale));
+      height: calc(1.1rem * var(--ui-scale));
+      stroke: currentColor;
+    }
+
+    .admin-sidebar button:not(.admin-sidebar-toggle),
     .admin-upload-btn,
     .admin-secondary-btn,
     .admin-primary-btn,
@@ -1011,7 +1450,10 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
       font: inherit;
     }
 
-    .admin-sidebar button {
+    .admin-sidebar button:not(.admin-sidebar-toggle) {
+      display: flex;
+      align-items: center;
+      gap: calc(0.75rem * var(--ui-scale));
       border-radius: calc(14px * var(--ui-scale));
       padding: calc(0.85rem * var(--ui-scale)) calc(1rem * var(--ui-scale));
       background: transparent;
@@ -1021,28 +1463,83 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
       transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease;
     }
 
-    .admin-sidebar button:hover,
-    .admin-sidebar button:focus-visible {
+    .admin-nav-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 calc(2.35rem * var(--ui-scale));
+      width: calc(2.35rem * var(--ui-scale));
+      height: calc(2.35rem * var(--ui-scale));
+      border-radius: calc(14px * var(--ui-scale));
+      background: rgba(148, 163, 184, 0.12);
+      color: currentColor;
+      flex-shrink: 0;
+      transition: background 0.18s ease, color 0.18s ease;
+    }
+
+    .admin-nav-icon svg {
+      width: calc(1.15rem * var(--ui-scale));
+      height: calc(1.15rem * var(--ui-scale));
+    }
+
+    .admin-nav-label {
+      min-width: 0;
+    }
+
+    .admin-sidebar button:not(.admin-sidebar-toggle):hover,
+    .admin-sidebar button:not(.admin-sidebar-toggle):focus-visible {
       background: #f8fafc;
       color: #334155;
       outline: none;
       transform: translateX(2px);
     }
 
-    .admin-sidebar button.active {
+    .admin-sidebar button:not(.admin-sidebar-toggle).active {
       background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
       color: #fff;
       box-shadow: 0 12px 24px rgba(79, 70, 229, 0.18);
     }
 
-    .admin-sidebar button.logout {
+    .admin-sidebar button:not(.admin-sidebar-toggle):hover .admin-nav-icon,
+    .admin-sidebar button:not(.admin-sidebar-toggle):focus-visible .admin-nav-icon {
+      background: rgba(148, 163, 184, 0.18);
+    }
+
+    .admin-sidebar button:not(.admin-sidebar-toggle).active .admin-nav-icon {
+      background: rgba(255, 255, 255, 0.18);
+    }
+
+    .admin-sidebar button:not(.admin-sidebar-toggle).logout {
       margin-top: auto;
       background: #fee2e2;
       color: #b91c1c;
     }
 
-    .admin-sidebar button.logout:hover,
-    .admin-sidebar button.logout:focus-visible {
+    .admin-sidebar-collapsed {
+      gap: calc(0.55rem * var(--ui-scale));
+      padding-inline: calc(0.7rem * var(--ui-scale));
+    }
+
+    .admin-sidebar-collapsed .admin-sidebar-header {
+      justify-content: center;
+    }
+
+    .admin-sidebar-collapsed button {
+      justify-content: center;
+      padding-inline: calc(0.7rem * var(--ui-scale));
+    }
+
+    .admin-sidebar-collapsed .admin-nav-label {
+      display: none;
+    }
+
+    .admin-sidebar-collapsed .admin-nav-icon {
+      flex-basis: calc(2.6rem * var(--ui-scale));
+      width: calc(2.6rem * var(--ui-scale));
+    }
+
+    .admin-sidebar button:not(.admin-sidebar-toggle).logout:hover,
+    .admin-sidebar button:not(.admin-sidebar-toggle).logout:focus-visible {
       background: #fecaca;
       color: #991b1b;
     }
@@ -1996,9 +2493,29 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
         min-height: auto;
       }
 
+      .admin-layout.admin-layout-sidebar-collapsed {
+        grid-template-columns: 1fr;
+      }
+
       .admin-sidebar {
         position: static;
         width: 100%;
+      }
+
+      .admin-sidebar-header {
+        justify-content: center;
+      }
+
+      .admin-sidebar-collapsed {
+        padding-inline: calc(1rem * var(--ui-scale));
+      }
+
+      .admin-sidebar-collapsed button {
+        justify-content: flex-start;
+      }
+
+      .admin-sidebar-collapsed .admin-nav-label {
+        display: inline;
       }
 
       .admin-user-table,
@@ -2072,6 +2589,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   selectPanel(panel: AdminPanel) {
     this.selectedPanel.set(panel);
   }
+
+  toggleAdminSidebar() {
+    this.adminSidebarCollapsed.update((collapsed) => !collapsed);
+  }
   readonly managerAccessOptions: ReadonlyArray<{ value: 'Yes' | 'No'; label: string }> = [
     { value: 'No', label: 'No' },
     { value: 'Yes', label: 'Yes' },
@@ -2081,6 +2602,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly branding = inject(LmsBrandingService);
   private readonly router = inject(Router);
   private readonly reportStudentCoursesById = signal<Record<string, StudentCourse[]>>({});
+  private readonly reportStudentCertificatesById = signal<Record<string, StudentCertificateLicence[]>>({});
   private readonly requestedReportSnapshotIds = new Set<string>();
 
   private readonly _showWelcomeBanner = signal(true);
@@ -2095,6 +2617,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     { label: 'LMS Settings', value: 'settings' },
   ];
   readonly selectedPanel = signal<AdminPanel>('dashboard');
+  readonly adminSidebarCollapsed = signal(false);
   readonly userSearchTerm = signal('');
   readonly editingUserId = signal<string | null>(null);
   readonly selectedReportDepartment = signal('');
@@ -2104,17 +2627,21 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly selectedReportEndDate = signal('');
   readonly selectedReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
   readonly selectedAnnualReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
+  readonly selectedIdpReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
+  readonly selectedCertificateReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
   readonly selectedBulkUploadTemplateFormat = signal<ReportDownloadFormat>('CSV');
   readonly selectedReportView = signal<AdminReportView | null>(null);
   readonly annualReportSearchTerm = signal('');
   readonly selectedAnnualReportDepartment = signal('');
-  readonly selectedAnnualReportTrainingDate = signal('');
+  readonly selectedAnnualReportTrainingStartDate = signal('');
+  readonly selectedAnnualReportTrainingEndDate = signal('');
   readonly showSingleUserModal = signal(false);
   readonly singleUserMessage = signal('');
   readonly singleUserTone = signal<'success' | 'error'>('success');
   readonly bulkUploadMessage = signal('');
   readonly bulkUploadTone = signal<'success' | 'error'>('success');
   readonly bulkUploadIssues = signal<BulkUploadIssue[]>([]);
+  readonly adminProfileImageDataUrl = signal<string | null>(null);
   readonly adminName = signal('Ava Mokoena');
   readonly adminEmail = signal('admin@skillsconnect.app');
   readonly adminFirstName = computed(() => this.adminName().trim().split(/\s+/)[0] || 'Admin');
@@ -2126,6 +2653,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       .map((part) => part[0]?.toUpperCase() ?? '')
       .join('') || 'AD',
   );
+  readonly topbarProfileMenuOpen = signal(false);
+  readonly switchingRole = signal(false);
   private readonly reportSnapshotPrefetchEffect = effect(() => {
     for (const student of this.users()) {
       if (this.requestedReportSnapshotIds.has(student.id)) {
@@ -2139,9 +2668,17 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
             ...current,
             [student.id]: snapshot.courses,
           }));
+          this.reportStudentCertificatesById.update((current) => ({
+            ...current,
+            [student.id]: snapshot.certificatesAndLicences ?? [],
+          }));
         },
         error: () => {
           this.reportStudentCoursesById.update((current) => ({
+            ...current,
+            [student.id]: [],
+          }));
+          this.reportStudentCertificatesById.update((current) => ({
             ...current,
             [student.id]: [],
           }));
@@ -2152,6 +2689,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   readonly users = computed(() =>
     [...this.managerData.students()].sort((left, right) => `${left.name} ${left.surname}`.localeCompare(`${right.name} ${right.surname}`)),
+  );
+  readonly lineManagerOptions = computed(() =>
+    this.users().filter((s) => s.activeStatus === 'Active'),
   );
   readonly filteredUsers = computed(() => {
     const query = this.userSearchTerm().trim().toLowerCase();
@@ -2182,7 +2722,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly activeRateLabel = computed(() => `${Math.round(this.activeUsersPercent())}%`);
   readonly learningStatusSummary = computed(() => {
     const users = this.users();
-    const countBy = (label: EnrollmentStudent['status']) => users.filter((student) => student.status === label).length;
+    const countBy = (label: EnrollmentStudent['status']) => users.filter((student) => this.resolveStudentOverallStatus(student) === label).length;
 
     return [
       { label: 'Completed', count: countBy('Completed'), color: '#10b981' },
@@ -2199,6 +2739,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   );
   readonly reportOfferingTitlesById = computed(() =>
     new Map(this.managerData.offerings().map((offering) => [offering.id, offering.title])),
+  );
+  readonly reportManagerNamesById = computed(() =>
+    new Map(this.users().map((student) => [student.id, `${student.name} ${student.surname}`.trim()])),
   );
   readonly mentorshipStudentIds = computed(() => {
     const studentIds = new Set<string>();
@@ -2287,6 +2830,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         const matchedStudent = studentsByEmail.get(request.studentEmail.toLowerCase());
         const approvedDateValue = this.normalizeReportDateValue(request.reviewedAt ?? request.submittedAt);
         const approvedDate = this.formatReportDateLabel(request.reviewedAt ?? request.submittedAt);
+        const trainingStartDateValue = this.normalizeReportDateValue(request.trainingStartDate);
+        const trainingEndDateValue = this.normalizeReportDateValue(request.trainingEndDate);
 
         return {
           id: request.id,
@@ -2298,8 +2843,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
           providerName: request.provider,
           trainingType: request.trainingType,
           alignedToIdp: request.alignedToIdp,
-          trainingStartDate: request.trainingStartDate,
-          trainingEndDate: request.trainingEndDate,
+          trainingStartDate: this.formatReportDateLabel(request.trainingStartDate),
+          trainingStartDateValue,
+          trainingEndDate: this.formatReportDateLabel(request.trainingEndDate),
+          trainingEndDateValue,
           courseCost: request.courseCost,
           approvedBy: request.reviewerName || request.approvingManagerName,
           approvedDate,
@@ -2308,13 +2855,81 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       })
       .sort((left, right) => right.approvedDateValue.localeCompare(left.approvedDateValue));
   });
+  readonly idpReportRows = computed<IdpReportRow[]>(() => {
+    const managerNamesById = this.reportManagerNamesById();
+
+    return this.users()
+      .flatMap((student) => {
+        const manager = student.lineManager?.trim()
+          || (student.lineManagerId ? managerNamesById.get(student.lineManagerId) ?? '' : '')
+          || 'Not provided';
+
+        return this.managerData.idpEntriesForStudent(student.id).map((entry, index) => ({
+          id: `${student.id}::${index}`,
+          name: student.name,
+          surname: student.surname,
+          manager,
+          developmentNeed: entry.developmentNeed || 'Not provided',
+          plannedAction: entry.plannedAction || 'Not provided',
+          supportRequired: entry.supportRequired || 'Not provided',
+          dateCaptured: this.formatReportDateLabel(entry.dateCaptured),
+          dateCapturedValue: this.normalizeReportDateValue(entry.dateCaptured),
+          targetDate: this.formatReportDateLabel(entry.targetDate),
+          targetDateValue: this.normalizeReportDateValue(entry.targetDate),
+          status: entry.status,
+        }));
+      })
+      .sort((left, right) => {
+        const nameComparison = `${left.name} ${left.surname}`.localeCompare(`${right.name} ${right.surname}`);
+        if (nameComparison !== 0) {
+          return nameComparison;
+        }
+
+        return right.dateCapturedValue.localeCompare(left.dateCapturedValue);
+      });
+  });
+  readonly certificateLicenceReportRows = computed<CertificateLicenceReportRow[]>(() => {
+    const certificatesByStudentId = this.reportStudentCertificatesById();
+
+    return this.users()
+      .flatMap((student) => {
+        const records = certificatesByStudentId[student.id] ?? [];
+
+        return records.map((record, index) => ({
+          id: `${student.id}::${record.id || index}`,
+          name: `${student.name} ${student.surname}`.trim(),
+          surname: student.surname,
+          idNumber: student.idNumber || 'Not provided',
+          department: student.department || 'Unassigned',
+          certificateName: record.certificationName || 'Not provided',
+          expiryDate: this.formatReportDateLabel(record.expiryDate),
+          expiryDateValue: this.normalizeReportDateValue(record.expiryDate),
+          renewalRequired: record.renewalRequired,
+          status: record.status,
+        }));
+      })
+      .sort((left, right) => {
+        const surnameComparison = left.surname.localeCompare(right.surname);
+        if (surnameComparison !== 0) {
+          return surnameComparison;
+        }
+
+        const nameComparison = left.name.localeCompare(right.name);
+        if (nameComparison !== 0) {
+          return nameComparison;
+        }
+
+        return right.expiryDateValue.localeCompare(left.expiryDateValue);
+      });
+  });
   readonly annualReportDepartments = computed(() =>
     Array.from(new Set(this.annualTrainingReportRows().map((row) => row.department).filter(Boolean))).sort((left, right) => left.localeCompare(right)),
   );
   readonly filteredAnnualTrainingReportRows = computed(() => {
     const searchQuery = this.annualReportSearchTerm().trim().toLowerCase();
     const department = this.selectedAnnualReportDepartment();
-    const trainingDate = this.selectedAnnualReportTrainingDate();
+    const trainingStartDate = this.selectedAnnualReportTrainingStartDate();
+    const trainingEndDate = this.selectedAnnualReportTrainingEndDate();
 
     return this.annualTrainingReportRows().filter((row) => {
       if (searchQuery) {
@@ -2338,7 +2953,11 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         return false;
       }
 
-      if (trainingDate && row.trainingStartDate !== trainingDate) {
+      if (trainingStartDate && (!row.trainingStartDateValue || row.trainingStartDateValue < trainingStartDate)) {
+        return false;
+      }
+
+      if (trainingEndDate && (!row.trainingEndDateValue || row.trainingEndDateValue > trainingEndDate)) {
         return false;
       }
 
@@ -2347,6 +2966,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   });
   readonly canDownloadAnnualReport = computed(() => this.filteredAnnualTrainingReportRows().length > 0);
   readonly canDownloadReport = computed(() => this.filteredReportRows().length > 0);
+  readonly canDownloadIdpReport = computed(() => this.idpReportRows().length > 0);
+  readonly canDownloadCertificateLicenceReport = computed(() => this.certificateLicenceReportRows().length > 0);
 
   readonly singleUserForm = this.createUserForm();
   readonly userEditForm = this.createUserForm();
@@ -2355,6 +2976,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   private welcomeBannerHideTimer: ReturnType<typeof setTimeout> | null = null;
 
   ngOnInit() {
+    this.loadAdminProfileImage();
     this.startWelcomeBannerSequence();
   }
 
@@ -2455,6 +3077,16 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.selectedAnnualReportDownloadFormat.set(input?.value === 'XLSX' ? 'XLSX' : 'CSV');
   }
 
+  updateIdpReportDownloadFormat(event: Event) {
+    const input = event.target as HTMLSelectElement | null;
+    this.selectedIdpReportDownloadFormat.set(input?.value === 'XLSX' ? 'XLSX' : 'CSV');
+  }
+
+  updateCertificateReportDownloadFormat(event: Event) {
+    const input = event.target as HTMLSelectElement | null;
+    this.selectedCertificateReportDownloadFormat.set(input?.value === 'XLSX' ? 'XLSX' : 'CSV');
+  }
+
   updateAnnualReportSearch(event: Event) {
     const input = event.target as HTMLInputElement | null;
     this.annualReportSearchTerm.set(input?.value ?? '');
@@ -2465,9 +3097,14 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.selectedAnnualReportDepartment.set(input?.value ?? '');
   }
 
-  updateAnnualReportTrainingDate(event: Event) {
+  updateAnnualReportTrainingStartDate(event: Event) {
     const input = event.target as HTMLInputElement | null;
-    this.selectedAnnualReportTrainingDate.set(input?.value ?? '');
+    this.selectedAnnualReportTrainingStartDate.set(input?.value ?? '');
+  }
+
+  updateAnnualReportTrainingEndDate(event: Event) {
+    const input = event.target as HTMLInputElement | null;
+    this.selectedAnnualReportTrainingEndDate.set(input?.value ?? '');
   }
 
   clearReportFilters() {
@@ -2481,7 +3118,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   clearAnnualReportFilters() {
     this.annualReportSearchTerm.set('');
     this.selectedAnnualReportDepartment.set('');
-    this.selectedAnnualReportTrainingDate.set('');
+    this.selectedAnnualReportTrainingStartDate.set('');
+    this.selectedAnnualReportTrainingEndDate.set('');
   }
 
   async handleBulkUserUpload(event: Event) {
@@ -2544,7 +3182,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       jobTitle: student.jobTitle,
       idNumber: student.idNumber,
       department: student.department,
-      lineManager: student.lineManager,
+      lineManagerId: student.lineManagerId ?? '',
       group: student.group,
       dateEnrolled: student.dateEnrolled,
       deadlineDate: student.deadlineDate,
@@ -2841,7 +3479,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       jobTitle: new FormControl('', { nonNullable: true }),
       idNumber: new FormControl('', { nonNullable: true }),
       department: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-      lineManager: new FormControl('', { nonNullable: true }),
+      lineManagerId: new FormControl('', { nonNullable: true }),
       group: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
       dateEnrolled: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
       deadlineDate: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -2859,7 +3497,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       jobTitle: '',
       idNumber: '',
       department: '',
-      lineManager: '',
+      lineManagerId: '',
       group: '',
       dateEnrolled: '',
       deadlineDate: '',
@@ -2880,7 +3518,12 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       idNumber: form.controls.idNumber.value.trim(),
       activeStatus: form.controls.activeStatus.value,
       department: form.controls.department.value.trim(),
-      lineManager: form.controls.lineManager.value.trim(),
+      lineManagerId: form.controls.lineManagerId.value || undefined,
+      lineManager: (() => {
+        const lmId = form.controls.lineManagerId.value;
+        const lm = this.managerData.students().find((s) => s.id === lmId);
+        return lm ? `${lm.name} ${lm.surname}` : '';
+      })(),
       role: this.roleFromManagerAccess(form.controls.managerAccess.value, existingRole),
     };
   }
@@ -3089,13 +3732,108 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     };
   }
 
+  private buildIdpReportExportRows() {
+    const columns = [
+      'Name',
+      'Surname',
+      'Manager',
+      'Development Need',
+      'Planned Action',
+      'Support Required',
+      'Date Captured',
+      'Target Date',
+      'Status',
+    ];
+    const reportRows = this.idpReportRows();
+
+    return {
+      columns,
+      reportRows,
+      rows: reportRows.map((row) => [
+        row.name,
+        row.surname,
+        row.manager,
+        row.developmentNeed,
+        row.plannedAction,
+        row.supportRequired,
+        row.dateCaptured,
+        row.targetDate,
+        row.status,
+      ]),
+    };
+  }
+
+  private buildCertificateLicenceReportExportRows() {
+    const columns = [
+      'Full Name',
+      'Surname',
+      'ID Number',
+      'Department',
+      'Certificate Name',
+      'Expiry Date',
+      'Renewal Required',
+      'Status',
+    ];
+    const reportRows = this.certificateLicenceReportRows();
+
+    return {
+      columns,
+      reportRows,
+      rows: reportRows.map((row) => [
+        row.name,
+        row.surname,
+        row.idNumber,
+        row.department,
+        row.certificateName,
+        row.expiryDate,
+        row.renewalRequired,
+        row.status,
+      ]),
+    };
+  }
+
+  resolveStudentOverallStatus(student: EnrollmentStudent): EnrollmentStudent['status'] {
+    const courses = this.reportStudentCoursesById()[student.id];
+
+    // Snapshot hasn't loaded yet — fall back to stored enrollment status.
+    if (courses === undefined || !student.assignedOfferingIds.length) {
+      return student.status;
+    }
+
+    const assignedCourseRecords = courses.filter(
+      (c) => c.offeringId && student.assignedOfferingIds.includes(c.offeringId),
+    );
+
+    if (!assignedCourseRecords.length) {
+      return student.status;
+    }
+
+    if (assignedCourseRecords.every((c) => c.completed)) {
+      return 'Completed';
+    }
+
+    if (assignedCourseRecords.some((c) => c.completed || (c.progress ?? 0) > 0)) {
+      return 'In Progress';
+    }
+
+    return 'Not Yet Started';
+  }
+
   private resolveReportCompletionStatus(student: EnrollmentStudent, offeringId: string, courseTitle: string): EnrollmentStudent['status'] {
-    const matchedCourse = (this.reportStudentCoursesById()[student.id] ?? []).find((course) =>
+    const courses = this.reportStudentCoursesById()[student.id];
+
+    // Snapshot hasn't loaded yet — fall back to stored enrollment status as a placeholder.
+    if (courses === undefined) {
+      return student.status;
+    }
+
+    const matchedCourse = courses.find((course) =>
       course.offeringId === offeringId || course.name === courseTitle,
     );
 
+    // Snapshot is loaded but no course record for this offering — the student hasn't started it.
     if (!matchedCourse) {
-      return student.status;
+      return 'Not Yet Started';
     }
 
     if (matchedCourse.completed) {
@@ -3131,8 +3869,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       'Provider Name',
       'Type of Training',
       'IDP Aligned',
-      'Start Date',
-      'End Date',
+      'Training Start Date',
+      'Training End Date',
       'Course Cost',
       'Approved By',
       'Approved Date',
@@ -3175,6 +3913,47 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     anchor.download = filename;
     anchor.click();
     URL.revokeObjectURL(downloadUrl);
+  }
+
+  private loadAdminProfileImage() {
+    if (typeof localStorage === 'undefined') {
+      this.adminProfileImageDataUrl.set(null);
+      return;
+    }
+
+    const storedImage = localStorage.getItem(ADMIN_PROFILE_IMAGE_STORAGE_KEY);
+    this.adminProfileImageDataUrl.set(storedImage || null);
+  }
+
+  onAdminProfileImageSelected(event: Event) {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : null;
+      this.adminProfileImageDataUrl.set(result);
+
+      if (result) {
+        localStorage.setItem(ADMIN_PROFILE_IMAGE_STORAGE_KEY, result);
+      } else {
+        localStorage.removeItem(ADMIN_PROFILE_IMAGE_STORAGE_KEY);
+      }
+
+      if (input) {
+        input.value = '';
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  clearAdminProfileImage() {
+    this.adminProfileImageDataUrl.set(null);
+    localStorage.removeItem(ADMIN_PROFILE_IMAGE_STORAGE_KEY);
   }
 
   onLogoSelected(event: Event) {
@@ -3311,6 +4090,128 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.downloadAnnualReportCsv();
   }
 
+  downloadIdpReportCsv() {
+    const { columns, rows, reportRows } = this.buildIdpReportExportRows();
+
+    if (!rows.length) {
+      return;
+    }
+
+    const lines = [
+      ['Report', 'IDP Report'],
+      ['Generated By', this.adminName()],
+      ['Generated On', this.reportGeneratedOnLabel()],
+      ['Rows Included', String(reportRows.length)],
+      [],
+      columns,
+      ...rows,
+    ];
+
+    const csv = lines
+      .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+
+    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), 'LMS-IDP-Report.csv');
+  }
+
+  async downloadIdpReportXlsx() {
+    const { columns, rows, reportRows } = this.buildIdpReportExportRows();
+
+    if (!rows.length) {
+      return;
+    }
+
+    const xlsx = await import('xlsx');
+    const workbook = xlsx.utils.book_new();
+    const worksheetRows = [
+      ['Report', 'IDP Report'],
+      ['Generated By', this.adminName()],
+      ['Generated On', this.reportGeneratedOnLabel()],
+      ['Rows Included', String(reportRows.length)],
+      [],
+      columns,
+      ...rows,
+    ];
+    const worksheet = xlsx.utils.aoa_to_sheet(worksheetRows);
+
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'IDP Report');
+    const workbookArray = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
+    this.triggerDownload(
+      new Blob([workbookArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      'LMS-IDP-Report.xlsx',
+    );
+  }
+
+  downloadIdpReport() {
+    if (this.selectedIdpReportDownloadFormat() === 'XLSX') {
+      void this.downloadIdpReportXlsx();
+      return;
+    }
+
+    this.downloadIdpReportCsv();
+  }
+
+  downloadCertificateLicenceReportCsv() {
+    const { columns, rows, reportRows } = this.buildCertificateLicenceReportExportRows();
+
+    if (!rows.length) {
+      return;
+    }
+
+    const lines = [
+      ['Report', 'Certificates and Licences Report'],
+      ['Generated By', this.adminName()],
+      ['Generated On', this.reportGeneratedOnLabel()],
+      ['Rows Included', String(reportRows.length)],
+      [],
+      columns,
+      ...rows,
+    ];
+
+    const csv = lines
+      .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+
+    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), 'LMS-Certificates-and-Licences-Report.csv');
+  }
+
+  async downloadCertificateLicenceReportXlsx() {
+    const { columns, rows, reportRows } = this.buildCertificateLicenceReportExportRows();
+
+    if (!rows.length) {
+      return;
+    }
+
+    const xlsx = await import('xlsx');
+    const workbook = xlsx.utils.book_new();
+    const worksheetRows = [
+      ['Report', 'Certificates and Licences Report'],
+      ['Generated By', this.adminName()],
+      ['Generated On', this.reportGeneratedOnLabel()],
+      ['Rows Included', String(reportRows.length)],
+      [],
+      columns,
+      ...rows,
+    ];
+    const worksheet = xlsx.utils.aoa_to_sheet(worksheetRows);
+
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Certificates and Licences');
+    const workbookArray = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
+    this.triggerDownload(
+      new Blob([workbookArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      'LMS-Certificates-and-Licences-Report.xlsx',
+    );
+  }
+
+  downloadCertificateLicenceReport() {
+    if (this.selectedCertificateReportDownloadFormat() === 'XLSX') {
+      void this.downloadCertificateLicenceReportXlsx();
+      return;
+    }
+
+    this.downloadCertificateLicenceReportCsv();
+  }
+
   downloadReport() {
     if (this.selectedReportDownloadFormat() === 'XLSX') {
       void this.downloadReportsXlsx();
@@ -3320,9 +4221,40 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.downloadReportsCsv();
   }
 
+  openTopbarProfileMenu() {
+    this.topbarProfileMenuOpen.update((isOpen) => !isOpen);
+  }
+
+  closeTopbarProfileMenu() {
+    this.topbarProfileMenuOpen.set(false);
+  }
+
+  switchToRole(targetRole: ResolveRolesEntry['role']) {
+    if (this.switchingRole()) {
+      return;
+    }
+
+    this.switchingRole.set(true);
+    this.closeTopbarProfileMenu();
+    this.backend.switchRole(targetRole).subscribe({
+      next: (result) => {
+        localStorage.setItem('lms-session', JSON.stringify(createLmsSessionRecord({
+          role: result.role,
+          username: result.username,
+          email: result.email,
+          studentId: result.studentId ?? null,
+        })));
+        localStorage.setItem('lms-token', result.token);
+        void this.router.navigate([result.route]);
+      },
+      error: () => {
+        this.switchingRole.set(false);
+      },
+    });
+  }
+
   logout() {
-    localStorage.removeItem('lms-token');
-    localStorage.removeItem('lms-session');
+    clearLmsAuthSession();
     this.router.navigate(['/']);
   }
 

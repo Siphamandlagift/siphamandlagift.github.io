@@ -648,6 +648,10 @@ const resolveRolesRequestSchema = z.object({
   password: z.string().min(1),
 });
 
+const switchRoleRequestSchema = z.object({
+  targetRole: z.enum(['administrator', 'training-manager', 'student']),
+});
+
 const passwordResetRequestSchema = z.object({
   email: z.string().email(),
 });
@@ -1385,6 +1389,48 @@ app.post('/api/auth/resolve-roles', async (request, response, next) => {
     }));
 
     response.json({ roles: rolesWithTokens });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/auth/switch-role', async (request, response, next) => {
+  try {
+    const { targetRole } = switchRoleRequestSchema.parse(request.body);
+
+    const authHeader = request.headers['authorization'];
+    const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : null;
+
+    if (!token) {
+      response.status(401).json({ message: 'Authentication required.' });
+      return;
+    }
+
+    const payload = jwt.verify(token, jwtSecret) as { email?: string };
+    const email = typeof payload.email === 'string' ? payload.email : '';
+
+    if (!email) {
+      response.status(401).json({ message: 'Token payload is invalid.' });
+      return;
+    }
+
+    const roles = await repository.resolveRolesByEmail(email);
+    const match = roles.find((r) => r.role === targetRole);
+
+    if (!match) {
+      response.status(403).json({ message: 'Your account does not have access to this role.' });
+      return;
+    }
+
+    const newToken = jwt.sign(
+      { role: match.role, username: match.username, email: match.email },
+      jwtSecret,
+      { expiresIn: jwtExpiresIn },
+    );
+
+    response.json({ ...match, token: newToken });
   } catch (error) {
     next(error);
   }
