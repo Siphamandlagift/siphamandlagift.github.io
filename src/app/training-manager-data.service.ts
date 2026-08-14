@@ -1,15 +1,17 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { interval } from 'rxjs';
 import { LmsBackendService } from './lms-backend.service';
+import { combineDisplayName, readLmsSessionRecord } from './session-auth';
 import type { StudentMessage } from './student-data.service';
 
-export type ManagerPanel = 'dashboard' | 'requested-training' | 'courses' | 'mentorship' | 'enrollment' | 'messages';
+export type ManagerPanel = 'dashboard' | 'requested-training' | 'courses' | 'mentorship' | 'enrollment' | 'messages' | 'idp';
 
 export type ManagerProfile = {
   name: string;
   role: string;
   team: string;
   email: string;
+  profileImageUrl: string | null;
 };
 
 export type SystemTrainingManager = {
@@ -23,8 +25,18 @@ export type SystemTrainingManager = {
 export type TrainingOfferingType = 'Course' | 'Programme';
 export type LearningStatus = 'Completed' | 'In Progress' | 'Not Yet Started';
 export type TrainingAssessmentType = 'Quiz' | 'Assignment' | 'Mentorship' | 'Read and Acknowledge';
-export type TrainingContentKind = 'Video' | 'Assessment' | 'Document';
+export type TrainingContentKind = 'Video' | 'Assessment' | 'Document' | 'Scorm';
 export type TrainingQuestionType = 'Multiple Choice' | 'Short Answer' | 'Long Answer' | 'Document Upload' | 'True or False' | 'Matching';
+export type TrainingIdpStatus = 'Not Started' | 'In Progress' | 'Completed' | 'On Hold';
+
+export type StudentIdpEntry = {
+  developmentNeed: string;
+  plannedAction: string;
+  supportRequired: string;
+  dateCaptured: string;
+  targetDate: string;
+  status: TrainingIdpStatus;
+};
 
 export type TrainingAssessment = {
   title: string;
@@ -41,7 +53,12 @@ export type TrainingContentItem = {
   resourceLink: string;
   uploadedFileName: string;
   uploadedFileDataUrl?: string;
+  convertedPdfUrl?: string;
   requiresAcknowledgement?: boolean;
+  allowDownload?: boolean;
+  /** Real video length in seconds, captured client-side when a video file is uploaded.
+   *  Drives the dashboard's "Total Hours Spent" estimate for this step instead of a flat guess. */
+  durationSeconds?: number;
   questions: TrainingAssessmentQuestion[];
 };
 
@@ -109,9 +126,15 @@ export type EnrollmentStudent = {
   activeStatus: 'Active' | 'Inactive';
   department: string;
   lineManager: string;
+  lineManagerId?: string;
   status: LearningStatus;
   assignedOfferingIds: string[];
-  role: 'student' | 'manager' | 'admin';
+  role: 'student' | 'manager';
+  isAdmin: boolean;
+  ofoCode?: string;
+  race?: string;
+  gender?: string;
+  municipality?: string;
 };
 
 export type EnrollmentStudentInput = Omit<EnrollmentStudent, 'id' | 'status' | 'assignedOfferingIds' | 'jobTitle' | 'idNumber' | 'lineManager'> & {
@@ -161,6 +184,7 @@ export type ExternalTrainingRequestStatus = SubmissionReviewStatus;
 
 export type ExternalTrainingRequestRecord = {
   id: string;
+  studentId: string;
   studentName: string;
   studentEmail: string;
   courseName: string;
@@ -181,6 +205,10 @@ export type ExternalTrainingRequestRecord = {
   invoiceDataUrl: string;
   brochureFileName: string;
   brochureDataUrl: string;
+  proofOfPaymentFileName: string;
+  proofOfPaymentUrl: string;
+  certificateFileName: string;
+  certificateUrl: string;
   submittedAt: string;
   status: ExternalTrainingRequestStatus;
   reviewerName: string | null;
@@ -189,6 +217,7 @@ export type ExternalTrainingRequestRecord = {
 };
 
 export type ExternalTrainingRequestCreateInput = {
+  studentId: string;
   studentName: string;
   studentEmail: string;
   courseName: string;
@@ -218,6 +247,16 @@ export type ExternalTrainingRequestReviewInput = {
   reviewerName: string;
   status: ExternalTrainingRequestStatus;
   feedback?: string;
+};
+
+export type ExternalTrainingRequestDocumentsInput = {
+  requestId: string;
+  invoiceFileName?: string;
+  invoiceDataUrl?: string;
+  proofOfPaymentFileName?: string;
+  proofOfPaymentUrl?: string;
+  certificateFileName?: string;
+  certificateUrl?: string;
 };
 
 export type MentorshipAssignmentRecord = {
@@ -281,47 +320,26 @@ export type AssignmentSubmissionRecord = {
 @Injectable({ providedIn: 'root' })
 export class TrainingManagerDataService {
   private static readonly offeringsStorageKey = 'lms-app.offerings';
+  private static readonly studentsStorageKey = 'lms-app.students';
   private static readonly assignmentSubmissionsStorageKey = 'lms-app.assignment-submissions';
-  private static readonly legacySeedOfferingIds = new Set([
-    'company-induction',
-    'project-management-fundamentals',
-    'leadership-readiness-programme',
-  ]);
+  private static readonly idpEntriesByStudentStorageKey = 'lms-app.idp-entries-by-student';
 
   private readonly backend = inject(LmsBackendService);
   private backendHydrated = false;
 
-  private readonly profileSignal = signal<ManagerProfile>({
-    name: 'Ava Mokoena',
-    role: 'Training Manager',
-    team: 'People Enablement',
-    email: 'ava.mokoena@skillsconnect.app',
-  });
+  /** Becomes true once offerings have been loaded from the backend (or its cache).
+   *  Used by StudentDataService to avoid syncing courses before real data is available. */
+  private readonly offeringsHydratedSignal = signal(false);
+  readonly offeringsHydrated = this.offeringsHydratedSignal.asReadonly();
 
   private readonly offeringsSignal = signal<TrainingOffering[]>([]);
-  private readonly trainingManagersSignal = signal<SystemTrainingManager[]>([
-    {
-      id: 'manager-ava-mokoena',
-      name: 'Ava Mokoena',
-      role: 'Training Manager',
-      team: 'People Enablement',
-      email: 'ava.mokoena@skillsconnect.app',
-    },
-    {
-      id: 'manager-theo-naidoo',
-      name: 'Theo Naidoo',
-      role: 'Training Manager',
-      team: 'Capability Development',
-      email: 'theo.naidoo@skillsconnect.app',
-    },
-    {
-      id: 'manager-lerato-dlamini',
-      name: 'Lerato Dlamini',
-      role: 'Training Manager',
-      team: 'Learning Operations',
-      email: 'lerato.dlamini@skillsconnect.app',
-    },
-  ]);
+  private readonly trainingManagersSignal = signal<SystemTrainingManager[]>([]);
+
+  // Show the real logged-in manager's own identity — falling back to the matching directory
+  // entry above when this account is one of the known managers, otherwise deriving a display
+  // name from the session so an admin (or any manager not in that list) sees their own info
+  // instead of a hardcoded placeholder.
+  private readonly profileSignal = signal<ManagerProfile>(this.resolveInitialManagerProfile());
 
   private readonly managerMessagesSignal = signal<ManagerMessage[]>([]);
 
@@ -342,6 +360,7 @@ export class TrainingManagerDataService {
       status: 'In Progress',
       assignedOfferingIds: [],
       role: 'student',
+      isAdmin: false,
     },
     {
       id: 'student-2',
@@ -359,6 +378,7 @@ export class TrainingManagerDataService {
       status: 'Completed',
       assignedOfferingIds: [],
       role: 'student',
+      isAdmin: false,
     },
     {
       id: 'student-3',
@@ -376,6 +396,7 @@ export class TrainingManagerDataService {
       status: 'Not Yet Started',
       assignedOfferingIds: [],
       role: 'student',
+      isAdmin: false,
     },
     {
       id: 'student-4',
@@ -393,6 +414,7 @@ export class TrainingManagerDataService {
       status: 'Completed',
       assignedOfferingIds: [],
       role: 'student',
+      isAdmin: false,
     },
     {
       id: 'student-5',
@@ -410,6 +432,7 @@ export class TrainingManagerDataService {
       status: 'Not Yet Started',
       assignedOfferingIds: [],
       role: 'student',
+      isAdmin: false,
     },
     {
       id: 'student-6',
@@ -427,6 +450,7 @@ export class TrainingManagerDataService {
       status: 'Completed',
       assignedOfferingIds: [],
       role: 'student',
+      isAdmin: false,
     },
   ]);
 
@@ -434,6 +458,7 @@ export class TrainingManagerDataService {
   private readonly mentorshipSubmissionsSignal = signal<MentorshipSubmissionRecord[]>([]);
   private readonly assignmentSubmissionsSignal = signal<AssignmentSubmissionRecord[]>([]);
   private readonly externalTrainingRequestsSignal = signal<ExternalTrainingRequestRecord[]>([]);
+  private readonly idpEntriesByStudentSignal = signal<Record<string, StudentIdpEntry[]>>({});
 
   readonly profile = this.profileSignal.asReadonly();
   readonly offerings = this.offeringsSignal.asReadonly();
@@ -451,16 +476,50 @@ export class TrainingManagerDataService {
       left.menteeName.localeCompare(right.menteeName) || left.menteeSurname.localeCompare(right.menteeSurname),
     ),
   );
+  // The mentee's own line manager (a stable id, set by an admin) should always see their
+  // mentee's mentorship activity, regardless of whether the student typed the mentor's name
+  // correctly in the free-text mentor field. This resolves the current manager's own student
+  // record id so it can be compared against a mentee's lineManagerId.
+  private readonly currentManagerStudentId = computed(() => {
+    const currentManagerEmail = this.profile().email.trim().toLowerCase();
+    if (!currentManagerEmail) {
+      return null;
+    }
+
+    return this.students().find((student) => student.email.trim().toLowerCase() === currentManagerEmail)?.id ?? null;
+  });
+  readonly mentorshipAssignmentsForCurrentManager = computed(() => {
+    const currentManagerName = this.normalizePersonName(this.profile().name);
+    const currentManagerStudentId = this.currentManagerStudentId();
+
+    if (!currentManagerName && !currentManagerStudentId) {
+      return this.mentorshipAssignments();
+    }
+
+    const menteesById = new Map(this.students().map((student) => [student.id, student]));
+
+    return this.mentorshipAssignments().filter((assignment) => {
+      const mentee = menteesById.get(assignment.menteeId);
+      if (currentManagerStudentId && mentee?.lineManagerId === currentManagerStudentId) {
+        return true;
+      }
+
+      return Boolean(currentManagerName)
+        && this.normalizePersonName(`${assignment.mentorName} ${assignment.mentorSurname}`) === currentManagerName;
+    });
+  });
   readonly mentorshipSubmissions = computed(() =>
     [...this.mentorshipSubmissionsSignal()].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt)),
   );
   readonly mentorshipSubmissionsForCurrentManager = computed(() => {
     const currentManagerName = this.normalizePersonName(this.profile().name);
+    const currentManagerStudentId = this.currentManagerStudentId();
 
-    if (!currentManagerName) {
+    if (!currentManagerName && !currentManagerStudentId) {
       return this.mentorshipSubmissions();
     }
 
+    const menteesById = new Map(this.students().map((student) => [student.id, student]));
     const assignmentsByMenteeId = new Map(
       this.mentorshipAssignmentsSignal().map((assignment) => [
         assignment.menteeId,
@@ -469,6 +528,15 @@ export class TrainingManagerDataService {
     );
 
     return this.mentorshipSubmissions().filter((submission) => {
+      const mentee = menteesById.get(submission.studentId);
+      if (currentManagerStudentId && mentee?.lineManagerId === currentManagerStudentId) {
+        return true;
+      }
+
+      if (!currentManagerName) {
+        return false;
+      }
+
       const assignedMentorName = assignmentsByMenteeId.get(submission.studentId) ?? '';
 
       if (assignedMentorName) {
@@ -481,16 +549,21 @@ export class TrainingManagerDataService {
   readonly assignmentSubmissions = computed(() =>
     [...this.assignmentSubmissionsSignal()].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt)),
   );
+  readonly idpEntriesByStudent = this.idpEntriesByStudentSignal.asReadonly();
   readonly externalTrainingRequests = computed(() =>
     [...this.externalTrainingRequestsSignal()].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt)),
   );
   readonly pendingExternalTrainingRequestsCount = computed(() =>
-    this.externalTrainingRequests().filter((request) =>
-      request.approvingManagerEmail === this.profile().email && request.status === 'Pending Review').length,
+    this.externalTrainingRequestsForCurrentManager().filter((request) => request.status === 'Pending Review').length,
   );
-  readonly externalTrainingRequestsForCurrentManager = computed(() =>
-    this.externalTrainingRequests().filter((request) => request.approvingManagerEmail === this.profile().email),
-  );
+  // Case/whitespace-insensitive match: a manager's login email (session-derived) and their
+  // directory email (used as approvingManagerEmail on requests) are meant to be the same value,
+  // but an exact === comparison would silently show zero requests if they ever drift apart
+  // (e.g. trailing whitespace, differing casing from a manual edit).
+  readonly externalTrainingRequestsForCurrentManager = computed(() => {
+    const currentManagerEmail = this.profile().email.trim().toLowerCase();
+    return this.externalTrainingRequests().filter((request) => request.approvingManagerEmail.trim().toLowerCase() === currentManagerEmail);
+  });
   readonly mentorshipPendingCount = computed(() =>
     this.mentorshipSubmissionsForCurrentManager().filter((submission) => submission.status === 'Pending Review').length,
   );
@@ -544,23 +617,68 @@ export class TrainingManagerDataService {
     ];
   });
 
+  setIdpEntriesForStudent(studentId: string, entries: StudentIdpEntry[]) {
+    const normalizedStudentId = studentId.trim();
+    if (!normalizedStudentId) {
+      return;
+    }
+
+    this.idpEntriesByStudentSignal.update((current) => {
+      const next = {
+        ...current,
+        [normalizedStudentId]: entries.map((entry) => this.normalizeIdpEntry(entry)),
+      };
+      this.saveIdpEntriesByStudent(next);
+      return next;
+    });
+
+    this.persistIdpEntriesToBackend(normalizedStudentId);
+  }
+
+  idpEntriesForStudent(studentId: string): StudentIdpEntry[] {
+    return this.idpEntriesByStudentSignal()[studentId] ?? [];
+  }
+
   constructor() {
+    this.hydrateOwnDisplayName();
+
+    const localStudents = this.loadStudents();
+    if (localStudents.length) {
+      this.studentsSignal.set(localStudents);
+    }
+
+    const localIdpEntriesByStudent = this.loadIdpEntriesByStudent();
+    this.idpEntriesByStudentSignal.set(localIdpEntriesByStudent);
+
     this.backend.getBootstrap().subscribe({
       next: (bootstrap) => {
-        const persistedOfferings = this.filterLegacySeedOfferings(bootstrap.offerings);
-        this.offeringsSignal.set(persistedOfferings);
-        this.saveOfferings(persistedOfferings);
-        this.studentsSignal.set(bootstrap.students);
+        const mergedOfferings = this.mergeWithLocalOfferings(bootstrap.offerings);
+        const mergedStudents = this.mergeWithLocalStudents(bootstrap.students);
+        this.offeringsSignal.set(mergedOfferings);
+        this.saveOfferings(mergedOfferings);
+        this.studentsSignal.set(mergedStudents);
+        this.saveStudents(mergedStudents);
         this.managerMessagesSignal.set(bootstrap.managerMessages);
         this.trainingManagersSignal.set(bootstrap.trainingManagers);
         this.mentorshipAssignmentsSignal.set(bootstrap.mentorshipAssignments);
         this.mentorshipSubmissionsSignal.set(bootstrap.mentorshipSubmissions);
         this.assignmentSubmissionsSignal.set(this.hydrateAssignmentSubmissions(bootstrap.assignmentSubmissions));
         this.externalTrainingRequestsSignal.set(bootstrap.externalTrainingRequests);
+        const backendIdpEntriesByStudent = this.normalizeIdpEntriesByStudent(bootstrap.idpEntriesByStudent);
+        const mergedIdpEntriesByStudent = {
+          ...localIdpEntriesByStudent,
+          ...backendIdpEntriesByStudent,
+        };
+        this.idpEntriesByStudentSignal.set(mergedIdpEntriesByStudent);
+        this.saveIdpEntriesByStudent(mergedIdpEntriesByStudent);
         this.backendHydrated = true;
+        this.offeringsHydratedSignal.set(true);
 
         // Start polling for new messages after initial load.
         interval(15000).subscribe(() => this.refreshManagerMessages());
+        // Also periodically refresh the rest of the bootstrap-loaded collections, which
+        // otherwise never update again for the life of the session (see refreshBootstrapState).
+        interval(20000).subscribe(() => this.refreshBootstrapState());
       },
       error: () => {
         const savedOfferings = this.loadOfferings();
@@ -568,19 +686,17 @@ export class TrainingManagerDataService {
           this.offeringsSignal.set(savedOfferings);
         }
 
-        // Strip any legacy seed offering IDs that may remain in the in-memory student seed.
-        this.studentsSignal.update((students) =>
-          students.map((student) => ({
-            ...student,
-            assignedOfferingIds: student.assignedOfferingIds.filter(
-              (id) => !TrainingManagerDataService.legacySeedOfferingIds.has(id),
-            ),
-          })),
-        );
+        const savedStudents = this.loadStudents();
+        if (savedStudents.length) {
+          this.studentsSignal.set(savedStudents);
+        }
+
+
 
         this.assignmentSubmissionsSignal.set(this.loadAssignmentSubmissions());
 
         this.backendHydrated = true;
+        this.offeringsHydratedSignal.set(true);
       },
     });
   }
@@ -614,7 +730,10 @@ export class TrainingManagerDataService {
       resourceLink: string;
       uploadedFileName: string;
       uploadedFileDataUrl?: string;
+      convertedPdfUrl?: string;
       requiresAcknowledgement?: boolean;
+      allowDownload?: boolean;
+      durationSeconds?: number;
       questions: Array<{
         prompt: string;
         questionType: TrainingQuestionType;
@@ -639,7 +758,7 @@ export class TrainingManagerDataService {
     const normalizedDescription = input.description.trim();
     const normalizedContentItems = this.normalizeOfferingContentItems(input.contentItems, normalizedTitle);
 
-    if (!normalizedTitle || !normalizedCategory || !normalizedDescription || !input.completionDeadline) {
+    if (!normalizedTitle || !normalizedCategory || !normalizedDescription) {
       return null;
     }
 
@@ -664,7 +783,11 @@ export class TrainingManagerDataService {
     this.backend.createOffering(newOffering).subscribe({
       next: (savedOffering) => {
         this.offeringsSignal.update((items) =>
-          items.map((item) => (item.id === savedOffering.id ? savedOffering : item)),
+          items.map((item) => {
+            if (item.id !== savedOffering.id) return item;
+            // Preserve local content data (data URLs) not stored in the backend
+            return { ...savedOffering, contentItems: item.contentItems, thumbnailDataUrl: item.thumbnailDataUrl ?? savedOffering.thumbnailDataUrl };
+          }),
         );
         this.saveOfferings(this.offerings());
       },
@@ -682,7 +805,7 @@ export class TrainingManagerDataService {
     const normalizedDescription = input.description.trim();
     const normalizedContentItems = input.contentItems ? this.normalizeOfferingContentItems(input.contentItems, normalizedTitle) : undefined;
 
-    if (!normalizedTitle || !normalizedCategory || !normalizedDescription || !input.completionDeadline) {
+    if (!normalizedTitle || !normalizedCategory || !normalizedDescription) {
       return null;
     }
 
@@ -716,7 +839,11 @@ export class TrainingManagerDataService {
     }).subscribe({
       next: (savedOffering) => {
         this.offeringsSignal.update((items) =>
-          items.map((item) => (item.id === savedOffering.id ? savedOffering : item)),
+          items.map((item) => {
+            if (item.id !== savedOffering.id) return item;
+            // Preserve local content data (data URLs) not stored in the backend
+            return { ...savedOffering, contentItems: item.contentItems, thumbnailDataUrl: item.thumbnailDataUrl ?? savedOffering.thumbnailDataUrl };
+          }),
         );
         this.saveOfferings(this.offerings());
       },
@@ -782,7 +909,10 @@ export class TrainingManagerDataService {
       resourceLink: string;
       uploadedFileName: string;
       uploadedFileDataUrl?: string;
+      convertedPdfUrl?: string;
       requiresAcknowledgement?: boolean;
+      allowDownload?: boolean;
+      durationSeconds?: number;
       questions: Array<{
         prompt: string;
         questionType: TrainingQuestionType;
@@ -804,17 +934,27 @@ export class TrainingManagerDataService {
     normalizedTitle: string,
   ) {
     return contentItems
-      .map((item, index) => ({
+      .map((item, index) => {
+        const normalizedResourceLink = item.resourceLink.trim();
+        const normalizedUploadedDataUrl = item.uploadedFileDataUrl?.trim() ?? '';
+
+        return {
         id: item.id?.trim() || `${this.slugify(normalizedTitle || `item-${index + 1}`)}-${index + 1}`,
         kind: item.kind,
         title: item.title.trim(),
         assessmentType: item.kind === 'Assessment' ? item.assessmentType ?? 'Quiz' : null,
         passMarkPercentage: item.kind === 'Assessment' ? this.normalizePassMarkPercentage(item.passMarkPercentage) : undefined,
         maxAttempts: item.kind === 'Assessment' ? this.normalizeMaxAttempts(item.maxAttempts) : undefined,
-        resourceLink: item.resourceLink.trim(),
+        resourceLink: normalizedResourceLink,
         uploadedFileName: item.uploadedFileName.trim(),
-        uploadedFileDataUrl: item.uploadedFileDataUrl?.trim() ?? '',
+        // Prefer hosted links for persistence and keep data-URL fallback only for older records.
+        uploadedFileDataUrl: normalizedResourceLink ? '' : normalizedUploadedDataUrl,
+        convertedPdfUrl: item.convertedPdfUrl?.trim() || undefined,
         requiresAcknowledgement: item.kind === 'Document' ? Boolean(item.requiresAcknowledgement) : false,
+        allowDownload: item.kind === 'Document' || item.kind === 'Scorm' ? item.allowDownload !== false : undefined,
+        durationSeconds: item.kind === 'Video' && typeof item.durationSeconds === 'number' && item.durationSeconds > 0
+          ? Math.round(item.durationSeconds)
+          : undefined,
         questions: item.kind === 'Assessment'
           ? item.questions
               .map((question) => ({
@@ -844,7 +984,8 @@ export class TrainingManagerDataService {
               }))
               .filter((question) => question.prompt.length > 0)
           : [],
-      }))
+          };
+          })
       .filter((item) => item.title.length > 0);
   }
 
@@ -944,7 +1085,13 @@ export class TrainingManagerDataService {
               activeStatus: input.activeStatus,
               department: normalizedDepartment,
               lineManager: input.lineManager === undefined ? student.lineManager : input.lineManager.trim(),
+              lineManagerId: input.lineManagerId === undefined ? student.lineManagerId : (input.lineManagerId.trim() || undefined),
+              ofoCode: input.ofoCode === undefined ? student.ofoCode : input.ofoCode.trim(),
+              race: input.race === undefined ? student.race : input.race.trim(),
+              gender: input.gender === undefined ? student.gender : input.gender.trim(),
+              municipality: input.municipality === undefined ? student.municipality : input.municipality.trim(),
               role: input.role,
+              isAdmin: input.isAdmin,
             }
           : student,
       ),
@@ -999,6 +1146,11 @@ export class TrainingManagerDataService {
           status: 'Not Yet Started',
           assignedOfferingIds: [],
           lineManager: input.lineManager?.trim() ?? '',
+          ...(input.lineManagerId?.trim() ? { lineManagerId: input.lineManagerId.trim() } : {}),
+          ofoCode: input.ofoCode?.trim() ?? '',
+          race: input.race?.trim() ?? '',
+          gender: input.gender?.trim() ?? '',
+          municipality: input.municipality?.trim() ?? '',
         };
 
         nextStudents.push(newStudent);
@@ -1265,6 +1417,57 @@ export class TrainingManagerDataService {
     );
 
     this.persistManagerMessages();
+
+    // Deliver the manager's reply to the student's snapshot so the learner can see it.
+    const originalThread = this.managerMessagesSignal().find((m) => m.id === messageId);
+    if (originalThread) {
+      this.deliverManagerReplyToStudent(originalThread.sender, originalThread.subject, normalizedMessage);
+    }
+  }
+
+  private deliverManagerReplyToStudent(studentName: string, subject: string, message: string) {
+    const student = this.findStudentByMessageRecipient(studentName);
+
+    if (!student) {
+      return;
+    }
+
+    const normalizedSubject = subject.trim().toLocaleLowerCase();
+
+    this.backend.getStudentSnapshot(student.id).subscribe({
+      next: (snapshot) => {
+        const threadIndex = snapshot.messages.findIndex(
+          (m) => m.subject.trim().toLocaleLowerCase() === normalizedSubject,
+        );
+
+        if (threadIndex === -1) {
+          return;
+        }
+
+        const thread = snapshot.messages[threadIndex];
+        const reply = {
+          id: `${thread.id}-reply-${Date.now()}`,
+          sender: this.profile().name,
+          body: message,
+          time: 'Just now',
+          authorType: 'contact' as const,
+          deliveryState: 'Delivered' as const,
+        };
+
+        const updatedMessages = snapshot.messages.map((m, i) =>
+          i === threadIndex ? { ...m, unread: true, replies: [...m.replies, reply] } : m,
+        );
+
+        this.backend.updateStudentSnapshot({ ...snapshot, messages: updatedMessages }, student.id).subscribe({
+          error: () => {
+            // Non-critical — manager reply is already recorded on the manager side.
+          },
+        });
+      },
+      error: () => {
+        // Ignore if student snapshot is unavailable.
+      },
+    });
   }
 
   createMentorshipAssignment(input: {
@@ -1553,6 +1756,11 @@ export class TrainingManagerDataService {
     formTitle: string;
     actionPlan: string;
     sessionDate?: string;
+    profileData?: {
+      jobTitle: string;
+      mentorName: string;
+      mentorSurname: string;
+    };
   }) {
     const studentId = input.studentId.trim();
     const student = this.students().find((item) => item.id === studentId);
@@ -1604,6 +1812,29 @@ export class TrainingManagerDataService {
     });
 
     this.persistMentorshipSubmissions();
+
+    // When the mentorship profile form is saved, upsert the corresponding
+    // mentorship assignment row so the manager's mentorship tab always shows
+    // the latest mentee + mentor details.
+    if (input.formId === 'profile' && input.profileData) {
+      const profileData = input.profileData;
+      const jobTitle = profileData.jobTitle.trim() || student?.jobTitle?.trim() || '';
+      const mentorName = profileData.mentorName.trim();
+      const mentorSurname = profileData.mentorSurname.trim();
+
+      if (jobTitle && mentorName && mentorSurname) {
+        const today = new Date();
+        const mentorshipStartDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+        this.createMentorshipAssignment({
+          menteeId: studentId,
+          mentorshipStartDate,
+          jobTitle,
+          mentorName,
+          mentorSurname,
+        });
+      }
+    }
   }
 
   submitAssignmentSubmission(input: {
@@ -1855,6 +2086,7 @@ export class TrainingManagerDataService {
   }
 
   submitExternalTrainingRequest(input: ExternalTrainingRequestCreateInput) {
+    const studentId = input.studentId.trim();
     const studentName = input.studentName.trim();
     const studentEmail = input.studentEmail.trim();
     const courseName = input.courseName.trim();
@@ -1881,6 +2113,7 @@ export class TrainingManagerDataService {
     const temporaryRequestId = `external-training-request-${Date.now()}`;
     const nextRequest: ExternalTrainingRequestRecord = {
       id: temporaryRequestId,
+      studentId,
       studentName,
       studentEmail,
       courseName,
@@ -1901,6 +2134,10 @@ export class TrainingManagerDataService {
       invoiceDataUrl: input.invoiceDataUrl,
       brochureFileName: input.brochureFileName.trim(),
       brochureDataUrl: input.brochureDataUrl,
+      proofOfPaymentFileName: '',
+      proofOfPaymentUrl: '',
+      certificateFileName: '',
+      certificateUrl: '',
       submittedAt: this.formatDisplayDate(new Date()),
       status: 'Pending Review',
       reviewerName: null,
@@ -1910,6 +2147,7 @@ export class TrainingManagerDataService {
 
     this.externalTrainingRequestsSignal.update((requests) => [nextRequest, ...requests]);
     this.persistExternalTrainingRequestCreate(temporaryRequestId, {
+      studentId,
       studentName,
       studentEmail,
       courseName,
@@ -2003,6 +2241,7 @@ export class TrainingManagerDataService {
     );
     this.persistExternalTrainingRequestUpdate({
       requestId,
+      studentId: existingRequest.studentId,
       studentName,
       studentEmail,
       courseName,
@@ -2055,7 +2294,36 @@ export class TrainingManagerDataService {
     });
   }
 
+  attachExternalTrainingRequestDocuments(input: ExternalTrainingRequestDocumentsInput) {
+    const requestId = input.requestId.trim();
+    const existingRequest = this.externalTrainingRequestsSignal().find((request) => request.id === requestId);
+
+    if (!requestId || !existingRequest) {
+      return;
+    }
+
+    this.externalTrainingRequestsSignal.update((requests) =>
+      requests.map((request) =>
+        request.id === requestId
+          ? {
+              ...request,
+              ...(input.invoiceFileName !== undefined ? { invoiceFileName: input.invoiceFileName } : {}),
+              ...(input.invoiceDataUrl !== undefined ? { invoiceDataUrl: input.invoiceDataUrl } : {}),
+              ...(input.proofOfPaymentFileName !== undefined ? { proofOfPaymentFileName: input.proofOfPaymentFileName } : {}),
+              ...(input.proofOfPaymentUrl !== undefined ? { proofOfPaymentUrl: input.proofOfPaymentUrl } : {}),
+              ...(input.certificateFileName !== undefined ? { certificateFileName: input.certificateFileName } : {}),
+              ...(input.certificateUrl !== undefined ? { certificateUrl: input.certificateUrl } : {}),
+            }
+          : request,
+      ),
+    );
+
+    this.persistExternalTrainingRequestDocuments(input);
+  }
+
   private persistStudents() {
+    this.saveStudents(this.students());
+
     if (!this.backendHydrated) {
       return;
     }
@@ -2086,6 +2354,52 @@ export class TrainingManagerDataService {
         const serverById = new Map(messages.map((m) => [m.id, m]));
         const onlyLocal = this.managerMessagesSignal().filter((m) => !serverById.has(m.id));
         this.managerMessagesSignal.set([...messages, ...onlyLocal]);
+      },
+      error: () => { /* Silently skip failed polls */ },
+    });
+  }
+
+  // Server-authoritative merge: trust the server's copy of anything it knows about (so this
+  // session sees edits/creations from other sessions), but keep any purely local item the
+  // server doesn't have yet (e.g. a just-created record whose write is still in flight) instead
+  // of letting it flicker away until the write round-trips. Same reasoning as refreshManagerMessages.
+  private mergeServerAuthoritative<T extends { id: string }>(serverItems: T[], localItems: T[]): T[] {
+    const serverIds = new Set(serverItems.map((item) => item.id));
+    const onlyLocal = localItems.filter((item) => !serverIds.has(item.id));
+    return [...serverItems, ...onlyLocal];
+  }
+
+  private mergeServerAuthoritativeRecord<T>(serverRecord: Record<string, T>, localRecord: Record<string, T>): Record<string, T> {
+    const merged = { ...serverRecord };
+    for (const [key, value] of Object.entries(localRecord)) {
+      if (!(key in merged)) {
+        merged[key] = value;
+      }
+    }
+    return merged;
+  }
+
+  /** Periodically refreshes the bootstrap-loaded collections (offerings, students, mentorship,
+   *  assignment submissions, external training requests, IDP entries) so the manager/admin
+   *  dashboards don't silently go stale for the life of a long-lived session — mirroring the
+   *  refresh that already existed for managerMessages. */
+  private refreshBootstrapState() {
+    this.backend.getBootstrap().subscribe({
+      next: (bootstrap) => {
+        this.offeringsSignal.set(this.mergeServerAuthoritative(bootstrap.offerings, this.offeringsSignal()));
+        this.studentsSignal.set(this.mergeServerAuthoritative(bootstrap.students, this.studentsSignal()));
+        this.trainingManagersSignal.set(bootstrap.trainingManagers);
+        this.mentorshipAssignmentsSignal.set(this.mergeServerAuthoritative(bootstrap.mentorshipAssignments, this.mentorshipAssignmentsSignal()));
+        this.mentorshipSubmissionsSignal.set(this.mergeServerAuthoritative(bootstrap.mentorshipSubmissions, this.mentorshipSubmissionsSignal()));
+        this.assignmentSubmissionsSignal.set(
+          this.mergeServerAuthoritative(this.hydrateAssignmentSubmissions(bootstrap.assignmentSubmissions), this.assignmentSubmissionsSignal()),
+        );
+        this.externalTrainingRequestsSignal.set(
+          this.mergeServerAuthoritative(bootstrap.externalTrainingRequests, this.externalTrainingRequestsSignal()),
+        );
+        this.idpEntriesByStudentSignal.set(
+          this.mergeServerAuthoritativeRecord(this.normalizeIdpEntriesByStudent(bootstrap.idpEntriesByStudent), this.idpEntriesByStudentSignal()),
+        );
       },
       error: () => { /* Silently skip failed polls */ },
     });
@@ -2166,6 +2480,23 @@ export class TrainingManagerDataService {
     });
   }
 
+  private persistExternalTrainingRequestDocuments(input: ExternalTrainingRequestDocumentsInput) {
+    if (!this.backendHydrated) {
+      return;
+    }
+
+    this.backend.attachExternalTrainingRequestDocuments(input).subscribe({
+      next: (savedRequest) => {
+        this.externalTrainingRequestsSignal.update((requests) =>
+          requests.map((request) => request.id === savedRequest.id ? savedRequest : request),
+        );
+      },
+      error: () => {
+        // Keep local state if the API is temporarily unavailable.
+      },
+    });
+  }
+
   private slugify(value: string) {
     return value
       .toLowerCase()
@@ -2223,7 +2554,13 @@ export class TrainingManagerDataService {
       activeStatus: input.activeStatus,
       department: normalizedDepartment,
       ...(input.lineManager !== undefined ? { lineManager: input.lineManager.trim() } : {}),
+      ...(input.lineManagerId !== undefined ? { lineManagerId: input.lineManagerId.trim() || undefined } : {}),
+      ...(input.ofoCode !== undefined ? { ofoCode: input.ofoCode.trim() } : {}),
+      ...(input.race !== undefined ? { race: input.race.trim() } : {}),
+      ...(input.gender !== undefined ? { gender: input.gender.trim() } : {}),
+      ...(input.municipality !== undefined ? { municipality: input.municipality.trim() } : {}),
       role: input.role,
+      isAdmin: input.isAdmin,
     };
   }
 
@@ -2362,15 +2699,89 @@ export class TrainingManagerDataService {
 
       const parsed = JSON.parse(raw);
       return Array.isArray(parsed)
-        ? this.filterLegacySeedOfferings(parsed as TrainingOffering[])
+        ? (parsed as TrainingOffering[])
         : [];
     } catch {
       return [];
     }
   }
 
-  private filterLegacySeedOfferings(offerings: TrainingOffering[]) {
-    return offerings.filter((offering) => !TrainingManagerDataService.legacySeedOfferingIds.has(offering.id));
+  private loadStudents() {
+    if (typeof localStorage === 'undefined') {
+      return [];
+    }
+
+    try {
+      const raw = localStorage.getItem(TrainingManagerDataService.studentsStorageKey);
+      if (!raw) {
+        return [];
+      }
+
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+
+      return parsed as EnrollmentStudent[];
+    } catch {
+      return [];
+    }
+  }
+
+  private mergeWithLocalStudents(backendStudents: EnrollmentStudent[]): EnrollmentStudent[] {
+    const localStudents = this.loadStudents();
+    if (!localStudents.length) {
+      return backendStudents;
+    }
+
+    const localById = new Map(localStudents.map((student) => [student.id, student]));
+    const merged = backendStudents.map((backendStudent) => {
+      const local = localById.get(backendStudent.id);
+      if (!local) {
+        return backendStudent;
+      }
+
+      // Keep local student data when it differs; this prevents assignments from
+      // disappearing if a prior backend write failed or has not propagated yet.
+      return JSON.stringify(local) !== JSON.stringify(backendStudent)
+        ? local
+        : backendStudent;
+    });
+
+    for (const local of localStudents) {
+      if (!merged.some((student) => student.id === local.id)) {
+        merged.push(local);
+      }
+    }
+
+    return merged;
+  }
+
+  private mergeWithLocalOfferings(backendOfferings: TrainingOffering[]): TrainingOffering[] {
+    const localOfferings = this.loadOfferings();
+    if (!localOfferings.length) {
+      return backendOfferings;
+    }
+    const localById = new Map(localOfferings.map((o) => [o.id, o]));
+    const merged = backendOfferings.map((backendOffering) => {
+      const local = localById.get(backendOffering.id);
+      if (!local) return backendOffering;
+
+      // If both copies exist but differ, keep local to avoid user edits disappearing
+      // when a previous backend save failed or lagged behind.
+      if (JSON.stringify(local) !== JSON.stringify(backendOffering)) {
+        return local;
+      }
+
+      return backendOffering;
+    });
+    // Append local-only offerings the backend does not yet know about
+    for (const local of localOfferings) {
+      if (!merged.some((o) => o.id === local.id)) {
+        merged.push(local);
+      }
+    }
+    return merged;
   }
 
   private saveOfferings(offerings: TrainingOffering[]) {
@@ -2380,6 +2791,18 @@ export class TrainingManagerDataService {
 
     try {
       localStorage.setItem(TrainingManagerDataService.offeringsStorageKey, JSON.stringify(offerings));
+    } catch {
+      return;
+    }
+  }
+
+  private saveStudents(students: EnrollmentStudent[]) {
+    if (typeof localStorage === 'undefined') {
+      return;
+    }
+
+    try {
+      localStorage.setItem(TrainingManagerDataService.studentsStorageKey, JSON.stringify(students));
     } catch {
       return;
     }
@@ -2395,6 +2818,112 @@ export class TrainingManagerDataService {
     } catch {
       return;
     }
+  }
+
+  private loadIdpEntriesByStudent() {
+    if (typeof localStorage === 'undefined') {
+      return {};
+    }
+
+    try {
+      const raw = localStorage.getItem(TrainingManagerDataService.idpEntriesByStudentStorageKey);
+      if (!raw) {
+        return {};
+      }
+
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {};
+      }
+
+      const entriesByStudent: Record<string, StudentIdpEntry[]> = {};
+      for (const [studentId, entries] of Object.entries(parsed as Record<string, unknown>)) {
+        if (!Array.isArray(entries) || !studentId.trim()) {
+          continue;
+        }
+
+        entriesByStudent[studentId] = entries.map((entry) => this.normalizeIdpEntry(entry));
+      }
+
+      return entriesByStudent;
+    } catch {
+      return {};
+    }
+  }
+
+  private saveIdpEntriesByStudent(entriesByStudent: Record<string, StudentIdpEntry[]>) {
+    if (typeof localStorage === 'undefined') {
+      return;
+    }
+
+    try {
+      localStorage.setItem(TrainingManagerDataService.idpEntriesByStudentStorageKey, JSON.stringify(entriesByStudent));
+    } catch {
+      return;
+    }
+  }
+
+  private normalizeIdpEntry(entry: unknown): StudentIdpEntry {
+    const candidate = (entry && typeof entry === 'object' ? entry : {}) as Partial<StudentIdpEntry>;
+    const status = this.normalizeIdpStatus(candidate.status);
+
+    return {
+      developmentNeed: typeof candidate.developmentNeed === 'string' ? candidate.developmentNeed.trim() : '',
+      plannedAction: typeof candidate.plannedAction === 'string' ? candidate.plannedAction.trim() : '',
+      supportRequired: typeof candidate.supportRequired === 'string' ? candidate.supportRequired.trim() : '',
+      dateCaptured: typeof candidate.dateCaptured === 'string' ? candidate.dateCaptured.trim() : '',
+      targetDate: typeof candidate.targetDate === 'string' ? candidate.targetDate.trim() : '',
+      status,
+    };
+  }
+
+  private normalizeIdpStatus(status: unknown): TrainingIdpStatus {
+    if (status === 'In Progress' || status === 'Completed' || status === 'On Hold') {
+      return status;
+    }
+
+    return 'Not Started';
+  }
+
+  private normalizeIdpEntriesByStudent(entriesByStudent: unknown) {
+    if (!entriesByStudent || typeof entriesByStudent !== 'object' || Array.isArray(entriesByStudent)) {
+      return {};
+    }
+
+    const normalized: Record<string, StudentIdpEntry[]> = {};
+    for (const [studentId, entries] of Object.entries(entriesByStudent as Record<string, unknown>)) {
+      if (!studentId.trim() || !Array.isArray(entries)) {
+        continue;
+      }
+
+      normalized[studentId] = entries.map((entry) => this.normalizeIdpEntry(entry));
+    }
+
+    return normalized;
+  }
+
+  private persistIdpEntriesToBackend(studentId: string) {
+    if (!this.backendHydrated) {
+      return;
+    }
+
+    const idpEntries = this.idpEntriesForStudent(studentId);
+    this.backend.getStudentSnapshot(studentId).subscribe({
+      next: (snapshot) => {
+        const { studentId: _studentId, ...snapshotUpdate } = snapshot;
+        this.backend.updateStudentSnapshot({
+          ...snapshotUpdate,
+          idpEntries,
+        }, studentId).subscribe({
+          error: () => {
+            // Keep local IDP state if backend persistence is temporarily unavailable.
+          },
+        });
+      },
+      error: () => {
+        // Ignore backend sync failures and preserve local IDP entries.
+      },
+    });
   }
 
   private resolveAssignmentPossiblePoints(submission: Partial<AssignmentSubmissionRecord>) {
@@ -2445,6 +2974,78 @@ export class TrainingManagerDataService {
 
   private normalizePersonName(value: string) {
     return value.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+  }
+
+  /** Resolves the logged-in user's own identity for the manager workspace header — matching
+   *  against the known managers directory when possible, otherwise deriving a display name
+   *  from the session so this never shows a hardcoded placeholder for a different person. */
+  private resolveInitialManagerProfile(): ManagerProfile {
+    const session = readLmsSessionRecord();
+    const sessionEmail = session?.email?.trim().toLowerCase();
+
+    if (sessionEmail) {
+      const matchedManager = this.trainingManagersSignal().find(
+        (manager) => manager.email.toLowerCase() === sessionEmail,
+      );
+      if (matchedManager) {
+        return {
+          name: matchedManager.name,
+          role: matchedManager.role,
+          team: matchedManager.team,
+          email: matchedManager.email,
+          profileImageUrl: null,
+        };
+      }
+    }
+
+    return {
+      name: session?.displayName ?? this.deriveDisplayNameFromIdentity(session?.username, session?.email),
+      role: 'Training Manager',
+      team: 'People Enablement',
+      email: session?.email?.trim() || 'ava.mokoena@skillsconnect.app',
+      profileImageUrl: null,
+    };
+  }
+
+  // Prefer the account's real directory name and picture (the same ones shown in the student and
+  // admin views) over the username/email-derived fallback, so accounts with multiple access roles
+  // show one consistent identity everywhere. Public so the manager component can re-run this on
+  // every visit — this service is a root singleton constructed once, so a picture uploaded from
+  // another role after that first construction would otherwise never be picked up here.
+  refreshOwnIdentity() {
+    this.hydrateOwnDisplayName();
+  }
+
+  /** Optimistically updates the topbar avatar right after this account's own picture is
+   *  uploaded/removed, without waiting for a full identity refetch. */
+  setOwnProfileImage(profileImageUrl: string | null) {
+    this.profileSignal.update((profile) => ({ ...profile, profileImageUrl }));
+  }
+
+  private hydrateOwnDisplayName() {
+    this.backend.getMyIdentity().subscribe({
+      next: (identity) => {
+        const fullName = combineDisplayName(identity.name ?? undefined, identity.surname ?? undefined);
+        this.profileSignal.update((profile) => ({
+          ...profile,
+          name: fullName ?? profile.name,
+          profileImageUrl: identity.profileImageUrl || identity.profileImageDataUrl || null,
+        }));
+      },
+      error: () => {
+        // Keep the derived fallback name and initials avatar if the lookup fails.
+      },
+    });
+  }
+
+  private deriveDisplayNameFromIdentity(username: string | undefined, email: string | undefined): string {
+    const source = username?.trim() || email?.trim().split('@')[0] || '';
+    const words = source
+      .split(/[\s._-]+/)
+      .filter(Boolean)
+      .map((word) => word[0].toUpperCase() + word.slice(1).toLowerCase());
+
+    return words.join(' ') || 'Ava Mokoena';
   }
 
   private formatDisplayDate(date: Date) {

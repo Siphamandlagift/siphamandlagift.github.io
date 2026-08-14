@@ -29,15 +29,15 @@ type TrainingRequestEmailInput = {
 };
 
 export class PasswordResetEmailService {
-  private readonly appName = process.env['LMS_APP_NAME'] || 'SkillsConnect LMS';
-  private readonly mailFrom = process.env['LMS_SMTP_FROM'];
+  private readonly appName = (process.env['LMS_APP_NAME'] || 'SkillsConnect LMS').trim();
+  private readonly mailFrom = process.env['LMS_SMTP_FROM']?.trim();
   private transporter = this.createTransporter();
 
   private createTransporter() {
-    const host = process.env['LMS_SMTP_HOST'];
-    const port = Number(process.env['LMS_SMTP_PORT'] || 587);
-    const user = process.env['LMS_SMTP_USER'];
-    const pass = process.env['LMS_SMTP_PASS'];
+    const host = process.env['LMS_SMTP_HOST']?.trim();
+    const port = Number((process.env['LMS_SMTP_PORT'] || '587').trim());
+    const user = process.env['LMS_SMTP_USER']?.trim();
+    const pass = process.env['LMS_SMTP_PASS']?.trim();
 
     if (!host || !user || !pass || !this.mailFrom) {
       return null;
@@ -46,7 +46,8 @@ export class PasswordResetEmailService {
     return nodemailer.createTransport({
       host,
       port,
-      secure: String(process.env['LMS_SMTP_SECURE'] || 'false').toLowerCase() === 'true',
+      secure: (process.env['LMS_SMTP_SECURE'] || 'false').trim().toLowerCase() === 'true',
+      requireTLS: true,
       auth: {
         user,
         pass,

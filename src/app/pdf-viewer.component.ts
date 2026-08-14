@@ -31,12 +31,12 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs
       <div *ngIf="errorMsg()" class="pdf-state-overlay pdf-error">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke="#f87171" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>{{ errorMsg() }}</span>
-        <a *ngIf="src" [href]="src" target="_blank" rel="noopener" class="pdf-open-btn">Open in new tab</a>
+        <a *ngIf="src && allowDownload" [href]="src" target="_blank" rel="noopener" class="pdf-open-btn">Open in new tab</a>
       </div>
 
       <!-- Canvas area -->
       <div *ngIf="!loading() && !errorMsg()" class="pdf-canvas-wrap">
-        <canvas #pdfCanvas class="pdf-canvas"></canvas>
+        <canvas #pdfCanvas class="pdf-canvas" (contextmenu)="$event.preventDefault()"></canvas>
       </div>
 
       <!-- Toolbar -->
@@ -75,7 +75,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs
           <button type="button" class="pdf-nav-btn" title="Fit to width" (click)="resetZoom()" aria-label="Fit to width">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 8V6a2 2 0 0 1 2-2h2M4 16v2a2 2 0 0 0 2 2h2M16 4h2a2 2 0 0 1 2 2v2M16 20h2a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           </button>
-          <a [href]="src" target="_blank" rel="noopener" class="pdf-nav-btn pdf-open-tab-btn" title="Open in new tab" aria-label="Open in new tab">
+          <a *ngIf="allowDownload" [href]="src" target="_blank" rel="noopener" class="pdf-nav-btn pdf-open-tab-btn" title="Open in new tab" aria-label="Open in new tab">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </a>
         </div>
@@ -223,6 +223,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs
 })
 export class PdfViewerComponent implements OnChanges, OnDestroy {
   @Input() src = '';
+  @Input() allowDownload = true;
   @ViewChild('pdfCanvas') canvasRef!: ElementRef<HTMLCanvasElement>;
 
   readonly loading = signal(false);
@@ -231,14 +232,15 @@ export class PdfViewerComponent implements OnChanges, OnDestroy {
   readonly totalPages = signal(0);
   readonly zoomLabel = signal('100%');
 
-  private scale = 1.5;
+  private scale = 0; // 0 = fit-to-width on first render
   private fitScale = 1.5;
+  private loadedSrc = ''; // guard against redundant reloads
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private pdfDoc: any = null;
   private renderTask: { cancel(): void } | null = null;
 
   ngOnChanges(changes: SimpleChanges) {
-    if (changes['src'] && this.src) {
+    if (changes['src'] && this.src && this.src !== this.loadedSrc) {
       this.loadPdf(this.src);
     }
   }
@@ -249,6 +251,7 @@ export class PdfViewerComponent implements OnChanges, OnDestroy {
   }
 
   private async loadPdf(src: string) {
+    this.loadedSrc = src;
     this.loading.set(true);
     this.errorMsg.set('');
     this.currentPage.set(1);
@@ -261,7 +264,10 @@ export class PdfViewerComponent implements OnChanges, OnDestroy {
       const loadingTask = pdfjsLib.getDocument(src);
       this.pdfDoc = await loadingTask.promise;
       this.totalPages.set(this.pdfDoc.numPages);
+      this.scale = 0; // reset to fit-to-width for new document
       this.loading.set(false);
+      // Wait one tick for Angular to render the canvas (it is inside *ngIf)
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
       await this.renderPage(1);
     } catch {
       this.loading.set(false);
@@ -279,9 +285,9 @@ export class PdfViewerComponent implements OnChanges, OnDestroy {
       const canvas = this.canvasRef.nativeElement;
 
       // Fit to the container width on first render.
-      const containerWidth = canvas.parentElement?.clientWidth ?? 800;
+      const containerWidth = (canvas.parentElement?.clientWidth ?? 0) || 800;
       const naturalViewport = page.getViewport({ scale: 1 });
-      this.fitScale = Math.min(1.5, (containerWidth - 32) / naturalViewport.width);
+      this.fitScale = Math.max(0.5, (containerWidth - 32) / naturalViewport.width);
       const viewport = page.getViewport({ scale: this.scale || this.fitScale });
 
       const context = canvas.getContext('2d')!;
@@ -308,12 +314,13 @@ export class PdfViewerComponent implements OnChanges, OnDestroy {
   }
 
   adjustZoom(delta: number) {
-    this.scale = Math.max(0.5, Math.min(3, this.scale + delta));
+    const current = this.scale || this.fitScale;
+    this.scale = Math.max(0.5, Math.min(3, current + delta));
     this.renderPage(this.currentPage());
   }
 
   resetZoom() {
-    this.scale = this.fitScale;
+    this.scale = 0; // back to fit-to-width
     this.renderPage(this.currentPage());
   }
 

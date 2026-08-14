@@ -1,11 +1,12 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // LMS training content and thumbnails are uploaded server-side (Firebase Admin SDK)
-    // and made public via makePublic(). These rules allow browsers to read them directly.
+    // LMS training content: allow browser direct uploads (training managers uploading videos,
+    // documents, etc.) capped at 500 MB per file. Reads are public so learners can stream
+    // uploaded video files via their Firebase Storage download URL.
     match /lms-uploads/{allPaths=**} {
       allow read: if true;
-      allow write: if false; // Writes go through the server API only.
+      allow write: if request.resource.size < 500 * 1024 * 1024;
     }
 
     // Deny everything else by default.

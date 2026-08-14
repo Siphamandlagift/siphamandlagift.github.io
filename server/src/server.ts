@@ -129,32 +129,138 @@ function requireAuth(request: express.Request, response: express.Response, next:
   }
 }
 
-function requireAdministrator(request: express.Request, response: express.Response, next: express.NextFunction) {
+type AuthenticatedIdentity = { role: string; username: string; email: string; studentId: string | null };
+
+// requireAuth only proves the caller has SOME valid session — it never checks role or ownership.
+// Route handlers that touch another user's data or a manager/admin-only action must call this
+// themselves and check the result; do not assume being logged in is enough authorization.
+function getAuthenticatedIdentity(request: express.Request): AuthenticatedIdentity | null {
   const authHeader = request.headers['authorization'];
   const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
     ? authHeader.slice(7)
     : null;
 
   if (!token) {
-    response.status(401).json({ message: 'Authentication required. Please log in.' });
-    return;
+    return null;
   }
 
   try {
     const decoded = jwt.verify(token, jwtSecret);
-    const role = typeof decoded === 'object' && decoded !== null && 'role' in decoded
-      ? String((decoded as { role?: unknown }).role || '')
-      : '';
+    if (typeof decoded !== 'object' || decoded === null) {
+      return null;
+    }
 
-    if (role !== 'administrator') {
-      response.status(403).json({ message: 'Administrator access is required for this action.' });
+    const payload = decoded as { role?: unknown; username?: unknown; email?: unknown; studentId?: unknown };
+    return {
+      role: typeof payload.role === 'string' ? payload.role : '',
+      username: typeof payload.username === 'string' ? payload.username : '',
+      email: typeof payload.email === 'string' ? payload.email : '',
+      // Tokens issued before this claim existed won't have it — callers that check student
+      // ownership must fall back to another signal (e.g. matching email) when this is null.
+      studentId: typeof payload.studentId === 'string' && payload.studentId ? payload.studentId : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function requireRole(...allowedRoles: string[]) {
+  return (request: express.Request, response: express.Response, next: express.NextFunction) => {
+    const identity = getAuthenticatedIdentity(request);
+
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
+    if (!allowedRoles.includes(identity.role)) {
+      response.status(403).json({ message: 'You do not have permission to perform this action.' });
       return;
     }
 
     next();
-  } catch {
-    response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+  };
+}
+
+const requireAdministrator = requireRole('administrator');
+const requireManagerOrAdministrator = requireRole('administrator', 'training-manager');
+
+async function isOwnStudentRecord(studentId: string, identity: AuthenticatedIdentity): Promise<boolean> {
+  // Prefer the studentId claim: it's the session's actual linked student record, set at login.
+  // Matching by email is a fallback for tokens issued before this claim existed — the auth
+  // account's email and the student roster record's email are separate fields that can
+  // legitimately differ (e.g. a manager/admin logging in as their linked student profile), so
+  // an email-only check can wrongly reject a student's own, legitimate writes.
+  if (identity.studentId) {
+    return identity.studentId === studentId;
   }
+
+  const data = await repository.read();
+  const student = data.students.find((entry) => entry.id === studentId);
+  return Boolean(student && student.email.trim().toLowerCase() === identity.email.trim().toLowerCase());
+}
+
+function readAuthenticatedSessionPayload(request: express.Request) {
+  const authHeader = request.headers['authorization'];
+  const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : null;
+
+  if (!token) {
+    return null;
+  }
+
+  const decoded = jwt.verify(token, jwtSecret);
+  if (typeof decoded !== 'object' || decoded === null) {
+    return null;
+  }
+
+  return {
+    role: typeof decoded['role'] === 'string' ? decoded['role'] : '',
+    username: typeof decoded['username'] === 'string' ? decoded['username'] : '',
+    email: typeof decoded['email'] === 'string' ? decoded['email'] : '',
+  };
+}
+
+function fallbackSwitchableRolesForRole(role: string): Array<'administrator' | 'training-manager' | 'student'> {
+  if (role === 'administrator') {
+    return ['training-manager', 'student'];
+  }
+
+  if (role === 'training-manager') {
+    return ['student'];
+  }
+
+  return [];
+}
+
+function routeForTargetRole(targetRole: 'administrator' | 'training-manager' | 'student') {
+  switch (targetRole) {
+    case 'administrator':
+      return '/admin-profile';
+    case 'training-manager':
+      return '/training-manager-profile';
+    default:
+      return '/student-profile';
+  }
+}
+
+function fallbackRoleResolution(
+  payload: { role: string; username: string; email: string },
+  targetRole: 'administrator' | 'training-manager' | 'student',
+) {
+  const allowedTargets = fallbackSwitchableRolesForRole(payload.role);
+  if (!allowedTargets.includes(targetRole)) {
+    return null;
+  }
+
+  return {
+    role: targetRole,
+    route: routeForTargetRole(targetRole),
+    username: payload.username,
+    email: payload.email,
+    studentId: undefined,
+  };
 }
 
 
@@ -192,6 +298,8 @@ const trainingContentItemSchema = z.object({
   uploadedFileDataUrl: z.string().optional(),
   convertedPdfUrl: z.string().optional(),
   requiresAcknowledgement: z.boolean().optional(),
+  allowDownload: z.boolean().optional(),
+  durationSeconds: z.number().min(0).optional(),
   questions: z.array(trainingAssessmentQuestionSchema),
 });
 
@@ -201,7 +309,7 @@ const trainingOfferingSchema = z.object({
   type: z.enum(['Course', 'Programme']),
   category: z.string().min(1),
   description: z.string().min(1),
-  completionDeadline: z.string().min(1),
+  completionDeadline: z.string(),
   thumbnailDataUrl: z.string().nullable(),
   contentItems: z.array(trainingContentItemSchema),
   createdOn: z.string().min(1),
@@ -214,7 +322,7 @@ const trainingOfferingUpdateSchema = z.object({
   type: z.enum(['Course', 'Programme']),
   category: z.string().min(1),
   description: z.string().min(1),
-  completionDeadline: z.string().min(1),
+  completionDeadline: z.string(),
   status: z.enum(['Published', 'Draft']),
   thumbnailDataUrl: z.string().nullable(),
   contentItems: z.array(trainingContentItemSchema).optional(),
@@ -276,6 +384,7 @@ const systemTrainingManagerSchema = z.object({
 
 const externalTrainingRequestSchema = z.object({
   id: z.string(),
+  studentId: z.string().optional().default(''),
   studentName: z.string(),
   studentEmail: z.string(),
   courseName: z.string(),
@@ -296,6 +405,10 @@ const externalTrainingRequestSchema = z.object({
   invoiceDataUrl: z.string(),
   brochureFileName: z.string(),
   brochureDataUrl: z.string(),
+  proofOfPaymentFileName: z.string().optional().default(''),
+  proofOfPaymentUrl: z.string().optional().default(''),
+  certificateFileName: z.string().optional().default(''),
+  certificateUrl: z.string().optional().default(''),
   status: z.enum(['Pending Review', 'Approved', 'Needs Revision']),
   submittedAt: z.string(),
   reviewerName: z.string().nullable(),
@@ -304,6 +417,7 @@ const externalTrainingRequestSchema = z.object({
 });
 
 const externalTrainingRequestInputSchema = z.object({
+  studentId: z.string().optional().default(''),
   studentName: z.string().min(1),
   studentEmail: z.string().min(1),
   courseName: z.string().min(1),
@@ -363,6 +477,16 @@ const externalTrainingRequestReviewSchema = z.object({
   reviewerName: z.string().min(1),
   status: z.enum(['Pending Review', 'Approved', 'Needs Revision']),
   feedback: z.string().optional(),
+});
+
+const externalTrainingRequestDocumentsSchema = z.object({
+  requestId: z.string().min(1),
+  invoiceFileName: z.string().optional(),
+  invoiceDataUrl: z.string().optional(),
+  proofOfPaymentFileName: z.string().optional(),
+  proofOfPaymentUrl: z.string().optional(),
+  certificateFileName: z.string().optional(),
+  certificateUrl: z.string().optional(),
 });
 const mentorshipAssignmentSchema = z.object({
   id: z.string().min(1),
@@ -429,18 +553,8 @@ const quizSubmissionSchema = z.object({
   submittedAt: z.string().min(1),
 });
 
-const enrollmentStudentRoleSchema = z.enum(['student', 'manager', 'admin', 'training-manager', 'administrator'])
-  .transform((role) => {
-    if (role === 'training-manager') {
-      return 'manager';
-    }
-
-    if (role === 'administrator') {
-      return 'admin';
-    }
-
-    return role;
-  });
+const enrollmentStudentRoleSchema = z.enum(['student', 'manager', 'training-manager'])
+  .transform((role) => role === 'training-manager' ? 'manager' as const : role);
 
 const enrollmentStudentSchema = z.object({
   id: z.string().min(1),
@@ -459,6 +573,11 @@ const enrollmentStudentSchema = z.object({
   status: z.enum(['Completed', 'In Progress', 'Not Yet Started']),
   assignedOfferingIds: z.array(z.string()),
   role: enrollmentStudentRoleSchema,
+  isAdmin: z.boolean().optional().default(false),
+  ofoCode: z.string().optional(),
+  race: z.string().optional(),
+  gender: z.string().optional(),
+  municipality: z.string().optional(),
 });
 
 const studentMessageReplySchema = z.object({
@@ -963,33 +1082,55 @@ app.post('/api/storage/upload-file', upload.single('file'), async (request, resp
   }
 });
 
-// Configure GCS bucket CORS at startup so browsers can PUT directly to Firebase Storage.
-// This runs once per Cloud Function instance (fire-and-forget — non-critical).
+// Configure GCS bucket CORS so browsers can PUT directly to Firebase Storage
+// (used by the direct-to-GCS resumable upload flow — see /storage/upload-url below).
+async function applyStorageBucketCors() {
+  if (!storageBucket) {
+    return { applied: false, message: 'Firebase Storage is not configured on this server.' };
+  }
+
+  const adminApp = getApps().length > 0 ? getApp() : initializeApp();
+  const bucket = getStorage(adminApp).bucket(storageBucket);
+  const origins = (process.env['LMS_ALLOWED_ORIGINS'] || '*').split(',').map((o) => o.trim());
+  const [setMetadataResult] = await bucket.setMetadata({
+    cors: [
+      {
+        maxAgeSeconds: 3600,
+        method: ['GET', 'PUT', 'POST', 'HEAD', 'OPTIONS'],
+        origin: origins,
+        responseHeader: ['Content-Type', 'x-goog-resumable', 'Content-Range', 'Range'],
+      },
+    ],
+  });
+
+  // Read back from Google directly — setMetadata resolving without throwing does not by
+  // itself confirm the value actually persisted, so verify rather than assume.
+  const [readBackMetadata] = await bucket.getMetadata();
+
+  return { applied: true, requestedOrigins: origins, setMetadataResponseCors: setMetadataResult?.cors, persistedCors: readBackMetadata?.cors };
+}
+
+// Run once per Cloud Function instance at startup (fire-and-forget — non-critical).
 // Guard with FUNCTION_NAME/K_SERVICE so the async GCS call does NOT run during the
 // Firebase CLI's local code-analysis step (where LMS_STORAGE_BUCKET may still be set
 // via .env but the process must exit quickly for the 10-second backend-spec timeout).
 const isActualCloudRuntime = Boolean(process.env['FUNCTION_NAME'] || process.env['K_SERVICE']);
 if (storageBucket && isActualCloudRuntime) {
-  void (async () => {
-    try {
-      const adminApp = getApps().length > 0 ? getApp() : initializeApp();
-      const bucket = getStorage(adminApp).bucket(storageBucket);
-      const origins = (process.env['LMS_ALLOWED_ORIGINS'] || '*').split(',').map((o) => o.trim());
-      await bucket.setMetadata({
-        cors: [
-          {
-            maxAgeSeconds: 3600,
-            method: ['GET', 'PUT', 'POST', 'HEAD', 'OPTIONS'],
-            origin: origins,
-            responseHeader: ['Content-Type', 'x-goog-resumable', 'Content-Range', 'Range'],
-          },
-        ],
-      });
-    } catch {
-      // Non-critical — direct uploads will still attempt.
-    }
-  })();
+  applyStorageBucketCors().catch((error) => {
+    console.error('Failed to configure Storage bucket CORS at startup:', error);
+  });
 }
+
+// Lets an administrator re-run the bucket CORS setup on demand and see the real result —
+// the startup attempt above is fire-and-forget, so failures there are otherwise silent.
+app.post('/api/admin/storage/configure-cors', requireAdministrator, async (_request, response, next) => {
+  try {
+    const result = await applyStorageBucketCors();
+    response.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Existing small-file upload through the Cloud Function (kept for thumbnails / tiny assets).
 app.post('/api/storage/upload', upload.single('file'), async (request, response, next) => {
@@ -1148,6 +1289,170 @@ app.post('/api/storage/upload-url', async (request, response, next) => {
 
     const publicUrl = `https://storage.googleapis.com/${storageBucket}/${filePath}`;
     response.json({ uploadUrl, publicUrl, path: filePath });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// JSON/base64 upload: works around two Cloud Functions incompatibilities that break
+// uploads for small files like the LMS branding logo —
+//   1) multer/busboy fails with "Unexpected end of form" because the Functions runtime
+//      already buffers the raw request body before Express sees it, so multer's
+//      stream-based multipart parser finds nothing left to read.
+//   2) the direct-to-GCS resumable PUT (see /storage/upload-url above) requires the
+//      bucket's CORS policy to already allow this origin, which is set up as a
+//      fire-and-forget background call and isn't guaranteed to have run yet.
+// Sending the file as base64 inside a normal JSON body sidesteps both: express.json()
+// (50 MB limit, configured above) already parses it reliably, and the object is written
+// to Storage server-side via firebase-admin, so the browser never talks to GCS directly.
+const maxJsonUploadBytes = 8 * 1024 * 1024;
+app.post('/api/storage/upload-base64', async (request, response, next) => {
+  try {
+    if (!storageBucket) {
+      response.status(503).json({ message: 'File storage is not configured on this server.' });
+      return;
+    }
+    const { folder, fileName, contentType, dataBase64 } = z.object({
+      folder: z.string().regex(/^[a-zA-Z0-9_-]+$/).max(64),
+      fileName: z.string().min(1).max(255),
+      contentType: z.string().min(1).max(127),
+      dataBase64: z.string().min(1),
+    }).parse(request.body);
+
+    const buffer = Buffer.from(dataBase64, 'base64');
+    if (buffer.length > maxJsonUploadBytes) {
+      response.status(413).json({ message: 'File is too large. Please upload a file under 8 MB.' });
+      return;
+    }
+
+    const ext = fileName.split('.').pop() ?? '';
+    const safeName = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext ? '.' + ext : ''}`;
+    const filePath = `lms-uploads/${folder}/${safeName}`;
+
+    const adminApp = getApps().length > 0 ? getApp() : initializeApp();
+    const bucket = getStorage(adminApp).bucket(storageBucket);
+    const storageFile = bucket.file(filePath);
+
+    await storageFile.save(buffer, { contentType });
+    await storageFile.makePublic();
+
+    const publicUrl = `https://storage.googleapis.com/${storageBucket}/${filePath}`;
+    response.json({ url: publicUrl, path: filePath });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Large-file upload: the browser never talks to Google Cloud Storage directly (that path is
+// broken — GCS returns the finished object without CORS headers on the completing PUT, so the
+// browser blocks reading the response even though the upload actually succeeded server-side).
+// Instead the client sends the file in small chunks to this server, which relays each chunk to
+// a GCS resumable upload session using firebase-admin (server-to-server, not subject to browser
+// CORS at all) — so there's no practical file-size ceiling beyond how long the upload takes.
+type ChunkedUploadSession = { gcsUploadUrl: string; path: string; publicUrl: string; createdAt: number };
+const chunkedUploadSessions = new Map<string, ChunkedUploadSession>();
+const chunkedUploadSessionTtlMs = 60 * 60 * 1000; // 1 hour — generous for a slow connection, not indefinite.
+
+function pruneStaleChunkedUploadSessions() {
+  const cutoff = Date.now() - chunkedUploadSessionTtlMs;
+  for (const [sessionId, session] of chunkedUploadSessions) {
+    if (session.createdAt < cutoff) {
+      chunkedUploadSessions.delete(sessionId);
+    }
+  }
+}
+
+app.post('/api/storage/chunked-upload/start', async (request, response, next) => {
+  try {
+    if (!storageBucket) {
+      response.status(503).json({ message: 'File storage is not configured on this server.' });
+      return;
+    }
+
+    const { folder, fileName, contentType } = z.object({
+      folder: z.string().regex(/^[a-zA-Z0-9_-]+$/).max(64),
+      fileName: z.string().min(1).max(255),
+      contentType: z.string().min(1).max(127),
+    }).parse(request.body);
+
+    pruneStaleChunkedUploadSessions();
+
+    const ext = fileName.split('.').pop() ?? '';
+    const safeName = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext ? '.' + ext : ''}`;
+    const filePath = `lms-uploads/${folder}/${safeName}`;
+
+    const adminApp = getApps().length > 0 ? getApp() : initializeApp();
+    const bucket = getStorage(adminApp).bucket(storageBucket);
+    const [gcsUploadUrl] = await bucket.file(filePath).createResumableUpload({
+      metadata: { contentType },
+      public: true,
+    });
+
+    const sessionId = randomUUID();
+    const publicUrl = `https://storage.googleapis.com/${storageBucket}/${filePath}`;
+    chunkedUploadSessions.set(sessionId, { gcsUploadUrl, path: filePath, publicUrl, createdAt: Date.now() });
+
+    response.json({ sessionId, path: filePath, publicUrl });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/storage/chunked-upload/chunk', async (request, response, next) => {
+  try {
+    const { sessionId, start, end, total } = z.object({
+      sessionId: z.string().min(1),
+      start: z.coerce.number().int().min(0),
+      end: z.coerce.number().int().min(0),
+      total: z.coerce.number().int().min(1),
+    }).parse(request.query);
+
+    const session = chunkedUploadSessions.get(sessionId);
+    if (!session) {
+      response.status(404).json({ message: 'Upload session not found or expired. Please restart the upload.' });
+      return;
+    }
+
+    // Chunk bodies are raw bytes (application/octet-stream), not JSON, so the global
+    // express.json() above leaves them unparsed. Rather than run them through a body-parser
+    // stream parser (express.raw() takes 20-30+ seconds for a multi-MB body here — the Functions
+    // runtime pre-buffers the whole request before Express sees it, and stream-based parsers
+    // interact badly with that already-consumed stream), read the pre-buffered body directly —
+    // req.rawBody is populated by the firebase-functions request wrapper before Express runs.
+    const chunk = (request as express.Request & { rawBody?: Buffer }).rawBody;
+    if (!Buffer.isBuffer(chunk) || chunk.length === 0) {
+      response.status(400).json({ message: 'No chunk data received.' });
+      return;
+    }
+
+    const gcsResponse = await fetch(session.gcsUploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Range': `bytes ${start}-${end}/${total}`,
+        'Content-Length': String(chunk.length),
+      },
+      // Cast rather than rely on structural BodyInit matching: editors pinned to a different
+      // TypeScript/lib version than the project's (node_modules/typescript, which builds and
+      // deploys cleanly) can disagree with Node's own runtime-accurate fetch typing here — and
+      // this project's own lib config doesn't even include the DOM-only 'BodyInit' type name.
+      body: chunk as any,
+    });
+
+    if (gcsResponse.status === 308) {
+      // Resume Incomplete — GCS has this chunk, more are expected.
+      response.status(202).json({ complete: false });
+      return;
+    }
+
+    if (gcsResponse.status === 200 || gcsResponse.status === 201) {
+      chunkedUploadSessions.delete(sessionId);
+      response.json({ complete: true, url: session.publicUrl, path: session.path });
+      return;
+    }
+
+    chunkedUploadSessions.delete(sessionId);
+    const details = await gcsResponse.text().catch(() => '');
+    response.status(502).json({ message: `Storage upload failed (status ${gcsResponse.status}).`, details: details.slice(0, 500) });
   } catch (error) {
     next(error);
   }
@@ -1339,7 +1644,7 @@ app.get('/api/branding', async (_request, response, next) => {
   }
 });
 
-app.put('/api/branding', async (request, response, next) => {
+app.put('/api/branding', requireAdministrator, async (request, response, next) => {
   try {
     const payload = brandingSettingsSchema.parse(request.body);
     response.json(await repository.updateBranding(payload));
@@ -1359,7 +1664,7 @@ app.post('/api/auth/login', async (request, response, next) => {
     }
 
     const token = jwt.sign(
-      { role: authenticated.role, username: authenticated.username, email: authenticated.email },
+      { role: authenticated.role, username: authenticated.username, email: authenticated.email, studentId: authenticated.studentId },
       jwtSecret,
       { expiresIn: jwtExpiresIn },
     );
@@ -1372,17 +1677,36 @@ app.post('/api/auth/login', async (request, response, next) => {
 app.post('/api/auth/resolve-roles', async (request, response, next) => {
   try {
     const credentials = resolveRolesRequestSchema.parse(request.body);
-    const roles = await repository.resolveRoles(credentials);
+    let roles = await repository.resolveRoles(credentials);
 
     if (roles.length === 0) {
       response.status(401).json({ message: 'Invalid login credentials.' });
       return;
     }
 
+    // Administrators and training managers always land on their own student workspace first —
+    // give them a real, persistent linked profile right away if they don't already have one.
+    const elevatedEntry = roles.find((r) => r.role === 'administrator') ?? roles.find((r) => r.role === 'training-manager');
+    if (elevatedEntry && !roles.some((r) => r.role === 'student')) {
+      const ensured = await repository.ensureSwitchStudentProfile(elevatedEntry.email);
+      if (ensured) {
+        roles = [
+          ...roles,
+          {
+            role: 'student' as const,
+            route: '/student-profile',
+            username: elevatedEntry.username,
+            email: elevatedEntry.email,
+            studentId: ensured.studentId,
+          },
+        ];
+      }
+    }
+
     const rolesWithTokens = roles.map((r) => ({
       ...r,
       token: jwt.sign(
-        { role: r.role, username: r.username, email: r.email },
+        { role: r.role, username: r.username, email: r.email, studentId: r.studentId },
         jwtSecret,
         { expiresIn: jwtExpiresIn },
       ),
@@ -1394,30 +1718,145 @@ app.post('/api/auth/resolve-roles', async (request, response, next) => {
   }
 });
 
-app.post('/api/auth/switch-role', async (request, response, next) => {
+app.get('/api/auth/my-identity', async (request, response, next) => {
   try {
-    const { targetRole } = switchRoleRequestSchema.parse(request.body);
-
-    const authHeader = request.headers['authorization'];
-    const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
-      ? authHeader.slice(7)
-      : null;
-
-    if (!token) {
+    const payload = readAuthenticatedSessionPayload(request);
+    if (!payload?.email) {
       response.status(401).json({ message: 'Authentication required.' });
       return;
     }
 
-    const payload = jwt.verify(token, jwtSecret) as { email?: string };
-    const email = typeof payload.email === 'string' ? payload.email : '';
+    const identity = await repository.resolveAccountIdentity(payload.email);
+    response.json({
+      name: identity?.name ?? null,
+      surname: identity?.surname ?? null,
+      profileImageUrl: identity?.profileImageUrl ?? null,
+      profileImageDataUrl: identity?.profileImageDataUrl ?? null,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
-    if (!email) {
+const myProfileImageSchema = z.object({
+  profileImageUrl: z.string().nullable().optional(),
+  profileImageDataUrl: z.string().nullable().optional(),
+});
+
+app.put('/api/auth/my-profile-image', async (request, response, next) => {
+  try {
+    const payload = readAuthenticatedSessionPayload(request);
+    if (!payload?.email) {
+      response.status(401).json({ message: 'Authentication required.' });
+      return;
+    }
+
+    const image = myProfileImageSchema.parse(request.body);
+    const updated = await repository.updateAccountProfileImage(payload.email, {
+      profileImageUrl: image.profileImageUrl ?? null,
+      profileImageDataUrl: image.profileImageDataUrl ?? null,
+    });
+
+    if (!updated) {
+      response.status(404).json({ message: 'No linked profile found for this account.' });
+      return;
+    }
+
+    response.json({ message: 'Profile picture updated.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/auth/switchable-roles', async (request, response, next) => {
+  try {
+    const payload = readAuthenticatedSessionPayload(request);
+    if (!payload?.email || !payload.role) {
+      response.status(401).json({ message: 'Authentication required.' });
+      return;
+    }
+
+    // Union every role this email really has (e.g. an administrator viewing their student
+    // workspace still has their underlying 'administrator' access) with what each of those
+    // roles is allowed to switch into — not just what the *current* session's role allows —
+    // so the option to go back up is still there no matter which workspace they're currently in.
+    const realRoles = await repository.resolveRolesByEmail(payload.email);
+    const candidateRoles = new Set<string>();
+    for (const entry of realRoles) {
+      candidateRoles.add(entry.role);
+      for (const fallbackRole of fallbackSwitchableRolesForRole(entry.role)) {
+        candidateRoles.add(fallbackRole);
+      }
+    }
+    candidateRoles.delete(payload.role);
+
+    response.json({ roles: Array.from(candidateRoles) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/auth/switch-role', async (request, response, next) => {
+  try {
+    const { targetRole } = switchRoleRequestSchema.parse(request.body);
+
+    const payload = readAuthenticatedSessionPayload(request);
+    if (!payload?.email) {
       response.status(401).json({ message: 'Token payload is invalid.' });
       return;
     }
 
-    const roles = await repository.resolveRolesByEmail(email);
-    const match = roles.find((r) => r.role === targetRole);
+    const roles = await repository.resolveRolesByEmail(payload.email);
+    // Every entry for this email shares the same underlying identity, so any resolved role
+    // already carries the real display name — reuse it for fallback matches below too.
+    const knownIdentity = roles.find((entry) => entry.name);
+    let match: {
+      role: 'administrator' | 'training-manager' | 'student';
+      route: string;
+      username: string;
+      email: string;
+      studentId?: string;
+      name?: string;
+      surname?: string;
+    } | null | undefined = roles.find((roleEntry) => roleEntry.role === targetRole);
+
+    // An admin/training-manager switching to Student for the first time has no linked student
+    // record yet — give them a real, persistent one instead of falling back to a generic session.
+    const hasElevatedAccess = roles.some((entry) => entry.role === 'administrator' || entry.role === 'training-manager');
+    if (!match && targetRole === 'student' && hasElevatedAccess) {
+      const ensured = await repository.ensureSwitchStudentProfile(payload.email);
+      if (ensured) {
+        match = {
+          role: 'student',
+          route: '/student-profile',
+          username: payload.username,
+          email: payload.email,
+          studentId: ensured.studentId,
+          name: knownIdentity?.name,
+          surname: knownIdentity?.surname,
+        };
+      }
+    }
+
+    // Everyone now lands on their Student workspace by default, so the *current* session's role
+    // is often 'student' even for an administrator or training manager — check whether any of
+    // this email's real underlying roles grants access to targetRole, not just the current one.
+    if (!match) {
+      const grantingRole = roles.find((entry) => fallbackSwitchableRolesForRole(entry.role).includes(targetRole));
+      if (grantingRole) {
+        match = {
+          role: targetRole,
+          route: routeForTargetRole(targetRole),
+          username: payload.username,
+          email: payload.email,
+          studentId: undefined,
+          name: knownIdentity?.name,
+          surname: knownIdentity?.surname,
+        };
+      }
+    }
+
+    match = match ?? fallbackRoleResolution(payload, targetRole);
 
     if (!match) {
       response.status(403).json({ message: 'Your account does not have access to this role.' });
@@ -1425,7 +1864,7 @@ app.post('/api/auth/switch-role', async (request, response, next) => {
     }
 
     const newToken = jwt.sign(
-      { role: match.role, username: match.username, email: match.email },
+      { role: match.role, username: match.username, email: match.email, studentId: match.studentId },
       jwtSecret,
       { expiresIn: jwtExpiresIn },
     );
@@ -1590,7 +2029,7 @@ app.get('/api/auth/sso/microsoft/callback', async (request, response, next) => {
     }
 
     const token = jwt.sign(
-      { role: authenticated.role, username: authenticated.username, email: authenticated.email },
+      { role: authenticated.role, username: authenticated.username, email: authenticated.email, studentId: authenticated.studentId },
       jwtSecret,
       { expiresIn: jwtExpiresIn },
     );
@@ -1677,6 +2116,16 @@ app.post('/api/auth/password-reset/confirm', async (request, response, next) => 
 app.post('/api/auth/change-password', async (request, response, next) => {
   try {
     const payload = changePasswordSchema.parse(request.body);
+    const identity = getAuthenticatedIdentity(request);
+
+    // This endpoint has no current-password check, so it must only ever be usable on the
+    // caller's own account — otherwise any authenticated session could take over any other
+    // account (including an administrator's) just by knowing their email.
+    if (!identity || identity.email.trim().toLowerCase() !== payload.email.trim().toLowerCase()) {
+      response.status(403).json({ message: 'You can only change your own password.' });
+      return;
+    }
+
     const result = await repository.changePassword(payload);
 
     if (!result) {
@@ -1696,7 +2145,7 @@ app.post('/api/auth/change-password', async (request, response, next) => {
   }
 });
 
-app.post('/api/auth/managed-users/credentials', async (request, response, next) => {
+app.post('/api/auth/managed-users/credentials', requireAdministrator, async (request, response, next) => {
   try {
     const payload = managedUserCredentialsUpsertSchema.parse(request.body);
     response.json(await repository.upsertManagedUserCredentials(payload.users));
@@ -1713,7 +2162,7 @@ app.get('/api/offerings', async (_request, response, next) => {
   }
 });
 
-app.post('/api/offerings', async (request, response, next) => {
+app.post('/api/offerings', requireManagerOrAdministrator, async (request, response, next) => {
   try {
     const offering = trainingOfferingSchema.parse(request.body);
     const created = await repository.createOffering(offering);
@@ -1729,9 +2178,9 @@ app.post('/api/offerings', async (request, response, next) => {
   }
 });
 
-app.put('/api/offerings/:offeringId', async (request, response, next) => {
+app.put('/api/offerings/:offeringId', requireManagerOrAdministrator, async (request, response, next) => {
   try {
-    const update = trainingOfferingUpdateSchema.parse({ ...request.body, id: request.params.offeringId });
+    const update = trainingOfferingUpdateSchema.parse({ ...request.body, id: request.params['offeringId'] });
     const saved = await repository.updateOffering(update);
 
     if (!saved) {
@@ -1745,9 +2194,9 @@ app.put('/api/offerings/:offeringId', async (request, response, next) => {
   }
 });
 
-app.delete('/api/offerings/:offeringId', async (request, response, next) => {
+app.delete('/api/offerings/:offeringId', requireManagerOrAdministrator, async (request, response, next) => {
   try {
-    const deleted = await repository.deleteOffering(request.params.offeringId);
+    const deleted = await repository.deleteOffering(request.params['offeringId'] as string);
 
     if (!deleted) {
       response.status(404).json({ message: 'Offering not found.' });
@@ -1762,6 +2211,19 @@ app.delete('/api/offerings/:offeringId', async (request, response, next) => {
 
 app.get('/api/students/:studentId/snapshot', async (request, response, next) => {
   try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
+    // A student may only read their own snapshot; managers/admins may read any student's.
+    const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
+    if (!isPrivileged && !(await isOwnStudentRecord(request.params.studentId, identity))) {
+      response.status(403).json({ message: 'You do not have permission to view this student.' });
+      return;
+    }
+
     const snapshot = await repository.getStudentSnapshot(request.params.studentId);
 
     if (!snapshot) {
@@ -1777,6 +2239,19 @@ app.get('/api/students/:studentId/snapshot', async (request, response, next) => 
 
 app.put('/api/students/:studentId/snapshot', async (request, response, next) => {
   try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
+    // A student may only write their own snapshot; managers/admins may write any student's.
+    const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
+    if (!isPrivileged && !(await isOwnStudentRecord(request.params.studentId, identity))) {
+      response.status(403).json({ message: 'You do not have permission to update this student.' });
+      return;
+    }
+
     const snapshot = studentSnapshotUpdateSchema.parse(request.body);
     const updated = await repository.updateStudentSnapshot(request.params.studentId, snapshot);
 
@@ -1791,32 +2266,84 @@ app.put('/api/students/:studentId/snapshot', async (request, response, next) => 
   }
 });
 
+// `students`, `externalTrainingRequests`, and `trainingManagers` are patched by replacing the
+// entire collection (this is how "delete" features work — a record missing from the array is
+// treated as deleted). Every legitimate caller only ever removes a few records at a time, from a
+// fully-hydrated client list. An array far smaller than the current collection almost certainly
+// means the caller sent a partial/stale list by mistake — refuse rather than silently delete
+// everything else. Returns an error message, or null if the replacement looks safe.
+function checkBulkReplaceGuard(currentCount: number, nextCount: number, label: string): string | null {
+  const maxAllowedReduction = Math.max(3, Math.ceil(currentCount * 0.2));
+  if (currentCount > 5 && nextCount < currentCount - maxAllowedReduction) {
+    return `Refusing to replace ${currentCount} ${label} records with only ${nextCount}. This looks like an incomplete list rather than an intentional bulk delete — if you really do want to remove ${currentCount - nextCount} of them, delete them a few at a time instead.`;
+  }
+
+  return null;
+}
+
 app.put('/api/manager-state', async (request, response, next) => {
   try {
     const patch = managerStatePatchSchema.parse(request.body);
 
-    // Detect newly assigned offerings so we can email students.
-    if (patch.students && emailService.isConfigured()) {
+    if (patch.students || patch.externalTrainingRequests || patch.trainingManagers) {
+      // These fields cover the student roster (including role/isAdmin) and the manager
+      // directory — student sessions legitimately PATCH this same endpoint for their own
+      // mentorship/message data, but must not be able to touch these manager/admin-owned
+      // collections, or a student could e.g. grant themselves isAdmin via a roster patch.
+      const identity = getAuthenticatedIdentity(request);
+      if (!identity || (identity.role !== 'administrator' && identity.role !== 'training-manager')) {
+        response.status(403).json({ message: 'You do not have permission to update student, manager, or external training records.' });
+        return;
+      }
+
       const dataBefore = await repository.read();
-      const prevById = new Map(dataBefore.students.map((s) => [s.id, s]));
-      const offeringTitleById = new Map(dataBefore.offerings.map((o) => [o.id, o.title]));
-      const offeringDeadlineById = new Map(dataBefore.offerings.map((o) => [o.id, o.completionDeadline]));
 
-      for (const student of patch.students) {
-        const prev = prevById.get(student.id);
-        const prevIds = new Set(prev?.assignedOfferingIds ?? []);
-        const newlyAssigned = student.assignedOfferingIds.filter((id) => !prevIds.has(id));
+      if (patch.students) {
+        const guardMessage = checkBulkReplaceGuard(dataBefore.students.length, patch.students.length, 'student');
+        if (guardMessage) {
+          response.status(400).json({ message: guardMessage });
+          return;
+        }
+      }
 
-        for (const offeringId of newlyAssigned) {
-          const title = offeringTitleById.get(offeringId);
-          if (!title || !student.email) continue;
-          emailService.sendCourseAssignedEmail({
-            to: student.email,
-            studentName: `${student.name} ${student.surname}`.trim(),
-            offeringTitle: title,
-            deadline: offeringDeadlineById.get(offeringId) ?? '',
-            appUrl: resolveAppBaseUrl(request),
-          }).catch(() => { /* non-critical — do not fail the request */ });
+      if (patch.externalTrainingRequests) {
+        const guardMessage = checkBulkReplaceGuard(dataBefore.externalTrainingRequests.length, patch.externalTrainingRequests.length, 'external training request');
+        if (guardMessage) {
+          response.status(400).json({ message: guardMessage });
+          return;
+        }
+      }
+
+      if (patch.trainingManagers) {
+        const guardMessage = checkBulkReplaceGuard(dataBefore.trainingManagers.length, patch.trainingManagers.length, 'training manager');
+        if (guardMessage) {
+          response.status(400).json({ message: guardMessage });
+          return;
+        }
+      }
+
+      // Detect newly assigned offerings so we can email students.
+      if (patch.students && emailService.isConfigured()) {
+        const prevById = new Map(dataBefore.students.map((s) => [s.id, s]));
+        const offeringTitleById = new Map(dataBefore.offerings.map((o) => [o.id, o.title]));
+        const offeringDeadlineById = new Map(dataBefore.offerings.map((o) => [o.id, o.completionDeadline]));
+
+        for (const student of patch.students) {
+          const prev = prevById.get(student.id);
+          const prevIds = new Set(prev?.assignedOfferingIds ?? []);
+          const newlyAssigned = student.assignedOfferingIds.filter((id) => !prevIds.has(id));
+
+          for (const offeringId of newlyAssigned) {
+            const title = offeringTitleById.get(offeringId);
+            if (!title || !student.email) continue;
+            emailService.sendCourseAssignedEmail({
+              to: student.email,
+              studentName: `${student.name} ${student.surname}`.trim(),
+              offeringTitle: title,
+              deadline: offeringDeadlineById.get(offeringId) ?? '',
+              appUrl: resolveAppBaseUrl(request),
+            }).catch(() => { /* non-critical — do not fail the request */ });
+          }
         }
       }
     }
@@ -1896,13 +2423,32 @@ app.put('/api/external-training-requests/:requestId', async (request, response, 
   }
 });
 
-app.put('/api/external-training-requests/:requestId/review', async (request, response, next) => {
+app.put('/api/external-training-requests/:requestId/review', requireManagerOrAdministrator, async (request, response, next) => {
   try {
     const review = externalTrainingRequestReviewSchema.parse({
       ...request.body,
-      requestId: request.params.requestId,
+      requestId: request.params['requestId'],
     });
     const updated = await repository.reviewExternalTrainingRequest(review);
+
+    if (!updated) {
+      response.status(404).json({ message: 'External training request not found.' });
+      return;
+    }
+
+    response.json(updated);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/external-training-requests/:requestId/documents', requireManagerOrAdministrator, async (request, response, next) => {
+  try {
+    const documents = externalTrainingRequestDocumentsSchema.parse({
+      ...request.body,
+      requestId: request.params['requestId'],
+    });
+    const updated = await repository.attachExternalTrainingRequestDocuments(documents);
 
     if (!updated) {
       response.status(404).json({ message: 'External training request not found.' });

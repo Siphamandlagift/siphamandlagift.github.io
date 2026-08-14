@@ -26,6 +26,8 @@ The API listens on `http://localhost:3000` by default and the Angular app is con
 
 For hosted deployments, the backend now supports `PORT`, `LMS_ALLOWED_ORIGINS`, and `LMS_DATA_DIRECTORY`, and the Angular frontend can read a runtime `app-config.json` file so you can point the Firebase-hosted site at a public API without rebuilding the whole app each time.
 
+In hosted runtime, default CORS origins are restricted to the known production domains (no localhost). Set `LMS_ALLOWED_ORIGINS` explicitly if you need a custom allowlist.
+
 The main LMS backend can also run on Firebase Functions. In that mode the repository automatically switches from the local JSON store to Firestore, using the root document configured by `LMS_FIRESTORE_COLLECTION` and `LMS_FIRESTORE_DOCUMENT_ID`.
 
 The login page now authenticates against the backend API, and password reset emails are sent by the backend.
@@ -44,11 +46,31 @@ $env:LMS_SMTP_PASS = "your-smtp-password"
 $env:LMS_SMTP_FROM = "SkillsConnect LMS <no-reply@your-domain.com>"
 ```
 
+Optional Microsoft Entra ID SSO (OIDC) can be enabled with:
+
+```powershell
+$env:LMS_SSO_MICROSOFT_CLIENT_ID = "your-app-client-id"
+$env:LMS_SSO_MICROSOFT_CLIENT_SECRET = "your-app-client-secret"
+$env:LMS_SSO_MICROSOFT_TENANT_ID = "your-tenant-id-or-organizations"
+$env:LMS_SSO_MICROSOFT_REDIRECT_URI = "https://skillsconnect-f2275.web.app/api/auth/sso/microsoft/callback"
+$env:LMS_SSO_ALLOWED_EMAIL_DOMAINS = "yourcompany.com"
+```
+
+Notes:
+
+- Keep the existing username/password login enabled as fallback while rolling out SSO.
+- The Entra app redirect URI must match your deployed callback URL exactly.
+- SSO users must already exist as LMS users by email in the backend account store.
+
 Seeded backend login accounts are:
 
 - Administrator: `admin` / `admin`
 - Training Manager: `manager` / `manager`
 - Student: `student` / `student`
+
+These seeded credentials are for local bootstrapping only. In hosted Firebase Functions runtime, default demo login pairs are blocked unless `LMS_ALLOW_DEMO_CREDENTIALS=true` is explicitly set.
+
+Password policy for managed users and reset/change-password flows is enforced server-side: at least 12 characters with uppercase, lowercase, number, and symbol.
 
 When SMTP is configured, the forgot-password flow sends a reset link to the matching account email. The link opens `/reset-password` in the Angular app and lets the user choose a new password that is then stored by the backend.
 
@@ -109,23 +131,78 @@ If Cloud Functions deployment fails with a build-service-account permission erro
 
 Firestore access from the browser is locked down in `firestore.rules`; the deployed API uses the Firebase Admin SDK on the server side.
 
+## Operations runbook
+
+### Health checks
+
+- Hosted API health endpoint: `https://skillsconnect-f2275.web.app/api/health`
+- Direct function health endpoint: `https://us-central1-skillsconnect-f2275.cloudfunctions.net/api/health`
+
+### Logs
+
+Inspect recent production API logs:
+
+```bash
+firebase functions:log --project skillsconnect-f2275 --only api --lines 100
+```
+
+### Firestore backups
+
+Automated backups are configured for `(default)` with daily recurrence and 30-day retention.
+
+Check the active schedule:
+
+```bash
+firebase firestore:backups:schedules:list --project skillsconnect-f2275
+```
+
+List available backups:
+
+```bash
+firebase firestore:backups:list --project skillsconnect-f2275 --location=us-central1
+```
+
+### Rollback
+
+Rollback API/backend to previous stable source:
+
+```bash
+firebase deploy --only functions --project skillsconnect-f2275
+```
+
+Rollback frontend from the currently deployed live version to a target channel release:
+
+```bash
+firebase hosting:clone skillsconnect-f2275:live skillsconnect-f2275:<channel-id> --project skillsconnect-f2275
+firebase hosting:channel:open <channel-id> --project skillsconnect-f2275
+```
+
+Deploy a new live frontend release:
+
+```bash
+npm run build
+firebase deploy --only hosting --project skillsconnect-f2275
+```
+
 ## Render backend deployment
 
-This repository now includes `render.yaml` for the main LMS API. It configures:
+This repository does not currently include a `render.yaml` blueprint file.
 
-- `npm run server:build` as the build step
-- `npm run server:start` as the start step
-- `/health` as the health check path
-- a persistent disk mounted at `/opt/render/project/data`
+If you choose to host the main LMS API on Render, configure a standard Node Web Service manually with:
 
-To deploy the backend on Render:
+- Build command: `npm run server:build`
+- Start command: `npm run server:start`
+- Health check path: `/api/health`
+- Persistent disk mounted at a path mapped to `LMS_DATA_DIRECTORY` if you use JSON-store mode
+
+Manual Render deployment flow:
 
 1. Push this repo to GitHub.
-2. In Render, create a new Blueprint from the repository.
-3. Let Render create the `skillsconnect-lms-api` service from `render.yaml`.
-4. After the first deploy, note the public Render URL.
-5. Create `public/app-config.json` with that Render URL as `lmsApiBaseUrl`.
-6. Rebuild and redeploy Firebase Hosting so the frontend points at the public API.
+2. In Render, create a new Web Service from the repository (not Blueprint).
+3. Set the build/start commands above.
+4. Configure environment variables (`LMS_JWT_SECRET`, SMTP values, `LMS_ALLOWED_ORIGINS`, and optionally `LMS_DATA_DIRECTORY`).
+5. After first deploy, note the public Render URL.
+6. Update `public/app-config.json` with that URL as `lmsApiBaseUrl`, then rebuild and redeploy Firebase Hosting.
 
 The backend uses `LMS_DATA_DIRECTORY` for its JSON store, so the Render service can keep `lms-data.json` and its backups on the mounted disk.
 

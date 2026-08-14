@@ -14,9 +14,10 @@ export type AuthenticatedUserProfile = {
   email: string;
   role: UserRole;
   permissions: Permission[];
+  isPlatformAdmin: boolean;
 };
 
-export type AuthTokenPayload = Pick<AuthenticatedUserProfile, 'userId' | 'companyId' | 'email' | 'role' | 'name'>;
+export type AuthTokenPayload = Pick<AuthenticatedUserProfile, 'userId' | 'companyId' | 'email' | 'role' | 'name' | 'isPlatformAdmin'>;
 
 export type AuthenticatedRequest = Request & {
   auth?: AuthenticatedUserProfile;
@@ -40,6 +41,7 @@ export type UserWithCompanyRecord = UserRecord & {
   passwordHash: string;
   companyName: string;
   licenseType: LicenseType;
+  isPlatformAdmin: boolean;
 };
 
 export type CourseRecord = {
@@ -78,4 +80,31 @@ export type DashboardResponse = {
   users: UserRecord[];
   courses: CourseRecord[];
   enrollments: EnrollmentRecord[];
+};
+
+// ─── Billing ─────────────────────────────────────────────────────────────────
+
+export type SubscriptionStatus = 'active' | 'inactive' | 'suspended';
+
+export type SubscriptionRecord = {
+  id: string;
+  companyId: string;
+  status: SubscriptionStatus;
+  activatedAt: string | null;
+  expiresAt: string | null;
+  notes: string | null;
+};
+
+/** Per-plan hard limits. null means unlimited. */
+export const PLAN_LIMITS: Record<LicenseType, { maxUsers: number | null; maxCourses: number | null }> = {
+  starter: { maxUsers: 15, maxCourses: 10 },
+  growth: { maxUsers: 100, maxCourses: 50 },
+  enterprise: { maxUsers: null, maxCourses: null },
+};
+
+export type UpsertSubscriptionInput = {
+  status: SubscriptionStatus;
+  activatedAt?: string | null;
+  expiresAt?: string | null;
+  notes?: string | null;
 };

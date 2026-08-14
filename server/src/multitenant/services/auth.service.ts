@@ -42,6 +42,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
       permissions: permissionsForRole(user.role),
+      isPlatformAdmin: user.isPlatformAdmin,
     });
   }
 
@@ -53,6 +54,7 @@ export class AuthService {
         email: user.email,
         role: user.role,
         name: user.name,
+        isPlatformAdmin: user.isPlatformAdmin,
       }, this.config),
       user,
     };

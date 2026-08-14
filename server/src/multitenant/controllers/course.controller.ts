@@ -15,7 +15,8 @@ export class CourseController {
   readonly createCourse: RequestHandler = async (request, response) => {
     const authenticatedRequest = request as AuthenticatedRequest;
     const payload = request.body as CreateCourseRequest;
-    const course = await this.courseService.createCourse(authenticatedRequest.auth!.companyId, payload.title);
+    const { companyId, licenseType } = authenticatedRequest.auth!;
+    const course = await this.courseService.createCourse(companyId, licenseType, payload.title);
     response.status(201).json(course);
   };
 

@@ -1,11 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs';
 import { LmsBackendService, ResolveRolesEntry } from '../lms-backend.service';
 import { LmsBrandingService } from '../lms-branding.service';
-import { createLmsSessionRecord } from '../session-auth';
+import { combineDisplayName, createLmsSessionRecord } from '../session-auth';
 
 type LoginRole = 'administrator' | 'training-manager' | 'student';
 
@@ -19,6 +19,8 @@ type SsoLoginPayload = {
   username: string;
   email: string;
   studentId?: string;
+  name?: string;
+  surname?: string;
   token: string;
 };
 
@@ -36,6 +38,7 @@ type SsoLoginPayload = {
 export class Login implements OnInit {
   private readonly router = inject(Router);
   private readonly activatedRoute = inject(ActivatedRoute);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly backend = inject(LmsBackendService);
   readonly branding = inject(LmsBrandingService);
   readonly adminEmail = 'admin@skillsconnect.app';
@@ -81,15 +84,24 @@ export class Login implements OnInit {
       username: this.username.trim(),
       password: this.password,
     })
-      .pipe(finalize(() => (this.signingIn = false)))
+      .pipe(finalize(() => {
+        this.signingIn = false;
+        this.cdr.markForCheck();
+      }))
       .subscribe({
         next: (response) => {
-          if (response.roles.length === 1) {
-            this.persistAuthenticatedSession(response.roles[0]);
-            void this.router.navigate([response.roles[0].route]);
+          // Everyone lands on their own student workspace by default — administrators and
+          // training managers switch up to their elevated view from there via the profile menu.
+          const studentEntry = response.roles.find((entry) => entry.role === 'student');
+          const landingEntry = studentEntry ?? (response.roles.length === 1 ? response.roles[0] : undefined);
+
+          if (landingEntry) {
+            this.persistAuthenticatedSession(landingEntry);
+            void this.router.navigate([landingEntry.route]);
           } else {
             this.resolvedRoles = response.roles;
             this.loginStep = 'pick-role';
+            this.cdr.markForCheck();
           }
         },
         error: (error) => {
@@ -97,6 +109,7 @@ export class Login implements OnInit {
             ? 'Invalid login. Check your username and password.'
             : 'Login is unavailable right now. Please try again.';
           this.shaking.set(true);
+          this.cdr.markForCheck();
           setTimeout(() => this.shaking.set(false), 600);
         },
       });
@@ -238,6 +251,7 @@ export class Login implements OnInit {
       username: payload.username,
       email: payload.email,
       studentId: payload.studentId ?? null,
+      displayName: combineDisplayName(payload.name, payload.surname),
     })));
     localStorage.setItem('lms-token', payload.token);
   }

@@ -1,3 +1,4 @@
 {
-  "tenantApiBaseUrl": "https://skillsconnect-tenant-api.onrender.com"
+	"lmsApiBaseUrl": "/api",
+	"tenantApiBaseUrl": "/tenant-api"
 }

@@ -20,6 +20,7 @@ export type TenantAuthUser = {
   email: string;
   role: TenantUserRole;
   permissions: TenantPermission[];
+  isPlatformAdmin: boolean;
 };
 
 export type TenantAuthResponse = {
@@ -79,4 +80,43 @@ export type TenantDashboardResponse = {
   users: TenantUser[];
   courses: TenantCourse[];
   enrollments: TenantEnrollment[];
+};
+
+// ─── Billing ─────────────────────────────────────────────────────────────────
+
+export type TenantSubscriptionStatus = 'active' | 'inactive' | 'suspended';
+
+export type TenantSubscription = {
+  id: string;
+  companyId: string;
+  status: TenantSubscriptionStatus;
+  activatedAt: string | null;
+  expiresAt: string | null;
+  notes: string | null;
+};
+
+export type TenantPlanLimits = {
+  maxUsers: number | null;
+  maxCourses: number | null;
+};
+
+export type TenantUsageSummary = {
+  licenseType: TenantLicenseType;
+  subscription: TenantSubscription | null;
+  usage: { userCount: number; courseCount: number };
+  limits: TenantPlanLimits;
+};
+
+/** Row returned by GET /billing for the platform admin companies list */
+export type TenantCompanyRow = {
+  id: string;
+  name: string;
+  licenseType: TenantLicenseType;
+  subscriptionId: string | null;
+  status: TenantSubscriptionStatus | null;
+  activatedAt: string | null;
+  expiresAt: string | null;
+  notes: string | null;
+  userCount: number;
+  courseCount: number;
 };

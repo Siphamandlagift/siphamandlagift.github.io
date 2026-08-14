@@ -12,14 +12,16 @@ describe('Login', () => {
   let fixture: ComponentFixture<Login>;
   let router: Router;
   let backend: {
-    login: ReturnType<typeof vi.fn>;
+    resolveRoles: ReturnType<typeof vi.fn>;
     requestPasswordReset: ReturnType<typeof vi.fn>;
+    getBranding: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(async () => {
     backend = {
-      login: vi.fn(),
+      resolveRoles: vi.fn(),
       requestPasswordReset: vi.fn(),
+      getBranding: vi.fn().mockReturnValue(of({ themeId: 'ocean', companyLogoDataUrl: null })),
     };
 
     await TestBed.configureTestingModule({
@@ -41,8 +43,6 @@ describe('Login', () => {
   });
 
   it('opens forgot password dialog with current role and username', () => {
-    component.selectedRole = 'student';
-
     component.openForgotPassword(new Event('click'));
 
     expect(component.activeDialog).toBe('forgot-password');
@@ -79,15 +79,17 @@ describe('Login', () => {
   });
 
   it('signs in with backend authentication', () => {
-    backend.login.mockReturnValue(of({
-      role: 'student',
-      route: '/student-profile',
-      username: 'student',
-      email: 'alice.johnson@skillsconnect.app',
+    backend.resolveRoles.mockReturnValue(of({
+      roles: [{
+        role: 'student',
+        route: '/student-profile',
+        username: 'student',
+        email: 'alice.johnson@skillsconnect.app',
+        token: 'test-token',
+      }],
     }));
     const navigateSpy = vi.spyOn(router, 'navigate');
 
-    component.selectedRole = 'student';
     component.username = 'student';
     component.password = 'student';
     component.onSubmit();
@@ -96,13 +98,12 @@ describe('Login', () => {
   });
 
   it('shows an invalid login message when authentication is rejected', () => {
-    backend.login.mockReturnValue(throwError(() => ({ status: 401 })));
+    backend.resolveRoles.mockReturnValue(throwError(() => ({ status: 401 })));
 
-    component.selectedRole = 'student';
     component.username = 'student';
     component.password = 'wrong';
     component.onSubmit();
 
-    expect(component.errorMessage).toContain('Invalid student login');
+    expect(component.errorMessage).toContain('Invalid login');
   });
 });

@@ -19,6 +19,7 @@ import {
   ChangePasswordInput,
   EnrollmentStudentRecord,
   ExternalTrainingRequestCreateInput,
+  ExternalTrainingRequestDocumentsInput,
   ExternalTrainingRequestReviewInput,
   ExternalTrainingRequestUpdateInput,
   LoginRequestInput,
@@ -33,6 +34,7 @@ import {
   StudentNotificationRecord,
   StudentSnapshotUpdate,
   StudentRecord,
+  SystemTrainingManagerRecord,
   TrainingOffering,
   TrainingOfferingUpdate,
 } from './contracts.js';
@@ -189,8 +191,11 @@ function normalizeEnrollmentRole(role: EnrollmentStudentRecord['role'] | LoginRo
   switch (role) {
     case 'training-manager':
       return 'manager';
+    // A directory record's base role is always student or manager now — 'administrator' access is
+    // granted separately via the isAdmin flag, never as a base role. Legacy 'administrator' values
+    // (from data written before that split) fall back to 'student', matching the normalizeData migration.
     case 'administrator':
-      return 'admin';
+      return 'student';
     default:
       return role;
   }
@@ -200,8 +205,6 @@ function normalizeLoginRole(role: EnrollmentStudentRecord['role'] | LoginRole): 
   switch (role) {
     case 'manager':
       return 'training-manager';
-    case 'admin':
-      return 'administrator';
     default:
       return role;
   }
@@ -228,6 +231,61 @@ function resolveStudentIdForAccount(data: LmsDataStore, account: Pick<AuthAccoun
   }
 
   return data.students.find((entry) => entry.email.toLowerCase() === account.email.toLowerCase())?.id;
+}
+
+type ResolvedRoleEntry = {
+  role: LoginRole;
+  route: string;
+  username: string;
+  email: string;
+  studentId?: string;
+  name?: string;
+  surname?: string;
+};
+
+/** The real "First Last" name behind an account (from its linked directory entry), used to avoid
+ *  a username/email-derived placeholder flashing before the real name loads on the client. */
+function resolveAccountDisplayNameSync(
+  data: LmsDataStore,
+  account: Pick<AuthAccountRecord, 'role' | 'email' | 'linkedStudentId'>,
+): { name: string; surname: string } | null {
+  const studentId = resolveStudentIdForAccount(data, account) ?? account.linkedStudentId;
+  if (!studentId) {
+    return null;
+  }
+
+  const student = data.students.find((entry) => entry.id === studentId);
+  return student ? { name: student.name, surname: student.surname } : null;
+}
+
+/** The directory record backing this account, regardless of its base role — used to check the
+ *  isAdmin flag, which grants full administrator access independently of the student/manager role. */
+function resolveLinkedStudentRecord(
+  data: LmsDataStore,
+  account: Pick<AuthAccountRecord, 'role' | 'email' | 'linkedStudentId'>,
+): EnrollmentStudentRecord | null {
+  const studentId = resolveStudentIdForAccount(data, account) ?? account.linkedStudentId;
+  if (!studentId) {
+    return null;
+  }
+
+  return data.students.find((entry) => entry.id === studentId) ?? null;
+}
+
+function mergeResolvedRole(results: ResolvedRoleEntry[], candidate: ResolvedRoleEntry) {
+  const existingIndex = results.findIndex((entry) => entry.role === candidate.role);
+  if (existingIndex === -1) {
+    results.push(candidate);
+    return;
+  }
+
+  const existing = results[existingIndex];
+  const existingHasStudentId = typeof existing.studentId === 'string' && existing.studentId.trim().length > 0;
+  const candidateHasStudentId = typeof candidate.studentId === 'string' && candidate.studentId.trim().length > 0;
+
+  if (!existingHasStudentId && candidateHasStudentId) {
+    results[existingIndex] = candidate;
+  }
 }
 
 function syncLinkedAuthAccounts(data: LmsDataStore) {
@@ -264,6 +322,55 @@ function syncLinkedAuthAccounts(data: LmsDataStore) {
 
 function buildStudentFullName(student: Pick<EnrollmentStudentRecord, 'name' | 'surname'>) {
   return [student.name.trim(), student.surname.trim()].filter(Boolean).join(' ');
+}
+
+/** The full set of people students can submit an external training request to: the raw
+ *  trainingManagers directory plus anyone granted Training Manager access via User Management
+ *  (role 'manager', active) — mirrors the client's buildTrainingManagers() merge so a manager
+ *  who only exists as a student record with role 'manager' can still be a valid approving manager. */
+function resolveApprovingManagers(data: LmsDataStore): SystemTrainingManagerRecord[] {
+  const managers = [...data.trainingManagers];
+  const seenEmails = new Set(managers.map((manager) => manager.email.trim().toLowerCase()));
+
+  for (const student of data.students) {
+    if (student.role !== 'manager' || student.activeStatus !== 'Active') {
+      continue;
+    }
+
+    const normalizedEmail = student.email.trim().toLowerCase();
+    if (!normalizedEmail || seenEmails.has(normalizedEmail)) {
+      continue;
+    }
+
+    seenEmails.add(normalizedEmail);
+    managers.push({
+      id: `uploaded-manager-${student.id}`,
+      name: buildStudentFullName(student),
+      role: student.jobTitle.trim() || 'Training Manager',
+      team: student.department.trim() || 'Learning Operations',
+      email: student.email.trim(),
+    });
+  }
+
+  return managers;
+}
+
+/** Best-effort "First Last" display name for an account that has no directory entry yet —
+ *  derived from its username/email rather than a hardcoded placeholder. */
+function deriveDisplayNameFromIdentity(username: string, email: string): { name: string; surname: string } {
+  const titleCase = (segment: string) => segment.length ? segment[0].toUpperCase() + segment.slice(1).toLowerCase() : segment;
+  const source = username.trim() || email.split('@')[0] || 'User';
+  const words = source.split(/[\s._-]+/).filter(Boolean).map(titleCase);
+
+  if (words.length === 0) {
+    return { name: 'User', surname: '' };
+  }
+
+  if (words.length === 1) {
+    return { name: words[0], surname: 'Profile' };
+  }
+
+  return { name: words[0], surname: words.slice(1).join(' ') };
 }
 
 function normalizeStudentIdpEntries(entries: unknown): StudentIdpEntryRecord[] {
@@ -330,11 +437,10 @@ function mergeEnrollmentStudentRecord(existing: StudentRecord | undefined, stude
       name: buildStudentFullName(student),
       email: student.email,
     },
-    mentorshipProfile: {
-      ...existing.mentorshipProfile,
-      menteeName: student.name,
-      menteeSurname: student.surname,
-    },
+    // Keep the mentee's own mentorship-profile name as-is: it starts out seeded from the
+    // enrollment name (see createStudentRecordFromEnrollment) but the student can edit it
+    // independently afterwards, and a roster sync shouldn't silently discard that edit.
+    mentorshipProfile: existing.mentorshipProfile,
   };
 }
 
@@ -343,7 +449,12 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
   const offerings = data.offerings ?? defaults.offerings;
   const students = data.students.map((student) => {
     const defaultStudent = defaults.students.find((entry) => entry.id === student.id);
-    const role = normalizeEnrollmentRole((student.role ?? defaultStudent?.role ?? 'student') as EnrollmentStudentRecord['role'] | LoginRole);
+    const rawRole = (student.role ?? defaultStudent?.role ?? 'student') as EnrollmentStudentRecord['role'] | LoginRole | 'admin';
+    // Legacy migration: 'admin'/'administrator' used to be a base role. It's now the isAdmin flag
+    // layered on top of a student/manager base role — normalize any old data to that shape.
+    const isLegacyAdminRole = rawRole === 'admin' || rawRole === 'administrator';
+    const role = isLegacyAdminRole ? 'student' as const : normalizeEnrollmentRole(rawRole);
+    const isAdmin = isLegacyAdminRole || student.isAdmin === true;
     const settings = {
       ...(defaultStudent?.settings ?? defaults.students[0]?.settings),
       ...(student.settings ?? {}),
@@ -359,6 +470,7 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
       ...defaultStudent,
       ...student,
       role,
+      isAdmin,
       settings,
       assignedOfferingIds,
       assessmentAttempts: student.assessmentAttempts ?? defaultStudent?.assessmentAttempts ?? {},
@@ -488,7 +600,9 @@ export class LmsRepository {
     });
 
     await this.ensureStore();
-    this.writeQueue = this.writeQueue.then(async () => {
+    // See the matching comment in FirestoreLmsRepository.write() — .catch(() => {}) here stops
+    // one failed write from permanently jamming every write after it.
+    this.writeQueue = this.writeQueue.catch(() => {}).then(async () => {
       await this.writePrimaryStore(nextData);
     });
     await this.writeQueue;
@@ -756,11 +870,20 @@ export class LmsRepository {
     }
 
     if (patch.mentorshipAssignments) {
-      data.mentorshipAssignments = patch.mentorshipAssignments;
+      // Merge by ID, same reasoning as managerMessages above: the client only ever loads
+      // this collection once at bootstrap, so a naive replace here would silently drop any
+      // assignment created/updated by a different session (e.g. another manager, or a
+      // student saving their mentorship profile) in the meantime.
+      const patchById = new Map(patch.mentorshipAssignments.map((a) => [a.id, a]));
+      const onlyInDb = data.mentorshipAssignments.filter((a) => !patchById.has(a.id));
+      data.mentorshipAssignments = [...onlyInDb, ...patch.mentorshipAssignments];
     }
 
     if (patch.mentorshipSubmissions) {
-      data.mentorshipSubmissions = patch.mentorshipSubmissions;
+      // Merge by ID for the same reason as mentorshipAssignments above.
+      const patchById = new Map(patch.mentorshipSubmissions.map((s) => [s.id, s]));
+      const onlyInDb = data.mentorshipSubmissions.filter((s) => !patchById.has(s.id));
+      data.mentorshipSubmissions = [...onlyInDb, ...patch.mentorshipSubmissions];
     }
 
     if (patch.externalTrainingRequests) {
@@ -828,7 +951,7 @@ export class LmsRepository {
     const trainingEndDate = input.trainingEndDate.trim();
     const courseCost = input.courseCost.trim();
     const approvingManagerId = input.approvingManagerId.trim();
-    const approvingManager = data.trainingManagers.find((manager) => manager.id === approvingManagerId);
+    const approvingManager = resolveApprovingManagers(data).find((manager) => manager.id === approvingManagerId);
 
     if (!studentName || !studentEmail || !courseName || !provider || !trainingStartDate || !trainingEndDate || !courseCost || !approvingManager) {
       return null;
@@ -845,6 +968,7 @@ export class LmsRepository {
 
     const request = {
       id: `external-training-request-${Date.now()}`,
+      studentId: input.studentId.trim(),
       studentName,
       studentEmail,
       courseName,
@@ -865,6 +989,10 @@ export class LmsRepository {
       invoiceDataUrl: input.invoiceDataUrl,
       brochureFileName: input.brochureFileName.trim(),
       brochureDataUrl: input.brochureDataUrl,
+      proofOfPaymentFileName: '',
+      proofOfPaymentUrl: '',
+      certificateFileName: '',
+      certificateUrl: '',
       submittedAt: this.formatDisplayDate(new Date()),
       status: 'Pending Review' as const,
       reviewerName: null,
@@ -888,7 +1016,7 @@ export class LmsRepository {
     const trainingEndDate = input.trainingEndDate.trim();
     const courseCost = input.courseCost.trim();
     const approvingManagerId = input.approvingManagerId.trim();
-    const approvingManager = data.trainingManagers.find((manager) => manager.id === approvingManagerId);
+    const approvingManager = resolveApprovingManagers(data).find((manager) => manager.id === approvingManagerId);
 
     if (!requestId || !studentName || !studentEmail || !courseName || !provider || !trainingStartDate || !trainingEndDate || !courseCost || !approvingManager) {
       return null;
@@ -967,6 +1095,34 @@ export class LmsRepository {
     return next.externalTrainingRequests.find((entry) => entry.id === requestId) ?? null;
   }
 
+  async attachExternalTrainingRequestDocuments(input: ExternalTrainingRequestDocumentsInput) {
+    const data = await this.read();
+    const requestId = input.requestId.trim();
+
+    if (!requestId) {
+      return null;
+    }
+
+    const existingIndex = data.externalTrainingRequests.findIndex((entry) => entry.id === requestId);
+    if (existingIndex === -1) {
+      return null;
+    }
+
+    const existing = data.externalTrainingRequests[existingIndex];
+    data.externalTrainingRequests[existingIndex] = {
+      ...existing,
+      invoiceFileName: input.invoiceFileName !== undefined ? input.invoiceFileName.trim() : existing.invoiceFileName ?? '',
+      invoiceDataUrl: input.invoiceDataUrl !== undefined ? input.invoiceDataUrl : existing.invoiceDataUrl ?? '',
+      proofOfPaymentFileName: input.proofOfPaymentFileName !== undefined ? input.proofOfPaymentFileName.trim() : existing.proofOfPaymentFileName ?? '',
+      proofOfPaymentUrl: input.proofOfPaymentUrl !== undefined ? input.proofOfPaymentUrl : existing.proofOfPaymentUrl ?? '',
+      certificateFileName: input.certificateFileName !== undefined ? input.certificateFileName.trim() : existing.certificateFileName ?? '',
+      certificateUrl: input.certificateUrl !== undefined ? input.certificateUrl : existing.certificateUrl ?? '',
+    };
+
+    const next = await this.write(data);
+    return next.externalTrainingRequests.find((entry) => entry.id === requestId) ?? null;
+  }
+
   async authenticateSso(input: { email: string; role?: LoginRole }) {
     const data = await this.read();
     const normalizedEmail = input.email.trim().toLowerCase();
@@ -1027,13 +1183,13 @@ export class LmsRepository {
         && (entry.username.toLowerCase() === normalizedUsername || entry.email.toLowerCase() === normalizedUsername),
     );
 
-    // Dual-access: a line manager is enrolled as a student AND has training-manager credentials.
-    // Their auth account role is 'training-manager' with a linkedStudentId pointing to their own
-    // student record. Allow them to log in as 'student' using the same credentials.
+    // Dual-access: a training manager or administrator can also be enrolled as a student.
+    // Their auth account role is 'training-manager'/'administrator' with a linkedStudentId pointing
+    // to their own student record. Allow them to log in as 'student' using the same credentials.
     let lineManagerStudentId: string | undefined;
     if (!account && role === 'student') {
       const managerAccount = data.authAccounts.find(
-        (entry) => entry.role === 'training-manager'
+        (entry) => (entry.role === 'training-manager' || entry.role === 'administrator')
           && entry.linkedStudentId
           && (entry.username.toLowerCase() === normalizedUsername || entry.email.toLowerCase() === normalizedUsername),
       );
@@ -1071,13 +1227,7 @@ export class LmsRepository {
     };
   }
 
-  async resolveRoles(input: { username: string; password: string }): Promise<Array<{
-    role: LoginRole;
-    route: string;
-    username: string;
-    email: string;
-    studentId?: string;
-  }>> {
+  async resolveRoles(input: { username: string; password: string }): Promise<ResolvedRoleEntry[]> {
     const data = await this.read();
     const username = input.username.trim();
     const normalizedUsername = username.toLowerCase();
@@ -1087,7 +1237,7 @@ export class LmsRepository {
       return [];
     }
 
-    const results: Array<{ role: LoginRole; route: string; username: string; email: string; studentId?: string }> = [];
+    const results: ResolvedRoleEntry[] = [];
 
     const matchingAccounts = data.authAccounts.filter(
       (a) => a.username.toLowerCase() === normalizedUsername || a.email.toLowerCase() === normalizedUsername,
@@ -1102,22 +1252,43 @@ export class LmsRepository {
         continue;
       }
 
-      results.push({
+      const identity = resolveAccountDisplayNameSync(data, account);
+
+      mergeResolvedRole(results, {
         role: account.role,
         route: account.route,
         username: account.username,
         email: account.email,
         studentId: resolveStudentIdForAccount(data, account),
+        name: identity?.name,
+        surname: identity?.surname,
       });
 
-      // Dual-access: a training manager with a linked student profile can also enter the student workspace.
-      if (account.role === 'training-manager' && account.linkedStudentId) {
-        results.push({
+      // Dual-access: a training manager or administrator with a linked student profile can also enter the student workspace.
+      if ((account.role === 'training-manager' || account.role === 'administrator') && account.linkedStudentId) {
+        mergeResolvedRole(results, {
           role: 'student' as const,
           route: '/student-profile',
           username: account.username,
           email: account.email,
           studentId: account.linkedStudentId,
+          name: identity?.name,
+          surname: identity?.surname,
+        });
+      }
+
+      // The isAdmin flag on the linked directory record grants full administrator access
+      // independently of the account's base role (student or manager).
+      const linkedStudentForAdmin = resolveLinkedStudentRecord(data, account);
+      if (linkedStudentForAdmin?.isAdmin) {
+        mergeResolvedRole(results, {
+          role: 'administrator' as const,
+          route: '/admin-profile',
+          username: account.username,
+          email: account.email,
+          studentId: resolveStudentIdForAccount(data, account) ?? account.linkedStudentId ?? undefined,
+          name: identity?.name,
+          surname: identity?.surname,
         });
       }
     }
@@ -1125,13 +1296,7 @@ export class LmsRepository {
     return results;
   }
 
-  async resolveRolesByEmail(email: string): Promise<Array<{
-    role: LoginRole;
-    route: string;
-    username: string;
-    email: string;
-    studentId?: string;
-  }>> {
+  async resolveRolesByEmail(email: string): Promise<ResolvedRoleEntry[]> {
     const data = await this.read();
     const normalizedEmail = email.trim().toLowerCase();
 
@@ -1139,34 +1304,204 @@ export class LmsRepository {
       return [];
     }
 
-    const results: Array<{ role: LoginRole; route: string; username: string; email: string; studentId?: string }> = [];
+    const results: ResolvedRoleEntry[] = [];
 
     const matchingAccounts = data.authAccounts.filter(
       (a) => a.email.toLowerCase() === normalizedEmail,
     );
 
     for (const account of matchingAccounts) {
-      results.push({
+      const identity = resolveAccountDisplayNameSync(data, account);
+
+      mergeResolvedRole(results, {
         role: account.role,
         route: account.route,
         username: account.username,
         email: account.email,
         studentId: resolveStudentIdForAccount(data, account),
+        name: identity?.name,
+        surname: identity?.surname,
       });
 
-      // Dual-access: a training manager with a linked student profile can also enter the student workspace.
-      if (account.role === 'training-manager' && account.linkedStudentId) {
-        results.push({
+      // Dual-access: a training manager or administrator with a linked student profile can also enter the student workspace.
+      if ((account.role === 'training-manager' || account.role === 'administrator') && account.linkedStudentId) {
+        mergeResolvedRole(results, {
           role: 'student' as const,
           route: '/student-profile',
           username: account.username,
           email: account.email,
           studentId: account.linkedStudentId,
+          name: identity?.name,
+          surname: identity?.surname,
+        });
+      }
+
+      // The isAdmin flag on the linked directory record grants full administrator access
+      // independently of the account's base role (student or manager).
+      const linkedStudentForAdmin = resolveLinkedStudentRecord(data, account);
+      if (linkedStudentForAdmin?.isAdmin) {
+        mergeResolvedRole(results, {
+          role: 'administrator' as const,
+          route: '/admin-profile',
+          username: account.username,
+          email: account.email,
+          studentId: resolveStudentIdForAccount(data, account) ?? account.linkedStudentId ?? undefined,
+          name: identity?.name,
+          surname: identity?.surname,
         });
       }
     }
 
     return results;
+  }
+
+  /**
+   * The real name and profile picture behind an account, regardless of which role it's currently
+   * logged in as — resolved from the directory entry linked to that account, not from
+   * username/email parsing. Lets the admin and training-manager views show the same name and
+   * picture as the student view for accounts with multiple access roles.
+   */
+  async resolveAccountIdentity(accountEmail: string): Promise<{
+    name: string;
+    surname: string;
+    profileImageUrl: string | null;
+    profileImageDataUrl: string | null;
+  } | null> {
+    const data = await this.read();
+    const normalizedEmail = accountEmail.trim().toLowerCase();
+    const account = data.authAccounts.find((entry) => entry.email.toLowerCase() === normalizedEmail);
+    if (!account) {
+      return null;
+    }
+
+    const identity = resolveAccountDisplayNameSync(data, account);
+    if (!identity) {
+      return null;
+    }
+
+    const studentId = resolveStudentIdForAccount(data, account) ?? account.linkedStudentId;
+    const student = studentId ? data.students.find((entry) => entry.id === studentId) : undefined;
+
+    return {
+      ...identity,
+      profileImageUrl: student?.profile?.profileImageUrl ?? null,
+      profileImageDataUrl: student?.profile?.profileImageDataUrl ?? null,
+    };
+  }
+
+  /**
+   * Updates only the profile picture on the directory entry linked to this account — used so an
+   * admin/training-manager's picture upload is visible from every role, not just the one they
+   * uploaded it from. Never touches any other field on the student record.
+   */
+  async updateAccountProfileImage(
+    accountEmail: string,
+    image: { profileImageUrl: string | null; profileImageDataUrl: string | null },
+  ): Promise<boolean> {
+    const data = await this.read();
+    const normalizedEmail = accountEmail.trim().toLowerCase();
+    const account = data.authAccounts.find((entry) => entry.email.toLowerCase() === normalizedEmail);
+    if (!account) {
+      return false;
+    }
+
+    const studentId = resolveStudentIdForAccount(data, account) ?? account.linkedStudentId;
+    if (!studentId) {
+      return false;
+    }
+
+    const studentIndex = data.students.findIndex((entry) => entry.id === studentId);
+    if (studentIndex === -1) {
+      return false;
+    }
+
+    data.students[studentIndex] = {
+      ...data.students[studentIndex],
+      profile: {
+        ...data.students[studentIndex].profile,
+        profileImageUrl: image.profileImageUrl,
+        profileImageDataUrl: image.profileImageDataUrl,
+      },
+    };
+
+    await this.write(data);
+    return true;
+  }
+
+  /**
+   * Gives an administrator or training manager a real, persistent student profile to switch into,
+   * instead of the generic fallback session (which had no studentId and silently reused whichever
+   * student the server happens to be configured with as its default).
+   *
+   * Reuses a directory entry that already matches this account's email (e.g. one added via User
+   * Management) if one exists; otherwise creates a fresh, empty one. Either way the link is saved
+   * on the account so every future switch — and every future login — lands on the same profile.
+   */
+  async ensureSwitchStudentProfile(accountEmail: string): Promise<{ studentId: string } | null> {
+    const data = await this.read();
+    const normalizedEmail = accountEmail.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      return null;
+    }
+
+    const accountIndex = data.authAccounts.findIndex((entry) => entry.email.toLowerCase() === normalizedEmail);
+    if (accountIndex === -1) {
+      return null;
+    }
+
+    const account = data.authAccounts[accountIndex];
+    if (account.role !== 'administrator' && account.role !== 'training-manager') {
+      return null;
+    }
+
+    if (account.linkedStudentId && data.students.some((student) => student.id === account.linkedStudentId)) {
+      return { studentId: account.linkedStudentId };
+    }
+
+    // Base role is always 'manager' here — admin access (a legacy 'administrator' authAccounts row,
+    // which normalizeData migrates away going forward) is granted via isAdmin, not the base role.
+    const isAdminAccount = (account.role as string) === 'administrator';
+    const directoryRole: EnrollmentStudentRecord['role'] = 'manager';
+    const existingStudent = data.students.find((student) => student.email.toLowerCase() === normalizedEmail);
+
+    let studentId: string;
+    if (existingStudent) {
+      studentId = existingStudent.id;
+      if (existingStudent.role !== directoryRole || (isAdminAccount && !existingStudent.isAdmin)) {
+        data.students = data.students.map((student) =>
+          student.id === studentId ? { ...student, role: directoryRole, isAdmin: student.isAdmin || isAdminAccount } : student,
+        );
+      }
+    } else {
+      const displayName = deriveDisplayNameFromIdentity(account.username, account.email);
+      studentId = `own-profile-${accountIndex}-${Date.now().toString(36)}`;
+      const enrollment: EnrollmentStudentRecord = {
+        id: studentId,
+        name: displayName.name,
+        surname: displayName.surname,
+        group: 'Internal',
+        dateEnrolled: new Date().toISOString().slice(0, 10),
+        deadlineDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365).toISOString().slice(0, 10),
+        email: account.email,
+        jobTitle: isAdminAccount ? 'Administrator' : 'Training Manager',
+        idNumber: '',
+        activeStatus: 'Active',
+        department: isAdminAccount ? 'Administration' : 'Training Management',
+        lineManager: '',
+        status: 'Not Yet Started',
+        assignedOfferingIds: [],
+        role: directoryRole,
+        isAdmin: isAdminAccount,
+      };
+      data.students = [...data.students, createStudentRecordFromEnrollment(enrollment)];
+    }
+
+    data.authAccounts[accountIndex] = { ...account, linkedStudentId: studentId };
+    syncLinkedAuthAccounts(data);
+    await this.write(data);
+
+    return { studentId };
   }
 
   async upsertManagedUserCredentials(inputs: ManagedUserCredentialInput[]): Promise<ManagedUserCredentialsUpsertResponse> {
@@ -1550,7 +1885,15 @@ class FirestoreLmsRepository extends LmsRepository {
       updatedAt: new Date().toISOString(),
     });
 
-    this.firestoreWriteQueue = this.firestoreWriteQueue.then(async () => {
+    // .catch(() => {}) before chaining the next write is load-bearing: without it, a single
+    // failed write (e.g. an oversized field) leaves this.firestoreWriteQueue permanently
+    // rejected, and every future write on this same warm instance silently no-ops (the
+    // .then() callback is skipped once the chain is rejected) while still rejecting its own
+    // caller with that same stale error — making one bad write look like the server is
+    // randomly broken for everyone until the instance recycles. Swallowing the previous
+    // failure here only resets the chain for the next write; it doesn't hide this write's own
+    // errors — those still propagate normally via the `await` below.
+    this.firestoreWriteQueue = this.firestoreWriteQueue.catch(() => {}).then(async () => {
       const batchOperations: FirestoreBatchOperation[] = [
         (batch) => {
           batch.set(this.storeDocument, this.sanitizeForFirestore({

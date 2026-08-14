@@ -2,19 +2,21 @@ import { effect, Injectable, computed, inject, signal, untracked } from '@angula
 import { firstValueFrom, interval } from 'rxjs';
 import { LmsBackendService } from './lms-backend.service';
 import { LmsBrandThemeId } from './lms-branding.service';
-import { ManagerMessage, TrainingManagerDataService, TrainingOffering } from './training-manager-data.service';
+import { ManagerMessage, ManagerMessageReply, TrainingManagerDataService, TrainingOffering } from './training-manager-data.service';
 
 export type StudentProfileData = {
   name: string;
   email: string;
+  idNumber: string;
   age: number;
   contactNumber: string;
   address: string;
-  programme: string;
-  level: string;
+  department: string;
+  jobTitle: string;
   joined: string;
   learningStreak: string;
   profileImageDataUrl: string | null;
+  profileImageUrl: string | null;
   passwordUpdatedAt: string;
 };
 
@@ -70,7 +72,9 @@ export type StudentNotification = {
   title: string;
   body: string;
   dateLabel: string;
+  createdAt?: string;
   unread: boolean;
+  dismissed?: boolean;
 };
 
 export type StudentMessage = {
@@ -128,6 +132,13 @@ export type StudentAssessmentAttempt = {
   lastSubmittedAt: string;
 };
 
+type StudentEngagementState = {
+  /** Number of consecutive calendar days the student has engaged with any course. */
+  streakDays: number;
+  /** ISO date string (YYYY-MM-DD) of the most recent engagement. */
+  lastEngagedDate: string;
+};
+
 export type StudentBadge = {
   id: string;
   title: string;
@@ -150,6 +161,21 @@ type StudentBadgeDefinition = Omit<StudentBadge, 'earned' | 'earnedOn'> & {
 
 export type StudentBadgeState = {
   earnedBadgeIds: string[];
+};
+
+export type StudentCertificateStatus = 'Active' | 'Expired' | 'Pending Renewal';
+
+export type StudentCertificateLicence = {
+  id: string;
+  certificationName: string;
+  completionDate: string;
+  expiryDate: string;
+  fileName: string;
+  fileDataUrl: string;
+  status: StudentCertificateStatus;
+  renewalRequired: 'Yes' | 'No';
+  reminderNotification: 'Yes' | 'No';
+  reminderDaysBeforeExpiry: number;
 };
 
 export type StudentNotificationPreferences = {
@@ -182,6 +208,7 @@ type PersistedStudentSnapshot = {
   studentId: string;
   profile: StudentProfileData;
   badgeState: StudentBadgeState;
+  certificatesAndLicences: StudentCertificateLicence[];
   settings: StudentSettingsData;
   mentorshipProfile: StudentMentorshipProfile;
   mentorshipObjectives: StudentMentorshipObjectives;
@@ -191,6 +218,7 @@ type PersistedStudentSnapshot = {
   messages: StudentMessage[];
   notifiedOfferingIds: string[];
   assessmentAttempts: Record<string, StudentAssessmentAttempt>;
+  engagementState?: StudentEngagementState;
 };
 
 @Injectable({ providedIn: 'root' })
@@ -243,6 +271,9 @@ export class StudentDataService {
 
   private readonly coursesSignal = signal<StudentCourse[]>(
     this.filterLegacySeedCourses(this.initialPersistedStudentSnapshot?.courses ?? []),
+  );
+  private readonly certificatesAndLicencesSignal = signal<StudentCertificateLicence[]>(
+    this.initialPersistedStudentSnapshot?.certificatesAndLicences ?? [],
   );
   private readonly assessmentAttemptsSignal = signal<Record<string, StudentAssessmentAttempt>>(
     this.initialPersistedStudentSnapshot?.assessmentAttempts ?? {},
@@ -304,6 +335,10 @@ export class StudentDataService {
     this.initialPersistedStudentSnapshot?.messages ?? this.createInitialMessages(),
   );
 
+  private readonly engagementSignal = signal<StudentEngagementState>(
+    this.initialPersistedStudentSnapshot?.engagementState ?? { streakDays: 0, lastEngagedDate: '' },
+  );
+
   readonly profile = this.profileSignal.asReadonly();
   readonly settings = this.settingsSignal.asReadonly();
   readonly mentorshipProfile = this.mentorshipProfileSignal.asReadonly();
@@ -312,6 +347,7 @@ export class StudentDataService {
   readonly notifications = this.notificationsSignal.asReadonly();
   readonly messages = this.messagesSignal.asReadonly();
   readonly courses = this.coursesSignal.asReadonly();
+  readonly certificatesAndLicences = this.certificatesAndLicencesSignal.asReadonly();
   readonly calendarEvents = computed(() => this.buildCalendarEvents(this.coursesSignal(), this.managerData.offerings()));
   readonly courseNavigationRequest = this.courseNavigationRequestSignal.asReadonly();
   readonly assessmentAttempts = this.assessmentAttemptsSignal.asReadonly();
@@ -365,22 +401,51 @@ export class StudentDataService {
         ? `${this.formatTrainingMinutes(totalTrainingMinutesSpent)} spent across active training progress`
         : 'Hours will update as you complete training course steps',
       badgesFootnote: nextBadge ? `Next badge: ${nextBadge.title}` : stats.badgesFootnote,
-      weeklyConsistency: stats.weeklyConsistency,
+      weeklyConsistency: this.consistencyPercent(),
       upcomingTasks: `${upcomingEvents.length} upcoming task${upcomingEvents.length === 1 ? '' : 's'}`,
     };
   });
-  readonly unreadNotificationsCount = computed(() => this.notifications().filter((item) => item.unread).length);
+  readonly unreadNotificationsCount = computed(() => this.notifications().filter((item) => item.unread && !item.dismissed).length);
   readonly unreadMessagesCount = computed(() => this.messages().filter((item) => item.unread).length);
   readonly earnedBadgesCount = computed(() => this.earnedBadges().length);
+
+  /**
+   * The effective learning streak (consecutive days engaged).
+   * Returns 0 if the streak has been broken (last engagement was before yesterday).
+   */
+  readonly currentEngagementStreak = computed(() => {
+    const { streakDays, lastEngagedDate } = this.engagementSignal();
+    const today = this.todayDateString();
+    const yesterday = this.yesterdayDateString();
+    return lastEngagedDate === today || lastEngagedDate === yesterday ? streakDays : 0;
+  });
+
+  /** 100 when the student has an active streak, 0 when it has been broken. */
+  readonly consistencyPercent = computed(() => (this.currentEngagementStreak() > 0 ? 100 : 0));
+
+  readonly consistencyLabel = computed(() => {
+    const streak = this.currentEngagementStreak();
+    if (streak > 0) {
+      return `${streak} day${streak !== 1 ? 's' : ''} streak — keep it up!`;
+    }
+    return 'Engage with a course today to start your streak';
+  });
   readonly profileHighlights = computed(() => {
     const profile = this.profile();
     return [
-      { label: 'Programme', value: profile.programme },
-      { label: 'Level', value: profile.level },
+      { label: 'Department', value: profile.department },
+      { label: 'Job title', value: profile.jobTitle },
+      { label: 'ID number', value: profile.idNumber || 'Not provided' },
       { label: 'Contact', value: profile.contactNumber },
       { label: 'Address', value: profile.address },
       { label: 'Joined', value: profile.joined },
-      { label: 'Learning streak', value: profile.learningStreak },
+      {
+        label: 'Learning streak',
+        value: (() => {
+          const streak = this.currentEngagementStreak();
+          return streak > 0 ? `${streak} day${streak !== 1 ? 's' : ''}` : 'No active streak';
+        })(),
+      },
       { label: 'Password', value: profile.passwordUpdatedAt },
     ];
   });
@@ -393,6 +458,13 @@ export class StudentDataService {
 
     effect(
       () => {
+        // Wait until the manager backend data has loaded before syncing offerings.
+        // Without this guard the effect fires immediately with an empty offerings signal,
+        // wiping every student course (and resetting progress to 0) before real data arrives.
+        if (!this.managerData.offeringsHydrated()) {
+          return;
+        }
+
         const publishedOfferings = this.managerData.offerings().filter((offering) => offering.status === 'Published');
         const knownNotifiedIds = this.notifiedOfferingIdsSignal();
 
@@ -428,9 +500,15 @@ export class StudentDataService {
     this.refreshStudentSnapshot(true);
   }
 
+  updateCertificatesAndLicences(records: StudentCertificateLicence[]) {
+    this.certificatesAndLicencesSignal.set(records);
+    this.persistStudentSnapshot();
+  }
+
   async updateProfile(
-    profile: Pick<StudentProfileData, 'name' | 'email' | 'age' | 'contactNumber' | 'address'> & {
+    profile: Pick<StudentProfileData, 'name' | 'email' | 'idNumber' | 'age' | 'contactNumber' | 'address'> & {
       profileImageDataUrl?: string | null;
+      profileImageUrl?: string | null;
       newPassword?: string;
     },
   ): Promise<StudentProfileUpdateResult> {
@@ -455,12 +533,14 @@ export class StudentDataService {
 
     this.profileSignal.update((current) => ({
       ...current,
+      idNumber: profile.idNumber,
       name: profile.name,
       email: profile.email,
       age: profile.age,
       contactNumber: profile.contactNumber,
       address: profile.address,
       profileImageDataUrl: profile.profileImageDataUrl ?? current.profileImageDataUrl,
+      profileImageUrl: profile.profileImageUrl ?? current.profileImageUrl,
       passwordUpdatedAt,
     }));
 
@@ -468,7 +548,7 @@ export class StudentDataService {
     return { success: !errorMessage, errorMessage };
   }
 
-  updateMentorshipProfile(profile: StudentMentorshipProfile) {
+  updateMentorshipProfile(profile: StudentMentorshipProfile): Promise<boolean> {
     const nextProfile = {
       menteeName: profile.menteeName.trim(),
       menteeSurname: profile.menteeSurname.trim(),
@@ -484,10 +564,10 @@ export class StudentDataService {
 
     this.mentorshipProfileSignal.set(nextProfile);
     this.saveMentorshipProfile(nextProfile);
-    this.persistStudentSnapshot();
+    return this.persistStudentSnapshot();
   }
 
-  updateMentorshipObjectives(objectives: StudentMentorshipObjectives) {
+  updateMentorshipObjectives(objectives: StudentMentorshipObjectives): Promise<boolean> {
     const nextObjectives = {
       mentorshipGoals: objectives.mentorshipGoals
         .map((goal) => ({
@@ -507,10 +587,10 @@ export class StudentDataService {
 
     this.mentorshipObjectivesSignal.set(nextObjectives);
     this.saveMentorshipObjectives(nextObjectives);
-    this.persistStudentSnapshot();
+    return this.persistStudentSnapshot();
   }
 
-  updateMentorshipProgressReport(report: StudentMentorshipProgressReport) {
+  updateMentorshipProgressReport(report: StudentMentorshipProgressReport): Promise<boolean> {
     const nextReport = {
       dateOfMeeting: report.dateOfMeeting,
       objectivesAchieved: report.objectivesAchieved
@@ -524,7 +604,7 @@ export class StudentDataService {
 
     this.mentorshipProgressReportSignal.set(nextReport);
     this.saveMentorshipProgressReport(nextReport);
-    this.persistStudentSnapshot();
+    return this.persistStudentSnapshot();
   }
 
   updateNotificationPreferences(preferences: StudentNotificationPreferences): StudentProfileUpdateResult {
@@ -583,6 +663,13 @@ export class StudentDataService {
 
   markNotificationsRead() {
     this.notificationsSignal.update((items) => items.map((item) => ({ ...item, unread: false })));
+    this.persistStudentSnapshot();
+  }
+
+  dismissNotification(id: string) {
+    this.notificationsSignal.update((items) =>
+      items.map((item) => item.id === id ? { ...item, dismissed: true, unread: false } : item),
+    );
     this.persistStudentSnapshot();
   }
 
@@ -662,6 +749,15 @@ export class StudentDataService {
     );
 
     this.persistStudentSnapshot();
+
+    // Deliver student reply to the manager inbox so the manager can see it.
+    const originalMessage = this.messagesSignal().find((m) => m.id === messageId);
+    if (originalMessage) {
+      const recipientName = originalMessage.sender.startsWith('To: ')
+        ? originalMessage.sender.slice(4).trim()
+        : originalMessage.sender.trim();
+      this.deliverReplyToManagerInbox(messageId, recipientName, originalMessage.subject, normalizedMessage);
+    }
   }
 
   private deliverMessageToManagerInbox(recipient: string, subject: string, message: string) {
@@ -693,6 +789,50 @@ export class StudentDataService {
     });
   }
 
+  private deliverReplyToManagerInbox(messageId: string, recipient: string, subject: string, message: string) {
+    const normalizedSubject = subject.trim().toLocaleLowerCase();
+    const senderName = this.profile().name || 'Learner';
+    const normalizedSender = senderName.trim().toLocaleLowerCase();
+
+    this.backend.getManagerMessages().subscribe({
+      next: (allMessages) => {
+        // Match the manager thread by subject and sender (the student's name).
+        const threadIndex = allMessages.findIndex(
+          (m) =>
+            m.subject.trim().toLocaleLowerCase() === normalizedSubject &&
+            m.sender.trim().toLocaleLowerCase() === normalizedSender,
+        );
+
+        if (threadIndex === -1) {
+          return;
+        }
+
+        const thread = allMessages[threadIndex];
+        const reply: ManagerMessageReply = {
+          id: `${thread.id}-reply-${Date.now()}`,
+          sender: senderName,
+          body: message,
+          time: 'Just now',
+          authorType: 'contact',
+          deliveryState: 'Delivered',
+        };
+
+        const updatedMessages = allMessages.map((m, i) =>
+          i === threadIndex ? { ...m, unread: true, replies: [...m.replies, reply] } : m,
+        );
+
+        this.backend.patchManagerState({ managerMessages: updatedMessages }).subscribe({
+          error: () => {
+            // Non-critical — student reply is already recorded locally.
+          },
+        });
+      },
+      error: () => {
+        // Ignore — student reply is already recorded locally.
+      },
+    });
+  }
+
   advanceCourseProgress(courseName: string, step = 10) {
     this.coursesSignal.update((courses) =>
       courses.map((course) => {
@@ -711,6 +851,7 @@ export class StudentDataService {
       }),
     );
 
+    this.recordCourseEngagement();
     this.persistStudentSnapshot();
   }
 
@@ -744,6 +885,7 @@ export class StudentDataService {
     );
 
     if (updatedCourse) {
+      this.recordCourseEngagement();
       this.persistStudentSnapshot();
     }
 
@@ -764,6 +906,7 @@ export class StudentDataService {
       ),
     );
 
+    this.recordCourseEngagement();
     this.persistStudentSnapshot();
   }
 
@@ -781,7 +924,10 @@ export class StudentDataService {
     this.persistStudentSnapshot();
   }
 
-  private persistStudentSnapshot() {
+  /** Returns whether the backend write actually succeeded (or true if there was nothing to send
+   *  to the backend yet), so callers that need to tell the user a save failed — rather than
+   *  silently keeping the local-only copy — can await this instead of firing and forgetting. */
+  private persistStudentSnapshot(): Promise<boolean> {
     const studentId = this.currentSessionStudentId();
     const persistedSnapshot = this.buildPersistedStudentSnapshot(studentId);
 
@@ -789,20 +935,48 @@ export class StudentDataService {
       this.savePersistedStudentSnapshot(persistedSnapshot);
     }
 
+    // Never write to the shared default student — only ever write to a session's own,
+    // real studentId. Without a real one, this is a stale/incomplete session (e.g. an
+    // elevated account whose linked student profile hasn't resolved yet); saving here
+    // would silently overwrite whichever real student the server treats as its default.
+    if (!this.readSessionOwnStudentId()) {
+      return Promise.resolve(true);
+    }
+
     if (!this.backendHydrated) {
-      return;
+      return Promise.resolve(true);
     }
 
     const { studentId: _studentId, ...snapshotUpdate } = persistedSnapshot;
+    const snapshotUpdateForBackend = {
+      ...snapshotUpdate,
+      // Strip the bulky base64 blob from backend writes once a Firebase Storage URL exists for
+      // it — but never null it out if it's the only copy of the picture we have, or an unrelated
+      // save (e.g. an autosave triggered while browsing courses) would silently delete it.
+      profile: {
+        ...snapshotUpdate.profile,
+        profileImageDataUrl: snapshotUpdate.profile.profileImageUrl ? null : snapshotUpdate.profile.profileImageDataUrl,
+      },
+      certificatesAndLicences: snapshotUpdate.certificatesAndLicences.map((record) => ({
+        ...record,
+        fileDataUrl: '',
+      })),
+    };
     this.pendingSnapshotWriteCount += 1;
-    this.backend.updateStudentSnapshot(snapshotUpdate, studentId).subscribe({
-      next: () => {
-        this.pendingSnapshotWriteCount = Math.max(0, this.pendingSnapshotWriteCount - 1);
-      },
-      error: () => {
-        this.pendingSnapshotWriteCount = Math.max(0, this.pendingSnapshotWriteCount - 1);
-        // Keep local state if the API is temporarily unavailable.
-      },
+
+    return new Promise((resolve) => {
+      this.backend.updateStudentSnapshot(snapshotUpdateForBackend, studentId).subscribe({
+        next: () => {
+          this.pendingSnapshotWriteCount = Math.max(0, this.pendingSnapshotWriteCount - 1);
+          resolve(true);
+        },
+        error: () => {
+          this.pendingSnapshotWriteCount = Math.max(0, this.pendingSnapshotWriteCount - 1);
+          // Keep local state if the API is temporarily unavailable — but tell the caller so it
+          // can warn the user instead of assuming the save reached the server.
+          resolve(false);
+        },
+      });
     });
   }
 
@@ -823,20 +997,114 @@ export class StudentDataService {
     this.refreshInFlight = true;
     this.backend.getStudentSnapshot(studentId).subscribe({
       next: (snapshot) => {
+        const localProfile = this.profileSignal();
+        const mergedProfile: StudentProfileData = {
+          ...snapshot.profile,
+          // Local profile image (URL or legacy base64) is always authoritative —
+          // the backend stores profileImageUrl but clears profileImageDataUrl on write.
+          profileImageDataUrl: localProfile.profileImageDataUrl || snapshot.profile.profileImageDataUrl,
+          profileImageUrl: localProfile.profileImageUrl || snapshot.profile.profileImageUrl || null,
+        };
+
+        // Merge unread state: local is authoritative for read state.
+        // If local entry exists, always use its unread value (prevents server stale data
+        // from either re-showing dismissed notifications or hiding unread ones on refresh).
+        // If no local entry (new notification from server), use server value as-is.
+        const localNotificationsById = new Map(this.notificationsSignal().map((n) => [n.id, n]));
+        const mergedNotifications = this.dedupeNotifications(snapshot.notifications).map((serverNotif) => {
+          const local = localNotificationsById.get(serverNotif.id);
+          if (!local) return serverNotif;
+          // Preserve local unread AND dismissed state — local is always authoritative for both.
+          return { ...serverNotif, unread: local.unread, dismissed: local.dismissed };
+        });
+
+        const localMessagesById = new Map(this.messagesSignal().map((m) => [m.id, m]));
+        const mergedMessages = snapshot.messages.map((serverMsg) => {
+          const local = localMessagesById.get(serverMsg.id);
+          if (!local) return serverMsg; // brand-new thread from manager — keep server's unread: true
+          // Preserve local unread state and any local replies not yet reflected on the server.
+          const serverReplyIds = new Set(serverMsg.replies.map((r) => r.id));
+          const localPendingReplies = (local.replies ?? []).filter((r) => !serverReplyIds.has(r.id));
+          // Re-mark as unread if the manager added new replies that the student hasn't seen locally yet.
+          const localReplyIds = new Set((local.replies ?? []).map((r) => r.id));
+          const hasNewIncomingReplies = serverMsg.replies.some(
+            (r) => !localReplyIds.has(r.id) && r.authorType === 'contact',
+          );
+          const unread = hasNewIncomingReplies || local.unread;
+          return { ...serverMsg, unread, replies: [...serverMsg.replies, ...localPendingReplies] };
+        });
+
+        // Retain local messages not yet reflected in the server snapshot (e.g., sent but not yet
+        // persisted). Without this, locally-added messages get wiped on the next poll cycle.
+        const mergedMessageIds = new Set(mergedMessages.map((m) => m.id));
+        const localPendingMessages = this.messagesSignal().filter((m) => !mergedMessageIds.has(m.id));
+        const allMergedMessages = [...mergedMessages, ...localPendingMessages];
+
+        // Merge course progress: local is authoritative if it is equal or ahead of the server.
+        // This prevents the 10-second polling refresh from overwriting progress the student
+        // just made before the backend write has been reflected in a subsequent read.
+        const localCoursesById = new Map(
+          this.coursesSignal().map((c) => [c.offeringId ?? c.name, c]),
+        );
+        const mergedCourses = this.filterLegacySeedCourses(snapshot.courses).map((serverCourse) => {
+          const key = serverCourse.offeringId ?? serverCourse.name;
+          const local = localCoursesById.get(key);
+          if (!local) return serverCourse;
+          const localProgress = local.progress ?? 0;
+          const serverProgress = serverCourse.progress ?? 0;
+          // Keep local state when local is at least as far ahead (or completed)
+          if (local.completed || localProgress >= serverProgress) {
+            return { ...serverCourse, progress: local.progress, completed: local.completed, completedAt: local.completedAt };
+          }
+          return serverCourse;
+        });
+
+        // Retain local courses not yet reflected in the server snapshot (e.g., added by the
+        // offering-sync effect but whose persistStudentSnapshot write is still in-flight).
+        // Without this, courses flicker: added locally → refresh drops them → effect re-adds them.
+        const mergedCourseKeys = new Set(mergedCourses.map((c) => c.offeringId ?? c.name));
+        const localPendingCourses = this.filterLegacySeedCourses(this.coursesSignal())
+          .filter((c) => !mergedCourseKeys.has(c.offeringId ?? c.name));
+        const allMergedCourses = [...mergedCourses, ...localPendingCourses];
+
+        // Merge notifiedOfferingIds as a union so that locally-tracked offerings are not
+        // overwritten by a stale server value, which would re-trigger course notifications.
+        const localNotifiedIds = this.notifiedOfferingIdsSignal();
+        const serverNotifiedIds = snapshot.notifiedOfferingIds ?? [];
+        const mergedNotifiedIds = [...new Set([...localNotifiedIds, ...serverNotifiedIds])];
+
+        const localCertificates = this.certificatesAndLicencesSignal();
+        const localCertificateIds = new Set(localCertificates.map((record) => record.id));
+        const mergedCertificates = [
+          ...localCertificates,
+          ...(snapshot.certificatesAndLicences ?? []).filter((record) => !localCertificateIds.has(record.id)),
+        ];
+
         const nextSnapshot: PersistedStudentSnapshot = {
           studentId,
-          profile: snapshot.profile,
+          profile: mergedProfile,
           badgeState: { earnedBadgeIds: snapshot.badgeState.earnedBadgeIds },
+          certificatesAndLicences: mergedCertificates,
           settings: snapshot.settings,
           mentorshipProfile: snapshot.mentorshipProfile,
           mentorshipObjectives: snapshot.mentorshipObjectives,
           mentorshipProgressReport: snapshot.mentorshipProgressReport,
-          courses: this.filterLegacySeedCourses(snapshot.courses),
-          notifications: this.dedupeNotifications(snapshot.notifications),
-          messages: snapshot.messages,
-          notifiedOfferingIds: snapshot.notifiedOfferingIds,
+          courses: allMergedCourses,
+          notifications: mergedNotifications,
+          messages: allMergedMessages,
+          notifiedOfferingIds: mergedNotifiedIds,
           assessmentAttempts: snapshot.assessmentAttempts ?? {},
+          // Local engagement state is always authoritative — never let a backend refresh overwrite it.
+          engagementState: this.engagementSignal(),
         };
+
+        // Discard stale response if the session switched while this request was in-flight.
+        // Without this guard, Student A's backend response can overwrite Student B's signals
+        // when accounts are switched before the HTTP request completes.
+        if (studentId !== this.currentSessionStudentId()) {
+          this.refreshInFlight = false;
+          return;
+        }
 
         this.applyPersistedStudentState(nextSnapshot);
         this.studentStateHydrated = true;
@@ -849,6 +1117,12 @@ export class StudentDataService {
         }
       },
       error: () => {
+        // Discard stale error if the session switched while this request was in-flight.
+        if (studentId !== this.currentSessionStudentId()) {
+          this.refreshInFlight = false;
+          return;
+        }
+
         if (!this.studentStateHydrated) {
           this.resetStudentStateForCurrentSession();
         }
@@ -862,16 +1136,25 @@ export class StudentDataService {
   }
 
   private currentSessionStudentId() {
+    return this.readSessionOwnStudentId() ?? this.backend.defaultStudentId;
+  }
+
+  /** The session's own real studentId, or null if it doesn't have one yet (e.g. a stale
+   *  session issued before an elevated account was linked to its own student profile).
+   *  Distinct from currentSessionStudentId(), which falls back to the shared default
+   *  student for *reads* — that fallback must never be used as a target for *writes*,
+   *  or a session with no real studentId would silently overwrite a real student's data. */
+  private readSessionOwnStudentId(): string | null {
     try {
       const session = JSON.parse(localStorage.getItem('lms-session') || '{}') as { studentId?: string | null };
       if (typeof session.studentId === 'string' && session.studentId.trim()) {
         return session.studentId.trim();
       }
     } catch {
-      // Ignore malformed session state and fall back to the configured student.
+      // Ignore malformed session state.
     }
 
-    return this.backend.defaultStudentId;
+    return null;
   }
 
   private applyPersistedStudentStateForCurrentSession() {
@@ -894,11 +1177,13 @@ export class StudentDataService {
     this.mentorshipObjectivesSignal.set(snapshot.mentorshipObjectives);
     this.mentorshipProgressReportSignal.set(snapshot.mentorshipProgressReport);
     this.coursesSignal.set(this.filterLegacySeedCourses(snapshot.courses));
+    this.certificatesAndLicencesSignal.set(snapshot.certificatesAndLicences);
     this.assessmentAttemptsSignal.set(snapshot.assessmentAttempts);
     this.notificationsSignal.set(snapshot.notifications);
     this.messagesSignal.set(snapshot.messages);
     this.persistedEarnedBadgeIdsSignal.set(snapshot.badgeState.earnedBadgeIds);
     this.notifiedOfferingIdsSignal.set(snapshot.notifiedOfferingIds);
+    this.engagementSignal.set(snapshot.engagementState ?? { streakDays: 0, lastEngagedDate: '' });
 
     this.saveMentorshipProfile(snapshot.mentorshipProfile);
     this.saveMentorshipObjectives(snapshot.mentorshipObjectives);
@@ -915,11 +1200,13 @@ export class StudentDataService {
     this.mentorshipObjectivesSignal.set(this.createInitialMentorshipObjectives());
     this.mentorshipProgressReportSignal.set(this.createInitialMentorshipProgressReport());
     this.coursesSignal.set([]);
+    this.certificatesAndLicencesSignal.set([]);
     this.assessmentAttemptsSignal.set({});
     this.notificationsSignal.set(this.createInitialNotifications());
     this.messagesSignal.set(this.createInitialMessages());
     this.persistedEarnedBadgeIdsSignal.set(this.loadPersistedBadgeIds());
     this.notifiedOfferingIdsSignal.set(this.loadNotifiedOfferingIds(this.managerData.offerings()));
+    this.engagementSignal.set({ streakDays: 0, lastEngagedDate: '' });
   }
 
   private buildPersistedStudentSnapshot(studentId = this.currentSessionStudentId()): PersistedStudentSnapshot {
@@ -927,6 +1214,7 @@ export class StudentDataService {
       studentId,
       profile: this.profileSignal(),
       badgeState: { earnedBadgeIds: this.persistedEarnedBadgeIdsSignal() },
+      certificatesAndLicences: this.certificatesAndLicencesSignal(),
       settings: this.settingsSignal(),
       mentorshipProfile: this.mentorshipProfileSignal(),
       mentorshipObjectives: this.mentorshipObjectivesSignal(),
@@ -936,12 +1224,46 @@ export class StudentDataService {
       messages: this.messagesSignal(),
       notifiedOfferingIds: this.notifiedOfferingIdsSignal(),
       assessmentAttempts: this.assessmentAttemptsSignal(),
+      engagementState: this.engagementSignal(),
     };
   }
 
+  // Local calendar date (not UTC) — using toISOString() here would shift the "day" for any
+  // student whose local timezone isn't UTC, silently breaking the streak around midnight.
+  private toLocalDateString(date: Date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  private todayDateString() {
+    return this.toLocalDateString(new Date());
+  }
+
+  private yesterdayDateString() {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return this.toLocalDateString(d);
+  }
+
+  /**
+   * Records that the student has engaged with a course today.
+   * Increments the streak if they engaged yesterday as well, otherwise starts a new streak of 1.
+   * Calling this multiple times on the same calendar day is a no-op after the first call.
+   */
+  private recordCourseEngagement() {
+    const today = this.todayDateString();
+    this.engagementSignal.update((state) => {
+      if (state.lastEngagedDate === today) return state; // already counted today
+      const yesterday = this.yesterdayDateString();
+      const newStreak = state.lastEngagedDate === yesterday ? state.streakDays + 1 : 1;
+      return { streakDays: newStreak, lastEngagedDate: today };
+    });
+  }
+
   private learningStreakDays() {
-    const streakMatch = this.profile().learningStreak.match(/\d+/);
-    return streakMatch ? Number(streakMatch[0]) : 0;
+    return this.currentEngagementStreak();
   }
 
   private isBadgeEarnedByRules(
@@ -1106,10 +1428,21 @@ export class StudentDataService {
   }
 
   private pruneRemovedOfferingNotifications(publishedOfferingIds: string[]) {
+    // Skip pruning when the list is empty — this is almost always a race condition where
+    // student assignment data hasn't loaded yet, not a genuine removal of all offerings.
+    if (!publishedOfferingIds.length) {
+      return;
+    }
+
     const activeOfferingIds = new Set(publishedOfferingIds);
 
     this.notificationsSignal.update((items) => {
-      const nextItems = items.filter((item) => !item.id.startsWith('course-') || activeOfferingIds.has(item.id.slice('course-'.length)));
+      const nextItems = items.filter(
+        (item) =>
+          item.dismissed || // Never remove dismissed notifications — they guard against re-creation
+          !item.id.startsWith('course-') ||
+          activeOfferingIds.has(item.id.slice('course-'.length)),
+      );
       return nextItems.length === items.length ? items : nextItems;
     });
   }
@@ -1140,14 +1473,16 @@ export class StudentDataService {
 
     this.notificationsSignal.update((items) => {
       const existingNotificationIds = new Set(items.map((item) => item.id));
+      const dismissedNotificationIds = new Set(items.filter((n) => n.dismissed).map((n) => n.id));
       const nextNotifications = newOfferings
-        .filter((offering) => !existingNotificationIds.has(`course-${offering.id}`))
+        .filter((offering) => !existingNotificationIds.has(`course-${offering.id}`) && !dismissedNotificationIds.has(`course-${offering.id}`))
         .map((offering) => ({
           id: `course-${offering.id}`,
           badge: 'Course',
           title: 'New course available',
           body: `${offering.title} has been loaded to your learner profile and is ready to open.`,
           dateLabel: 'Just now',
+          createdAt: new Date().toISOString(),
           unread: true,
         } satisfies StudentNotification));
 
@@ -1240,11 +1575,20 @@ export class StudentDataService {
 
   private estimateContentItemMinutes(item: TrainingOffering['contentItems'][number]) {
     if (item.kind === 'Video') {
+      // Use the video's real captured length when known, so "Total Hours Spent" reflects
+      // this course's actual content instead of a flat guess for every video.
+      if (typeof item.durationSeconds === 'number' && item.durationSeconds > 0) {
+        return Math.max(1, Math.round(item.durationSeconds / 60));
+      }
       return 20;
     }
 
     if (item.kind === 'Document') {
       return item.requiresAcknowledgement ? 10 : 8;
+    }
+
+    if (item.kind === 'Scorm') {
+      return 20;
     }
 
     switch (item.assessmentType) {
@@ -1349,17 +1693,22 @@ export class StudentDataService {
 
   private createInitialProfile(studentId = this.currentSessionStudentId()): StudentProfileData {
     const student = this.managerData.students().find((item) => item.id === studentId);
+    // Never fall back to a real seeded person's name/email here — if this placeholder is ever
+    // persisted before the real snapshot loads (e.g. a hydration race), it must not overwrite
+    // someone else's actual identity on the server.
     const defaultProfile: StudentProfileData = {
-      name: 'Alice Johnson',
-      email: 'alice.johnson@skillsconnect.app',
+      name: '',
+      email: '',
+      idNumber: '',
       age: 19,
       contactNumber: '+27 71 555 0134',
       address: '24 Cedar Avenue, Johannesburg',
-      programme: 'General Studies',
-      level: 'Intermediate',
+      department: 'General',
+      jobTitle: 'Not set',
       joined: 'January 2026',
       learningStreak: '8 days',
       profileImageDataUrl: null,
+      profileImageUrl: null,
       passwordUpdatedAt: 'Not updated yet',
     };
 
@@ -1371,8 +1720,9 @@ export class StudentDataService {
       ...defaultProfile,
       name: `${student.name} ${student.surname}`,
       email: student.email,
-      programme: student.department || defaultProfile.programme,
-      level: student.status === 'Completed' ? 'Advanced' : student.status === 'Not Yet Started' ? 'Beginner' : defaultProfile.level,
+      idNumber: student.idNumber || defaultProfile.idNumber,
+      department: student.department || defaultProfile.department,
+      jobTitle: student.jobTitle || defaultProfile.jobTitle,
       joined: student.dateEnrolled || defaultProfile.joined,
     };
   }
@@ -1403,7 +1753,8 @@ export class StudentDataService {
         badge: 'New',
         title: 'Welcome to SkillsConnect',
         body: 'Start your learning journey by exploring your assigned courses and upcoming milestones.',
-        dateLabel: '1 day ago',
+        dateLabel: 'Just now',
+        createdAt: new Date().toISOString(),
         unread: true,
       },
     ];
@@ -1602,12 +1953,31 @@ export class StudentDataService {
 
       return {
         studentId,
-        profile: parsed.profile as StudentProfileData,
+        profile: {
+          ...(parsed.profile as StudentProfileData),
+          // Normalize fields added after initial release so old localStorage snapshots
+          // load cleanly without undefined values.
+          profileImageUrl: (parsed.profile as StudentProfileData).profileImageUrl ?? null,
+        },
         badgeState: {
           earnedBadgeIds: Array.isArray(parsed.badgeState?.earnedBadgeIds)
             ? parsed.badgeState.earnedBadgeIds.filter((badgeId): badgeId is string => typeof badgeId === 'string')
             : [],
         },
+        certificatesAndLicences: Array.isArray(parsed.certificatesAndLicences)
+          ? parsed.certificatesAndLicences.filter((record): record is StudentCertificateLicence =>
+            typeof record?.id === 'string'
+            && typeof record?.certificationName === 'string'
+            && typeof record?.completionDate === 'string'
+            && typeof record?.expiryDate === 'string'
+            && typeof record?.fileName === 'string'
+            && typeof record?.fileDataUrl === 'string'
+            && (record?.status === 'Active' || record?.status === 'Expired' || record?.status === 'Pending Renewal')
+            && (record?.renewalRequired === 'Yes' || record?.renewalRequired === 'No')
+            && (record?.reminderNotification === 'Yes' || record?.reminderNotification === 'No')
+            && typeof record?.reminderDaysBeforeExpiry === 'number'
+          )
+          : [],
         settings: parsed.settings as StudentSettingsData,
         mentorshipProfile: parsed.mentorshipProfile as StudentMentorshipProfile,
         mentorshipObjectives: parsed.mentorshipObjectives as StudentMentorshipObjectives,
@@ -1619,6 +1989,9 @@ export class StudentDataService {
         assessmentAttempts: parsed.assessmentAttempts && typeof parsed.assessmentAttempts === 'object'
           ? parsed.assessmentAttempts as Record<string, StudentAssessmentAttempt>
           : {},
+        engagementState: parsed.engagementState && typeof parsed.engagementState === 'object'
+          ? parsed.engagementState as StudentEngagementState
+          : { streakDays: 0, lastEngagedDate: '' },
       };
     } catch {
       return null;
@@ -1630,7 +2003,11 @@ export class StudentDataService {
       return;
     }
 
-    localStorage.setItem(this.studentSnapshotStorageKey(snapshot.studentId), JSON.stringify(snapshot));
+    try {
+      localStorage.setItem(this.studentSnapshotStorageKey(snapshot.studentId), JSON.stringify(snapshot));
+    } catch {
+      // Ignore storage write failures (for example quota limits) so backend sync can continue.
+    }
   }
 
   private studentScopedStorageKey(baseKey: string, studentId = this.currentSessionStudentId()) {

@@ -7,29 +7,11 @@
     "rules": "storage.rules"
   },
   "functions": {
-    "source": ".",
-    "runtime": "nodejs20",
+    "source": "dist/functions-staging",
+    "runtime": "nodejs22",
     "ignore": [
-      ".angular/**",
-      ".firebase/**",
-      ".github/**",
-      "dist/lms-app/**",
-      "dist/server/**",
-      "public/**",
-      "server/data/**",
-      "server/sql/**",
-      "src/**",
-      "**/node_modules/**",
       ".git",
-      ".git/**",
-      ".embedded-postgres",
-      ".embedded-postgres/**",
-      ".angular",
-      ".angular/**",
-      ".vscode",
-      ".vscode/**",
-      ".firebase",
-      ".firebase/**"
+      ".git/**"
     ],
     "predeploy": [
       "npm run firebase:functions:build"
@@ -46,6 +28,10 @@
       {
         "source": "api{,/**}",
         "function": "api"
+      },
+      {
+        "source": "tenant-api{,/**}",
+        "function": "tenantApi"
       },
       {
         "source": "**",

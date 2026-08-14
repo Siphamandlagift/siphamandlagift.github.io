@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { CommonModule } from '@angular/common';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs';
-import type { TenantDashboardResponse } from './models';
+import type { TenantCompanyRow, TenantDashboardResponse, TenantUsageSummary } from './models';
 import { TenantApiService } from './tenant-api.service';
 import { TenantAuthService } from './tenant-auth.service';
 
@@ -27,6 +27,12 @@ import { TenantAuthService } from './tenant-auth.service';
 
       @if (errorMessage(); as error) {
         <p class="tenant-dashboard-error" role="alert">{{ error }}</p>
+      }
+
+      @if (subscriptionBanner(); as banner) {
+        <div class="tenant-subscription-banner" [class]="'tenant-subscription-banner--' + banner.type" role="alert">
+          <strong>{{ banner.title }}</strong> {{ banner.message }}
+        </div>
       }
 
       @if (loading()) {
@@ -64,6 +70,29 @@ import { TenantAuthService } from './tenant-auth.service';
                     {{ creatingCourse() ? 'Creating...' : 'Create course' }}
                   </button>
                 </form>
+
+                @if (usageSummary(); as summary) {
+                  <div class="tenant-usage-grid">
+                    <div class="tenant-usage-item">
+                      <div class="tenant-usage-header">
+                        <span>Users</span>
+                        <span>{{ summary.usage.userCount }} / {{ summary.limits.maxUsers ?? '∞' }}</span>
+                      </div>
+                      <div class="tenant-progress-track">
+                        <span class="tenant-progress-fill" [style.width.%]="usagePercent(summary.usage.userCount, summary.limits.maxUsers)"></span>
+                      </div>
+                    </div>
+                    <div class="tenant-usage-item">
+                      <div class="tenant-usage-header">
+                        <span>Courses</span>
+                        <span>{{ summary.usage.courseCount }} / {{ summary.limits.maxCourses ?? '∞' }}</span>
+                      </div>
+                      <div class="tenant-progress-track">
+                        <span class="tenant-progress-fill" [style.width.%]="usagePercent(summary.usage.courseCount, summary.limits.maxCourses)"></span>
+                      </div>
+                    </div>
+                  </div>
+                }
               </article>
             }
 
@@ -192,6 +221,119 @@ import { TenantAuthService } from './tenant-auth.service';
         </section>
       } @else {
         <div class="tenant-dashboard-empty">No dashboard data is available.</div>
+      }
+
+      @if (isPlatformAdmin()) {
+        <section class="tenant-panel-grid tenant-panel-grid-single">
+          <article class="tenant-panel">
+            <div class="tenant-panel-heading">
+              <div>
+                <p class="tenant-panel-eyebrow">Platform Admin</p>
+                <h2>Companies</h2>
+              </div>
+              <button type="button" class="tenant-dashboard-secondary" (click)="loadCompanies()" [disabled]="companiesLoading()">
+                {{ companiesLoading() ? 'Loading...' : 'Refresh' }}
+              </button>
+            </div>
+
+            @if (editingCompany(); as edit) {
+              <div class="tenant-company-edit-form">
+                <h3>Edit subscription</h3>
+                <div class="tenant-company-edit-row">
+                  <label>
+                    <span>Status</span>
+                    <select [value]="edit.status" (change)="edit.status = $any($event.target).value">
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                      <option value="suspended">Suspended</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Expires</span>
+                    <input type="date" [value]="edit.expiresAt" (change)="edit.expiresAt = $any($event.target).value" />
+                  </label>
+                </div>
+                <label>
+                  <span>Notes</span>
+                  <textarea rows="2" [value]="edit.notes" (input)="edit.notes = $any($event.target).value" placeholder="Invoice ref, contract notes…"></textarea>
+                </label>
+                <div class="tenant-company-edit-actions">
+                  <button type="button" class="tenant-dashboard-primary" (click)="saveCompany()" [disabled]="!!savingCompanyId()">
+                    {{ savingCompanyId() === edit.id ? 'Saving…' : 'Save' }}
+                  </button>
+                  <button type="button" class="tenant-dashboard-secondary" (click)="cancelCompanyEdit()">Cancel</button>
+                </div>
+              </div>
+            }
+
+            <div class="tenant-table-wrap">
+              <table class="tenant-table">
+                <thead>
+                  <tr>
+                    <th>Company</th>
+                    <th>Plan</th>
+                    <th>Users</th>
+                    <th>Courses</th>
+                    <th>Status</th>
+                    <th>Expires</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (company of companies(); track company.id) {
+                    <tr>
+                      <td>
+                        <strong>{{ company.name }}</strong>
+                        @if (company.notes) {
+                          <div class="tenant-company-notes">{{ company.notes }}</div>
+                        }
+                      </td>
+                      <td>
+                        <span class="tenant-role-pill">{{ company.licenseType }}</span>
+                      </td>
+                      <td>{{ company.userCount }}</td>
+                      <td>{{ company.courseCount }}</td>
+                      <td>
+                        <span class="tenant-status-pill tenant-status-pill--{{ company.status ?? 'inactive' }}">
+                          {{ company.status ?? 'inactive' }}
+                        </span>
+                      </td>
+                      <td>{{ company.expiresAt ? (company.expiresAt | date:'d MMM y') : '—' }}</td>
+                      <td class="tenant-company-actions">
+                        @if (company.status !== 'active') {
+                          <button type="button" class="tenant-action-btn tenant-action-btn--activate"
+                            (click)="quickStatus(company.id, 'active')"
+                            [disabled]="!!savingCompanyId()">
+                            Activate
+                          </button>
+                        }
+                        @if (company.status === 'active') {
+                          <button type="button" class="tenant-action-btn tenant-action-btn--suspend"
+                            (click)="quickStatus(company.id, 'suspended')"
+                            [disabled]="!!savingCompanyId()">
+                            Suspend
+                          </button>
+                        }
+                        <button type="button" class="tenant-action-btn"
+                          (click)="openCompanyEdit(company)"
+                          [disabled]="!!savingCompanyId()">
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                  @if (companies().length === 0 && !companiesLoading()) {
+                    <tr>
+                      <td colspan="7" style="text-align:center; color:#94a3b8; padding:1.5rem 0">
+                        No companies yet.
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </section>
       }
     </section>
   `,
@@ -466,6 +608,126 @@ import { TenantAuthService } from './tenant-auth.service';
       background: rgba(254, 242, 242, 0.95);
     }
 
+    .tenant-subscription-banner {
+      padding: 0.85rem 1.1rem;
+      border-radius: 18px;
+      font-size: 0.9rem;
+    }
+
+    .tenant-subscription-banner--warning {
+      background: rgba(254, 243, 199, 0.98);
+      border: 1px solid rgba(251, 191, 36, 0.4);
+      color: #92400e;
+    }
+
+    .tenant-subscription-banner--error {
+      background: rgba(254, 242, 242, 0.98);
+      border: 1px solid rgba(252, 165, 165, 0.4);
+      color: #991b1b;
+    }
+
+    .tenant-usage-grid {
+      display: grid;
+      gap: 0.75rem;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid rgba(148, 163, 184, 0.14);
+    }
+
+    .tenant-usage-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: #64748b;
+      margin-bottom: 0.35rem;
+    }
+
+    .tenant-status-pill {
+      display: inline-flex;
+      padding: 0.3rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 800;
+      text-transform: capitalize;
+    }
+
+    .tenant-status-pill--active { background: rgba(16, 185, 129, 0.12); color: #065f46; }
+    .tenant-status-pill--inactive { background: rgba(148, 163, 184, 0.18); color: #475569; }
+    .tenant-status-pill--suspended { background: rgba(239, 68, 68, 0.12); color: #991b1b; }
+
+    .tenant-company-notes {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      margin-top: 0.15rem;
+    }
+
+    .tenant-company-actions {
+      display: flex;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+
+    .tenant-action-btn {
+      padding: 0.3rem 0.7rem;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      background: #fff;
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      color: #173446;
+    }
+
+    .tenant-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .tenant-action-btn--activate { background: rgba(16, 185, 129, 0.1); color: #065f46; border-color: rgba(16, 185, 129, 0.3); }
+    .tenant-action-btn--suspend { background: rgba(239, 68, 68, 0.08); color: #991b1b; border-color: rgba(239, 68, 68, 0.25); }
+
+    .tenant-company-edit-form {
+      display: grid;
+      gap: 0.85rem;
+      margin-bottom: 1.25rem;
+      padding: 1.1rem;
+      border-radius: 18px;
+      background: rgba(248, 251, 255, 0.95);
+      border: 1px solid rgba(2, 132, 199, 0.18);
+    }
+
+    .tenant-company-edit-form h3 {
+      margin: 0;
+      font-size: 0.95rem;
+      color: #0f766e;
+    }
+
+    .tenant-company-edit-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    .tenant-company-edit-form label {
+      display: grid;
+      gap: 0.35rem;
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .tenant-company-edit-form select,
+    .tenant-company-edit-form input,
+    .tenant-company-edit-form textarea {
+      padding: 0.55rem 0.75rem;
+      border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      font: inherit;
+      font-size: 0.85rem;
+      resize: vertical;
+    }
+
+    .tenant-company-edit-actions {
+      display: flex;
+      gap: 0.6rem;
+    }
+
     @media (max-width: 900px) {
       .tenant-dashboard-topbar,
       .tenant-panel-heading,
@@ -494,6 +756,11 @@ export class TenantDashboardComponent {
   readonly updatingProgressFor = signal<string | null>(null);
   readonly errorMessage = signal('');
   readonly dashboard = signal<TenantDashboardResponse | null>(null);
+  readonly usageSummary = signal<TenantUsageSummary | null>(null);
+  readonly companies = signal<TenantCompanyRow[]>([]);
+  readonly companiesLoading = signal(false);
+  readonly savingCompanyId = signal<string | null>(null);
+  readonly editingCompany = signal<{ id: string; status: string; expiresAt: string; notes: string } | null>(null);
   readonly currentUser = this.auth.currentUser;
   readonly courseForm = this.formBuilder.group({
     title: ['', [Validators.required, Validators.minLength(2)]],
@@ -501,6 +768,7 @@ export class TenantDashboardComponent {
   readonly isAdmin = computed(() => this.currentUser()?.role === 'admin');
   readonly isManager = computed(() => this.currentUser()?.role === 'manager');
   readonly isLearner = computed(() => this.currentUser()?.role === 'learner');
+  readonly isPlatformAdmin = computed(() => this.currentUser()?.isPlatformAdmin === true);
   readonly canViewUsers = computed(() => this.auth.hasPermission('users:read'));
   readonly canCreateCourses = computed(() => this.auth.hasPermission('courses:create'));
   readonly canViewCompanyEnrollments = computed(() => this.auth.hasPermission('enrollments:company:read'));
@@ -550,6 +818,29 @@ export class TenantDashboardComponent {
     ];
   });
 
+  readonly subscriptionBanner = computed(() => {
+    const summary = this.usageSummary();
+    if (!summary?.subscription) return null;
+    const { status, expiresAt } = summary.subscription;
+
+    if (status === 'inactive') {
+      return { type: 'error', title: 'Account inactive.', message: 'Your account has not been activated. Please contact us to activate your subscription.' };
+    }
+    if (status === 'suspended') {
+      return { type: 'error', title: 'Account suspended.', message: 'Your account has been suspended. Please contact billing.' };
+    }
+    if (expiresAt) {
+      const daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86_400_000);
+      if (daysLeft <= 30 && daysLeft > 0) {
+        return { type: 'warning', title: 'Subscription expiring soon.', message: `Your subscription expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}. Contact us to renew.` };
+      }
+      if (daysLeft <= 0) {
+        return { type: 'error', title: 'Subscription expired.', message: 'Please contact us to renew your subscription.' };
+      }
+    }
+    return null;
+  });
+
   constructor() {
     this.loadDashboard();
   }
@@ -566,6 +857,77 @@ export class TenantDashboardComponent {
         },
         error: (error) => {
           this.errorMessage.set(error?.error?.message || 'Could not load the tenant dashboard.');
+        },
+      });
+
+    this.api.getMySubscription().subscribe({
+      next: (summary) => this.usageSummary.set(summary),
+      error: () => { /* non-critical — silently ignore */ },
+    });
+
+    if (this.isPlatformAdmin()) {
+      this.loadCompanies();
+    }
+  }
+
+  loadCompanies() {
+    this.companiesLoading.set(true);
+    this.api.getAllCompanies()
+      .pipe(finalize(() => this.companiesLoading.set(false)))
+      .subscribe({
+        next: (rows) => this.companies.set(rows),
+        error: () => { /* silently ignore if not platform admin */ },
+      });
+  }
+
+  openCompanyEdit(company: TenantCompanyRow) {
+    this.editingCompany.set({
+      id: company.id,
+      status: company.status ?? 'inactive',
+      expiresAt: company.expiresAt ? company.expiresAt.slice(0, 10) : '',
+      notes: company.notes ?? '',
+    });
+  }
+
+  cancelCompanyEdit() {
+    this.editingCompany.set(null);
+  }
+
+  saveCompany() {
+    const edit = this.editingCompany();
+    if (!edit || this.savingCompanyId()) return;
+
+    this.savingCompanyId.set(edit.id);
+    this.api.updateSubscription(edit.id, {
+      status: edit.status as 'active' | 'inactive' | 'suspended',
+      activatedAt: edit.status === 'active' ? new Date().toISOString() : null,
+      expiresAt: edit.expiresAt ? new Date(edit.expiresAt).toISOString() : null,
+      notes: edit.notes || null,
+    })
+      .pipe(finalize(() => this.savingCompanyId.set(null)))
+      .subscribe({
+        next: () => {
+          this.editingCompany.set(null);
+          this.loadCompanies();
+        },
+        error: (error) => {
+          this.errorMessage.set(error?.error?.message || 'Failed to update subscription.');
+        },
+      });
+  }
+
+  quickStatus(companyId: string, status: 'active' | 'suspended' | 'inactive') {
+    if (this.savingCompanyId()) return;
+    this.savingCompanyId.set(companyId);
+    this.api.updateSubscription(companyId, {
+      status,
+      activatedAt: status === 'active' ? new Date().toISOString() : null,
+    })
+      .pipe(finalize(() => this.savingCompanyId.set(null)))
+      .subscribe({
+        next: () => this.loadCompanies(),
+        error: (error) => {
+          this.errorMessage.set(error?.error?.message || 'Failed to update subscription.');
         },
       });
   }
@@ -594,6 +956,11 @@ export class TenantDashboardComponent {
 
   logout() {
     this.auth.logout();
+  }
+
+  usagePercent(used: number, max: number | null): number {
+    if (max === null || max === 0) return 0;
+    return Math.min(100, Math.round((used / max) * 100));
   }
 
   setProgress(courseId: string, progress: number) {

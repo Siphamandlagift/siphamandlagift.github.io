@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { LmsBrandingService, LmsBrandThemeId } from './lms-branding.service';
 import { StudentDataService } from './student-data.service';
+import { FirebaseStorageService } from './firebase-storage.service';
+import { LmsBackendService } from './lms-backend.service';
 
 type ProfileSection = 'profile' | 'appearance' | null;
 
@@ -55,9 +57,9 @@ type ProfileSection = 'profile' | 'appearance' | null;
           </div>
 
           <section class="profile-media-card" aria-label="Student profile picture">
-            <div class="profile-avatar" [class.profile-avatar-has-image]="!!studentData.profile().profileImageDataUrl">
-              @if (studentData.profile().profileImageDataUrl) {
-                <img [src]="studentData.profile().profileImageDataUrl!" alt="Student profile picture preview" />
+            <div class="profile-avatar" [class.profile-avatar-has-image]="!!profileImageSrc()">
+              @if (profileImageSrc()) {
+                <img [src]="profileImageSrc()!" alt="Student profile picture preview" />
               } @else {
                 <span>{{ profileInitials() }}</span>
               }
@@ -66,16 +68,29 @@ type ProfileSection = 'profile' | 'appearance' | null;
             <div class="profile-media-copy">
               <div class="profile-media-title">Profile picture</div>
               <div class="profile-media-text">Upload a clear headshot so tutors and classmates can recognize you.</div>
+              @if (imageUploading()) {
+                <div class="profile-upload-progress" role="status" aria-live="polite">
+                  <div class="profile-upload-progress-bar" [style.width.%]="imageUploadPercent()"></div>
+                  <span>Uploading… {{ imageUploadPercent() }}%</span>
+                </div>
+              }
+              @if (imageUploadError()) {
+                <div class="error" role="alert">{{ imageUploadError() }}</div>
+              }
             </div>
 
-            <label class="upload-photo-btn">
-              <input type="file" accept="image/*" (change)="onProfileImageSelected($event)" />
-              Upload photo
+            <label class="upload-photo-btn" [class.upload-photo-btn--disabled]="imageUploading()">
+              <input type="file" accept="image/*" [disabled]="imageUploading()" (change)="onProfileImageSelected($event)" />
+              {{ imageUploading() ? 'Uploading…' : 'Upload photo' }}
             </label>
           </section>
 
           <form [formGroup]="profileForm" (ngSubmit)="onSubmit()" aria-label="Student Profile Form">
             <div class="profile-form-grid">
+              <label>
+                ID Number
+                <input formControlName="idNumber" type="text" />
+              </label>
               <label>
                 Name
                 <input formControlName="name" required aria-required="true" />
@@ -471,8 +486,29 @@ type ProfileSection = 'profile' | 'appearance' | null;
       box-shadow: 0 10px 22px rgba(15, 23, 42, 0.05);
     }
 
+    .upload-photo-btn--disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
     .upload-photo-btn input {
       display: none;
+    }
+
+    .profile-upload-progress {
+      display: grid;
+      gap: 0.25rem;
+      font-size: 0.82rem;
+      color: var(--brand-primary);
+    }
+
+    .profile-upload-progress-bar {
+      height: 4px;
+      border-radius: 99px;
+      background: var(--brand-primary);
+      transition: width 0.2s ease;
+      max-width: 100%;
     }
 
     .profile-form-grid {
@@ -580,7 +616,10 @@ type ProfileSection = 'profile' | 'appearance' | null;
 export class StudentProfileSettingsComponent {
   readonly studentData = inject(StudentDataService);
   readonly branding = inject(LmsBrandingService);
+  private readonly storageService = inject(FirebaseStorageService);
+  private readonly backend = inject(LmsBackendService);
   readonly profileForm = new FormGroup({
+    idNumber: new FormControl(this.studentData.profile().idNumber, { nonNullable: true }),
     name: new FormControl(this.studentData.profile().name, { nonNullable: true, validators: [Validators.required] }),
     email: new FormControl(this.studentData.profile().email, { nonNullable: true, validators: [Validators.required, Validators.email] }),
     contactNumber: new FormControl(this.studentData.profile().contactNumber, { nonNullable: true, validators: [Validators.required] }),
@@ -602,6 +641,17 @@ export class StudentProfileSettingsComponent {
   readonly successMessage = computed(() => this.successMessageSignal());
   private readonly errorMessageSignal = signal<string | null>(null);
   readonly errorMessage = computed(() => this.errorMessageSignal());
+  private readonly imageUploadingSignal = signal(false);
+  readonly imageUploading = computed(() => this.imageUploadingSignal());
+  private readonly imageUploadPercentSignal = signal(0);
+  readonly imageUploadPercent = computed(() => this.imageUploadPercentSignal());
+  private readonly imageUploadErrorSignal = signal<string | null>(null);
+  readonly imageUploadError = computed(() => this.imageUploadErrorSignal());
+  /** Resolved display source: Firebase Storage URL takes priority over legacy base64 data URL. */
+  readonly profileImageSrc = computed(() => {
+    const profile = this.studentData.profile();
+    return profile.profileImageUrl || profile.profileImageDataUrl || null;
+  });
   readonly selectedThemeOption = computed(
     () => this.branding.themeOptions.find((theme) => theme.id === this.appearanceSettingsForm.controls.themePreference.value) ?? this.branding.themeOptions[0],
   );
@@ -617,6 +667,7 @@ export class StudentProfileSettingsComponent {
 
       if (!this.profileForm.dirty || this.selectedSection() !== 'profile') {
         this.profileForm.patchValue({
+          idNumber: profile.idNumber,
           name: profile.name,
           email: profile.email,
           contactNumber: profile.contactNumber,
@@ -648,34 +699,77 @@ export class StudentProfileSettingsComponent {
   onProfileImageSelected(event: Event) {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
+    input.value = '';
 
     if (!file) {
       return;
     }
 
     if (!file.type.startsWith('image/')) {
-      input.value = '';
+      this.imageUploadErrorSignal.set('Please select an image file (JPEG, PNG, WebP, etc.).');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const imageDataUrl = typeof reader.result === 'string' ? reader.result : null;
-      if (!imageDataUrl) {
-        return;
-      }
+    if (file.size > 5 * 1024 * 1024) {
+      this.imageUploadErrorSignal.set('Image must be smaller than 5 MB.');
+      return;
+    }
 
-      void this.studentData.updateProfile({
-        name: this.profileForm.controls.name.value,
-        email: this.profileForm.controls.email.value,
-        contactNumber: this.profileForm.controls.contactNumber.value,
-        age: Number(this.profileForm.controls.age.value),
-        address: this.profileForm.controls.address.value,
-        profileImageDataUrl: imageDataUrl,
-      });
-    };
-    reader.readAsDataURL(file);
-    input.value = '';
+    this.imageUploadingSignal.set(true);
+    this.imageUploadPercentSignal.set(0);
+    this.imageUploadErrorSignal.set(null);
+
+    this.storageService.uploadWithProgress(file, 'profile-pictures').subscribe({
+      next: (uploadEvent) => {
+        if (uploadEvent.type === 'progress') {
+          this.imageUploadPercentSignal.set(uploadEvent.percent);
+          return;
+        }
+
+        // Upload complete — store the Firebase Storage URL.
+        const profileImageUrl = uploadEvent.url;
+        this.imageUploadingSignal.set(false);
+        this.imageUploadPercentSignal.set(100);
+        void this.studentData.updateProfile({
+          idNumber: this.profileForm.controls.idNumber.value,
+          name: this.profileForm.controls.name.value,
+          email: this.profileForm.controls.email.value,
+          contactNumber: this.profileForm.controls.contactNumber.value,
+          age: Number(this.profileForm.controls.age.value),
+          address: this.profileForm.controls.address.value,
+          profileImageUrl,
+          // Clear any legacy base64 data URL so the Storage URL is used exclusively.
+          profileImageDataUrl: null,
+        });
+      },
+      error: () => {
+        // The direct-to-storage upload depends on the storage bucket's CORS policy already being
+        // set up, which isn't guaranteed at any given moment — fall back to the base64-JSON route,
+        // which still produces a durable Storage URL (not a fragile locally-held blob that a later
+        // save could silently wipe).
+        this.backend.uploadFileBase64(file, 'profile-pictures').subscribe({
+          next: ({ url }) => {
+            this.imageUploadingSignal.set(false);
+            this.imageUploadPercentSignal.set(100);
+            void this.studentData.updateProfile({
+              idNumber: this.profileForm.controls.idNumber.value,
+              name: this.profileForm.controls.name.value,
+              email: this.profileForm.controls.email.value,
+              contactNumber: this.profileForm.controls.contactNumber.value,
+              age: Number(this.profileForm.controls.age.value),
+              address: this.profileForm.controls.address.value,
+              profileImageUrl: url,
+              profileImageDataUrl: null,
+            });
+          },
+          error: () => {
+            this.imageUploadingSignal.set(false);
+            this.imageUploadPercentSignal.set(0);
+            this.imageUploadErrorSignal.set('The picture could not be uploaded right now. Please try again.');
+          },
+        });
+      },
+    });
   }
 
   async onSubmit() {
@@ -688,6 +782,7 @@ export class StudentProfileSettingsComponent {
     this.errorMessageSignal.set(null);
     const newPassword = this.profileForm.controls.newPassword.value;
     const result = await this.studentData.updateProfile({
+      idNumber: this.profileForm.controls.idNumber.value,
       name: this.profileForm.controls.name.value,
       email: this.profileForm.controls.email.value,
       contactNumber: this.profileForm.controls.contactNumber.value,

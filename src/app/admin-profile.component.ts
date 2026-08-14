@@ -1,14 +1,15 @@
   // ...existing imports and type definitions...
 import { ChangeDetectionStrategy, Component, computed, effect, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, interval } from 'rxjs';
 import { EnrollmentStudent, EnrollmentStudentInput, TrainingManagerDataService } from './training-manager-data.service';
-import { LmsBackendService, type ManagedUserCredentialInput, type ResolveRolesEntry } from './lms-backend.service';
+import { LmsBackendService, type LoginRole, type ManagedUserCredentialInput, type ResolveRolesEntry } from './lms-backend.service';
 import { LmsBrandThemeId, LmsBrandingService } from './lms-branding.service';
-import type { StudentCertificateLicence, StudentCourse } from './student-data.service';
-import { clearLmsAuthSession, createLmsSessionRecord } from './session-auth';
+import type { StudentCertificateLicence, StudentCertificateStatus, StudentCourse } from './student-data.service';
+import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLmsSessionRecord } from './session-auth';
 
 type AdminPanel = 'dashboard' | 'users' | 'reports' | 'settings';
 
@@ -43,6 +44,10 @@ type AnnualTrainingReportRow = {
   learnerEmail: string;
   idNumber: string;
   department: string;
+  ofoCode: string;
+  race: string;
+  gender: string;
+  municipality: string;
   trainingCourse: string;
   providerName: string;
   trainingType: string;
@@ -61,6 +66,12 @@ type IdpReportRow = {
   id: string;
   name: string;
   surname: string;
+  idNumber: string;
+  jobTitle: string;
+  ofoCode: string;
+  race: string;
+  gender: string;
+  municipality: string;
   manager: string;
   developmentNeed: string;
   plannedAction: string;
@@ -97,6 +108,10 @@ type UserFormControls = {
   password: FormControl<string>;
   jobTitle: FormControl<string>;
   idNumber: FormControl<string>;
+  ofoCode: FormControl<string>;
+  race: FormControl<string>;
+  gender: FormControl<string>;
+  municipality: FormControl<string>;
   department: FormControl<string>;
   lineManagerId: FormControl<string>;
   group: FormControl<string>;
@@ -104,6 +119,7 @@ type UserFormControls = {
   deadlineDate: FormControl<string>;
   activeStatus: FormControl<'Active' | 'Inactive'>;
   managerAccess: FormControl<'Yes' | 'No'>;
+  isAdmin: FormControl<'Yes' | 'No'>;
 };
 
 type UserFormGroup = FormGroup<UserFormControls>;
@@ -124,7 +140,17 @@ const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
   { key: 'deadlineDate', label: 'End Date' },
 ];
 
-const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
+/** Best-effort "First Last" display name derived from the logged-in username/email,
+ *  used when there's no richer profile name available for this account yet. */
+function deriveDisplayNameFromIdentity(username: string | undefined, email: string | undefined): string {
+  const source = username?.trim() || email?.trim().split('@')[0] || '';
+  const words = source
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+    .map((word) => word[0].toUpperCase() + word.slice(1).toLowerCase());
+
+  return words.join(' ') || 'Admin';
+}
 
 @Component({
   selector: 'admin-profile',
@@ -138,6 +164,16 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
       [style.--admin-secondary]="branding.currentTheme().secondary"
       [style.--admin-tint]="branding.currentTheme().tint"
       [style.--admin-surface]="branding.currentTheme().surface">
+      <datalist id="ofoCodeOptions">
+        @for (code of ofoCodeOptions(); track code) {
+          <option [value]="code"></option>
+        }
+      </datalist>
+      <datalist id="municipalityOptions">
+        @for (name of municipalityOptions(); track name) {
+          <option [value]="name"></option>
+        }
+      </datalist>
       @if (showWelcomeBanner()) {
         <div class="admin-welcome-banner" [class.admin-welcome-banner-leaving]="welcomeBannerLeaving()" role="status" aria-live="polite">
           <div>
@@ -177,10 +213,7 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
                 {{ adminInitials() }}
               }
             </span>
-            <div>
-              <div class="admin-user-name">{{ adminName() }}</div>
-              <div class="admin-user-copy">{{ adminEmail() }}</div>
-            </div>
+            <div class="admin-user-name">{{ adminName() }}</div>
             <svg class="admin-topbar-caret" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="m7 10 5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
@@ -188,6 +221,9 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
 
           @if (topbarProfileMenuOpen()) {
             <div class="admin-topbar-menu" role="dialog" aria-label="Admin profile menu">
+              <button type="button" class="admin-topbar-menu-item" (click)="selectPanel('dashboard'); closeTopbarProfileMenu()">Dashboard</button>
+              <button type="button" class="admin-topbar-menu-item" (click)="selectPanel('reports'); closeTopbarProfileMenu()">Reports</button>
+              <div class="admin-topbar-menu-divider"></div>
               <div class="admin-topbar-menu-section-label">Switch role</div>
               <button type="button" class="admin-topbar-menu-item" (click)="switchToRole('training-manager')">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path fill="currentColor" d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3Zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5Zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5Z"/></svg>
@@ -308,6 +344,33 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
                     <input type="text" formControlName="idNumber" />
                   </label>
                   <label>
+                    OFO Code
+                    <input type="text" formControlName="ofoCode" list="ofoCodeOptions" placeholder="Search job title or code…" autocomplete="off" />
+                  </label>
+                  <label>
+                    Race
+                    <select formControlName="race" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
+                      <option value="">-- None --</option>
+                      <option value="African">African</option>
+                      <option value="Coloured">Coloured</option>
+                      <option value="White">White</option>
+                      <option value="Indian">Indian</option>
+                      <option value="Foreign">Foreign</option>
+                    </select>
+                  </label>
+                  <label>
+                    Gender
+                    <select formControlName="gender" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
+                      <option value="">-- None --</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                    </select>
+                  </label>
+                  <label>
+                    Municipality
+                    <input type="text" formControlName="municipality" list="municipalityOptions" placeholder="Search municipality…" autocomplete="off" />
+                  </label>
+                  <label>
                     Department
                     <input type="text" formControlName="department" />
                   </label>
@@ -333,9 +396,17 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
                     <input type="date" formControlName="deadlineDate" />
                   </label>
                   <label>
-                    Training Manager
+                    Role
                     <select formControlName="managerAccess" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
                       @for (option of managerAccessOptions; track option.value) {
+                        <option [value]="option.value">{{ option.label }}</option>
+                      }
+                    </select>
+                  </label>
+                  <label>
+                    Admin
+                    <select formControlName="isAdmin" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
+                      @for (option of adminAccessOptions; track option.value) {
                         <option [value]="option.value">{{ option.label }}</option>
                       }
                     </select>
@@ -352,6 +423,65 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
                     <button type="button" class="admin-secondary-btn" (click)="cancelUserEdit()">Cancel</button>
                   </div>
                 </form>
+              </section>
+            </div>
+          }
+
+          @if (editingAnnualReportRequest(); as editingRequest) {
+            <div class="admin-modal-backdrop" (click)="closeAnnualReportDocumentsEditor()">
+              <section class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="admin-annual-report-documents-title" (click)="$event.stopPropagation()">
+                <div class="admin-section-card-header">
+                  <h2 id="admin-annual-report-documents-title">Edit training record</h2>
+                  <span>{{ editingRequest.studentName }} — {{ editingRequest.courseName }}</span>
+                </div>
+
+                <div class="admin-annual-report-documents-form">
+                  <div class="admin-report-document-field">
+                    <span class="admin-report-document-label">Invoice</span>
+                    <label class="admin-upload-btn" [class.admin-upload-btn-disabled]="uploadingInvoice()">
+                      <span>{{ uploadingInvoice() ? 'Uploading…' : 'Choose file' }}</span>
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" [disabled]="uploadingInvoice()" (change)="onInvoiceSelected($event, editingRequest.id)" />
+                    </label>
+                    @if (editingRequest.invoiceFileName) {
+                      <span class="admin-report-upload-status">
+                        Current file:
+                        <a [href]="editingRequest.invoiceDataUrl" target="_blank" rel="noopener noreferrer">{{ editingRequest.invoiceFileName }}</a>
+                      </span>
+                    }
+                  </div>
+
+                  <div class="admin-report-document-field">
+                    <span class="admin-report-document-label">Proof of Payment</span>
+                    <label class="admin-upload-btn" [class.admin-upload-btn-disabled]="uploadingProofOfPayment()">
+                      <span>{{ uploadingProofOfPayment() ? 'Uploading…' : 'Choose file' }}</span>
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" [disabled]="uploadingProofOfPayment()" (change)="onProofOfPaymentSelected($event, editingRequest.id)" />
+                    </label>
+                    @if (editingRequest.proofOfPaymentFileName) {
+                      <span class="admin-report-upload-status">
+                        Current file:
+                        <a [href]="editingRequest.proofOfPaymentUrl" target="_blank" rel="noopener noreferrer">{{ editingRequest.proofOfPaymentFileName }}</a>
+                      </span>
+                    }
+                  </div>
+
+                  <div class="admin-report-document-field">
+                    <span class="admin-report-document-label">Certificate</span>
+                    <label class="admin-upload-btn" [class.admin-upload-btn-disabled]="uploadingCertificate()">
+                      <span>{{ uploadingCertificate() ? 'Uploading…' : 'Choose file' }}</span>
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" [disabled]="uploadingCertificate()" (change)="onCertificateSelected($event, editingRequest.id)" />
+                    </label>
+                    @if (editingRequest.certificateFileName) {
+                      <span class="admin-report-upload-status">
+                        Current file:
+                        <a [href]="editingRequest.certificateUrl" target="_blank" rel="noopener noreferrer">{{ editingRequest.certificateFileName }}</a>
+                      </span>
+                    }
+                  </div>
+
+                  <div class="admin-form-actions">
+                    <button type="button" class="admin-secondary-btn" (click)="closeAnnualReportDocumentsEditor()">Close</button>
+                  </div>
+                </div>
               </section>
             </div>
           }
@@ -398,6 +528,33 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
                     <input type="text" formControlName="idNumber" />
                   </label>
                   <label>
+                    OFO Code
+                    <input type="text" formControlName="ofoCode" list="ofoCodeOptions" placeholder="Search job title or code…" autocomplete="off" />
+                  </label>
+                  <label>
+                    Race
+                    <select formControlName="race" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
+                      <option value="">-- None --</option>
+                      <option value="African">African</option>
+                      <option value="Coloured">Coloured</option>
+                      <option value="White">White</option>
+                      <option value="Indian">Indian</option>
+                      <option value="Foreign">Foreign</option>
+                    </select>
+                  </label>
+                  <label>
+                    Gender
+                    <select formControlName="gender" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
+                      <option value="">-- None --</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                    </select>
+                  </label>
+                  <label>
+                    Municipality
+                    <input type="text" formControlName="municipality" list="municipalityOptions" placeholder="Search municipality…" autocomplete="off" />
+                  </label>
+                  <label>
                     Department
                     <input type="text" formControlName="department" />
                   </label>
@@ -423,9 +580,17 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
                     <input type="date" formControlName="deadlineDate" />
                   </label>
                   <label>
-                    Training Manager
+                    Role
                     <select formControlName="managerAccess" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
                       @for (option of managerAccessOptions; track option.value) {
+                        <option [value]="option.value">{{ option.label }}</option>
+                      }
+                    </select>
+                  </label>
+                  <label>
+                    Admin
+                    <select formControlName="isAdmin" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
+                      @for (option of adminAccessOptions; track option.value) {
                         <option [value]="option.value">{{ option.label }}</option>
                       }
                     </select>
@@ -449,37 +614,76 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
 
           @if (selectedPanel() === 'dashboard') {
             <section class="admin-panel">
-                <div class="admin-metric-grid">
-                  <article class="admin-metric-card">
+              <div class="section-heading-block admin-dashboard-heading">
+                <p class="eyebrow">Dashboard</p>
+                <h1>Overview</h1>
+                <p class="section-copy">A quick snapshot of your organisation's learning activity.</p>
+              </div>
+
+                <div class="admin-metric-grid admin-metric-grid-four-up">
+                  <article class="admin-metric-card admin-metric-card-users">
+                    <span class="admin-metric-icon" aria-hidden="true">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                        <circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M3.5 19c0-3.04 2.8-5 5.5-5s5.5 1.96 5.5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <circle cx="17" cy="9" r="2.4" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M14.8 19c.4-2.2 2.15-3.6 4.7-3.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    </span>
                     <div class="admin-metric-label">Total Users</div>
                     <div class="admin-metric-value">{{ totalUsersCount() }}</div>
                     <div class="admin-metric-copy">Students currently listed on the LMS.</div>
                   </article>
 
-                  <article class="admin-metric-card">
+                  <article class="admin-metric-card admin-metric-card-active">
+                    <span class="admin-metric-icon" aria-hidden="true">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M8.3 12.3l2.4 2.4 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </span>
                     <div class="admin-metric-label">Active Users</div>
                     <div class="admin-metric-value">{{ activeUsersCount() }}</div>
                     <div class="admin-metric-copy">Users with active LMS access status.</div>
                   </article>
 
-                  <article class="admin-metric-card">
+                  <article class="admin-metric-card admin-metric-card-inactive">
+                    <span class="admin-metric-icon" aria-hidden="true">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/>
+                        <path d="M9.5 9.5l5 5M14.5 9.5l-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    </span>
                     <div class="admin-metric-label">Non Active Users</div>
                     <div class="admin-metric-value">{{ inactiveUsersCount() }}</div>
                     <div class="admin-metric-copy">Users currently marked as inactive.</div>
                   </article>
 
-                  <article class="admin-metric-card admin-metric-card-accent">
+                  <article class="admin-metric-card admin-metric-card-accent admin-metric-card-learners">
+                    <span class="admin-metric-icon" aria-hidden="true">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 4.5 3 8.75l9 4.25 9-4.25L12 4.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        <path d="M6.5 11v4.2c0 1.4 2.46 2.55 5.5 2.55s5.5-1.15 5.5-2.55V11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    </span>
                     <div class="admin-metric-label">Assigned Learners</div>
                     <div class="admin-metric-value">{{ managerData.assignedStudentsCount() }}</div>
                     <div class="admin-metric-copy">Learners assigned to at least one offering.</div>
                   </article>
                 </div>
-              <!-- removed extra closing div to fix template structure -->
               <div class="admin-snapshot-grid">
                 <article class="admin-section-card">
                   <div class="admin-section-card-header">
-                    <h2>User access snapshot</h2>
-                    <span>{{ activeRateLabel() }}</span>
+                    <div class="admin-section-card-heading">
+                      <span class="admin-section-card-icon" aria-hidden="true">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                          <rect x="4" y="10.5" width="16" height="9" rx="2" stroke="currentColor" stroke-width="1.8"/>
+                          <path d="M7.5 10.5V7a4.5 4.5 0 0 1 9 0v3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        </svg>
+                      </span>
+                      <h2>User access snapshot</h2>
+                    </div>
+                    <span>{{ activeRateLabel() }} active</span>
                   </div>
 
                   <div class="admin-progress-group">
@@ -507,7 +711,14 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
 
                 <article class="admin-section-card">
                   <div class="admin-section-card-header">
-                    <h2>Learning status summary</h2>
+                    <div class="admin-section-card-heading">
+                      <span class="admin-section-card-icon" aria-hidden="true">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                          <path d="M4 19.5V6.2c0-.94.76-1.7 1.7-1.7h4.6l1.4 1.7h6.6c.94 0 1.7.76 1.7 1.7v9.6c0 .94-.76 1.7-1.7 1.7H4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        </svg>
+                      </span>
+                      <h2>Learning status summary</h2>
+                    </div>
                     <span>{{ totalUsersCount() }} total</span>
                   </div>
 
@@ -657,21 +868,71 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
                     </div>
 
                     <div class="admin-report-menu" role="list" aria-label="Admin report list">
-                      <button type="button" class="admin-report-menu-item" (click)="selectReportView('annual-training')">
-                        <strong>Annual Training Report</strong>
-                        <span>Yearly LMS training overview and department summary.</span>
+                      <button type="button" class="admin-report-menu-item admin-report-menu-item-annual" (click)="selectReportView('annual-training')">
+                        <span class="admin-report-menu-icon" aria-hidden="true">
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                            <rect x="3.5" y="4.5" width="17" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M3.5 9.5h17" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M8 3v3M16 3v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                            <path d="M7.5 17v-4M12 17v-6M16.5 17v-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                          </svg>
+                        </span>
+                        <span class="admin-report-menu-text">
+                          <strong>Annual Training Report</strong>
+                          <span>Yearly LMS training overview and department summary.</span>
+                        </span>
+                        <span class="admin-report-menu-cta">View report
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </span>
                       </button>
-                      <button type="button" class="admin-report-menu-item" (click)="selectReportView('user-reports')">
-                        <strong>User Reports</strong>
-                        <span>Current learner report with filters, preview, and export.</span>
+                      <button type="button" class="admin-report-menu-item admin-report-menu-item-users" (click)="selectReportView('user-reports')">
+                        <span class="admin-report-menu-icon" aria-hidden="true">
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                            <circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M3.5 19c0-3.04 2.8-5 5.5-5s5.5 1.96 5.5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                            <circle cx="17" cy="9" r="2.4" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M14.8 19c.4-2.2 2.15-3.6 4.7-3.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                          </svg>
+                        </span>
+                        <span class="admin-report-menu-text">
+                          <strong>User Reports</strong>
+                          <span>Current learner report with filters, preview, and export.</span>
+                        </span>
+                        <span class="admin-report-menu-cta">View report
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </span>
                       </button>
-                      <button type="button" class="admin-report-menu-item" (click)="selectReportView('idp-report')">
-                        <strong>IDP Report</strong>
-                        <span>Employee IDP entries with manager and development details.</span>
+                      <button type="button" class="admin-report-menu-item admin-report-menu-item-idp" (click)="selectReportView('idp-report')">
+                        <span class="admin-report-menu-icon" aria-hidden="true">
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/>
+                            <circle cx="12" cy="12" r="4.5" stroke="currentColor" stroke-width="1.8"/>
+                            <circle cx="12" cy="12" r="1.4" fill="currentColor"/>
+                          </svg>
+                        </span>
+                        <span class="admin-report-menu-text">
+                          <strong>IDP Report</strong>
+                          <span>Employee IDP entries with manager and development details.</span>
+                        </span>
+                        <span class="admin-report-menu-cta">View report
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </span>
                       </button>
-                      <button type="button" class="admin-report-menu-item" (click)="selectReportView('certificate-licence-report')">
-                        <strong>Certificates and Licences Report</strong>
-                        <span>Track employee certificate and licence expiry, renewal, and status.</span>
+                      <button type="button" class="admin-report-menu-item admin-report-menu-item-certs" (click)="selectReportView('certificate-licence-report')">
+                        <span class="admin-report-menu-icon" aria-hidden="true">
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="9" r="5.5" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M12 6.7l.95 1.93 2.13.31-1.54 1.5.36 2.12L12 11.5l-1.9 1.06.36-2.12-1.54-1.5 2.13-.31L12 6.7Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+                            <path d="M9 13.5 7.5 20l4.5-2 4.5 2-1.5-6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                          </svg>
+                        </span>
+                        <span class="admin-report-menu-text">
+                          <strong>Certificates and Licences Report</strong>
+                          <span>Track employee certificate and licence expiry, renewal, and status.</span>
+                        </span>
+                        <span class="admin-report-menu-cta">View report
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </span>
                       </button>
                     </div>
                   </article>
@@ -763,6 +1024,10 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
                                   <th>Email</th>
                                   <th>ID Number</th>
                                   <th>Department</th>
+                                  <th>OFO Code</th>
+                                  <th>Race</th>
+                                  <th>Gender</th>
+                                  <th>Municipality</th>
                                   <th>Training Course</th>
                                   <th>Provider Name</th>
                                   <th>Type of Training</th>
@@ -772,6 +1037,7 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
                                   <th>Course Cost</th>
                                   <th>Approved By</th>
                                   <th>Approved Date</th>
+                                  <th>Actions</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -781,6 +1047,10 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
                                     <td>{{ row.learnerEmail }}</td>
                                     <td>{{ row.idNumber }}</td>
                                     <td>{{ row.department }}</td>
+                                    <td>{{ row.ofoCode }}</td>
+                                    <td>{{ row.race }}</td>
+                                    <td>{{ row.gender }}</td>
+                                    <td>{{ row.municipality }}</td>
                                     <td>{{ row.trainingCourse }}</td>
                                     <td>{{ row.providerName }}</td>
                                     <td>{{ row.trainingType }}</td>
@@ -790,6 +1060,9 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
                                     <td>{{ row.courseCost }}</td>
                                     <td>{{ row.approvedBy }}</td>
                                     <td>{{ row.approvedDate }}</td>
+                                    <td>
+                                      <button type="button" class="admin-inline-btn" (click)="openAnnualReportDocumentsEditor(row.id)">Upload Proof</button>
+                                    </td>
                                   </tr>
                                 }
                               </tbody>
@@ -810,7 +1083,7 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
                           </div>
 
                           <div class="admin-report-preview-meta">
-                            <span class="admin-chip">9 fields</span>
+                            <span class="admin-chip">15 fields</span>
                             <span class="admin-chip">{{ idpReportRows().length }} rows included</span>
                           </div>
 
@@ -837,6 +1110,12 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
                                 <tr>
                                   <th>Name</th>
                                   <th>Surname</th>
+                                  <th>ID Number</th>
+                                  <th>Job Title</th>
+                                  <th>OFO Code</th>
+                                  <th>Race</th>
+                                  <th>Gender</th>
+                                  <th>Municipality</th>
                                   <th>Manager</th>
                                   <th>Development Need</th>
                                   <th>Planned Action</th>
@@ -851,6 +1130,12 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
                                   <tr>
                                     <td>{{ row.name }}</td>
                                     <td>{{ row.surname }}</td>
+                                    <td>{{ row.idNumber }}</td>
+                                    <td>{{ row.jobTitle }}</td>
+                                    <td>{{ row.ofoCode }}</td>
+                                    <td>{{ row.race }}</td>
+                                    <td>{{ row.gender }}</td>
+                                    <td>{{ row.municipality }}</td>
                                     <td>{{ row.manager }}</td>
                                     <td>{{ row.developmentNeed }}</td>
                                     <td>{{ row.plannedAction }}</td>
@@ -1047,9 +1332,9 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
                   <div class="admin-settings-item-main">
                     <div class="admin-section-card-header">
                       <h2>Admin profile picture</h2>
-                      <span>{{ adminProfileImageDataUrl() ? 'Uploaded' : 'Using initials avatar' }}</span>
+                      <span>{{ uploadingProfileImage() ? 'Uploading…' : (adminProfileImageDataUrl() ? 'Uploaded' : 'Using initials avatar') }}</span>
                     </div>
-                    <p class="admin-settings-item-copy">Upload a profile picture for the admin topbar avatar.</p>
+                    <p class="admin-settings-item-copy">Upload a profile picture — this is the same picture shown on the student and training-manager views.</p>
                   </div>
 
                   <div class="admin-settings-item-controls admin-logo-panel">
@@ -1063,10 +1348,10 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
 
                     <div class="admin-logo-actions">
                       <label class="admin-upload-btn">
-                        <span>Upload picture</span>
-                        <input type="file" accept="image/*" (change)="onAdminProfileImageSelected($event)" />
+                        <span>{{ uploadingProfileImage() ? 'Uploading…' : 'Upload picture' }}</span>
+                        <input type="file" accept="image/*" [disabled]="uploadingProfileImage()" (change)="onAdminProfileImageSelected($event)" />
                       </label>
-                      <button type="button" class="admin-secondary-btn" [disabled]="!adminProfileImageDataUrl()" (click)="clearAdminProfileImage()">Remove picture</button>
+                      <button type="button" class="admin-secondary-btn" [disabled]="!adminProfileImageDataUrl() || uploadingProfileImage()" (click)="clearAdminProfileImage()">Remove picture</button>
                     </div>
                   </div>
                 </article>
@@ -1075,9 +1360,12 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
                   <div class="admin-settings-item-main">
                     <div class="admin-section-card-header">
                       <h2>Company logo</h2>
-                      <span>{{ branding.companyLogoDataUrl() ? 'Uploaded' : 'Default brand mark' }}</span>
+                      <span>{{ companyLogoUploading() ? 'Uploading…' : (branding.companyLogoDataUrl() ? 'Uploaded' : 'Default brand mark') }}</span>
                     </div>
-                    <p class="admin-settings-item-copy">Upload a company logo used throughout the workspace.</p>
+                    <p class="admin-settings-item-copy">Upload a company logo used throughout the workspace. Saved to cloud storage so it stays put across sessions and devices.</p>
+                    @if (companyLogoUploadError()) {
+                      <div class="admin-upload-feedback admin-upload-feedback-error" role="status" aria-live="polite">{{ companyLogoUploadError() }}</div>
+                    }
                   </div>
 
                   <div class="admin-settings-item-controls admin-logo-panel">
@@ -1090,11 +1378,11 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
                     </div>
 
                     <div class="admin-logo-actions">
-                      <label class="admin-upload-btn">
-                        <span>Upload logo</span>
-                        <input type="file" accept="image/*" (change)="onLogoSelected($event)" />
+                      <label class="admin-upload-btn" [class.admin-upload-btn-disabled]="companyLogoUploading()">
+                        <span>{{ companyLogoUploading() ? 'Uploading…' : 'Upload logo' }}</span>
+                        <input type="file" accept="image/*" [disabled]="companyLogoUploading()" (change)="onLogoSelected($event)" />
                       </label>
-                      <button type="button" class="admin-secondary-btn" [disabled]="!branding.companyLogoDataUrl()" (click)="branding.clearCompanyLogo()">Remove logo</button>
+                      <button type="button" class="admin-secondary-btn" [disabled]="!branding.companyLogoDataUrl() || companyLogoUploading()" (click)="branding.clearCompanyLogo()">Remove logo</button>
                     </div>
                   </div>
                 </article>
@@ -1168,6 +1456,8 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
     }
 
     .admin-topbar {
+      position: relative;
+      z-index: 70;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -1181,7 +1471,7 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
 
     .admin-topbar-dropdown-wrap {
       position: relative;
-      z-index: 35;
+      z-index: 130;
     }
 
     .admin-topbar-profile-btn {
@@ -1220,16 +1510,15 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
       position: absolute;
       top: calc(100% + 0.5rem);
       right: 0;
-      z-index: 40;
+      z-index: 120;
       min-width: calc(14rem * var(--ui-scale));
       display: grid;
       gap: calc(0.2rem * var(--ui-scale));
       border: 1px solid rgba(148, 163, 184, 0.22);
       border-radius: calc(18px * var(--ui-scale));
-      background: rgba(255, 255, 255, 0.97);
+      background: #ffffff;
       box-shadow: 0 22px 48px rgba(15, 23, 42, 0.18);
       padding: calc(0.4rem * var(--ui-scale));
-      backdrop-filter: blur(8px);
     }
 
     .admin-topbar-menu-section-label {
@@ -1283,9 +1572,9 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
     .admin-topbar-menu-backdrop {
       position: fixed;
       inset: 0;
-      z-index: 19;
+      z-index: 60;
       border: none;
-      background: transparent;
+      background: rgba(15, 23, 42, 0.22);
       padding: 0;
       margin: 0;
       cursor: default;
@@ -1370,14 +1659,22 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
       margin: 0;
     }
 
-    .admin-brand-name,
-    .admin-user-name {
+    .admin-brand-name {
       font-size: calc(1.02rem * var(--ui-scale));
       font-weight: 800;
     }
 
+    .admin-user-name {
+      max-width: calc(11rem * var(--ui-scale));
+      color: #475569;
+      font-size: calc(0.98rem * var(--ui-scale));
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     .admin-brand-copy,
-    .admin-user-copy,
     .section-copy,
     .admin-metric-copy,
     .admin-empty-state {
@@ -1605,17 +1902,24 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
     }
 
     .admin-report-menu-card {
+      display: grid;
+      grid-template-rows: auto 1fr;
       width: 100%;
       max-width: none;
+      min-height: calc(100vh - 8rem);
       overflow: hidden;
+    }
+
+    .admin-report-menu-card .admin-report-menu {
+      align-content: start;
     }
 
     .admin-report-menu {
       display: grid;
-      grid-template-columns: 1fr;
-      gap: 0.75rem;
+      grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+      gap: 1.25rem;
       min-width: 0;
-      padding: 0.9rem;
+      padding: 1.25rem;
       border: 1px solid rgba(148, 163, 184, 0.14);
       border-radius: 22px;
       background: linear-gradient(180deg, #fbfdff 0%, #f6faff 100%);
@@ -1725,39 +2029,131 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
     .admin-report-menu-item {
       display: grid;
       align-content: start;
-      gap: 0.32rem;
-      min-height: 8.75rem;
+      gap: 0.3rem;
+      min-height: 16.5rem;
       width: 100%;
       max-width: 100%;
-      padding: 0.95rem 1rem;
+      padding: 1.65rem 1.65rem 1.4rem;
       border: 1px solid rgba(148, 163, 184, 0.18);
-      border-radius: 18px;
+      border-radius: 22px;
       background: rgba(255, 255, 255, 0.98);
       box-sizing: border-box;
       text-align: left;
       color: #173446;
       font: inherit;
       cursor: pointer;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+    }
+
+    .admin-report-menu-item::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      opacity: 0;
+      background: linear-gradient(160deg, rgba(56, 189, 248, 0.07), transparent 55%);
+      transition: opacity 0.18s ease;
+      pointer-events: none;
+    }
+
+    .admin-report-menu-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 3.6rem;
+      height: 3.6rem;
+      border-radius: 16px;
+      margin-bottom: 1.1rem;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 1;
+      transition: transform 0.18s ease;
+    }
+
+    .admin-report-menu-icon svg {
+      width: 26px;
+      height: 26px;
+    }
+
+    .admin-report-menu-item-annual .admin-report-menu-icon {
+      background: rgba(14, 165, 233, 0.13);
+      color: #0369a1;
+    }
+
+    .admin-report-menu-item-users .admin-report-menu-icon {
+      background: rgba(16, 185, 129, 0.13);
+      color: #047857;
+    }
+
+    .admin-report-menu-item-idp .admin-report-menu-icon {
+      background: rgba(139, 92, 246, 0.13);
+      color: #6d28d9;
+    }
+
+    .admin-report-menu-item-certs .admin-report-menu-icon {
+      background: rgba(245, 158, 11, 0.14);
+      color: #b45309;
+    }
+
+    .admin-report-menu-text {
+      display: grid;
+      gap: 0.32rem;
+      position: relative;
+      z-index: 1;
     }
 
     .admin-report-menu-item strong {
-      font-size: 0.98rem;
+      font-size: 1.15rem;
       font-weight: 800;
+      line-height: 1.32;
     }
 
     .admin-report-menu-item span {
       color: #64748b;
-      font-size: 0.84rem;
-      line-height: 1.45;
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    .admin-report-menu-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      margin-top: 1.15rem;
+      color: var(--admin-primary);
+      font-size: 0.9rem;
+      font-weight: 800;
+      position: relative;
+      z-index: 1;
+      transition: gap 0.18s ease;
+    }
+
+    .admin-report-menu-cta svg {
+      transition: transform 0.18s ease;
     }
 
     .admin-report-menu-item:hover,
     .admin-report-menu-item:focus-visible {
       border-color: rgba(56, 189, 248, 0.3);
-      box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
-      transform: translateY(-1px);
+      box-shadow: 0 14px 28px rgba(15, 23, 42, 0.09);
+      transform: translateY(-2px);
       outline: none;
+    }
+
+    .admin-report-menu-item:hover::after,
+    .admin-report-menu-item:focus-visible::after {
+      opacity: 1;
+    }
+
+    .admin-report-menu-item:hover .admin-report-menu-icon,
+    .admin-report-menu-item:focus-visible .admin-report-menu-icon {
+      transform: scale(1.06);
+    }
+
+    .admin-report-menu-item:hover .admin-report-menu-cta svg,
+    .admin-report-menu-item:focus-visible .admin-report-menu-cta svg {
+      transform: translateX(3px);
     }
 
     .admin-report-menu-item-active {
@@ -1816,6 +2212,39 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
       background: rgba(255, 255, 255, 0.98);
       box-shadow: 0 28px 60px rgba(15, 23, 42, 0.24);
       overflow-y: auto;
+    }
+
+    .admin-annual-report-documents-form {
+      display: grid;
+      gap: 1.1rem;
+    }
+
+    .admin-report-document-field {
+      display: grid;
+      gap: 0.5rem;
+      align-items: start;
+    }
+
+    .admin-report-document-label {
+      font-weight: 700;
+      font-size: 0.88rem;
+      color: #173446;
+    }
+
+    .admin-report-document-field .admin-upload-btn {
+      justify-self: start;
+      min-height: 2.6rem;
+      padding: 0.6rem 1.2rem;
+    }
+
+    .admin-report-upload-status {
+      font-size: 0.85rem;
+      color: #475569;
+    }
+
+    .admin-report-upload-status a {
+      color: #6366f1;
+      font-weight: 600;
     }
 
     .admin-profile-meta-grid,
@@ -1888,6 +2317,12 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
       gap: 0.45rem;
       padding: 1.05rem;
       border-radius: 20px;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .admin-metric-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 18px 36px rgba(15, 23, 42, 0.1);
     }
 
     .admin-metric-card-accent {
@@ -1903,6 +2338,58 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
 
     .admin-metric-grid-four-up {
       grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .admin-dashboard-heading {
+      margin-bottom: 0.15rem;
+    }
+
+    .admin-metric-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.6rem;
+      height: 2.6rem;
+      border-radius: 13px;
+      margin-bottom: 0.2rem;
+    }
+
+    .admin-metric-card-users .admin-metric-icon {
+      background: rgba(14, 165, 233, 0.13);
+      color: #0369a1;
+    }
+
+    .admin-metric-card-active .admin-metric-icon {
+      background: rgba(16, 185, 129, 0.13);
+      color: #047857;
+    }
+
+    .admin-metric-card-inactive .admin-metric-icon {
+      background: rgba(148, 163, 184, 0.2);
+      color: #475569;
+    }
+
+    .admin-metric-card-learners .admin-metric-icon {
+      background: rgba(139, 92, 246, 0.13);
+      color: #6d28d9;
+    }
+
+    .admin-section-card-heading {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .admin-section-card-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.2rem;
+      height: 2.2rem;
+      flex-shrink: 0;
+      border-radius: 11px;
+      background: rgba(56, 189, 248, 0.13);
+      color: var(--admin-primary);
     }
 
     .admin-section-card-header,
@@ -2105,6 +2592,7 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
       height: 100%;
       border-radius: inherit;
       background: linear-gradient(90deg, var(--admin-primary), var(--admin-secondary));
+      transition: width 0.4s ease;
     }
 
     .admin-progress-fill-muted {
@@ -2391,6 +2879,12 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
       cursor: pointer;
     }
 
+    .admin-upload-btn-disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
     .admin-upload-btn input {
       position: absolute;
       inset: 0;
@@ -2416,7 +2910,7 @@ const ADMIN_PROFILE_IMAGE_STORAGE_KEY = 'lms-app.admin-profile-image';
       position: fixed;
       top: calc(1rem * var(--ui-scale));
       left: 50%;
-      z-index: 60;
+      z-index: 150;
       width: min(calc(360px * var(--ui-scale)), calc(100vw - 2rem));
       padding: calc(0.95rem * var(--ui-scale)) calc(1.2rem * var(--ui-scale));
       border: 1px solid rgba(56, 189, 248, 0.18);
@@ -2594,11 +3088,18 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.adminSidebarCollapsed.update((collapsed) => !collapsed);
   }
   readonly managerAccessOptions: ReadonlyArray<{ value: 'Yes' | 'No'; label: string }> = [
+    { value: 'No', label: 'Student' },
+    { value: 'Yes', label: 'Manager' },
+  ];
+  readonly adminAccessOptions: ReadonlyArray<{ value: 'Yes' | 'No'; label: string }> = [
     { value: 'No', label: 'No' },
     { value: 'Yes', label: 'Yes' },
   ];
   readonly managerData = inject(TrainingManagerDataService);
   private readonly backend = inject(LmsBackendService);
+  private readonly http = inject(HttpClient);
+  readonly ofoCodeOptions = signal<string[]>([]);
+  readonly municipalityOptions = signal<string[]>([]);
   readonly branding = inject(LmsBrandingService);
   private readonly router = inject(Router);
   private readonly reportStudentCoursesById = signal<Record<string, StudentCourse[]>>({});
@@ -2620,6 +3121,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly adminSidebarCollapsed = signal(false);
   readonly userSearchTerm = signal('');
   readonly editingUserId = signal<string | null>(null);
+  readonly editingAnnualReportRequestId = signal<string | null>(null);
+  readonly uploadingInvoice = signal(false);
+  readonly uploadingProofOfPayment = signal(false);
+  readonly uploadingCertificate = signal(false);
   readonly selectedReportDepartment = signal('');
   readonly selectedReportGroup = signal('');
   readonly selectedReportAccessStatus = signal<ReportAccessFilter>('All');
@@ -2642,8 +3147,14 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly bulkUploadTone = signal<'success' | 'error'>('success');
   readonly bulkUploadIssues = signal<BulkUploadIssue[]>([]);
   readonly adminProfileImageDataUrl = signal<string | null>(null);
-  readonly adminName = signal('Ava Mokoena');
-  readonly adminEmail = signal('admin@skillsconnect.app');
+  readonly uploadingProfileImage = signal(false);
+  readonly companyLogoUploading = signal(false);
+  readonly companyLogoUploadError = signal('');
+  readonly adminName = signal(
+    readLmsSessionRecord()?.displayName
+      ?? deriveDisplayNameFromIdentity(readLmsSessionRecord()?.username, readLmsSessionRecord()?.email),
+  );
+  readonly adminEmail = signal(readLmsSessionRecord()?.email?.trim() || 'admin@skillsconnect.app');
   readonly adminFirstName = computed(() => this.adminName().trim().split(/\s+/)[0] || 'Admin');
   readonly adminInitials = computed(() =>
     this.adminName()
@@ -2654,6 +3165,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       .join('') || 'AD',
   );
   readonly topbarProfileMenuOpen = signal(false);
+  readonly availableSwitchRoles = signal<LoginRole[]>(
+    readLmsSessionRecord()?.role === 'administrator' ? ['training-manager', 'student'] : [],
+  );
   readonly switchingRole = signal(false);
   private readonly reportSnapshotPrefetchEffect = effect(() => {
     for (const student of this.users()) {
@@ -2662,30 +3176,48 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       }
 
       this.requestedReportSnapshotIds.add(student.id);
-      this.backend.getStudentSnapshot(student.id).subscribe({
-        next: (snapshot) => {
-          this.reportStudentCoursesById.update((current) => ({
-            ...current,
-            [student.id]: snapshot.courses,
-          }));
-          this.reportStudentCertificatesById.update((current) => ({
-            ...current,
-            [student.id]: snapshot.certificatesAndLicences ?? [],
-          }));
-        },
-        error: () => {
-          this.reportStudentCoursesById.update((current) => ({
-            ...current,
-            [student.id]: [],
-          }));
-          this.reportStudentCertificatesById.update((current) => ({
-            ...current,
-            [student.id]: [],
-          }));
-        },
-      });
+      this.fetchReportSnapshot(student.id);
     }
   });
+
+  // The per-student snapshots backing the reports (course completion, certificates) were
+  // previously fetched exactly once per student id and never again, so a course finished or a
+  // certificate uploaded while the admin had the Reports panel open (or from earlier in a
+  // long-lived session) never showed up without a full page reload. Periodically re-fetch every
+  // known student's snapshot to keep the reports live — same reasoning as
+  // training-manager-data.service.ts's refreshBootstrapState, just re-run per student since
+  // there's no single bulk endpoint for this data. A longer interval than the dashboard refresh
+  // since this is N network calls, not one.
+  private readonly reportSnapshotRefreshSub = interval(60000).subscribe(() => {
+    for (const student of this.users()) {
+      this.fetchReportSnapshot(student.id);
+    }
+  });
+
+  private fetchReportSnapshot(studentId: string) {
+    this.backend.getStudentSnapshot(studentId).subscribe({
+      next: (snapshot) => {
+        this.reportStudentCoursesById.update((current) => ({
+          ...current,
+          [studentId]: snapshot.courses,
+        }));
+        this.reportStudentCertificatesById.update((current) => ({
+          ...current,
+          [studentId]: snapshot.certificatesAndLicences ?? [],
+        }));
+      },
+      error: () => {
+        this.reportStudentCoursesById.update((current) => ({
+          ...current,
+          [studentId]: current[studentId] ?? [],
+        }));
+        this.reportStudentCertificatesById.update((current) => ({
+          ...current,
+          [studentId]: current[studentId] ?? [],
+        }));
+      },
+    });
+  }
 
   readonly users = computed(() =>
     [...this.managerData.students()].sort((left, right) => `${left.name} ${left.surname}`.localeCompare(`${right.name} ${right.surname}`)),
@@ -2713,6 +3245,14 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     }
 
     return this.users().find((student) => student.id === selectedId) ?? null;
+  });
+  readonly editingAnnualReportRequest = computed(() => {
+    const selectedId = this.editingAnnualReportRequestId();
+    if (!selectedId) {
+      return null;
+    }
+
+    return this.managerData.externalTrainingRequests().find((request) => request.id === selectedId) ?? null;
   });
   readonly totalUsersCount = computed(() => this.users().length);
   readonly activeUsersCount = computed(() => this.users().filter((student) => student.activeStatus === 'Active').length);
@@ -2822,12 +3362,17 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     return rows;
   });
   readonly annualTrainingReportRows = computed<AnnualTrainingReportRow[]>(() => {
+    const studentsById = new Map(this.users().map((student) => [student.id, student]));
     const studentsByEmail = new Map(this.users().map((student) => [student.email.toLowerCase(), student]));
 
     return this.managerData.externalTrainingRequests()
       .filter((request) => request.status === 'Approved')
       .map((request) => {
-        const matchedStudent = studentsByEmail.get(request.studentEmail.toLowerCase());
+        // Prefer the stable studentId captured at submission time. Older requests (submitted
+        // before studentId existed on this record) fall back to matching by email, which breaks
+        // if the student's email has since changed.
+        const matchedStudent = (request.studentId ? studentsById.get(request.studentId) : undefined)
+          ?? studentsByEmail.get(request.studentEmail.toLowerCase());
         const approvedDateValue = this.normalizeReportDateValue(request.reviewedAt ?? request.submittedAt);
         const approvedDate = this.formatReportDateLabel(request.reviewedAt ?? request.submittedAt);
         const trainingStartDateValue = this.normalizeReportDateValue(request.trainingStartDate);
@@ -2839,6 +3384,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
           learnerEmail: request.studentEmail,
           idNumber: matchedStudent?.idNumber || 'Not provided',
           department: matchedStudent?.department || 'Unassigned',
+          ofoCode: matchedStudent?.ofoCode || 'Not provided',
+          race: matchedStudent?.race || 'Not provided',
+          gender: matchedStudent?.gender || 'Not provided',
+          municipality: matchedStudent?.municipality || 'Not provided',
           trainingCourse: request.courseName,
           providerName: request.provider,
           trainingType: request.trainingType,
@@ -2860,14 +3409,23 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
     return this.users()
       .flatMap((student) => {
-        const manager = student.lineManager?.trim()
-          || (student.lineManagerId ? managerNamesById.get(student.lineManagerId) ?? '' : '')
+        // Prefer the live id-based lookup over the plain-text snapshot: the snapshot only
+        // gets recomputed when the student's own record is next saved, so it goes stale the
+        // moment the manager's own name changes (same fix as getReportCellValue's 'lineManager' case).
+        const manager = (student.lineManagerId ? managerNamesById.get(student.lineManagerId) : undefined)
+          || student.lineManager?.trim()
           || 'Not provided';
 
         return this.managerData.idpEntriesForStudent(student.id).map((entry, index) => ({
           id: `${student.id}::${index}`,
           name: student.name,
           surname: student.surname,
+          idNumber: student.idNumber || 'Not provided',
+          jobTitle: student.jobTitle || 'Not provided',
+          ofoCode: student.ofoCode || 'Not provided',
+          race: student.race || 'Not provided',
+          gender: student.gender || 'Not provided',
+          municipality: student.municipality || 'Not provided',
           manager,
           developmentNeed: entry.developmentNeed || 'Not provided',
           plannedAction: entry.plannedAction || 'Not provided',
@@ -2905,7 +3463,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
           expiryDate: this.formatReportDateLabel(record.expiryDate),
           expiryDateValue: this.normalizeReportDateValue(record.expiryDate),
           renewalRequired: record.renewalRequired,
-          status: record.status,
+          status: this.resolveLiveCertificateStatus(record),
         }));
       })
       .sort((left, right) => {
@@ -2976,8 +3534,25 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   private welcomeBannerHideTimer: ReturnType<typeof setTimeout> | null = null;
 
   ngOnInit() {
-    this.loadAdminProfileImage();
+    this.loadSwitchableRoles();
+    this.loadOwnIdentity();
+    this.loadOfoCodeOptions();
+    this.loadMunicipalityOptions();
     this.startWelcomeBannerSequence();
+  }
+
+  private loadOfoCodeOptions() {
+    this.http.get<string[]>('/ofo-codes.json').subscribe({
+      next: (codes) => this.ofoCodeOptions.set(codes),
+      error: () => this.ofoCodeOptions.set([]),
+    });
+  }
+
+  private loadMunicipalityOptions() {
+    this.http.get<string[]>('/municipalities.json').subscribe({
+      next: (names) => this.municipalityOptions.set(names),
+      error: () => this.municipalityOptions.set([]),
+    });
   }
 
   ngOnDestroy() {
@@ -3181,6 +3756,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       password: '',
       jobTitle: student.jobTitle,
       idNumber: student.idNumber,
+      ofoCode: student.ofoCode ?? '',
+      race: student.race ?? '',
+      gender: student.gender ?? '',
+      municipality: student.municipality ?? '',
       department: student.department,
       lineManagerId: student.lineManagerId ?? '',
       group: student.group,
@@ -3188,6 +3767,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       deadlineDate: student.deadlineDate,
       activeStatus: student.activeStatus,
       managerAccess: student.role === 'manager' ? 'Yes' : 'No',
+      isAdmin: student.isAdmin ? 'Yes' : 'No',
     });
   }
 
@@ -3221,6 +3801,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     const result = this.managerData.bulkUpsertStudents([studentInput]);
 
     try {
+      // Wait for the directory record to actually land on the server before asking it to link
+      // login credentials to that record — otherwise the credentials call can silently skip
+      // because it can't find a student that only exists in the local, not-yet-synced state yet.
+      await firstValueFrom(this.backend.patchManagerState({ students: this.managerData.students() }));
       await this.syncManagedUserCredentials([{ email: studentInput.email, password }]);
     } catch {
       if (result.added || result.updated) {
@@ -3267,11 +3851,14 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const studentInput = this.buildStudentInputFromForm(this.userEditForm, activeUser.role);
+    const studentInput = this.buildStudentInputFromForm(this.userEditForm);
     const password = this.passwordFromForm(this.userEditForm);
     this.managerData.updateStudent(activeUser.id, studentInput);
 
     try {
+      // Wait for the directory record change (e.g. a role change) to actually land on the server
+      // before syncing credentials against it — see saveSingleUser() for why this ordering matters.
+      await firstValueFrom(this.backend.patchManagerState({ students: this.managerData.students() }));
       await this.syncManagedUserCredentials([{ email: studentInput.email, password }]);
       this.singleUserTone.set('success');
       this.singleUserMessage.set(password ? 'User details saved. Password updated.' : 'User details saved.');
@@ -3465,6 +4052,11 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       case 'manageraccess':
       case 'manageryesno':
         return 'manager';
+      case 'isadmin':
+      case 'administrator':
+      case 'adminaccess':
+      case 'adminyesno':
+        return 'admin';
       default:
         return normalizedHeader;
     }
@@ -3478,6 +4070,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       password: new FormControl('', { nonNullable: true, validators: [Validators.minLength(8)] }),
       jobTitle: new FormControl('', { nonNullable: true }),
       idNumber: new FormControl('', { nonNullable: true }),
+      ofoCode: new FormControl('', { nonNullable: true }),
+      race: new FormControl('', { nonNullable: true }),
+      gender: new FormControl('', { nonNullable: true }),
+      municipality: new FormControl('', { nonNullable: true }),
       department: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
       lineManagerId: new FormControl('', { nonNullable: true }),
       group: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -3485,6 +4081,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       deadlineDate: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
       activeStatus: new FormControl<'Active' | 'Inactive'>('Active', { nonNullable: true, validators: [Validators.required] }),
       managerAccess: new FormControl<'Yes' | 'No'>('No', { nonNullable: true, validators: [Validators.required] }),
+      isAdmin: new FormControl<'Yes' | 'No'>('No', { nonNullable: true, validators: [Validators.required] }),
     });
   }
 
@@ -3496,6 +4093,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       password: '',
       jobTitle: '',
       idNumber: '',
+      ofoCode: '',
+      race: '',
+      gender: '',
+      municipality: '',
       department: '',
       lineManagerId: '',
       group: '',
@@ -3503,10 +4104,11 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       deadlineDate: '',
       activeStatus: 'Active',
       managerAccess: 'No',
+      isAdmin: 'No',
     });
   }
 
-  private buildStudentInputFromForm(form: UserFormGroup, existingRole?: EnrollmentStudent['role']): EnrollmentStudentInput {
+  private buildStudentInputFromForm(form: UserFormGroup): EnrollmentStudentInput {
     return {
       name: form.controls.name.value.trim(),
       surname: form.controls.surname.value.trim(),
@@ -3516,6 +4118,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       email: form.controls.email.value.trim(),
       jobTitle: form.controls.jobTitle.value.trim(),
       idNumber: form.controls.idNumber.value.trim(),
+      ofoCode: form.controls.ofoCode.value.trim(),
+      race: form.controls.race.value.trim(),
+      gender: form.controls.gender.value.trim(),
+      municipality: form.controls.municipality.value.trim(),
       activeStatus: form.controls.activeStatus.value,
       department: form.controls.department.value.trim(),
       lineManagerId: form.controls.lineManagerId.value || undefined,
@@ -3524,7 +4130,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         const lm = this.managerData.students().find((s) => s.id === lmId);
         return lm ? `${lm.name} ${lm.surname}` : '';
       })(),
-      role: this.roleFromManagerAccess(form.controls.managerAccess.value, existingRole),
+      role: this.roleFromManagerAccess(form.controls.managerAccess.value),
+      isAdmin: form.controls.isAdmin.value === 'Yes',
     };
   }
 
@@ -3540,6 +4147,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     const password = record.has('password') ? (record.get('password') ?? '').trim() : undefined;
     const jobTitle = record.has('jobtitle') ? (record.get('jobtitle') ?? '').trim() : undefined;
     const idNumber = record.has('idnumber') ? (record.get('idnumber') ?? '').trim() : undefined;
+    const ofoCode = record.has('ofocode') ? (record.get('ofocode') ?? '').trim() : undefined;
+    const race = record.has('race') ? (record.get('race') ?? '').trim() : undefined;
+    const gender = record.has('gender') ? (record.get('gender') ?? '').trim() : undefined;
+    const municipality = record.has('municipality') ? (record.get('municipality') ?? '').trim() : undefined;
     const department = record.get('department') ?? '';
     const lineManager = record.has('linemanager') ? (record.get('linemanager') ?? '').trim() : undefined;
     const group = record.get('group') ?? '';
@@ -3548,6 +4159,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     const rawStatus = (record.get('activestatus') ?? 'Active').trim();
     const rawManager = (record.get('manager') ?? '').trim().toLowerCase();
     const rawRole = (record.get('role') ?? '').trim().toLowerCase();
+    const rawAdmin = (record.get('admin') ?? '').trim().toLowerCase();
 
     if (!name.trim() || !surname.trim() || !email || !department.trim() || !group.trim()) {
       return { lineNumber, message: 'Required values are missing.' };
@@ -3575,10 +4187,11 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
     seenEmails.add(email);
 
-    let role: 'student' | 'manager' | 'admin' = this.roleFromBulkUpload(rawManager);
-    if (['student', 'manager', 'admin'].includes(rawRole)) {
-      role = rawRole as 'student' | 'manager' | 'admin';
+    let role: 'student' | 'manager' = this.roleFromBulkUpload(rawManager);
+    if (['student', 'manager'].includes(rawRole)) {
+      role = rawRole as 'student' | 'manager';
     }
+    const isAdmin = ['yes', 'y', 'true'].includes(rawAdmin);
     return {
       student: {
         name: name.trim(),
@@ -3586,6 +4199,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         email,
         ...(jobTitle !== undefined ? { jobTitle } : {}),
         ...(idNumber !== undefined ? { idNumber } : {}),
+        ...(ofoCode !== undefined ? { ofoCode } : {}),
+        ...(race !== undefined ? { race } : {}),
+        ...(gender !== undefined ? { gender } : {}),
+        ...(municipality !== undefined ? { municipality } : {}),
         department: department.trim(),
         ...(lineManager !== undefined ? { lineManager } : {}),
         group: group.trim(),
@@ -3593,6 +4210,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         deadlineDate,
         activeStatus: rawStatus.toLowerCase() === 'inactive' ? 'Inactive' : 'Active',
         role,
+        isAdmin,
       },
       ...(password ? { password } : {}),
     };
@@ -3626,17 +4244,13 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   private getBulkUploadTemplateRows() {
     return [
-      ['Name', 'Surname', 'Email', 'Password', 'Job Title', 'ID Number', 'Department', 'Line Manager', 'Group', 'Start Date', 'End Date', 'Training Manager', 'Access'],
-      ['Lebo', 'Mokoena', 'lebo.mokoena@example.com', 'Welcome@123', 'Operations Coordinator', '9201015800083', 'Operations', 'Nandi Khumalo', 'Cohort A', '2026-04-01', '2026-10-30', 'No', 'Active'],
+      ['Name', 'Surname', 'Email', 'Password', 'Job Title', 'ID Number', 'OFO Code', 'Race', 'Gender', 'Municipality', 'Department', 'Line Manager', 'Group', 'Start Date', 'End Date', 'Training Manager', 'Admin', 'Access'],
+      ['Lebo', 'Mokoena', 'lebo.mokoena@example.com', 'Welcome@123', 'Operations Coordinator', '9201015800083', '2021-121202 - Education Training and Skills Development Manager', 'African', 'Female', 'Buffalo City', 'Operations', 'Nandi Khumalo', 'Cohort A', '2026-04-01', '2026-10-30', 'No', 'No', 'Active'],
     ];
   }
 
-  private roleFromManagerAccess(managerAccess: 'Yes' | 'No', existingRole?: EnrollmentStudent['role']) {
-    if (existingRole === 'admin') {
-      return 'admin' as const;
-    }
-
-    return managerAccess === 'Yes' ? 'manager' : 'student';
+  private roleFromManagerAccess(managerAccess: 'Yes' | 'No') {
+    return managerAccess === 'Yes' ? 'manager' as const : 'student' as const;
   }
 
   private roleFromBulkUpload(rawManager: string) {
@@ -3674,7 +4288,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         return {
           studentId: student.id,
           email: student.email,
-          role: student.role as 'student' | 'manager' | 'admin',
+          role: student.role,
           password,
         } satisfies ManagedUserCredentialInput;
       })
@@ -3702,9 +4316,14 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       case 'idNumber':
         return student.idNumber || 'Not provided';
       case 'department':
-        return student.department;
-      case 'lineManager':
-        return student.lineManager || 'Not provided';
+        return student.department || 'Unassigned';
+      case 'lineManager': {
+        // Prefer a live lookup by id over the plain-text snapshot stored on the student record:
+        // that snapshot is only recomputed when the student's own record is next saved, so it
+        // goes stale the moment the manager's own name changes.
+        const liveManagerName = student.lineManagerId ? this.reportManagerNamesById().get(student.lineManagerId) : undefined;
+        return liveManagerName || student.lineManager || 'Not provided';
+      }
       case 'course':
         return row.courseTitle;
       case 'completionStatus':
@@ -3736,6 +4355,12 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     const columns = [
       'Name',
       'Surname',
+      'ID Number',
+      'Job Title',
+      'OFO Code',
+      'Race',
+      'Gender',
+      'Municipality',
       'Manager',
       'Development Need',
       'Planned Action',
@@ -3752,6 +4377,12 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       rows: reportRows.map((row) => [
         row.name,
         row.surname,
+        row.idNumber,
+        row.jobTitle,
+        row.ofoCode,
+        row.race,
+        row.gender,
+        row.municipality,
         row.manager,
         row.developmentNeed,
         row.plannedAction,
@@ -3859,12 +4490,64 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     return matchedCourse.completedAt || 'Not recorded';
   }
 
+  // StudentCertificateLicence.status is a persisted field that only gets recalculated when the
+  // owning student happens to open their own Certificates page (see student-badges.component.ts's
+  // calculateCertificateStatus). A certificate that expires while the student never revisits that
+  // page would keep reading "Active" forever in this report, so recompute it live from expiryDate
+  // instead of trusting the stored value — same algorithm as calculateCertificateStatus.
+  private resolveLiveCertificateStatus(record: StudentCertificateLicence): StudentCertificateStatus {
+    const expiry = this.parseDateOnly(record.expiryDate);
+    if (!expiry) {
+      return record.status;
+    }
+
+    const today = this.startOfTodayLocal();
+    if (expiry < today) {
+      return 'Expired';
+    }
+
+    if (record.reminderNotification === 'Yes') {
+      const safeReminderDays = Number.isFinite(record.reminderDaysBeforeExpiry) && record.reminderDaysBeforeExpiry > 0
+        ? record.reminderDaysBeforeExpiry
+        : 0;
+      const daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (daysUntilExpiry <= safeReminderDays) {
+        return 'Pending Renewal';
+      }
+    }
+
+    return 'Active';
+  }
+
+  private parseDateOnly(value: string) {
+    if (!value) {
+      return null;
+    }
+
+    const [year, month, day] = value.split('-').map((part) => Number(part));
+    if (!year || !month || !day) {
+      return null;
+    }
+
+    return new Date(year, month - 1, day);
+  }
+
+  private startOfTodayLocal() {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+
   private buildAnnualReportExportRows() {
     const columns = [
       'Name',
       'Email',
       'ID Number',
       'Department',
+      'OFO Code',
+      'Race',
+      'Gender',
+      'Municipality',
       'Training Course',
       'Provider Name',
       'Type of Training',
@@ -3885,6 +4568,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         row.learnerEmail,
         row.idNumber,
         row.department,
+        row.ofoCode,
+        row.race,
+        row.gender,
+        row.municipality,
         row.trainingCourse,
         row.providerName,
         row.trainingType,
@@ -3915,45 +4602,128 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     URL.revokeObjectURL(downloadUrl);
   }
 
-  private loadAdminProfileImage() {
-    if (typeof localStorage === 'undefined') {
-      this.adminProfileImageDataUrl.set(null);
-      return;
-    }
-
-    const storedImage = localStorage.getItem(ADMIN_PROFILE_IMAGE_STORAGE_KEY);
-    this.adminProfileImageDataUrl.set(storedImage || null);
-  }
-
+  // Uploads go to the account's linked directory record, the same one the student and
+  // training-manager views read from, so the picture shows up consistently everywhere. Uses the
+  // base64-JSON upload route rather than the direct-to-storage one — that path depends on the
+  // storage bucket's CORS policy already being set up, which isn't guaranteed at any given moment.
   onAdminProfileImageSelected(event: Event) {
     const input = event.target as HTMLInputElement | null;
     const file = input?.files?.[0];
+    if (input) {
+      input.value = '';
+    }
 
-    if (!file) {
+    if (!file || !file.type.startsWith('image/') || this.uploadingProfileImage()) {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : null;
-      this.adminProfileImageDataUrl.set(result);
-
-      if (result) {
-        localStorage.setItem(ADMIN_PROFILE_IMAGE_STORAGE_KEY, result);
-      } else {
-        localStorage.removeItem(ADMIN_PROFILE_IMAGE_STORAGE_KEY);
-      }
-
-      if (input) {
-        input.value = '';
-      }
-    };
-    reader.readAsDataURL(file);
+    this.uploadingProfileImage.set(true);
+    this.backend.uploadFileBase64(file, 'profile-pictures').subscribe({
+      next: ({ url }) => {
+        this.adminProfileImageDataUrl.set(url);
+        this.backend.updateMyProfileImage({ profileImageUrl: url, profileImageDataUrl: null }).subscribe({
+          complete: () => this.uploadingProfileImage.set(false),
+          error: () => this.uploadingProfileImage.set(false),
+        });
+      },
+      error: () => {
+        this.uploadingProfileImage.set(false);
+      },
+    });
   }
 
   clearAdminProfileImage() {
     this.adminProfileImageDataUrl.set(null);
-    localStorage.removeItem(ADMIN_PROFILE_IMAGE_STORAGE_KEY);
+    this.backend.updateMyProfileImage({ profileImageUrl: null, profileImageDataUrl: null }).subscribe();
+  }
+
+  openAnnualReportDocumentsEditor(requestId: string) {
+    this.editingAnnualReportRequestId.set(requestId);
+  }
+
+  closeAnnualReportDocumentsEditor() {
+    this.editingAnnualReportRequestId.set(null);
+  }
+
+  onInvoiceSelected(event: Event, requestId: string) {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (input) {
+      input.value = '';
+    }
+
+    if (!file || this.uploadingInvoice()) {
+      return;
+    }
+
+    this.uploadingInvoice.set(true);
+    this.backend.uploadFileBase64(file, 'external-training-documents').subscribe({
+      next: ({ url }) => {
+        this.uploadingInvoice.set(false);
+        this.managerData.attachExternalTrainingRequestDocuments({
+          requestId,
+          invoiceFileName: file.name,
+          invoiceDataUrl: url,
+        });
+      },
+      error: () => {
+        this.uploadingInvoice.set(false);
+      },
+    });
+  }
+
+  onProofOfPaymentSelected(event: Event, requestId: string) {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (input) {
+      input.value = '';
+    }
+
+    if (!file || this.uploadingProofOfPayment()) {
+      return;
+    }
+
+    this.uploadingProofOfPayment.set(true);
+    this.backend.uploadFileBase64(file, 'external-training-documents').subscribe({
+      next: ({ url }) => {
+        this.uploadingProofOfPayment.set(false);
+        this.managerData.attachExternalTrainingRequestDocuments({
+          requestId,
+          proofOfPaymentFileName: file.name,
+          proofOfPaymentUrl: url,
+        });
+      },
+      error: () => {
+        this.uploadingProofOfPayment.set(false);
+      },
+    });
+  }
+
+  onCertificateSelected(event: Event, requestId: string) {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (input) {
+      input.value = '';
+    }
+
+    if (!file || this.uploadingCertificate()) {
+      return;
+    }
+
+    this.uploadingCertificate.set(true);
+    this.backend.uploadFileBase64(file, 'external-training-documents').subscribe({
+      next: ({ url }) => {
+        this.uploadingCertificate.set(false);
+        this.managerData.attachExternalTrainingRequestDocuments({
+          requestId,
+          certificateFileName: file.name,
+          certificateUrl: url,
+        });
+      },
+      error: () => {
+        this.uploadingCertificate.set(false);
+      },
+    });
   }
 
   onLogoSelected(event: Event) {
@@ -3964,15 +4734,23 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : null;
-      this.branding.setCompanyLogo(result);
-      if (input) {
-        input.value = '';
-      }
-    };
-    reader.readAsDataURL(file);
+    if (input) {
+      input.value = '';
+    }
+
+    this.companyLogoUploadError.set('');
+    this.companyLogoUploading.set(true);
+
+    this.backend.uploadFileBase64(file, 'branding').subscribe({
+      next: (result) => {
+        this.companyLogoUploading.set(false);
+        this.branding.setCompanyLogo(result.url);
+      },
+      error: () => {
+        this.companyLogoUploading.set(false);
+        this.companyLogoUploadError.set('Could not upload the logo. Please try again.');
+      },
+    });
   }
 
   downloadReportsCsv() {
@@ -4229,6 +5007,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.topbarProfileMenuOpen.set(false);
   }
 
+  canSwitchToRole(role: LoginRole) {
+    return this.availableSwitchRoles().includes(role);
+  }
+
   switchToRole(targetRole: ResolveRolesEntry['role']) {
     if (this.switchingRole()) {
       return;
@@ -4243,12 +5025,42 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
           username: result.username,
           email: result.email,
           studentId: result.studentId ?? null,
+          displayName: combineDisplayName(result.name, result.surname),
         })));
         localStorage.setItem('lms-token', result.token);
         void this.router.navigate([result.route]);
       },
       error: () => {
         this.switchingRole.set(false);
+      },
+    });
+  }
+
+  private loadSwitchableRoles() {
+    this.backend.getSwitchableRoles().subscribe({
+      next: (response) => {
+        this.availableSwitchRoles.set(response.roles);
+      },
+      error: () => {
+        this.availableSwitchRoles.set([]);
+      },
+    });
+  }
+
+  // Prefer the account's real directory name and picture (the same ones shown in the student and
+  // training-manager views) over the username/email-derived fallback, so accounts with multiple
+  // access roles show one consistent identity everywhere.
+  private loadOwnIdentity() {
+    this.backend.getMyIdentity().subscribe({
+      next: (identity) => {
+        const fullName = combineDisplayName(identity.name ?? undefined, identity.surname ?? undefined);
+        if (fullName) {
+          this.adminName.set(fullName);
+        }
+        this.adminProfileImageDataUrl.set(identity.profileImageUrl || identity.profileImageDataUrl || null);
+      },
+      error: () => {
+        // Keep the derived fallback name and initials avatar if the lookup fails.
       },
     });
   }

@@ -13,7 +13,9 @@ type WorkspaceDocument = {
   fileName?: string;
   resourceLink?: string;
   uploadedDataUrl?: string;
+  convertedPdfUrl?: string;
   requiresAcknowledgement?: boolean;
+  allowDownload?: boolean;
 };
 
 type WorkspaceVideo = {
@@ -86,6 +88,15 @@ type WorkspaceDocumentPresentationPreview = {
   message: string;
 };
 
+type ScormRuntimeState = {
+  initialized: boolean;
+  completed: boolean;
+  successStatus: 'unknown' | 'passed' | 'failed';
+  scoreRaw: string;
+  location: string;
+  suspendData: string;
+};
+
 @Component({
   selector: 'student-courses',
   imports: [CommonModule, PowerPointWindowComponent, PdfViewerComponent],
@@ -93,13 +104,15 @@ type WorkspaceDocumentPresentationPreview = {
   template: `
     <section class="courses-content">
       <ng-container *ngIf="!selectedCourse(); else courseWorkspaceView">
-        <header class="courses-header">
-          <p class="courses-subtitle">Track your progress and continue learning from one clean workspace.</p>
-        </header>
-
-        <div class="courses-tabs">
-          <button [class.active]="activeTab() === 'inprogress'" (click)="activeTab.set('inprogress')">In Progress</button>
-          <button [class.active]="activeTab() === 'completed'" (click)="activeTab.set('completed')">Completed</button>
+        <div class="courses-tabs-row">
+          <div class="courses-tabs">
+            <button [class.active]="activeTab() === 'inprogress'" (click)="activeTab.set('inprogress')">In Progress</button>
+            <button [class.active]="activeTab() === 'completed'" (click)="activeTab.set('completed')">Completed</button>
+          </div>
+          <div class="courses-search-wrap">
+            <svg class="courses-search-icon" width="16" height="16" fill="none" viewBox="0 0 24 24"><path fill="#94a3b8" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0Z" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/></svg>
+            <input class="courses-search-input" type="search" placeholder="Search courses..." [value]="searchQuery()" (input)="searchQuery.set($any($event.target).value)" aria-label="Search courses" />
+          </div>
         </div>
 
         <div class="courses-grid">
@@ -126,10 +139,7 @@ type WorkspaceDocumentPresentationPreview = {
                 <div class="progress-label">Progress: {{ course.completed ? 100 : course.progress || 0 }}%</div>
 
                 <div class="course-actions">
-                  <span *ngIf="course.completed; else autoTrackedCourseNote" class="course-complete-note">Completed and badge-ready</span>
-                  <ng-template #autoTrackedCourseNote>
-                    <span class="progress-label">Progress updates automatically as you complete steps</span>
-                  </ng-template>
+
                 </div>
               </div>
             </article>
@@ -145,7 +155,6 @@ type WorkspaceDocumentPresentationPreview = {
               <h2>{{ selectedCourse()!.name }}</h2>
               <p class="workspace-meta">Course ID: {{ workspaceCourseId() }} | Progress: {{ selectedCourse()!.completed ? 100 : selectedCourse()!.progress || 0 }}%</p>
             </div>
-            <span *ngIf="!selectedCourse()!.completed" class="progress-label">Progress updates automatically from completed steps</span>
           </header>
 
           <div class="workspace-layout">
@@ -168,19 +177,6 @@ type WorkspaceDocumentPresentationPreview = {
             </aside>
 
             <div class="workspace-main">
-              <div class="workspace-summary">{{ selectedCourseWorkspace()!.summary }}</div>
-
-              <section *ngIf="selectedCourseStep() as step" class="workspace-step-card">
-                <div class="workspace-step-card-header">
-                  <div>
-                    <div class="workspace-step-card-eyebrow">Step {{ selectedCourseStepNumber() }} · {{ workspaceStepMeta(step) }}</div>
-                    <h3>{{ step.title }}</h3>
-                    <p>{{ step.summary }}</p>
-                  </div>
-                  <span class="workspace-step-pill">{{ step.kind }}</span>
-                </div>
-              </section>
-
               <section *ngIf="selectedCourseStep()?.document as document" class="workspace-document-card">
                 <ng-container *ngIf="selectedDocumentPresentationPreview() as presentationPreview; else standardDocumentSection">
                   <div class="workspace-document-preview" style="padding:1rem;">
@@ -198,20 +194,28 @@ type WorkspaceDocumentPresentationPreview = {
                     <div class="workspace-document-card-title">{{ document.title }}</div>
                     <div class="workspace-document-card-meta">
                       {{ document.fileName || 'Linked document' }}
+                      <span *ngIf="selectedCourseStep()?.kind === 'Scorm'">SCORM package</span>
                       <span *ngIf="document.requiresAcknowledgement">Requires read and acknowledge</span>
                     </div>
                   </div>
 
                   <div class="workspace-document-card-actions">
-                    <button type="button" class="workspace-document-open-btn" [disabled]="!hasSelectedDocumentLink()" (click)="openSelectedDocument()">{{ hasSelectedDocumentPreview() ? 'Open in new tab' : 'Open document' }}</button>
+                    <button *ngIf="document.allowDownload !== false" type="button" class="workspace-document-open-btn" [disabled]="!hasSelectedDocumentLink()" (click)="openSelectedDocument()">{{ selectedCourseStep()?.kind === 'Scorm' ? 'Launch SCORM package' : (hasSelectedDocumentPreview() ? 'Open in new tab' : 'Open document') }}</button>
                     <button *ngIf="document.requiresAcknowledgement" type="button" class="workspace-assessment-submit-btn" [disabled]="!canAcknowledgeSelectedDocument() || isSelectedDocumentAcknowledged()" (click)="acknowledgeSelectedDocument()">
                       {{ isSelectedDocumentAcknowledged() ? 'Acknowledged' : 'Acknowledge Read' }}
                     </button>
                   </div>
 
-                  <div *ngIf="selectedDocumentPreviewUrl()" class="workspace-document-preview">
+                  <div *ngIf="selectedDocumentPptViewerUrl()" class="workspace-document-preview">
+                    <iframe
+                      class="workspace-document-embed"
+                      [attr.title]="document.title + ' slides'"
+                      [src]="selectedDocumentPptViewerUrl()"></iframe>
+                  </div>
+
+                  <div *ngIf="!selectedDocumentPptViewerUrl() && selectedDocumentPreviewUrl()" class="workspace-document-preview">
                     <ng-container *ngIf="isPdfDocumentSource(); else iframePreview">
-                      <pdf-viewer [src]="selectedDocumentSource()"></pdf-viewer>
+                      <pdf-viewer [src]="selectedDocumentSource()" [allowDownload]="selectedDocument()?.allowDownload !== false"></pdf-viewer>
                     </ng-container>
                     <ng-template #iframePreview>
                       <iframe
@@ -221,8 +225,17 @@ type WorkspaceDocumentPresentationPreview = {
                     </ng-template>
                   </div>
 
-                  <p *ngIf="hasSelectedDocumentLink() && !hasSelectedDocumentPreview()" class="workspace-acknowledgement-note workspace-acknowledgement-note-warning">This file opens in a new tab because an inline preview is not available for its format.</p>
+                  <p *ngIf="hasSelectedDocumentLink() && !hasSelectedDocumentPreview()" class="workspace-acknowledgement-note workspace-acknowledgement-note-warning">{{ selectedCourseStep()?.kind === 'Scorm' ? 'This SCORM package opens in a new tab. Ensure your LMS hosting serves the package entry point for full playback.' : 'This file opens in a new tab because an inline preview is not available for its format.' }}</p>
                 </ng-template>
+
+                <div *ngIf="selectedCourseStep()?.kind === 'Scorm' && selectedScormLaunchUrl()" class="workspace-scorm-player">
+                  <iframe
+                    class="workspace-scorm-frame"
+                    [attr.title]="(selectedCourseStep()?.title || 'SCORM package') + ' player'"
+                    [src]="selectedScormLaunchUrl()"
+                    allow="fullscreen"
+                    referrerpolicy="strict-origin-when-cross-origin"></iframe>
+                </div>
 
                 <div *ngIf="selectedDocumentPresentationPreview() && document.requiresAcknowledgement" class="workspace-document-card-actions">
                   <button type="button" class="workspace-assessment-submit-btn" [disabled]="!canAcknowledgeSelectedDocument() || isSelectedDocumentAcknowledged()" (click)="acknowledgeSelectedDocument()">
@@ -249,10 +262,13 @@ type WorkspaceDocumentPresentationPreview = {
                       *ngIf="canPlaySelectedVideoInline(); else workspaceVideoFallback"
                       class="workspace-video-player"
                       controls
+                      controlsList="nodownload"
+                      disablePictureInPicture
                       playsinline
                       preload="metadata"
                       [attr.aria-label]="video.title"
                       [src]="selectedVideoSource()"
+                      (contextmenu)="$event.preventDefault()"
                       (loadedmetadata)="onSelectedVideoMetadataLoaded($event)"></video>
                   </ng-template>
 
@@ -263,7 +279,6 @@ type WorkspaceDocumentPresentationPreview = {
                       </div>
                       <span>{{ hasSelectedVideoSource() ? 'Video link is available to open.' : 'No video available' }}</span>
                       <span class="workspace-video-placeholder-copy">{{ video.title }}</span>
-                      <button *ngIf="hasSelectedVideoSource()" type="button" class="workspace-document-open-btn" (click)="openSelectedVideo()">Open video</button>
                     </div>
                   </ng-template>
               </div>
@@ -692,6 +707,48 @@ type WorkspaceDocumentPresentationPreview = {
       color: #64748b;
       font-size: 1rem;
       max-width: 40rem;
+    }
+
+    .courses-tabs-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .courses-search-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .courses-search-icon {
+      position: absolute;
+      left: 0.75rem;
+      pointer-events: none;
+      flex-shrink: 0;
+    }
+
+    .courses-search-input {
+      border: 1px solid rgba(99, 102, 241, 0.18);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.88);
+      color: #1e293b;
+      padding: 0.65rem 1rem 0.65rem 2.25rem;
+      font-size: 0.95rem;
+      width: 16rem;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .courses-search-input:focus {
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+    }
+
+    .courses-search-input::placeholder {
+      color: #94a3b8;
     }
 
     .courses-tabs {
@@ -1169,6 +1226,24 @@ type WorkspaceDocumentPresentationPreview = {
       height: min(42rem, 70vh);
       border: none;
       background: #f8fafc;
+    }
+
+    .workspace-scorm-player {
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(37, 99, 235, 0.16);
+      background: #fff;
+      min-height: 32rem;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    .workspace-scorm-frame {
+      display: block;
+      width: 100%;
+      min-height: 32rem;
+      height: min(48rem, 75vh);
+      border: none;
+      background: #fff;
     }
 
     .workspace-video-card {
@@ -2141,6 +2216,7 @@ type WorkspaceDocumentPresentationPreview = {
   `],
 })
 export class StudentCoursesComponent {
+  private static readonly scormRuntimeStorageKey = 'lms-student-scorm-runtime';
   readonly backend = inject(LmsBackendService);
   readonly studentData = inject(StudentDataService);
   readonly managerData = inject(TrainingManagerDataService);
@@ -2157,6 +2233,7 @@ export class StudentCoursesComponent {
   readonly matchingAssignments = signal<Record<string, Record<string, string>>>({});
   readonly openedDocumentAcknowledgements = signal<Record<string, boolean>>({});
   readonly acknowledgedDocuments = signal<Record<string, boolean>>({});
+  readonly scormRuntime = signal<Record<string, ScormRuntimeState>>(this.loadPersistedScormRuntime());
   readonly loadedVideoDurations = signal<Record<string, string>>({});
   readonly completedCourseSteps = signal<Record<string, boolean>>({});
   readonly draggedMatchingAnswer = signal('');
@@ -2165,9 +2242,13 @@ export class StudentCoursesComponent {
   readonly selectedAssessmentQuestionIndex = signal(0);
   readonly assessmentSubmissionFeedback = signal<{ message: string; tone: 'success' | 'error' } | null>(null);
   readonly retakingQuizAssessments = signal<Record<string, boolean>>({});
-  readonly filteredCourses = computed(() =>
-    this.activeTab() === 'inprogress' ? this.studentData.inProgressCourses() : this.studentData.completedCourses(),
-  );
+  readonly searchQuery = signal('');
+  readonly filteredCourses = computed(() => {
+    const tab = this.activeTab() === 'inprogress' ? this.studentData.inProgressCourses() : this.studentData.completedCourses();
+    const q = this.searchQuery().trim().toLowerCase();
+    if (!q) return tab;
+    return tab.filter((c) => c.name.toLowerCase().includes(q) || (c.description ?? '').toLowerCase().includes(q));
+  });
   readonly selectedCourseWorkspace = computed(() => {
     const course = this.selectedCourse();
     if (!course) {
@@ -2248,7 +2329,7 @@ export class StudentCoursesComponent {
 
     return videos.find((video) => video.title === selectedTitle) ?? videos[0] ?? null;
   });
-  readonly selectedDocumentSource = computed(() => this.selectedDocument()?.uploadedDataUrl || this.selectedDocument()?.resourceLink || '');
+  readonly selectedDocumentSource = computed(() => this.selectedDocument()?.convertedPdfUrl || this.selectedDocument()?.resourceLink || this.selectedDocument()?.uploadedDataUrl || '');
   readonly isPdfDocumentSource = computed(() => {
     const src = this.selectedDocumentSource().trim();
     return src.startsWith('data:application/pdf') || /\.pdf(\?.*)?$/i.test(src);
@@ -2258,6 +2339,32 @@ export class StudentCoursesComponent {
     return this.canPreviewDocumentSource(documentSource)
       ? this.sanitizer.bypassSecurityTrustResourceUrl(documentSource)
       : null;
+  });
+  readonly selectedScormLaunchUrl = computed<SafeResourceUrl | null>(() => {
+    const selectedStep = this.selectedCourseStep();
+    if (!selectedStep || selectedStep.kind !== 'Scorm') {
+      return null;
+    }
+
+    const source = (selectedStep.document?.resourceLink || selectedStep.document?.uploadedDataUrl || '').trim();
+    if (!source) {
+      return null;
+    }
+
+    return this.sanitizer.bypassSecurityTrustResourceUrl(source);
+  });
+  /** Google Docs Viewer URL for PPTX files that don't have a converted PDF yet. */
+  readonly selectedDocumentPptViewerUrl = computed<SafeResourceUrl | null>(() => {
+    const doc = this.selectedDocument();
+    if (!doc || doc.convertedPdfUrl) {
+      return null; // PDF viewer handles it
+    }
+    const src = (doc.resourceLink || doc.uploadedDataUrl || '').trim();
+    if (!src || src.startsWith('data:') || !/\.pptx?(\?.*)?$/i.test(src)) {
+      return null;
+    }
+    const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(src)}&embedded=true`;
+    return this.sanitizer.bypassSecurityTrustResourceUrl(viewerUrl);
   });
   readonly selectedDocumentPresentationPreview = computed<WorkspaceDocumentPresentationPreview | null>(() => {
     const document = this.selectedDocument();
@@ -2285,7 +2392,7 @@ export class StudentCoursesComponent {
   readonly selectedVideoSource = computed(() => {
     const video = this.selectedVideo();
     if (!video) return '';
-    const src = video.uploadedDataUrl || video.resourceLink || '';
+    const src = video.resourceLink || video.uploadedDataUrl || '';
     // Training managers sometimes paste a URL directly as the title — treat it as the source.
     if (!src && /^https?:\/\//i.test(video.title.trim())) return video.title.trim();
     return src;
@@ -2695,6 +2802,20 @@ export class StudentCoursesComponent {
         this.selectedCourse.set(updatedCourse);
       }
     });
+
+    effect(() => {
+      const selectedStep = this.selectedCourseStep();
+      if (!selectedStep || selectedStep.kind !== 'Scorm') {
+        return;
+      }
+
+      this.installScormApiBridge();
+    });
+
+    effect(() => {
+      this.persistScormRuntime();
+    });
+
   }
 
   openCourse(course: StudentCourse) {
@@ -2754,6 +2875,10 @@ export class StudentCoursesComponent {
 
     if (step.kind === 'Document' && step.document?.requiresAcknowledgement) {
       return 'Read and acknowledge';
+    }
+
+    if (step.kind === 'Scorm') {
+      return 'SCORM package';
     }
 
     return step.kind;
@@ -3476,6 +3601,15 @@ export class StudentCoursesComponent {
       lastSubmittedAt: new Date().toISOString(),
     };
 
+    // Record the attempt locally first so the failed/exhausted state is always
+    // persisted — even if the backend call below fails or the page is refreshed.
+    this.studentData.recordAssessmentAttempt(attemptKey, nextAttempt);
+    this.retakingQuizAssessments.update((retakes) => ({ ...retakes, [attemptKey]: false }));
+
+    if (nextAttempt.passed) {
+      this.markSelectedStepComplete();
+    }
+
     this.backend.upsertQuizSubmission({
       id: `quiz-${student.id}-${offering.id}-${assessmentId}`,
       studentId: student.id,
@@ -3493,19 +3627,9 @@ export class StudentCoursesComponent {
       scorePossible: nextAttempt.lastScorePossible,
       submittedAt: nextAttempt.lastSubmittedAt,
     }).subscribe({
-      next: () => {
-        this.retakingQuizAssessments.update((retakes) => ({
-          ...retakes,
-          [attemptKey]: false,
-        }));
-        this.studentData.recordAssessmentAttempt(attemptKey, nextAttempt);
-
-        if (nextAttempt.passed) {
-          this.markSelectedStepComplete();
-        }
-      },
       error: () => {
-        this.setAssessmentSubmissionError('Assessment answers could not be saved right now. Try again.');
+        // Backend sync failed — the attempt is already recorded locally so the
+        // locked/failed state is preserved. No UI reset needed.
       },
     });
   }
@@ -3543,7 +3667,7 @@ export class StudentCoursesComponent {
   }
 
   hasSelectedDocumentPreview() {
-    return Boolean(this.selectedDocumentPreviewUrl());
+    return Boolean(this.selectedDocumentPreviewUrl() || this.selectedDocumentPptViewerUrl());
   }
 
   hasReviewedSelectedDocument() {
@@ -3590,7 +3714,7 @@ export class StudentCoursesComponent {
 
   openSelectedDocument() {
     const document = this.selectedDocument();
-    const documentUrl = document?.uploadedDataUrl || document?.resourceLink;
+    const documentUrl = document?.resourceLink || document?.uploadedDataUrl;
     const key = this.selectedDocumentKey();
 
     if (!documentUrl || !key) {
@@ -3691,6 +3815,211 @@ export class StudentCoursesComponent {
     this.markSelectedStepComplete();
   }
 
+  private activeScormRuntimeKey() {
+    const selectedCourse = this.selectedCourse();
+    const selectedStep = this.selectedCourseStep();
+
+    if (!selectedCourse || !selectedStep || selectedStep.kind !== 'Scorm') {
+      return '';
+    }
+
+    return this.courseStepKey(selectedCourse.name, selectedStep.id);
+  }
+
+  private defaultScormRuntimeState(): ScormRuntimeState {
+    return {
+      initialized: false,
+      completed: false,
+      successStatus: 'unknown',
+      scoreRaw: '',
+      location: '',
+      suspendData: '',
+    };
+  }
+
+  private loadPersistedScormRuntime() {
+    if (typeof localStorage === 'undefined') {
+      return {};
+    }
+
+    try {
+      const raw = localStorage.getItem(StudentCoursesComponent.scormRuntimeStorageKey);
+      if (!raw) {
+        return {};
+      }
+
+      const parsed = JSON.parse(raw) as Record<string, ScormRuntimeState>;
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private persistScormRuntime() {
+    if (typeof localStorage === 'undefined') {
+      return;
+    }
+
+    try {
+      localStorage.setItem(StudentCoursesComponent.scormRuntimeStorageKey, JSON.stringify(this.scormRuntime()));
+    } catch {
+      return;
+    }
+  }
+
+  private getActiveScormRuntimeState() {
+    const key = this.activeScormRuntimeKey();
+    if (!key) {
+      return this.defaultScormRuntimeState();
+    }
+
+    return this.scormRuntime()[key] ?? this.defaultScormRuntimeState();
+  }
+
+  private updateActiveScormRuntimeState(patch: Partial<ScormRuntimeState>) {
+    const key = this.activeScormRuntimeKey();
+    if (!key) {
+      return;
+    }
+
+    const current = this.scormRuntime()[key] ?? this.defaultScormRuntimeState();
+    const next = { ...current, ...patch };
+
+    this.scormRuntime.update((runtime) => ({
+      ...runtime,
+      [key]: next,
+    }));
+
+    if (next.completed || next.successStatus === 'passed') {
+      this.markSelectedStepComplete();
+    }
+  }
+
+  private installScormApiBridge() {
+    const hostWindow = this.document.defaultView as (Window & { API?: unknown; API_1484_11?: unknown }) | null;
+    if (!hostWindow) {
+      return;
+    }
+
+    hostWindow.API = {
+      LMSInitialize: () => {
+        this.updateActiveScormRuntimeState({ initialized: true });
+        return 'true';
+      },
+      LMSFinish: () => 'true',
+      LMSGetValue: (element: string) => this.scorm12GetValue(element),
+      LMSSetValue: (element: string, value: string) => this.scorm12SetValue(element, value),
+      LMSCommit: () => 'true',
+      LMSGetLastError: () => '0',
+      LMSGetErrorString: () => 'No error',
+      LMSGetDiagnostic: () => '',
+    };
+
+    hostWindow.API_1484_11 = {
+      Initialize: () => {
+        this.updateActiveScormRuntimeState({ initialized: true });
+        return 'true';
+      },
+      Terminate: () => 'true',
+      GetValue: (element: string) => this.scorm2004GetValue(element),
+      SetValue: (element: string, value: string) => this.scorm2004SetValue(element, value),
+      Commit: () => 'true',
+      GetLastError: () => '0',
+      GetErrorString: () => 'No error',
+      GetDiagnostic: () => '',
+    };
+  }
+
+  private scorm12GetValue(element: string) {
+    const state = this.getActiveScormRuntimeState();
+
+    switch ((element || '').trim()) {
+      case 'cmi.core.lesson_status':
+        return state.completed ? 'completed' : 'incomplete';
+      case 'cmi.core.score.raw':
+        return state.scoreRaw;
+      case 'cmi.core.lesson_location':
+      case 'cmi.core.location':
+        return state.location;
+      case 'cmi.suspend_data':
+        return state.suspendData;
+      default:
+        return '';
+    }
+  }
+
+  private scorm12SetValue(element: string, value: string) {
+    const normalizedElement = (element || '').trim();
+    const normalizedValue = (value || '').toString();
+
+    switch (normalizedElement) {
+      case 'cmi.core.lesson_status': {
+        const completed = normalizedValue === 'completed' || normalizedValue === 'passed';
+        this.updateActiveScormRuntimeState({ completed, successStatus: normalizedValue === 'passed' ? 'passed' : this.getActiveScormRuntimeState().successStatus });
+        return 'true';
+      }
+      case 'cmi.core.score.raw':
+        this.updateActiveScormRuntimeState({ scoreRaw: normalizedValue });
+        return 'true';
+      case 'cmi.core.lesson_location':
+      case 'cmi.core.location':
+        this.updateActiveScormRuntimeState({ location: normalizedValue });
+        return 'true';
+      case 'cmi.suspend_data':
+        this.updateActiveScormRuntimeState({ suspendData: normalizedValue });
+        return 'true';
+      default:
+        return 'true';
+    }
+  }
+
+  private scorm2004GetValue(element: string) {
+    const state = this.getActiveScormRuntimeState();
+
+    switch ((element || '').trim()) {
+      case 'cmi.completion_status':
+        return state.completed ? 'completed' : 'incomplete';
+      case 'cmi.success_status':
+        return state.successStatus;
+      case 'cmi.score.raw':
+        return state.scoreRaw;
+      case 'cmi.location':
+        return state.location;
+      case 'cmi.suspend_data':
+        return state.suspendData;
+      default:
+        return '';
+    }
+  }
+
+  private scorm2004SetValue(element: string, value: string) {
+    const normalizedElement = (element || '').trim();
+    const normalizedValue = (value || '').toString();
+
+    switch (normalizedElement) {
+      case 'cmi.completion_status':
+        this.updateActiveScormRuntimeState({ completed: normalizedValue === 'completed' });
+        return 'true';
+      case 'cmi.success_status':
+        this.updateActiveScormRuntimeState({
+          successStatus: normalizedValue === 'passed' ? 'passed' : normalizedValue === 'failed' ? 'failed' : 'unknown',
+          completed: normalizedValue === 'passed' ? true : this.getActiveScormRuntimeState().completed,
+        });
+        return 'true';
+      case 'cmi.score.raw':
+        this.updateActiveScormRuntimeState({ scoreRaw: normalizedValue });
+        return 'true';
+      case 'cmi.location':
+        this.updateActiveScormRuntimeState({ location: normalizedValue });
+        return 'true';
+      case 'cmi.suspend_data':
+        this.updateActiveScormRuntimeState({ suspendData: normalizedValue });
+        return 'true';
+      default:
+        return 'true';
+    }
+  }
+
   private buildFallbackWorkspace(courseName: string): CourseWorkspace {
     return {
       heroLabel: courseName,
@@ -3779,13 +4108,15 @@ export class StudentCoursesComponent {
       } satisfies WorkspaceVideo));
 
     const managerDocuments = managerOffering.contentItems
-      .filter((item) => item.kind === 'Document')
+      .filter((item) => item.kind === 'Document' || item.kind === 'Scorm')
       .map((item) => ({
         title: item.title,
         fileName: item.uploadedFileName || item.title,
         resourceLink: item.resourceLink || undefined,
         uploadedDataUrl: item.uploadedFileDataUrl || undefined,
-        requiresAcknowledgement: Boolean(item.requiresAcknowledgement),
+        convertedPdfUrl: item.convertedPdfUrl || undefined,
+        requiresAcknowledgement: item.kind === 'Document' ? Boolean(item.requiresAcknowledgement) : false,
+        allowDownload: item.allowDownload !== false,
       } satisfies WorkspaceDocument));
     const orderedSteps = managerOffering.contentItems.reduce<WorkspaceStep[]>((steps, item, itemIndex) => {
       if (item.kind === 'Video') {
@@ -3800,7 +4131,7 @@ export class StudentCoursesComponent {
           id: item.id || `${managerOffering.id}-video-${itemIndex + 1}`,
           kind: 'Video',
           title: item.title,
-          summary: 'Video step from the training manager sequence.',
+          summary: '',
           video,
         } satisfies WorkspaceStep);
 
@@ -3813,7 +4144,9 @@ export class StudentCoursesComponent {
           fileName: item.uploadedFileName || item.title,
           resourceLink: item.resourceLink || undefined,
           uploadedDataUrl: item.uploadedFileDataUrl || undefined,
+          convertedPdfUrl: item.convertedPdfUrl || undefined,
           requiresAcknowledgement: Boolean(item.requiresAcknowledgement),
+          allowDownload: item.allowDownload !== false,
         } satisfies WorkspaceDocument;
 
         steps.push({
@@ -3824,6 +4157,28 @@ export class StudentCoursesComponent {
             ? 'Review this document and acknowledge it before moving on.'
             : 'Open the supporting document for this step.',
           document,
+        } satisfies WorkspaceStep);
+
+        return steps;
+      }
+
+      if (item.kind === 'Scorm') {
+        const scormPackage = {
+          title: item.title,
+          fileName: item.uploadedFileName || item.title,
+          resourceLink: item.resourceLink || undefined,
+          uploadedDataUrl: item.uploadedFileDataUrl || undefined,
+          convertedPdfUrl: undefined,
+          requiresAcknowledgement: false,
+          allowDownload: item.allowDownload !== false,
+        } satisfies WorkspaceDocument;
+
+        steps.push({
+          id: item.id || `${managerOffering.id}-scorm-${itemIndex + 1}`,
+          kind: 'Scorm',
+          title: item.title,
+          summary: 'Launch this SCORM package in a new tab.',
+          document: scormPackage,
         } satisfies WorkspaceStep);
 
         return steps;

@@ -7,6 +7,7 @@ import type {
   AssignmentSubmissionRecord,
   EnrollmentStudent,
   ExternalTrainingRequestCreateInput,
+  ExternalTrainingRequestDocumentsInput,
   ExternalTrainingRequestRecord,
   ExternalTrainingRequestReviewInput,
   ExternalTrainingRequestUpdateInput,
@@ -141,6 +142,8 @@ export type ResolveRolesEntry = {
   username: string;
   email: string;
   studentId?: string;
+  name?: string;
+  surname?: string;
   token: string;
 };
 
@@ -148,10 +151,26 @@ export type ResolveRolesResponse = {
   roles: ResolveRolesEntry[];
 };
 
+export type SwitchableRolesResponse = {
+  roles: LoginRole[];
+};
+
+export type MyIdentityResponse = {
+  name: string | null;
+  surname: string | null;
+  profileImageUrl: string | null;
+  profileImageDataUrl: string | null;
+};
+
+export type MyProfileImageUpdate = {
+  profileImageUrl?: string | null;
+  profileImageDataUrl?: string | null;
+};
+
 export type ManagedUserCredentialInput = {
   studentId: string;
   email: string;
-  role: 'student' | 'manager' | 'admin';
+  role: 'student' | 'manager';
   password: string;
 };
 
@@ -231,6 +250,18 @@ export class LmsBackendService {
     return this.http.post<ResolveRolesResponse>(`${this.config.baseUrl}/auth/resolve-roles`, input);
   }
 
+  getSwitchableRoles(): Observable<SwitchableRolesResponse> {
+    return this.http.get<SwitchableRolesResponse>(`${this.config.baseUrl}/auth/switchable-roles`);
+  }
+
+  getMyIdentity(): Observable<MyIdentityResponse> {
+    return this.http.get<MyIdentityResponse>(`${this.config.baseUrl}/auth/my-identity`);
+  }
+
+  updateMyProfileImage(update: MyProfileImageUpdate): Observable<{ message: string }> {
+    return this.http.put<{ message: string }>(`${this.config.baseUrl}/auth/my-profile-image`, update);
+  }
+
   switchRole(targetRole: LoginRole): Observable<ResolveRolesEntry> {
     return this.http.post<ResolveRolesEntry>(`${this.config.baseUrl}/auth/switch-role`, { targetRole });
   }
@@ -293,10 +324,39 @@ export class LmsBackendService {
     return this.firebaseStorage.upload(file, folder);
   }
 
+  /** Uploads small files (e.g. the branding logo) as base64 JSON. Avoids both the
+   *  Cloud Functions multer/multipart bug and the direct-to-GCS CORS dependency —
+   *  see the /storage/upload-base64 server route for details. Not for large files:
+   *  base64 adds ~33% overhead against the server's 50 MB JSON body limit. */
+  uploadFileBase64(file: File, folder: string): Observable<{ url: string; path: string }> {
+    return new Observable((observer) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = typeof reader.result === 'string' ? reader.result : '';
+        const dataBase64 = result.slice(result.indexOf(',') + 1);
+        this.http.post<{ url: string; path: string }>(`${this.config.baseUrl}/storage/upload-base64`, {
+          folder,
+          fileName: file.name,
+          contentType: file.type || 'application/octet-stream',
+          dataBase64,
+        }).subscribe(observer);
+      };
+      reader.onerror = () => observer.error(reader.error ?? new Error('Could not read the selected file.'));
+      reader.readAsDataURL(file);
+    });
+  }
+
   /** Emits progress events (`{ type: 'progress', percent: number }`) while uploading,
    *  then a final completion event (`{ type: 'complete', url, path }`). */
   uploadFileWithProgress(file: File, folder: string): Observable<UploadEvent> {
     return this.firebaseStorage.uploadWithProgress(file, folder);
+  }
+
+  /** Uploads a file in chunks relayed through our own server — no practical file-size limit,
+   *  and avoids a GCS CORS quirk that makes direct-to-storage uploads unreliable. Same event
+   *  shape as uploadFileWithProgress. */
+  uploadFileChunked(file: File, folder: string): Observable<UploadEvent> {
+    return this.firebaseStorage.uploadChunked(file, folder);
   }
 
   uploadScormPackage(file: File): Observable<ScormUploadResponse> {
@@ -341,6 +401,10 @@ export class LmsBackendService {
 
   reviewExternalTrainingRequest(input: ExternalTrainingRequestReviewInput): Observable<ExternalTrainingRequestRecord> {
     return this.http.put<ExternalTrainingRequestRecord>(`${this.config.baseUrl}/external-training-requests/${input.requestId}/review`, input);
+  }
+
+  attachExternalTrainingRequestDocuments(input: ExternalTrainingRequestDocumentsInput): Observable<ExternalTrainingRequestRecord> {
+    return this.http.put<ExternalTrainingRequestRecord>(`${this.config.baseUrl}/external-training-requests/${input.requestId}/documents`, input);
   }
 
   getAssignmentSubmissions(): Observable<AssignmentSubmissionRecord[]> {

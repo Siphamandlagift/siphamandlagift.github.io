@@ -19,12 +19,7 @@ type CalendarDay = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="calendar-shell" aria-labelledby="calendar-heading">
-      <header class="calendar-hero">
-        <div>
-          <h2 id="calendar-heading" class="calendar-title">Calendar</h2>
-          <p class="calendar-subtitle">Track assignment deadlines and important dates here. Complete the actual assignment work in Courses.</p>
-        </div>
-      </header>
+
 
       <div class="calendar-layout">
         <section class="calendar-panel" aria-label="Monthly calendar">

@@ -1,6 +1,6 @@
 export type TrainingOfferingType = 'Course' | 'Programme';
 export type TrainingAssessmentType = 'Quiz' | 'Assignment' | 'Mentorship' | 'Read and Acknowledge';
-export type TrainingContentKind = 'Video' | 'Assessment' | 'Document';
+export type TrainingContentKind = 'Video' | 'Assessment' | 'Document' | 'Scorm';
 export type TrainingQuestionType = 'Multiple Choice' | 'Short Answer' | 'Long Answer' | 'Document Upload' | 'True or False' | 'Matching';
 export type SubmissionReviewStatus = 'Pending Review' | 'Approved' | 'Needs Revision';
 export type LoginRole = 'administrator' | 'training-manager' | 'student';
@@ -38,7 +38,10 @@ export type TrainingContentItem = {
   resourceLink: string;
   uploadedFileName: string;
   uploadedFileDataUrl?: string;
+  convertedPdfUrl?: string;
   requiresAcknowledgement?: boolean;
+  allowDownload?: boolean;
+  durationSeconds?: number;
   questions: TrainingAssessmentQuestion[];
 };
 
@@ -80,14 +83,16 @@ export type StudentCourseRecord = {
 export type StudentProfileRecord = {
   name: string;
   email: string;
+  idNumber: string;
   age: number;
   contactNumber: string;
   address: string;
-  programme: string;
-  level: string;
+  department: string;
+  jobTitle: string;
   joined: string;
   learningStreak: string;
   profileImageDataUrl: string | null;
+  profileImageUrl: string | null;
   passwordUpdatedAt: string;
 };
 
@@ -128,6 +133,21 @@ export type StudentMentorshipProgressReportRecord = {
 
 export type StudentBadgeStateRecord = {
   earnedBadgeIds: string[];
+};
+
+export type StudentCertificateStatusRecord = 'Active' | 'Expired' | 'Pending Renewal';
+
+export type StudentCertificateLicenceRecord = {
+  id: string;
+  certificationName: string;
+  completionDate: string;
+  expiryDate: string;
+  fileName: string;
+  fileDataUrl: string;
+  status: StudentCertificateStatusRecord;
+  renewalRequired: 'Yes' | 'No';
+  reminderNotification: 'Yes' | 'No';
+  reminderDaysBeforeExpiry: number;
 };
 
 export type StudentNotificationPreferencesRecord = {
@@ -210,6 +230,7 @@ export type SystemTrainingManagerRecord = {
 
 export type ExternalTrainingRequestRecord = {
   id: string;
+  studentId: string;
   studentName: string;
   studentEmail: string;
   courseName: string;
@@ -230,6 +251,10 @@ export type ExternalTrainingRequestRecord = {
   invoiceDataUrl: string;
   brochureFileName: string;
   brochureDataUrl: string;
+  proofOfPaymentFileName: string;
+  proofOfPaymentUrl: string;
+  certificateFileName: string;
+  certificateUrl: string;
   submittedAt: string;
   status: SubmissionReviewStatus;
   reviewerName: string | null;
@@ -238,6 +263,7 @@ export type ExternalTrainingRequestRecord = {
 };
 
 export type ExternalTrainingRequestCreateInput = {
+  studentId: string;
   studentName: string;
   studentEmail: string;
   courseName: string;
@@ -269,6 +295,16 @@ export type ExternalTrainingRequestReviewInput = {
   feedback?: string;
 };
 
+export type ExternalTrainingRequestDocumentsInput = {
+  requestId: string;
+  invoiceFileName?: string;
+  invoiceDataUrl?: string;
+  proofOfPaymentFileName?: string;
+  proofOfPaymentUrl?: string;
+  certificateFileName?: string;
+  certificateUrl?: string;
+};
+
 export type EnrollmentStudentRecord = {
   id: string;
   name: string;
@@ -282,9 +318,26 @@ export type EnrollmentStudentRecord = {
   activeStatus: 'Active' | 'Inactive';
   department: string;
   lineManager: string;
+  lineManagerId?: string;
   status: 'Completed' | 'In Progress' | 'Not Yet Started';
   assignedOfferingIds: string[];
-  role: 'student' | 'manager' | 'admin';
+  role: 'student' | 'manager';
+  isAdmin: boolean;
+  ofoCode?: string;
+  race?: string;
+  gender?: string;
+  municipality?: string;
+};
+
+export type StudentIdpStatusRecord = 'Not Started' | 'In Progress' | 'Completed' | 'On Hold';
+
+export type StudentIdpEntryRecord = {
+  developmentNeed: string;
+  plannedAction: string;
+  supportRequired: string;
+  dateCaptured: string;
+  targetDate: string;
+  status: StudentIdpStatusRecord;
 };
 
 export type MentorshipAssignmentRecord = {
@@ -301,6 +354,7 @@ export type MentorshipAssignmentRecord = {
 export type StudentRecord = EnrollmentStudentRecord & {
   profile: StudentProfileRecord;
   badgeState: StudentBadgeStateRecord;
+  certificatesAndLicences?: StudentCertificateLicenceRecord[];
   settings: StudentSettingsRecord;
   mentorshipProfile: StudentMentorshipProfileRecord;
   mentorshipObjectives: StudentMentorshipObjectivesRecord;
@@ -310,6 +364,7 @@ export type StudentRecord = EnrollmentStudentRecord & {
   messages: StudentMessageRecord[];
   notifiedOfferingIds: string[];
   assessmentAttempts?: Record<string, StudentAssessmentAttemptRecord>;
+  idpEntries?: StudentIdpEntryRecord[];
 };
 
 export type BrandingSettingsRecord = {
@@ -444,6 +499,7 @@ export type LmsBootstrapResponse = {
   offerings: TrainingOffering[];
   branding: BrandingSettingsRecord;
   students: EnrollmentStudentRecord[];
+  idpEntriesByStudent: Record<string, StudentIdpEntryRecord[]>;
   trainingManagers: SystemTrainingManagerRecord[];
   managerMessages: ManagerMessageRecord[];
   mentorshipAssignments: MentorshipAssignmentRecord[];
@@ -457,6 +513,7 @@ export type StudentSnapshotResponse = {
   studentId: string;
   profile: StudentProfileRecord;
   badgeState: StudentBadgeStateRecord;
+  certificatesAndLicences: StudentCertificateLicenceRecord[];
   settings: StudentSettingsRecord;
   mentorshipProfile: StudentMentorshipProfileRecord;
   mentorshipObjectives: StudentMentorshipObjectivesRecord;
@@ -466,11 +523,13 @@ export type StudentSnapshotResponse = {
   messages: StudentMessageRecord[];
   notifiedOfferingIds: string[];
   assessmentAttempts: Record<string, StudentAssessmentAttemptRecord>;
+  idpEntries?: StudentIdpEntryRecord[];
 };
 
 export type StudentSnapshotUpdate = {
   profile: StudentProfileRecord;
   badgeState: StudentBadgeStateRecord;
+  certificatesAndLicences: StudentCertificateLicenceRecord[];
   settings: StudentSettingsRecord;
   mentorshipProfile: StudentMentorshipProfileRecord;
   mentorshipObjectives: StudentMentorshipObjectivesRecord;
@@ -480,6 +539,7 @@ export type StudentSnapshotUpdate = {
   messages: StudentMessageRecord[];
   notifiedOfferingIds: string[];
   assessmentAttempts: Record<string, StudentAssessmentAttemptRecord>;
+  idpEntries?: StudentIdpEntryRecord[];
 };
 
 export type ManagerStatePatch = {

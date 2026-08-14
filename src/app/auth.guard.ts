@@ -1,21 +1,21 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-
-// Simple session state using localStorage (can be replaced with a service)
-function getSession() {
-  try {
-    return JSON.parse(localStorage.getItem('lms-session') || '{}');
-  } catch {
-    return {};
-  }
-}
+import { clearLmsAuthSession, hasActiveLmsSession, readLmsSessionRecord } from './session-auth';
 
 export const authGuard: CanActivateFn = (route, state) => {
-  const session = getSession();
   const router = inject(Router);
+
+  if (!hasActiveLmsSession()) {
+    clearLmsAuthSession();
+    router.navigate(['/']);
+    return false;
+  }
+
+  const session = readLmsSessionRecord();
   // Route path: e.g. /admin-profile, /student-profile, /training-manager-profile
   const url = state.url;
   if (!session || !session.role || !session.username) {
+    clearLmsAuthSession();
     router.navigate(['/']);
     return false;
   }
@@ -25,6 +25,7 @@ export const authGuard: CanActivateFn = (route, state) => {
     (url.startsWith('/student-profile') && session.role !== 'student') ||
     (url.startsWith('/training-manager-profile') && session.role !== 'training-manager')
   ) {
+    clearLmsAuthSession();
     router.navigate(['/']);
     return false;
   }

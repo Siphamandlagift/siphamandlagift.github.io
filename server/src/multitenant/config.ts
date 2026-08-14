@@ -1,6 +1,5 @@
 export type MultiTenantConfig = {
   port: number;
-  databaseUrl: string;
   jwtSecret: string;
   jwtExpiresIn: string;
   corsOrigin: string[];
@@ -15,7 +14,6 @@ export function getMultiTenantConfig(): MultiTenantConfig {
 
   return {
     port: Number(process.env['PORT'] || process.env['MULTITENANT_API_PORT'] || 3001),
-    databaseUrl: process.env['MULTITENANT_DATABASE_URL'] || 'postgresql://postgres:postgres@localhost:5432/lms_multitenant',
     jwtSecret: process.env['MULTITENANT_JWT_SECRET'] || 'local-development-secret-change-me',
     jwtExpiresIn: process.env['MULTITENANT_JWT_EXPIRES_IN'] || '8h',
     corsOrigin: configuredCorsOrigins,

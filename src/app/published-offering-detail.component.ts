@@ -37,7 +37,7 @@ type PublishedOfferingPresentationPreview = {
         <div class="published-offering-detail-actions">
           @if (editMode()) {
             <button type="button" class="detail-action-btn" (click)="cancelEdit()">Cancel</button>
-            <button type="button" class="detail-action-btn detail-action-btn-primary" (click)="saveEdit()">Save changes</button>
+            <button type="button" class="detail-action-btn detail-action-btn-primary" [disabled]="thumbnailUploading()" (click)="saveEdit()">Save changes</button>
           } @else {
             <button type="button" class="detail-action-btn" (click)="close.emit()">Close</button>
             <button type="button" class="detail-action-btn" (click)="startEdit()">Edit course</button>
@@ -121,7 +121,7 @@ type PublishedOfferingPresentationPreview = {
       } @else {
         <div class="published-offering-detail-meta">
           <span class="offering-meta-pill">Created: {{ offering().createdOn }}</span>
-          <span class="offering-meta-pill">Deadline: {{ offering().completionDeadline }}</span>
+          <span class="offering-meta-pill">Deadline: {{ offering().completionDeadline || 'Not set' }}</span>
           <span class="offering-meta-pill">{{ offering().type }}</span>
           <span class="offering-meta-pill">{{ assignedCount() }} assigned</span>
           <span class="offering-meta-pill">{{ contentSummary() }}</span>
@@ -756,7 +756,7 @@ export class PublishedOfferingDetailComponent {
     title: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     type: new FormControl<TrainingOfferingType>('Course', { nonNullable: true, validators: [Validators.required] }),
     category: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    completionDeadline: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    completionDeadline: new FormControl('', { nonNullable: true }),
     status: new FormControl<TrainingOffering['status']>('Published', { nonNullable: true, validators: [Validators.required] }),
     description: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(12)] }),
   });
@@ -850,9 +850,10 @@ export class PublishedOfferingDetailComponent {
     this.selectedThumbnailName.set(`Uploading ${file.name}…`);
     input.value = '';
 
-    this.backend.uploadFile(file, 'thumbnails').subscribe({
-      next: ({ url }) => {
-        this.selectedThumbnailDataUrl.set(url);
+    this.backend.uploadFileChunked(file, 'thumbnails').subscribe({
+      next: (uploadEvent) => {
+        if (uploadEvent.type !== 'complete') return;
+        this.selectedThumbnailDataUrl.set(uploadEvent.url);
         this.selectedThumbnailName.set(file.name);
         this.thumbnailRemoved.set(false);
         this.thumbnailUploading.set(false);
@@ -897,6 +898,11 @@ export class PublishedOfferingDetailComponent {
   saveEdit() {
     if (this.editForm.invalid) {
       this.editForm.markAllAsTouched();
+      return;
+    }
+
+    if (this.thumbnailUploading()) {
+      alert('Please wait for the thumbnail upload to finish before saving.');
       return;
     }
 

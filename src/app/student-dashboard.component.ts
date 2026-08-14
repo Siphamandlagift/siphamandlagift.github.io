@@ -1,11 +1,26 @@
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { StudentDataService } from './student-data.service';
+
+function relativeTimeLabel(createdAt?: string, fallback = 'Recently'): string {
+  if (!createdAt) return fallback;
+  const diffMs = Date.now() - new Date(createdAt).getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'Just now';
+  if (diffMin < 60) return `${diffMin} minute${diffMin !== 1 ? 's' : ''} ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hour${diffHr !== 1 ? 's' : ''} ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 30) return `${diffDay} day${diffDay !== 1 ? 's' : ''} ago`;
+  const diffMonth = Math.floor(diffDay / 30);
+  return `${diffMonth} month${diffMonth !== 1 ? 's' : ''} ago`;
+}
 
 @Component({
   selector: 'student-dashboard',
   standalone: true,
   imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="dashboard-content">
       <header class="dashboard-header-row">
@@ -15,7 +30,47 @@ import { StudentDataService } from './student-data.service';
           <p class="dashboard-subtitle">Here is your learning hub snapshot for today.</p>
         </div>
         <div class="dashboard-search">
-          <input type="text" placeholder="Search courses, badges, updates..." class="dashboard-search-input" />
+          <div class="dashboard-search-wrap">
+            <svg class="dashboard-search-icon" width="16" height="16" fill="none" viewBox="0 0 24 24"><path stroke="#94a3b8" stroke-width="2" stroke-linecap="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0Z"/></svg>
+            <input type="search" placeholder="Search courses, badges, updates..." class="dashboard-search-input"
+              [value]="searchQuery()"
+              (input)="searchQuery.set($any($event.target).value)"
+              (keydown.escape)="searchQuery.set('')"
+              aria-label="Search courses, badges, and notifications" />
+          </div>
+          <div *ngIf="searchQuery().trim() && searchResults() as results" class="search-dropdown" role="listbox">
+            <div *ngIf="!results.total" class="search-no-results">No results for "{{ searchQuery() }}"</div>
+
+            <ng-container *ngIf="results.courses.length">
+              <div class="search-group-label">Courses</div>
+              <button *ngFor="let course of results.courses" type="button" class="search-result-item"
+                (click)="navigateTo.emit('courses'); searchQuery.set('')" role="option">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3" fill="#fbbf24"/></svg>
+                <span class="search-result-label">{{ course.name }}</span>
+                <span class="search-result-meta">{{ course.completed ? 'Completed' : course.progress ? course.progress + '%' : 'In Progress' }}</span>
+              </button>
+            </ng-container>
+
+            <ng-container *ngIf="results.badges.length">
+              <div class="search-group-label">Badges</div>
+              <button *ngFor="let badge of results.badges" type="button" class="search-result-item"
+                (click)="navigateTo.emit('badges'); searchQuery.set('')" role="option">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M12 2l2.09 6.26L20 9.27l-5 3.64L16.18 20 12 16.77 7.82 20 9 12.91l-5-3.64 5.91-1.01z" fill="#a78bfa"/></svg>
+                <span class="search-result-label">{{ badge.title }}</span>
+                <span class="search-result-meta">{{ badge.earned ? 'Earned' : 'Locked' }}</span>
+              </button>
+            </ng-container>
+
+            <ng-container *ngIf="results.notifications.length">
+              <div class="search-group-label">Notifications</div>
+              <button *ngFor="let notif of results.notifications" type="button" class="search-result-item"
+                (click)="searchQuery.set('')" role="option">
+                <span class="search-result-badge">{{ notif.badge }}</span>
+                <span class="search-result-label">{{ notif.title }}</span>
+                <span class="search-result-meta">{{ notif.dateLabel }}</span>
+              </button>
+            </ng-container>
+          </div>
         </div>
       </header>
 
@@ -59,11 +114,12 @@ import { StudentDataService } from './student-data.service';
           </div>
 
           <div class="notification-list">
-            <article *ngFor="let notification of studentData.notifications()" class="notification-card" [class.notification-card-read]="!notification.unread">
-              <div class="notification-badge">{{ notification.unread ? notification.badge : 'Read' }}</div>
+            <div *ngIf="!unreadNotifications().length" class="notifications-empty">No new notifications.</div>
+            <article *ngFor="let notification of unreadNotifications()" class="notification-card">
+              <div class="notification-badge">{{ notification.badge }}</div>
               <div class="notification-title">{{ notification.title }}</div>
               <div class="notification-body">{{ notification.body }}</div>
-              <div class="notification-date">{{ notification.dateLabel }}</div>
+              <div class="notification-date">{{ relativeTimeLabel(notification.createdAt, notification.dateLabel) }}</div>
             </article>
           </div>
         </article>
@@ -75,7 +131,7 @@ import { StudentDataService } from './student-data.service';
             <div class="progress-track">
               <div class="progress-fill" [style.width.%]="studentData.dashboardStats().weeklyConsistency"></div>
             </div>
-            <div class="progress-panel-meta">{{ studentData.dashboardStats().weeklyConsistency }}% of your weekly target reached</div>
+            <div class="progress-panel-meta">{{ studentData.consistencyLabel() }}</div>
           </div>
           <div class="progress-panel-card">
             <div class="progress-panel-label">Assignments due</div>
@@ -148,7 +204,23 @@ import { StudentDataService } from './student-data.service';
     .dashboard-search {
       width: min(100%, 22rem);
       display: flex;
-      justify-content: flex-end;
+      flex-direction: column;
+      align-items: flex-end;
+      position: relative;
+    }
+
+    .dashboard-search-wrap {
+      position: relative;
+      width: 100%;
+      display: flex;
+      align-items: center;
+    }
+
+    .dashboard-search-icon {
+      position: absolute;
+      left: 1rem;
+      pointer-events: none;
+      flex-shrink: 0;
     }
 
     .dashboard-search-input {
@@ -156,17 +228,92 @@ import { StudentDataService } from './student-data.service';
       border: 1px solid #dbe3ef;
       border-radius: 999px;
       background: rgba(255, 255, 255, 0.95);
-      padding: 0.85rem 1.15rem;
+      padding: 0.85rem 1.15rem 0.85rem 2.5rem;
       font-size: 0.98rem;
       color: #14213d;
       outline: none;
       box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
       transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      box-sizing: border-box;
     }
 
     .dashboard-search-input:focus {
       border-color: #818cf8;
       box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+    }
+
+    .search-dropdown {
+      position: absolute;
+      top: calc(100% + 0.5rem);
+      right: 0;
+      width: 100%;
+      min-width: 18rem;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 20px 48px rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(99,102,241,0.08);
+      z-index: 200;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .search-no-results {
+      padding: 1rem 1.15rem;
+      color: #94a3b8;
+      font-size: 0.92rem;
+      text-align: center;
+    }
+
+    .search-group-label {
+      padding: 0.55rem 1rem 0.25rem;
+      color: #6366f1;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+    }
+
+    .search-result-item {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      width: 100%;
+      padding: 0.6rem 1rem;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.1s ease;
+    }
+
+    .search-result-item:hover {
+      background: #f1f5f9;
+    }
+
+    .search-result-label {
+      flex: 1;
+      color: #1e293b;
+      font-size: 0.93rem;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .search-result-meta {
+      color: #94a3b8;
+      font-size: 0.82rem;
+      white-space: nowrap;
+    }
+
+    .search-result-badge {
+      font-size: 0.82rem;
+      color: #2563eb;
+      background: #dbeafe;
+      border-radius: 999px;
+      padding: 0.1rem 0.5rem;
+      font-weight: 700;
+      white-space: nowrap;
     }
 
     .dashboard-stats-row {
@@ -306,6 +453,15 @@ import { StudentDataService } from './student-data.service';
       opacity: 0.8;
     }
 
+    .notifications-empty {
+      padding: 1.2rem 1.25rem;
+      border-radius: 18px;
+      background: #f8fafc;
+      color: #94a3b8;
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
     .notification-badge {
       display: inline-flex;
       width: fit-content;
@@ -423,4 +579,26 @@ import { StudentDataService } from './student-data.service';
 })
 export class StudentDashboardComponent {
   readonly studentData = inject(StudentDataService);
+  readonly navigateTo = output<string>();
+  readonly searchQuery = signal('');
+
+  readonly searchResults = computed(() => {
+    const q = this.searchQuery().trim().toLowerCase();
+    if (!q) return null;
+    const courses = this.studentData.courses().filter(
+      (c) => c.name.toLowerCase().includes(q) || (c.description ?? '').toLowerCase().includes(q),
+    ).slice(0, 4);
+    const badges = this.studentData.badges().filter(
+      (b) => b.title.toLowerCase().includes(q),
+    ).slice(0, 4);
+    const notifications = this.studentData.notifications().filter(
+      (n) => !n.dismissed && (n.title.toLowerCase().includes(q) || (n.body ?? '').toLowerCase().includes(q)),
+    ).slice(0, 4);
+    return { courses, badges, notifications, total: courses.length + badges.length + notifications.length };
+  });
+
+  readonly unreadNotifications = computed(() =>
+    this.studentData.notifications().filter((n) => n.unread && !n.dismissed),
+  );
+  readonly relativeTimeLabel = relativeTimeLabel;
 }

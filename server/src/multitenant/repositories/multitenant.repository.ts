@@ -1,4 +1,5 @@
-import type { Pool, PoolClient, QueryResultRow } from 'pg';
+import crypto from 'node:crypto';
+import type { Firestore } from 'firebase-admin/firestore';
 import { AppError } from '../errors.js';
 import { permissionsForRole } from '../rbac.js';
 import type {
@@ -7,10 +8,70 @@ import type {
   CourseRecord,
   EnrollmentRecord,
   LicenseType,
+  SubscriptionRecord,
+  UpsertSubscriptionInput,
   UserRecord,
   UserRole,
   UserWithCompanyRecord,
 } from '../types.js';
+
+// ─── Firestore collection names ────────────────────────────────────────────────
+const COMPANIES = 'tenantCompanies';
+const USERS = 'tenantUsers';
+const COURSES = 'tenantCourses';
+const ENROLLMENTS = 'tenantEnrollments';
+
+// ─── Firestore document shapes ─────────────────────────────────────────────────
+type CompanyDoc = {
+  name: string;
+  licenseType: LicenseType;
+  createdAt: Date;
+  subscription?: {
+    status: string;
+    activatedAt: string | null;
+    expiresAt: string | null;
+    notes: string | null;
+    updatedAt: Date;
+  };
+};
+
+type UserDoc = {
+  name: string;
+  email: string;
+  emailLower: string;
+  passwordHash: string;
+  role: UserRole;
+  companyId: string;
+  isPlatformAdmin: boolean;
+  createdAt: Date;
+};
+
+type CourseDoc = {
+  title: string;
+  companyId: string;
+  createdAt: Date;
+};
+
+type EnrollmentDoc = {
+  userId: string;
+  courseId: string;
+  progress: number;
+  companyId: string;
+  createdAt: Date;
+};
+
+type CompanyWithSubscriptionRow = {
+  id: string;
+  name: string;
+  licenseType: LicenseType;
+  subscriptionId: string | null;
+  status: string | null;
+  activatedAt: string | null;
+  expiresAt: string | null;
+  notes: string | null;
+  userCount: number;
+  courseCount: number;
+};
 
 type RegisterTenantInput = {
   companyName: string;
@@ -20,317 +81,308 @@ type RegisterTenantInput = {
   passwordHash: string;
 };
 
-function isUniqueViolation(error: unknown) {
-  return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === '23505';
-}
-
 export class MultiTenantRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly db: Firestore) {}
 
   async healthCheck() {
-    await this.pool.query('select 1');
+    await this.db.collection(COMPANIES).limit(1).get();
   }
 
-  async registerTenant(input: RegisterTenantInput) {
-    const client = await this.pool.connect();
-
-    try {
-      await client.query('begin');
-      const company = await this.insertCompany(client, input.companyName, input.licenseType);
-      const user = await this.insertUser(client, {
-        name: input.name,
-        email: input.email,
-        passwordHash: input.passwordHash,
-        role: 'admin',
-        companyId: company.id,
-      });
-
-      await client.query('commit');
-
-      return {
-        userId: user.id,
-        companyId: company.id,
-        companyName: company.name,
-        licenseType: company.licenseType,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        permissions: permissionsForRole(user.role),
-      } satisfies AuthenticatedUserProfile;
-    } catch (error) {
-      await client.query('rollback');
-
-      if (isUniqueViolation(error)) {
-        throw new AppError('An account with this email address already exists.', 409);
-      }
-
-      throw error;
-    } finally {
-      client.release();
+  async registerTenant(input: RegisterTenantInput): Promise<AuthenticatedUserProfile> {
+    const existing = await this.findUserByEmail(input.email);
+    if (existing) {
+      throw new AppError('An account with this email address already exists.', 409);
     }
-  }
 
-  async findUserByEmail(email: string) {
-    // This is the pre-auth identity lookup. It resolves the company context that is
-    // then enforced on every tenant-scoped query after the JWT is issued.
-    const result = await this.pool.query<UserWithCompanyRecord>(
-      `
-        select
-          users.id,
-          users.name,
-          users.email,
-          users.password_hash as "passwordHash",
-          users.role,
-          users.company_id as "companyId",
-          companies.name as "companyName",
-          companies.license_type as "licenseType"
-        from users
-        inner join companies on companies.id = users.company_id
-        where lower(users.email) = lower($1)
-        limit 1
-      `,
-      [email],
-    );
-
-    return result.rows[0] ?? null;
-  }
-
-  async findAuthenticatedUser(userId: string, companyId: string) {
-    const user = await this.queryOneForCompany<UserWithCompanyRecord>(
-      companyId,
-      `
-        select
-          users.id,
-          users.name,
-          users.email,
-          users.password_hash as "passwordHash",
-          users.role,
-          users.company_id as "companyId",
-          companies.name as "companyName",
-          companies.license_type as "licenseType"
-        from users
-        inner join companies on companies.id = users.company_id
-        where users.company_id = $1 and users.id = $2
-        limit 1
-      `,
-      [userId],
-    );
-
-    return user ? this.toAuthenticatedProfile(user) : null;
-  }
-
-  async listUsersByCompany(companyId: string) {
-    const result = await this.queryForCompany<UserRecord>(
-      companyId,
-      `
-        select
-          id,
-          name,
-          email,
-          role,
-          company_id as "companyId"
-        from users
-        where company_id = $1
-        order by name asc
-      `,
-    );
-
-    return result.rows;
-  }
-
-  async listCoursesByCompany(companyId: string) {
-    const result = await this.queryForCompany<CourseRecord>(
-      companyId,
-      `
-        select
-          courses.id,
-          courses.title,
-          courses.company_id as "companyId",
-          count(enrollments.id)::int as "enrollmentCount",
-          coalesce(round(avg(enrollments.progress)::numeric, 2), 0)::float as "averageProgress"
-        from courses
-        left join enrollments on enrollments.course_id = courses.id and enrollments.company_id = courses.company_id
-        where courses.company_id = $1
-        group by courses.id, courses.title, courses.company_id
-        order by courses.title asc
-      `,
-    );
-
-    return result.rows;
-  }
-
-  async createCourse(companyId: string, title: string) {
-    try {
-      const result = await this.queryForCompany<CourseRecord>(
-        companyId,
-        `
-          insert into courses (title, company_id)
-          values ($2, $1)
-          returning id, title, company_id as "companyId", 0::int as "enrollmentCount", 0::float as "averageProgress"
-        `,
-        [title],
-      );
-
-      return result.rows[0];
-    } catch (error) {
-      if (isUniqueViolation(error)) {
-        throw new AppError('A course with this title already exists for your company.', 409);
-      }
-
-      throw error;
+    const existingCompany = await this.db.collection(COMPANIES).where('name', '==', input.companyName).limit(1).get();
+    if (!existingCompany.empty) {
+      throw new AppError('A company with this name already exists.', 409);
     }
-  }
 
-  async listEnrollmentsByCompany(companyId: string) {
-    const result = await this.queryForCompany<EnrollmentRecord>(
+    const companyId = crypto.randomUUID();
+    const userId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const batch = this.db.batch();
+
+    batch.set(this.db.collection(COMPANIES).doc(companyId), {
+      name: input.companyName,
+      licenseType: input.licenseType,
+      createdAt: new Date(),
+      subscription: { status: 'active', activatedAt: now, expiresAt: null, notes: null, updatedAt: new Date() },
+    } satisfies CompanyDoc);
+
+    batch.set(this.db.collection(USERS).doc(userId), {
+      name: input.name,
+      email: input.email,
+      emailLower: input.email.toLowerCase(),
+      passwordHash: input.passwordHash,
+      role: 'admin' as UserRole,
       companyId,
-      `
-        select
-          enrollments.id,
-          enrollments.user_id as "userId",
-          enrollments.course_id as "courseId",
-          enrollments.progress,
-          enrollments.company_id as "companyId",
-          users.name as "learnerName",
-          users.email as "learnerEmail",
-          courses.title as "courseTitle"
-        from enrollments
-        inner join users on users.id = enrollments.user_id and users.company_id = enrollments.company_id
-        inner join courses on courses.id = enrollments.course_id and courses.company_id = enrollments.company_id
-        where enrollments.company_id = $1
-        order by users.name asc, courses.title asc
-      `,
-    );
+      isPlatformAdmin: false,
+      createdAt: new Date(),
+    } satisfies UserDoc);
 
-    return result.rows;
-  }
+    await batch.commit();
 
-  async listCoursesByUserEnrollment(userId: string, companyId: string) {
-    const result = await this.queryForCompany<CourseRecord>(
-      companyId,
-      `
-        select
-          courses.id,
-          courses.title,
-          courses.company_id as "companyId",
-          1::int as "enrollmentCount",
-          enrollments.progress::float as "averageProgress"
-        from courses
-        inner join enrollments
-          on enrollments.course_id = courses.id
-          and enrollments.user_id = $2
-          and enrollments.company_id = $1
-        where courses.company_id = $1
-        order by courses.title asc
-      `,
-      [userId],
-    );
-
-    return result.rows;
-  }
-
-  async updateEnrollmentProgress(userId: string, courseId: string, companyId: string, progress: number) {
-    const result = await this.queryForCompany<EnrollmentRecord>(
-      companyId,
-      `
-        update enrollments
-        set progress = $4
-        where company_id = $1 and user_id = $2 and course_id = $3
-        returning
-          id,
-          user_id as "userId",
-          course_id as "courseId",
-          progress,
-          company_id as "companyId",
-          '' as "learnerName",
-          '' as "learnerEmail",
-          '' as "courseTitle"
-      `,
-      [courseId, userId, progress],
-    );
-
-    return result.rows[0] ?? null;
-  }
-
-  async listEnrollmentsForUser(userId: string, companyId: string) {
-    const result = await this.queryForCompany<EnrollmentRecord>(
-      companyId,
-      `
-        select
-          enrollments.id,
-          enrollments.user_id as "userId",
-          enrollments.course_id as "courseId",
-          enrollments.progress,
-          enrollments.company_id as "companyId",
-          users.name as "learnerName",
-          users.email as "learnerEmail",
-          courses.title as "courseTitle"
-        from enrollments
-        inner join users on users.id = enrollments.user_id and users.company_id = enrollments.company_id
-        inner join courses on courses.id = enrollments.course_id and courses.company_id = enrollments.company_id
-        where enrollments.company_id = $1 and enrollments.user_id = $2
-        order by courses.title asc
-      `,
-      [userId],
-    );
-
-    return result.rows;
-  }
-
-  private async insertCompany(client: PoolClient, name: string, licenseType: LicenseType) {
-    const result = await client.query<CompanyRecord>(
-      `
-        insert into companies (name, license_type)
-        values ($1, $2)
-        returning id, name, license_type as "licenseType"
-      `,
-      [name, licenseType],
-    );
-
-    return result.rows[0];
-  }
-
-  private async insertUser(
-    client: PoolClient,
-    input: { name: string; email: string; passwordHash: string; role: UserRole; companyId: string },
-  ) {
-    const result = await client.query<UserRecord>(
-      `
-        insert into users (name, email, password_hash, role, company_id)
-        values ($1, $2, $3, $4, $5)
-        returning id, name, email, role, company_id as "companyId"
-      `,
-      [input.name, input.email, input.passwordHash, input.role, input.companyId],
-    );
-
-    return result.rows[0];
-  }
-
-  private toAuthenticatedProfile(user: UserWithCompanyRecord): AuthenticatedUserProfile {
     return {
-      userId: user.id,
-      companyId: user.companyId,
-      companyName: user.companyName,
-      licenseType: user.licenseType,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      permissions: permissionsForRole(user.role),
+      userId,
+      companyId,
+      companyName: input.companyName,
+      licenseType: input.licenseType,
+      name: input.name,
+      email: input.email,
+      role: 'admin',
+      permissions: permissionsForRole('admin'),
+      isPlatformAdmin: false,
     };
   }
 
-  private async queryForCompany<T extends QueryResultRow>(companyId: string, text: string, values: readonly unknown[] = []) {
-    this.assertCompanyScope(companyId);
-    return this.pool.query<T>(text, [companyId, ...values]);
+  async findUserByEmail(email: string): Promise<UserWithCompanyRecord | null> {
+    const snap = await this.db.collection(USERS).where('emailLower', '==', email.toLowerCase()).limit(1).get();
+    if (snap.empty) return null;
+
+    const userDoc = snap.docs[0];
+    const u = userDoc.data() as UserDoc;
+    const companyDoc = await this.db.collection(COMPANIES).doc(u.companyId).get();
+    if (!companyDoc.exists) return null;
+
+    const c = companyDoc.data() as CompanyDoc;
+    return {
+      id: userDoc.id,
+      name: u.name,
+      email: u.email,
+      passwordHash: u.passwordHash,
+      role: u.role,
+      companyId: u.companyId,
+      isPlatformAdmin: u.isPlatformAdmin ?? false,
+      companyName: c.name,
+      licenseType: c.licenseType,
+    };
   }
 
-  private async queryOneForCompany<T extends QueryResultRow>(companyId: string, text: string, values: readonly unknown[] = []) {
-    const result = await this.queryForCompany<T>(companyId, text, values);
-    return result.rows[0] ?? null;
+  async findAuthenticatedUser(userId: string, companyId: string): Promise<AuthenticatedUserProfile | null> {
+    this.assertCompanyScope(companyId);
+    const [userDoc, companyDoc] = await Promise.all([
+      this.db.collection(USERS).doc(userId).get(),
+      this.db.collection(COMPANIES).doc(companyId).get(),
+    ]);
+
+    if (!userDoc.exists || !companyDoc.exists) return null;
+
+    const u = userDoc.data() as UserDoc;
+    const c = companyDoc.data() as CompanyDoc;
+    if (u.companyId !== companyId) return null;
+
+    return {
+      userId,
+      companyId,
+      companyName: c.name,
+      licenseType: c.licenseType,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      permissions: permissionsForRole(u.role),
+      isPlatformAdmin: u.isPlatformAdmin ?? false,
+    };
+  }
+
+  async listUsersByCompany(companyId: string): Promise<UserRecord[]> {
+    this.assertCompanyScope(companyId);
+    const snap = await this.db.collection(USERS).where('companyId', '==', companyId).get();
+    return snap.docs
+      .map((doc) => {
+        const u = doc.data() as UserDoc;
+        return { id: doc.id, name: u.name, email: u.email, role: u.role, companyId: u.companyId };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async listCoursesByCompany(companyId: string): Promise<CourseRecord[]> {
+    this.assertCompanyScope(companyId);
+    const [coursesSnap, enrollSnap] = await Promise.all([
+      this.db.collection(COURSES).where('companyId', '==', companyId).get(),
+      this.db.collection(ENROLLMENTS).where('companyId', '==', companyId).get(),
+    ]);
+
+    const stats = new Map<string, { count: number; total: number }>();
+    for (const doc of enrollSnap.docs) {
+      const e = doc.data() as EnrollmentDoc;
+      const s = stats.get(e.courseId) ?? { count: 0, total: 0 };
+      s.count++;
+      s.total += e.progress;
+      stats.set(e.courseId, s);
+    }
+
+    return coursesSnap.docs
+      .map((doc) => {
+        const d = doc.data() as CourseDoc;
+        const s = stats.get(doc.id);
+        return {
+          id: doc.id,
+          title: d.title,
+          companyId: d.companyId,
+          enrollmentCount: s?.count ?? 0,
+          averageProgress: s ? Math.round((s.total / s.count) * 100) / 100 : 0,
+        };
+      })
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }
+
+  async createCourse(companyId: string, title: string): Promise<CourseRecord> {
+    this.assertCompanyScope(companyId);
+    const existing = await this.db.collection(COURSES)
+      .where('companyId', '==', companyId)
+      .where('title', '==', title)
+      .limit(1)
+      .get();
+    if (!existing.empty) {
+      throw new AppError('A course with this title already exists for your company.', 409);
+    }
+
+    const courseId = crypto.randomUUID();
+    await this.db.collection(COURSES).doc(courseId).set({ title, companyId, createdAt: new Date() } satisfies CourseDoc);
+    return { id: courseId, title, companyId, enrollmentCount: 0, averageProgress: 0 };
+  }
+
+  async listEnrollmentsByCompany(companyId: string): Promise<EnrollmentRecord[]> {
+    this.assertCompanyScope(companyId);
+    const [enrollSnap, usersSnap, coursesSnap] = await Promise.all([
+      this.db.collection(ENROLLMENTS).where('companyId', '==', companyId).get(),
+      this.db.collection(USERS).where('companyId', '==', companyId).get(),
+      this.db.collection(COURSES).where('companyId', '==', companyId).get(),
+    ]);
+
+    const usersMap = new Map(usersSnap.docs.map((d) => [d.id, d.data() as UserDoc]));
+    const coursesMap = new Map(coursesSnap.docs.map((d) => [d.id, d.data() as CourseDoc]));
+
+    return enrollSnap.docs
+      .map((doc) => {
+        const e = doc.data() as EnrollmentDoc;
+        const u = usersMap.get(e.userId);
+        const c = coursesMap.get(e.courseId);
+        return {
+          id: doc.id,
+          userId: e.userId,
+          courseId: e.courseId,
+          progress: e.progress,
+          companyId: e.companyId,
+          learnerName: u?.name ?? '',
+          learnerEmail: u?.email ?? '',
+          courseTitle: c?.title ?? '',
+        };
+      })
+      .sort((a, b) => a.learnerName.localeCompare(b.learnerName) || a.courseTitle.localeCompare(b.courseTitle));
+  }
+
+  async listCoursesByUserEnrollment(userId: string, companyId: string): Promise<CourseRecord[]> {
+    this.assertCompanyScope(companyId);
+    const enrollSnap = await this.db.collection(ENROLLMENTS).where('userId', '==', userId).get();
+    const userEnrollments = enrollSnap.docs
+      .map((d) => ({ id: d.id, ...(d.data() as EnrollmentDoc) }))
+      .filter((e) => e.companyId === companyId);
+
+    if (userEnrollments.length === 0) return [];
+
+    const courseIds = [...new Set(userEnrollments.map((e) => e.courseId))];
+    const courseDocs = await Promise.all(courseIds.map((id) => this.db.collection(COURSES).doc(id).get()));
+    const progressMap = new Map(userEnrollments.map((e) => [e.courseId, e.progress]));
+
+    return courseDocs
+      .filter((d) => d.exists && (d.data() as CourseDoc).companyId === companyId)
+      .map((d) => {
+        const c = d.data() as CourseDoc;
+        return { id: d.id, title: c.title, companyId: c.companyId, enrollmentCount: 1, averageProgress: progressMap.get(d.id) ?? 0 };
+      })
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }
+
+  async updateEnrollmentProgress(userId: string, courseId: string, companyId: string, progress: number): Promise<EnrollmentRecord | null> {
+    this.assertCompanyScope(companyId);
+    const snap = await this.db.collection(ENROLLMENTS).where('userId', '==', userId).get();
+    const match = snap.docs.find((d) => {
+      const e = d.data() as EnrollmentDoc;
+      return e.courseId === courseId && e.companyId === companyId;
+    });
+    if (!match) return null;
+    await match.ref.update({ progress });
+    return { id: match.id, userId, courseId, progress, companyId, learnerName: '', learnerEmail: '', courseTitle: '' };
+  }
+
+  async listEnrollmentsForUser(userId: string, companyId: string): Promise<EnrollmentRecord[]> {
+    this.assertCompanyScope(companyId);
+    const enrollSnap = await this.db.collection(ENROLLMENTS).where('userId', '==', userId).get();
+    const userEnrollments = enrollSnap.docs
+      .map((d) => ({ id: d.id, ...(d.data() as EnrollmentDoc) }))
+      .filter((e) => e.companyId === companyId);
+
+    if (userEnrollments.length === 0) return [];
+
+    const courseIds = [...new Set(userEnrollments.map((e) => e.courseId))];
+    const courseDocs = await Promise.all(courseIds.map((id) => this.db.collection(COURSES).doc(id).get()));
+    const coursesMap = new Map(courseDocs.filter((d) => d.exists).map((d) => [d.id, (d.data() as CourseDoc).title]));
+
+    return userEnrollments
+      .map((e) => ({ id: e.id, userId: e.userId, courseId: e.courseId, progress: e.progress, companyId: e.companyId, learnerName: '', learnerEmail: '', courseTitle: coursesMap.get(e.courseId) ?? '' }))
+      .sort((a, b) => a.courseTitle.localeCompare(b.courseTitle));
+  }
+
+  // ─── Billing ───────────────────────────────────────────────────────────────
+
+  async getSubscription(companyId: string): Promise<SubscriptionRecord | null> {
+    const doc = await this.db.collection(COMPANIES).doc(companyId).get();
+    if (!doc.exists) return null;
+    const sub = (doc.data() as CompanyDoc).subscription;
+    if (!sub) return null;
+    return { id: companyId, companyId, status: sub.status as SubscriptionRecord['status'], activatedAt: sub.activatedAt, expiresAt: sub.expiresAt, notes: sub.notes };
+  }
+
+  async upsertSubscription(companyId: string, input: UpsertSubscriptionInput): Promise<SubscriptionRecord> {
+    await this.db.collection(COMPANIES).doc(companyId).update({
+      subscription: { status: input.status, activatedAt: input.activatedAt ?? null, expiresAt: input.expiresAt ?? null, notes: input.notes ?? null, updatedAt: new Date() },
+    });
+    return { id: companyId, companyId, status: input.status as SubscriptionRecord['status'], activatedAt: input.activatedAt ?? null, expiresAt: input.expiresAt ?? null, notes: input.notes ?? null };
+  }
+
+  async countUsersForCompany(companyId: string): Promise<number> {
+    const snap = await this.db.collection(USERS).where('companyId', '==', companyId).count().get();
+    return snap.data().count;
+  }
+
+  async countCoursesForCompany(companyId: string): Promise<number> {
+    const snap = await this.db.collection(COURSES).where('companyId', '==', companyId).count().get();
+    return snap.data().count;
+  }
+
+  async listAllCompaniesWithSubscription(): Promise<CompanyWithSubscriptionRow[]> {
+    const companiesSnap = await this.db.collection(COMPANIES).get();
+    const results = await Promise.all(
+      companiesSnap.docs.map(async (doc) => {
+        const company = doc.data() as CompanyDoc;
+        const companyId = doc.id;
+        const [userCountSnap, courseCountSnap] = await Promise.all([
+          this.db.collection(USERS).where('companyId', '==', companyId).count().get(),
+          this.db.collection(COURSES).where('companyId', '==', companyId).count().get(),
+        ]);
+        const sub = company.subscription;
+        return {
+          id: companyId,
+          name: company.name,
+          licenseType: company.licenseType,
+          subscriptionId: sub ? companyId : null,
+          status: sub?.status ?? null,
+          activatedAt: sub?.activatedAt ?? null,
+          expiresAt: sub?.expiresAt ?? null,
+          notes: sub?.notes ?? null,
+          userCount: userCountSnap.data().count,
+          courseCount: courseCountSnap.data().count,
+        } satisfies CompanyWithSubscriptionRow;
+      }),
+    );
+    return results.sort((a, b) => a.name.localeCompare(b.name));
   }
 
   private assertCompanyScope(companyId: string) {
-    if (!companyId.trim()) {
+    if (!companyId?.trim()) {
       throw new AppError('A valid company scope is required to query tenant data.', 500);
     }
   }

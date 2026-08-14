@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule, DOCUMENT } from '@angular/common';
 import { AbstractControl, FormArray, FormControl, FormGroup, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -13,6 +13,7 @@ import {
   TrainingContentKind,
   EnrollmentStudent,
   LearningActivityItem,
+  LearningStatus,
   ManagerPanel,
   MentorshipAssignmentRecord,
   MentorshipSubmissionRecord,
@@ -24,8 +25,9 @@ import {
   TrainingQuestionType,
 } from './training-manager-data.service';
 import { LmsBrandingService } from './lms-branding.service';
-import { LmsBackendService, type ResolveRolesEntry } from './lms-backend.service';
-import { clearLmsAuthSession, createLmsSessionRecord } from './session-auth';
+import { LmsBackendService, type LoginRole, type ResolveRolesEntry } from './lms-backend.service';
+import type { StudentCourse } from './student-data.service';
+import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLmsSessionRecord } from './session-auth';
 
 type CoursesPanelView = 'create' | 'created' | 'submissions';
 type AssignmentSubmissionFilter = 'All' | 'Pending Review' | 'Approved' | 'Needs Revision';
@@ -83,6 +85,7 @@ type ContentItemFormGroup = FormGroup<{
   convertedPdfUrl: FormControl<string>;
   requiresAcknowledgement: FormControl<boolean>;
   allowDownload: FormControl<boolean>;
+  durationSeconds: FormControl<number | null>;
   questions: FormArray<AssessmentQuestionFormGroup>;
 }>;
 
@@ -213,7 +216,13 @@ type IdpEntryFormGroup = FormGroup<{
               [attr.aria-expanded]="topbarProfileMenuOpen()"
               [disabled]="switchingRole()"
               (click)="openTopbarProfile()">
-              <span class="manager-avatar">{{ managerInitials() }}</span>
+              <span class="manager-avatar" [class.manager-avatar-has-image]="!!managerData.profile().profileImageUrl">
+                @if (managerData.profile().profileImageUrl) {
+                  <img [src]="managerData.profile().profileImageUrl!" alt="Profile picture" />
+                } @else {
+                  {{ managerInitials() }}
+                }
+              </span>
               <span class="manager-user-name">{{ managerData.profile().name }}</span>
               <svg class="manager-topbar-caret" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="m7 10 5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -225,11 +234,29 @@ type IdpEntryFormGroup = FormGroup<{
                 <button type="button" class="manager-topbar-menu-item" (click)="openTopbarProfileDashboard()">Dashboard</button>
                 <button type="button" class="manager-topbar-menu-item" (click)="openTopbarProfileMessages()">Messages</button>
                 <div class="manager-topbar-menu-divider"></div>
-                <div class="manager-topbar-menu-section-label">Switch role</div>
-                <button type="button" class="manager-topbar-menu-item" (click)="switchToRole('student')">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path fill="currentColor" d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82ZM12 3 1 9l11 6 9-4.91V17h2V9L12 3Z"/></svg>
-                  Student
-                </button>
+                <label class="manager-topbar-menu-item">
+                  <span>{{ uploadingProfileImage() ? 'Uploading…' : 'Change picture' }}</span>
+                  <input type="file" accept="image/*" style="display:none" [disabled]="uploadingProfileImage()" (change)="onManagerProfileImageSelected($event)" />
+                </label>
+                @if (managerData.profile().profileImageUrl) {
+                  <button type="button" class="manager-topbar-menu-item" (click)="clearManagerProfileImage()">Remove picture</button>
+                }
+                @if (canSwitchToRole('administrator') || canSwitchToRole('student')) {
+                  <div class="manager-topbar-menu-divider"></div>
+                  <div class="manager-topbar-menu-section-label">Switch role</div>
+                  @if (canSwitchToRole('administrator')) {
+                    <button type="button" class="manager-topbar-menu-item" (click)="switchToRole('administrator')">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.5 5 6.3v4.9c0 4.4 3 8.5 7 9.3 4-.8 7-4.9 7-9.3V6.3l-7-2.8Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9.3 12.2l1.9 1.9 3.5-3.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      Administrator
+                    </button>
+                  }
+                  @if (canSwitchToRole('student')) {
+                    <button type="button" class="manager-topbar-menu-item" (click)="switchToRole('student')">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path fill="currentColor" d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82ZM12 3 1 9l11 6 9-4.91V17h2V9L12 3Z"/></svg>
+                      Student
+                    </button>
+                  }
+                }
                 <div class="manager-topbar-menu-divider"></div>
                 <button type="button" class="manager-topbar-menu-item manager-topbar-menu-item-danger" (click)="logout()">Log out</button>
               </div>
@@ -364,7 +391,7 @@ type IdpEntryFormGroup = FormGroup<{
                     <span>0</span>
                   </div>
 
-                  @for (activity of managerData.learningActivity(); track activity.label) {
+                  @for (activity of learningActivityLive(); track activity.label) {
                     <div class="activity-column">
                       <div class="activity-column-stage" aria-hidden="true">
                         <div class="activity-column-track">
@@ -381,7 +408,7 @@ type IdpEntryFormGroup = FormGroup<{
                 </div>
 
                 <div class="activity-legend-row">
-                  @for (activity of managerData.learningActivity(); track activity.label) {
+                  @for (activity of learningActivityLive(); track activity.label) {
                     <div class="activity-legend-item">
                       <span class="activity-legend-dot" [style.background]="activity.color"></span>
                       <span>{{ activity.label }}</span>
@@ -427,8 +454,6 @@ type IdpEntryFormGroup = FormGroup<{
                           </button>
                           <button type="submit" class="course-studio-publish-btn" [disabled]="courseForm.invalid">{{ editingCourseId() ? 'Save' : 'Publish' }}</button>
                         </div>
-
-                        <button type="button" class="course-studio-back-link" (click)="editingCourseId() ? cancelCourseEditing() : selectCoursesView('created')">Back</button>
 
                         <div class="course-studio-sidebar-copy">
                           <strong>{{ courseForm.controls.title.value || 'New course' }}</strong>
@@ -554,11 +579,8 @@ type IdpEntryFormGroup = FormGroup<{
                               </label>
 
                               <label title="Choose when learners should complete this item.">
-                                <span class="required-label">Completion Deadline <span class="required-marker" aria-hidden="true">*</span></span>
+                                <span>Completion Deadline</span>
                                 <input formControlName="completionDeadline" type="date" />
-                                @if (courseForm.controls.completionDeadline.touched && courseForm.controls.completionDeadline.invalid) {
-                                  <span class="field-error">Choose a completion deadline.</span>
-                                }
                               </label>
 
                               <label>
@@ -579,7 +601,7 @@ type IdpEntryFormGroup = FormGroup<{
 
                               <label class="upload-field form-grid-span-two" title="Upload a cover image for the course card.">
                                 Course Thumbnail
-                                <input type="file" accept="image/*" (change)="onThumbnailSelected($event)" />
+                                <input type="file" accept="image/*" [disabled]="thumbnailUploading()" (change)="onThumbnailSelected($event)" />
                                 @if (thumbnailFileName()) {
                                   <span class="asset-preview-copy">Selected thumbnail: {{ thumbnailFileName() }}</span>
                                 }
@@ -1928,8 +1950,20 @@ type IdpEntryFormGroup = FormGroup<{
 
               @if (!selectedIdpStudentId()) {
                 <!-- Team member list -->
+                <div class="student-search-row">
+                  <label class="student-search-field">
+                    <span class="student-search-label">Search by name</span>
+                    <input
+                      type="search"
+                      [value]="idpMemberSearchTerm()"
+                      (input)="idpMemberSearchTerm.set($any($event.target).value)"
+                      placeholder="Search by name, surname, department, or group" />
+                  </label>
+                  <span class="student-search-count">{{ filteredIdpMembers().length }} shown</span>
+                </div>
+
                 <div class="idp-member-grid">
-                  @for (student of managerData.students(); track student.id) {
+                  @for (student of filteredIdpMembers(); track student.id) {
                     <button type="button" class="idp-member-card" (click)="selectIdpStudent(student.id)">
                       <div class="idp-member-avatar" aria-hidden="true">{{ student.name[0] }}{{ student.surname[0] }}</div>
                       <div class="idp-member-info">
@@ -1949,6 +1983,8 @@ type IdpEntryFormGroup = FormGroup<{
                   }
                   @if (!managerData.students().length) {
                     <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">No team members found.</div>
+                  } @else if (!filteredIdpMembers().length) {
+                    <div class="student-search-empty">No team members match your search.</div>
                   }
                 </div>
               } @else if (selectedIdpStudent(); as student) {
@@ -2644,6 +2680,19 @@ type IdpEntryFormGroup = FormGroup<{
       background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
       flex: 0 0 auto;
       font-size: calc(0.88rem * var(--ui-scale));
+      overflow: hidden;
+    }
+
+    .manager-avatar-has-image {
+      background: #fff;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+    }
+
+    .manager-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
     }
 
     .manager-brand-name,
@@ -4867,6 +4916,71 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
   readonly selectedPanel = signal<ManagerPanel>('dashboard');
   readonly managerSidebarCollapsed = signal(false);
+
+  // EnrollmentStudent.status is only ever set by seed data and one enrollment-time transition
+  // (Not Yet Started -> In Progress); it never advances to Completed as a student actually
+  // finishes their courses. The dashboard's "Learning Activity" chart used to read that stale
+  // field directly, so real completions never showed up. This prefetches each student's course
+  // snapshot (same approach admin-profile.component.ts uses for its reports) so the chart can
+  // derive live status from actual course completion instead.
+  private readonly learningActivitySnapshotRequestedIds = new Set<string>();
+  private readonly learningActivityCoursesById = signal<Record<string, StudentCourse[]>>({});
+  private readonly learningActivityPrefetchEffect = effect(() => {
+    for (const student of this.managerData.students()) {
+      if (this.learningActivitySnapshotRequestedIds.has(student.id)) {
+        continue;
+      }
+
+      this.learningActivitySnapshotRequestedIds.add(student.id);
+      this.backend.getStudentSnapshot(student.id).subscribe({
+        next: (snapshot) => {
+          this.learningActivityCoursesById.update((current) => ({ ...current, [student.id]: snapshot.courses }));
+        },
+        error: () => {
+          this.learningActivityCoursesById.update((current) => ({ ...current, [student.id]: [] }));
+        },
+      });
+    }
+  });
+
+  private resolveStudentLearningStatus(student: EnrollmentStudent): LearningStatus {
+    const courses = this.learningActivityCoursesById()[student.id];
+
+    if (courses === undefined || !student.assignedOfferingIds.length) {
+      return student.status;
+    }
+
+    const assignedCourseRecords = courses.filter(
+      (course) => course.offeringId && student.assignedOfferingIds.includes(course.offeringId),
+    );
+
+    if (!assignedCourseRecords.length) {
+      return student.status;
+    }
+
+    if (assignedCourseRecords.every((course) => course.completed)) {
+      return 'Completed';
+    }
+
+    if (assignedCourseRecords.some((course) => course.completed || (course.progress ?? 0) > 0)) {
+      return 'In Progress';
+    }
+
+    return 'Not Yet Started';
+  }
+
+  readonly learningActivityLive = computed<LearningActivityItem[]>(() => {
+    const students = this.managerData.students();
+    const statuses = students.map((student) => this.resolveStudentLearningStatus(student));
+    const countByStatus = (status: LearningStatus) => statuses.filter((value) => value === status).length;
+
+    return [
+      { label: 'Completed', count: countByStatus('Completed'), color: '#10b981' },
+      { label: 'In Progress', count: countByStatus('In Progress'), color: '#3b82f6' },
+      { label: 'Not Yet Started', count: countByStatus('Not Yet Started'), color: '#f59e0b' },
+    ];
+  });
+
   readonly selectedCoursesView = signal<CoursesPanelView>('create');
   readonly selectedEnrollmentView = signal<EnrollmentPanelView>('students');
   readonly selectedManagerMessageSection = signal<ManagerMessageSection>(null);
@@ -4892,6 +5006,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   readonly assigningEnrollmentStudentId = signal<string | null>(null);
   readonly thumbnailPreview = signal<string | null>(null);
   readonly thumbnailFileName = signal<string>('');
+  readonly thumbnailUploading = signal(false);
   readonly selectedPublishedOfferingId = signal<string | null>(null);
   readonly selectedAssignmentSubmissionId = signal<string | null>(null);
   readonly selectedManagerMessageId = signal<string | null>(null);
@@ -4906,7 +5021,11 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   readonly managerMessageSent = signal(false);
   readonly topbarDropdown = signal<'notifications' | 'messages' | null>(null);
   readonly topbarProfileMenuOpen = signal(false);
+  readonly availableSwitchRoles = signal<LoginRole[]>(
+    readLmsSessionRecord()?.role === 'training-manager' ? ['student'] : [],
+  );
   readonly switchingRole = signal(false);
+  readonly uploadingProfileImage = signal(false);
   readonly selectedMentorshipReviewId = signal<string | null>(null);
   readonly editingCourseId = signal<string | null>(null);
   readonly presentationPreviewByItem = signal<Map<ContentItemFormGroup, PowerPointPreviewState>>(new Map());
@@ -4990,7 +5109,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
     return this.managerData.mentorshipSubmissionsForCurrentManager().find((submission) => submission.id === selectedId) ?? null;
   });
-  readonly mentorshipAssignments = computed(() => this.managerData.mentorshipAssignments());
+  readonly mentorshipAssignments = computed(() => this.managerData.mentorshipAssignmentsForCurrentManager());
   readonly mentorshipProfileSubmissionByMenteeId = computed(() => {
     const map = new Map<string, MentorshipSubmissionRecord>();
     for (const submission of this.managerData.mentorshipSubmissionsForCurrentManager()) {
@@ -5171,7 +5290,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
   readonly courseForm = new FormGroup({
     title: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    completionDeadline: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    completionDeadline: new FormControl('', { nonNullable: true }),
     type: new FormControl<TrainingOfferingType>('Course', { nonNullable: true, validators: [Validators.required] }),
     category: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     description: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(12)] }),
@@ -5228,6 +5347,8 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    this.loadSwitchableRoles();
+    this.managerData.refreshOwnIdentity();
     this.startWelcomeBannerSequence();
   }
 
@@ -5342,6 +5463,10 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.topbarProfileMenuOpen.set(false);
   }
 
+  canSwitchToRole(role: LoginRole) {
+    return this.availableSwitchRoles().includes(role);
+  }
+
   openTopbarProfileDashboard() {
     this.closeTopbarProfileMenu();
     this.selectPanel('dashboard');
@@ -5350,6 +5475,17 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   openTopbarProfileMessages() {
     this.closeTopbarProfileMenu();
     this.openMessagesPanel();
+  }
+
+  private loadSwitchableRoles() {
+    this.backend.getSwitchableRoles().subscribe({
+      next: (response) => {
+        this.availableSwitchRoles.set(response.roles);
+      },
+      error: () => {
+        this.availableSwitchRoles.set([]);
+      },
+    });
   }
 
   selectManagerMessageSection(section: Exclude<ManagerMessageSection, null>) {
@@ -5927,6 +6063,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
           username: result.username,
           email: result.email,
           studentId: result.studentId ?? null,
+          displayName: combineDisplayName(result.name, result.surname),
         })));
         localStorage.setItem('lms-token', result.token);
         void this.router.navigate([result.route]);
@@ -5937,13 +6074,48 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     });
   }
 
+  // Uploads go to the account's linked directory record, the same one the student and admin
+  // views read from, so the picture shows up consistently everywhere. Uses the base64-JSON
+  // upload route rather than the direct-to-storage one — that path depends on the storage
+  // bucket's CORS policy already being set up, which isn't guaranteed at any given moment.
+  onManagerProfileImageSelected(event: Event) {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (input) {
+      input.value = '';
+    }
+
+    if (!file || !file.type.startsWith('image/') || this.uploadingProfileImage()) {
+      return;
+    }
+
+    this.uploadingProfileImage.set(true);
+    this.backend.uploadFileBase64(file, 'profile-pictures').subscribe({
+      next: ({ url }) => {
+        this.managerData.setOwnProfileImage(url);
+        this.backend.updateMyProfileImage({ profileImageUrl: url, profileImageDataUrl: null }).subscribe({
+          complete: () => this.uploadingProfileImage.set(false),
+          error: () => this.uploadingProfileImage.set(false),
+        });
+      },
+      error: () => {
+        this.uploadingProfileImage.set(false);
+      },
+    });
+  }
+
+  clearManagerProfileImage() {
+    this.managerData.setOwnProfileImage(null);
+    this.backend.updateMyProfileImage({ profileImageUrl: null, profileImageDataUrl: null }).subscribe();
+  }
+
   logout() {
     clearLmsAuthSession();
     this.router.navigate(['/']);
   }
 
   activityWidth(activity: LearningActivityItem) {
-    const maxCount = Math.max(...this.managerData.learningActivity().map((item) => item.count), 1);
+    const maxCount = Math.max(...this.learningActivityLive().map((item) => item.count), 1);
     return (activity.count / maxCount) * 100;
   }
 
@@ -5952,7 +6124,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   }
 
   activityMaxCount() {
-    return Math.max(...this.managerData.learningActivity().map((item) => item.count), 1);
+    return Math.max(...this.learningActivityLive().map((item) => item.count), 1);
   }
 
   activityMidpoint() {
@@ -5973,6 +6145,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       convertedPdfUrl: new FormControl(item?.convertedPdfUrl ?? '', { nonNullable: true }),
       requiresAcknowledgement: new FormControl(Boolean(item?.requiresAcknowledgement), { nonNullable: true }),
       allowDownload: new FormControl(item?.allowDownload !== false, { nonNullable: true }),
+      durationSeconds: new FormControl<number | null>(item?.durationSeconds ?? null),
       questions: new FormArray<AssessmentQuestionFormGroup>(
         item?.questions?.map((question) => this.createQuestionGroup(question.questionType, question)) ?? [],
       ),
@@ -6279,6 +6452,20 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       this.expandedContentIndex.update((current) => (current === null ? null : current - 1));
     }
     this.expandedQuestionByItem.update((current) => {
+      const next: Record<number, number | null> = {};
+      for (const [key, value] of Object.entries(current)) {
+        const numericKey = Number(key);
+        if (numericKey === index) {
+          continue;
+        }
+
+        next[numericKey > index ? numericKey - 1 : numericKey] = value;
+      }
+
+      return next;
+    });
+
+    this.contentUploadProgresses.update((current) => {
       const next: Record<number, number | null> = {};
       for (const [key, value] of Object.entries(current)) {
         const numericKey = Number(key);
@@ -6789,12 +6976,24 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      this.thumbnailPreview.set(typeof reader.result === 'string' ? reader.result : null);
-      this.thumbnailFileName.set(file.name);
-    };
-    reader.readAsDataURL(file);
+    this.thumbnailUploading.set(true);
+    this.thumbnailFileName.set(`Uploading ${file.name}…`);
+    input.value = '';
+
+    this.backend.uploadFileChunked(file, 'course-thumbnails').subscribe({
+      next: (uploadEvent) => {
+        if (uploadEvent.type !== 'complete') return;
+        this.thumbnailPreview.set(uploadEvent.url);
+        this.thumbnailFileName.set(file.name);
+        this.thumbnailUploading.set(false);
+      },
+      error: () => {
+        this.thumbnailPreview.set(null);
+        this.thumbnailFileName.set('');
+        this.thumbnailUploading.set(false);
+        alert(`Failed to upload "${file.name}". Please check your connection and try again.`);
+      },
+    });
   }
 
   onContentFileSelected(index: number, event: Event) {
@@ -6843,40 +7042,79 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: 0 }));
     input.value = '';
 
-    this.backend.uploadFileWithProgress(file, 'content-items').subscribe({
+    if (item.controls.kind.value === 'Video') {
+      // Read the real video length so the student dashboard's "Total Hours Spent"
+      // reflects this course's actual content instead of a flat guess.
+      void this.readVideoDurationSeconds(file).then((durationSeconds) => {
+        if (durationSeconds) {
+          item.patchValue({ durationSeconds });
+        }
+      });
+    }
+
+    this.backend.uploadFileChunked(file, 'content-items').subscribe({
       next: (event) => {
         if (event.type === 'progress') {
           this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: event.percent }));
-        } else {
-          this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
-          item.patchValue({
-            uploadedFileName: file.name,
-            uploadedFileDataUrl: '',
-            resourceLink: event.url,
-          });
-          this.updatePresentationPreview(item, file.name, '');
+          return;
+        }
 
-          // After a successful PPTX upload, convert it to PDF for inline student preview.
-          if (/\.pptx?$/i.test(file.name)) {
-            this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: -1 })); // -1 signals converting state
-            this.backend.convertPptxToPdf(file).subscribe({
-              next: (result) => {
-                item.patchValue({ convertedPdfUrl: result.pdfUrl });
-                this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
-              },
-              error: () => {
-                // Conversion failed — students will see the download-only fallback. Non-fatal.
-                this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
-              },
-            });
-          }
+        this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
+        item.patchValue({
+          uploadedFileName: file.name,
+          uploadedFileDataUrl: '',
+          resourceLink: event.url,
+        });
+        this.updatePresentationPreview(item, file.name, '');
+
+        // After a successful PPTX upload, convert it to PDF for inline student preview.
+        if (/\.pptx?$/i.test(file.name)) {
+          this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: -1 })); // -1 signals converting state
+          this.backend.convertPptxToPdf(file).subscribe({
+            next: (result) => {
+              item.patchValue({ convertedPdfUrl: result.pdfUrl });
+              this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
+            },
+            error: () => {
+              // Conversion failed — students will see the download-only fallback. Non-fatal.
+              this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
+            },
+          });
         }
       },
       error: () => {
         this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
         item.patchValue({ uploadedFileName: '', uploadedFileDataUrl: '' });
-        alert(`Failed to upload "${file.name}". Please check your connection and try again. For large videos, use a YouTube or Vimeo link instead.`);
+        alert(`Failed to upload "${file.name}". Please check your connection and try again.`);
       },
+    });
+  }
+
+  /** Reads a video file's real length client-side via its metadata — no upload or server round-trip needed. */
+  private readVideoDurationSeconds(file: File): Promise<number | null> {
+    return new Promise((resolve) => {
+      const objectUrl = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+
+      const cleanUp = () => {
+        URL.revokeObjectURL(objectUrl);
+        video.removeAttribute('src');
+        video.load();
+      };
+
+      video.onloadedmetadata = () => {
+        const duration = Number.isFinite(video.duration) ? video.duration : null;
+        cleanUp();
+        resolve(duration);
+      };
+
+      video.onerror = () => {
+        cleanUp();
+        resolve(null);
+      };
+
+      video.src = objectUrl;
     });
   }
 
@@ -7033,11 +7271,24 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     }
   }
 
+  private contentItemsPayload() {
+    return this.contentItemsArray.getRawValue().map((item) => ({
+      ...item,
+      durationSeconds: item.durationSeconds ?? undefined,
+    }));
+  }
+
   submitCourseForm() {
     if (this.courseForm.invalid) {
       this.courseForm.markAllAsTouched();
       this.courseCreatedSignal.set(false);
       this.revealFirstInvalidSection();
+      return;
+    }
+
+    if (this.thumbnailUploading() || Object.values(this.contentUploadProgresses()).some((progress) => progress !== null && progress !== undefined)) {
+      alert('Please wait for the thumbnail and content uploads to finish before saving.');
+      this.courseCreatedSignal.set(false);
       return;
     }
 
@@ -7055,7 +7306,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
         thumbnailDataUrl: this.thumbnailPreview(),
         description: this.courseForm.controls.description.value,
         status: editingOffering.status,
-        contentItems: this.contentItemsArray.getRawValue(),
+        contentItems: this.contentItemsPayload(),
       });
 
       if (!updatedOffering) {
@@ -7077,7 +7328,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       category: this.courseForm.controls.category.value,
       thumbnailDataUrl: this.thumbnailPreview(),
       description: this.courseForm.controls.description.value,
-      contentItems: this.contentItemsArray.getRawValue(),
+      contentItems: this.contentItemsPayload(),
     });
 
     if (!createdOffering) {
@@ -7113,6 +7364,8 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     );
     this.thumbnailPreview.set(offering.thumbnailDataUrl);
     this.thumbnailFileName.set('');
+    this.thumbnailUploading.set(false);
+    this.contentUploadProgresses.set({});
     this.assessmentStatusByItem.set({});
     this.submittedAssessmentByItem.set({});
     this.expandedQuestionByItem.set({});
@@ -7134,6 +7387,8 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.courseForm.setControl('contentItems', new FormArray<ContentItemFormGroup>([]));
     this.thumbnailPreview.set(null);
     this.thumbnailFileName.set('');
+    this.thumbnailUploading.set(false);
+    this.contentUploadProgresses.set({});
     this.createSectionDetailOpen.set(false);
     this.expandedContentIndex.set(null);
     this.expandedQuestionByItem.set({});
@@ -7403,7 +7658,22 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   readonly selectedIdpStudentId = signal<string | null>(null);
   readonly idpSaved = signal(false);
   readonly idpEditMode = signal(false);
+  readonly idpMemberSearchTerm = signal('');
   private readonly idpEntriesByStudent = this.managerData.idpEntriesByStudent;
+
+  readonly filteredIdpMembers = computed(() => {
+    const query = this.idpMemberSearchTerm().trim().toLowerCase();
+    const students = this.managerData.students();
+
+    if (!query) {
+      return students;
+    }
+
+    return students.filter((student) =>
+      [student.name, student.surname, `${student.name} ${student.surname}`, student.jobTitle, student.department, student.group]
+        .some((value) => (value ?? '').toLowerCase().includes(query)),
+    );
+  });
 
   readonly selectedIdpStudent = computed(() => {
     const id = this.selectedIdpStudentId();

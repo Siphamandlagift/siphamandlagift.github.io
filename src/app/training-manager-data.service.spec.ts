@@ -15,6 +15,7 @@ describe('TrainingManagerDataService assignment submission hydration', () => {
           useValue: {
             getBootstrap: () => throwError(() => new Error('offline')),
             patchManagerState: () => of({}),
+            getMyIdentity: () => throwError(() => new Error('offline')),
           },
         },
       ],

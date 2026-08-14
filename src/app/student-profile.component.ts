@@ -16,8 +16,10 @@ import {
   StudentMentorshipProgressEntry,
   StudentMentorshipProgressReport,
 } from './student-data.service';
-import { ExternalTrainingRequestRecord, TrainingManagerDataService } from './training-manager-data.service';
+import { ExternalTrainingRequestRecord, StudentIdpEntry, TrainingManagerDataService } from './training-manager-data.service';
+import { LmsBackendService, type LoginRole } from './lms-backend.service';
 import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service';
+import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from './session-auth';
 
 @Component({
   selector: 'student-profile',
@@ -87,13 +89,20 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
               <div class="profile-menu-group">
                 <div *ngIf="!recentNotifications().length" class="profile-menu-header-email">No recent notifications.</div>
 
-                <button *ngFor="let notification of recentNotifications()" type="button" class="profile-menu-item topbar-dropdown-item" (click)="openNotificationsPanel()">
-                  <strong [attr.title]="notification.title">{{ notification.title }}</strong>
-                </button>
-              </div>
-
-              <div class="profile-menu-group profile-menu-group-bordered">
-                <button type="button" class="profile-menu-item" (click)="openNotificationsPanel()">View all notifications</button>
+                <div *ngFor="let notification of recentNotifications()" class="notif-item" [class.notif-item-unread]="notification.unread">
+                  <button type="button" class="notif-item-body" (click)="handleNotificationClick(notification)">
+                    <span class="notif-badge-row">
+                      <span class="notif-badge">{{ notification.badge }}</span>
+                      <span class="notif-date">{{ notification.dateLabel }}</span>
+                      <span *ngIf="notification.unread" class="notif-unread-dot" aria-label="Unread"></span>
+                    </span>
+                    <strong class="notif-title">{{ notification.title }}</strong>
+                    <span class="notif-body-text">{{ notification.body }}</span>
+                  </button>
+                  <button type="button" class="notif-dismiss-btn" aria-label="Dismiss notification" (click)="studentData.dismissNotification(notification.id)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -130,9 +139,9 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
               aria-haspopup="menu"
               [attr.aria-expanded]="profileMenuOpen()"
               (click)="toggleProfileMenu()">
-              <span class="topbar-profile-avatar" [class.topbar-profile-avatar-has-image]="!!studentData.profile().profileImageDataUrl" aria-hidden="true">
-                <img *ngIf="studentData.profile().profileImageDataUrl" [src]="studentData.profile().profileImageDataUrl!" alt="" />
-                <span *ngIf="!studentData.profile().profileImageDataUrl">{{ profileInitials() }}</span>
+              <span class="topbar-profile-avatar" [class.topbar-profile-avatar-has-image]="!!profileImageSrc()" aria-hidden="true">
+                <img *ngIf="profileImageSrc()" [src]="profileImageSrc()!" alt="" />
+                <span *ngIf="!profileImageSrc()">{{ profileInitials() }}</span>
               </span>
               <span class="profile-menu-name">{{ studentData.profile().name }}</span>
               <svg class="profile-menu-caret" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -161,12 +170,25 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
                 </button>
               </div>
 
-              <div class="profile-menu-group profile-menu-group-bordered">
-                <button class="profile-menu-item" type="button" role="menuitem" (click)="openProfileMenuItem('support')">
+              <div *ngIf="availableSwitchRoles().length" class="profile-menu-group profile-menu-group-bordered">
+                <div class="profile-menu-section-label">Switch role</div>
+                <button *ngIf="availableSwitchRoles().includes('administrator')" class="profile-menu-item" type="button" role="menuitem" [disabled]="switchingRole()" (click)="switchToRole('administrator')">
                   <span class="profile-menu-icon" aria-hidden="true">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M9.75 9.25a2.5 2.5 0 1 1 3.99 2.01c-.88.64-1.49 1.14-1.49 2.24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="16.8" r=".9" fill="currentColor"/></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3.5 5 6.3v4.9c0 4.4 3 8.5 7 9.3 4-.8 7-4.9 7-9.3V6.3l-7-2.8Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9.3 12.2l1.9 1.9 3.5-3.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                   </span>
-                  <span>Help & Support</span>
+                  <span>Administrator</span>
+                </button>
+                <button *ngIf="availableSwitchRoles().includes('training-manager')" class="profile-menu-item" type="button" role="menuitem" [disabled]="switchingRole()" (click)="switchToRole('training-manager')">
+                  <span class="profile-menu-icon" aria-hidden="true">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3Zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5Zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5Z" fill="currentColor"/></svg>
+                  </span>
+                  <span>Training Manager</span>
+                </button>
+                <button *ngIf="availableSwitchRoles().includes('student')" class="profile-menu-item" type="button" role="menuitem" [disabled]="switchingRole()" (click)="switchToRole('student')">
+                  <span class="profile-menu-icon" aria-hidden="true">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82ZM12 3 1 9l11 6 9-4.91V17h2V9L12 3Z" fill="currentColor"/></svg>
+                  </span>
+                  <span>Student</span>
                 </button>
               </div>
 
@@ -186,11 +208,21 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
       <button *ngIf="topbarDropdown()" class="profile-menu-backdrop" type="button" aria-label="Close recent items" (click)="closeTopbarDropdown()"></button>
       <button *ngIf="profileMenuOpen()" class="profile-menu-backdrop" type="button" aria-label="Close profile menu" (click)="closeProfileMenu()"></button>
 
-      <div class="profile-layout">
-        <nav class="side-panel" aria-label="Student Navigation">
+      <div class="profile-layout" [class.profile-layout-side-panel-collapsed]="sidePanelCollapsed()">
+        <nav class="side-panel" [class.side-panel-collapsed]="sidePanelCollapsed()" aria-label="Student Navigation">
           <div class="side-panel-header">
-            <div class="side-panel-title">Workspace</div>
-            <div class="side-panel-copy">Choose a tab to continue.</div>
+            <button
+              type="button"
+              class="side-panel-toggle"
+              [attr.aria-label]="sidePanelCollapsed() ? 'Expand navigation panel' : 'Collapse navigation panel'"
+              [attr.aria-expanded]="!sidePanelCollapsed()"
+              (click)="toggleSidePanel()">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M6 7.5h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                <path d="M6 12h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                <path d="M6 16.5h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+              </svg>
+            </button>
           </div>
 
           <button [class.active]="selectedPanel() === 'dashboard'" (click)="selectPanel('dashboard')">
@@ -259,6 +291,18 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
             </span>
             <span class="side-panel-label">Badges & Certificates</span>
           </button>
+          <button [class.active]="selectedPanel() === 'idp'" (click)="selectPanel('idp')">
+            <span class="side-panel-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M12 3v18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M5 6h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M7 10h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M7 14h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M9 18h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="side-panel-label">My IDP</span>
+          </button>
           <button [class.active]="selectedPanel() === 'messages'" (click)="selectPanel('messages')">
             <span class="side-panel-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none">
@@ -279,18 +323,6 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
             </span>
             <span class="side-panel-label">Profile & Settings</span>
           </button>
-          <button [class.active]="selectedPanel() === 'support'" (click)="selectPanel('support')">
-            <span class="side-panel-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M6 10a6 6 0 0 1 12 0v4a2 2 0 0 1-2 2h-2.5"></path>
-                <path d="M6 14a2 2 0 0 1 2-2h1v4H8a2 2 0 0 1-2-2Z"></path>
-                <path d="M15 12h1a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-1v-4Z"></path>
-                <path d="M12 17.5v1a1.5 1.5 0 0 1-1.5 1.5H9"></path>
-              </svg>
-            </span>
-            <span class="side-panel-label">Help & Support</span>
-          </button>
-
           <button class="logout" (click)="logout()">
             <span class="side-panel-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none">
@@ -304,70 +336,138 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
         </nav>
 
         <main class="main-panel">
-          <student-dashboard *ngIf="selectedPanel() === 'dashboard'"></student-dashboard>
+          <student-dashboard *ngIf="selectedPanel() === 'dashboard'" (navigateTo)="navigateToPanelFromDashboard($event)"></student-dashboard>
           <student-courses *ngIf="selectedPanel() === 'courses'"></student-courses>
 
-          <section *ngIf="selectedPanel() === 'mentorship'" class="support-section">
-            <div class="section-heading-row">
-              <div>
-                <p class="section-copy">Manage your mentorship profile, objectives, and form details here.</p>
-              </div>
-            </div>
+          <section *ngIf="selectedPanel() === 'mentorship'" class="support-section ms-panel">
+            <div class="ms-card-grid">
 
-            <div class="mentorship-stack">
-              <article class="mentorship-item" [class.mentorship-item-active]="isMentorshipSectionOpen('profile')">
-                <button
-                  class="mentorship-item-trigger"
-                  type="button"
-                  [attr.aria-pressed]="isMentorshipSectionOpen('profile')"
-                  (click)="selectMentorshipSection('profile')">
-                  <span>
-                    <span class="utility-card-title">1. Mentorship Profile</span>
-                    <span class="utility-card-copy">{{ mentorshipSectionSummary('profile') }}</span>
+              <!-- Card 1: Profile -->
+              <article class="ms-card">
+                <div class="ms-card-top">
+                  <span class="ms-icon-badge ms-icon-profile">
+                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" stroke="#fff" stroke-width="1.8"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
                   </span>
+                  <div class="ms-card-title-wrap">
+                    <h3 class="ms-card-title">Mentorship Profile</h3>
+                    <span class="ms-status-badge" [class.ms-status-saved]="mentorshipSectionSaved('profile')" [class.ms-status-draft]="!mentorshipSectionSaved('profile')">{{ mentorshipSectionSaved('profile') ? 'SAVED' : 'DRAFT' }}</span>
+                  </div>
+                </div>
+                <p class="ms-card-desc">Complete your mentorship profile with both mentee and mentor details.</p>
 
-                  <span class="mentorship-item-trailing">
-                    <span class="mentorship-item-status" [class.mentorship-item-status-saved]="mentorshipSectionSaved('profile')">{{ mentorshipSectionStatus('profile') }}</span>
-                    <span class="mentorship-item-icon" aria-hidden="true">{{ isMentorshipSectionOpen('profile') ? '●' : '○' }}</span>
+                <div class="ms-progress-row">
+                  <span class="ms-progress-label">Profile Completion</span>
+                  <span class="ms-progress-pct">{{ mentorshipProfileCompletionPct() }}%</span>
+                </div>
+                <div class="ms-track"><div class="ms-fill" [style.width.%]="mentorshipProfileCompletionPct()"></div></div>
+
+                <div class="ms-info-row">
+                  <span class="ms-info-item">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="#94a3b8" stroke-width="1.8"/><path d="M6 18a6 6 0 0 1 12 0" stroke="#94a3b8" stroke-width="1.8" stroke-linecap="round"/></svg>
+                    Mentee: {{ (savedMentorshipProfile().menteeName + ' ' + savedMentorshipProfile().menteeSurname).trim() || 'Not set' }}
                   </span>
-                </button>
+                  <span class="ms-info-item">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="#94a3b8" stroke-width="1.8"/><path d="M6 18a6 6 0 0 1 12 0" stroke="#94a3b8" stroke-width="1.8" stroke-linecap="round"/></svg>
+                    Mentor: {{ mentorFullName() || 'Not set' }}
+                  </span>
+                </div>
+
+                <div class="ms-card-actions">
+                  <button type="button" class="ms-btn ms-btn-primary" (click)="selectMentorshipSection('profile')">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="#fff" stroke-width="2" stroke-linecap="round"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5Z" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
+                    {{ mentorshipSectionSaved('profile') ? 'Edit Profile' : 'Start Profile' }}
+                  </button>
+                  <button type="button" class="ms-btn ms-btn-outline" (click)="selectMentorshipSection('profile')">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path fill="#6366f1" d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10Zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/></svg>
+                    Preview
+                  </button>
+                </div>
               </article>
 
-              <article class="mentorship-item" [class.mentorship-item-active]="isMentorshipSectionOpen('objectives')">
-                <button
-                  class="mentorship-item-trigger"
-                  type="button"
-                  [attr.aria-pressed]="isMentorshipSectionOpen('objectives')"
-                  (click)="selectMentorshipSection('objectives')">
-                  <span>
-                    <span class="utility-card-title">2. Mentorship Objectives</span>
-                    <span class="utility-card-copy">{{ mentorshipSectionSummary('objectives') }}</span>
+              <!-- Card 2: Objectives -->
+              <article class="ms-card">
+                <div class="ms-card-top">
+                  <span class="ms-icon-badge ms-icon-objectives">
+                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke="#fff" stroke-width="1.8"/><circle cx="12" cy="12" r="4" stroke="#fff" stroke-width="1.8"/><circle cx="12" cy="12" r="1" fill="#fff"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
                   </span>
+                  <div class="ms-card-title-wrap">
+                    <h3 class="ms-card-title">Mentorship Objectives</h3>
+                    <span class="ms-status-badge" [class.ms-status-saved]="mentorshipSectionSaved('objectives')" [class.ms-status-draft]="!mentorshipSectionSaved('objectives')">{{ mentorshipSectionSaved('objectives') ? 'SAVED' : 'DRAFT' }}</span>
+                  </div>
+                </div>
+                <p class="ms-card-desc">Use this section for mentorship goals, targets, and planned outcomes.</p>
 
-                  <span class="mentorship-item-trailing">
-                    <span class="mentorship-item-status" [class.mentorship-item-status-saved]="mentorshipSectionSaved('objectives')">{{ mentorshipSectionStatus('objectives') }}</span>
-                    <span class="mentorship-item-icon" aria-hidden="true">{{ isMentorshipSectionOpen('objectives') ? '●' : '○' }}</span>
+                <div class="ms-progress-row">
+                  <span class="ms-progress-label">Objectives Defined</span>
+                  <span class="ms-progress-pct" style="color:#6366f1">{{ mentorshipObjectivesDefinedCount() }} of {{ mentorshipObjectivesTotalCount() }}</span>
+                </div>
+                <div class="ms-track"><div class="ms-fill" [style.width.%]="mentorshipObjectivesTotalCount() ? (mentorshipObjectivesDefinedCount() / mentorshipObjectivesTotalCount()) * 100 : 0"></div></div>
+
+                <div class="ms-info-row">
+                  <span class="ms-info-item">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" stroke="#94a3b8" stroke-width="1.8"/><path d="M16 2v4M8 2v4M3 10h18" stroke="#94a3b8" stroke-width="1.8" stroke-linecap="round"/></svg>
+                    Goals: {{ mentorshipGoalsDefinedCount() }}
                   </span>
-                </button>
+                  <span class="ms-info-item">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4" stroke="#94a3b8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke="#94a3b8" stroke-width="1.8" stroke-linecap="round"/></svg>
+                    Objectives: {{ mentorshipRelObjectivesDefinedCount() }}
+                  </span>
+                </div>
+
+                <div class="ms-card-actions">
+                  <button type="button" class="ms-btn ms-btn-primary" (click)="selectMentorshipSection('objectives')">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
+                    New Objective
+                  </button>
+                  <button type="button" class="ms-btn ms-btn-outline" (click)="selectMentorshipSection('objectives')">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6" stroke="#6366f1" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="12" x2="21" y2="12" stroke="#6366f1" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="18" x2="21" y2="18" stroke="#6366f1" stroke-width="2" stroke-linecap="round"/></svg>
+                    View All
+                  </button>
+                </div>
               </article>
 
-              <article class="mentorship-item" [class.mentorship-item-active]="isMentorshipSectionOpen('form')">
-                <button
-                  class="mentorship-item-trigger"
-                  type="button"
-                  [attr.aria-pressed]="isMentorshipSectionOpen('form')"
-                  (click)="selectMentorshipSection('form')">
-                  <span>
-                    <span class="utility-card-title">3. Mentorship Form</span>
-                    <span class="utility-card-copy">{{ mentorshipSectionSummary('form') }}</span>
+              <!-- Card 3: Form -->
+              <article class="ms-card">
+                <div class="ms-card-top">
+                  <span class="ms-icon-badge ms-icon-form">
+                    <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2" stroke="#fff" stroke-width="1.8"/><path d="M8 7h8M8 11h8M8 15h5" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
                   </span>
+                  <div class="ms-card-title-wrap">
+                    <h3 class="ms-card-title">Mentorship Form</h3>
+                    <span class="ms-status-badge" [class.ms-status-saved]="mentorshipSectionSaved('form')" [class.ms-status-draft]="!mentorshipSectionSaved('form')">{{ mentorshipSectionSaved('form') ? 'SAVED' : 'DRAFT' }}</span>
+                  </div>
+                </div>
+                <p class="ms-card-desc">Save the mentee and mentor progress report here, then return later to update the saved form.</p>
 
-                  <span class="mentorship-item-trailing">
-                    <span class="mentorship-item-status" [class.mentorship-item-status-saved]="mentorshipSectionSaved('form')">{{ mentorshipSectionStatus('form') }}</span>
-                    <span class="mentorship-item-icon" aria-hidden="true">{{ isMentorshipSectionOpen('form') ? '●' : '○' }}</span>
+                <div class="ms-progress-row">
+                  <span class="ms-progress-label">Form Completion</span>
+                  <span class="ms-progress-pct">{{ mentorshipFormCompletionPct() }}%</span>
+                </div>
+                <div class="ms-track"><div class="ms-fill" [style.width.%]="mentorshipFormCompletionPct()"></div></div>
+
+                <div class="ms-info-row">
+                  <span class="ms-info-item">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M12 2v10l4 4" stroke="#94a3b8" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke="#94a3b8" stroke-width="1.8"/></svg>
+                    Meeting: {{ savedMentorshipProgressReport().dateOfMeeting || 'Not set' }}
                   </span>
-                </button>
+                  <span class="ms-info-item">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4" stroke="#94a3b8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Achieved: {{ savedMentorshipProgressReport().objectivesAchieved.length }}
+                  </span>
+                </div>
+
+                <div class="ms-card-actions">
+                  <button type="button" class="ms-btn ms-btn-primary" (click)="selectMentorshipSection('form')">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="#fff" stroke-width="2" stroke-linecap="round"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5Z" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
+                    {{ mentorshipSectionSaved('form') ? 'Edit Form' : 'Continue Form' }}
+                  </button>
+                  <button type="button" class="ms-btn ms-btn-outline" (click)="selectMentorshipSection('form')">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M3 3h6l2 3H21a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" stroke="#6366f1" stroke-width="1.8" stroke-linecap="round"/></svg>
+                    History
+                  </button>
+                </div>
               </article>
+
             </div>
 
             <div *ngIf="mentorshipDialogOpen()" class="mentorship-dialog-backdrop" (click)="closeMentorshipDialog()" aria-hidden="true"></div>
@@ -388,10 +488,10 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
                   <div class="mentorship-profile-header">
                     <span
                       class="mentorship-profile-avatar"
-                      [class.mentorship-profile-avatar-has-image]="!!studentData.profile().profileImageDataUrl"
+                      [class.mentorship-profile-avatar-has-image]="!!profileImageSrc()"
                       aria-hidden="true">
-                      <img *ngIf="studentData.profile().profileImageDataUrl" [src]="studentData.profile().profileImageDataUrl!" alt="" />
-                      <span *ngIf="!studentData.profile().profileImageDataUrl">{{ profileInitials() }}</span>
+                      <img *ngIf="profileImageSrc()" [src]="profileImageSrc()!" alt="" />
+                      <span *ngIf="!profileImageSrc()">{{ profileInitials() }}</span>
                     </span>
 
                     <div class="mentorship-profile-header-copy">
@@ -434,10 +534,10 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
                     <div class="mentorship-profile-program-hero-top">
                       <span
                         class="mentorship-profile-avatar mentorship-profile-program-avatar"
-                        [class.mentorship-profile-avatar-has-image]="!!studentData.profile().profileImageDataUrl"
+                        [class.mentorship-profile-avatar-has-image]="!!profileImageSrc()"
                         aria-hidden="true">
-                        <img *ngIf="studentData.profile().profileImageDataUrl" [src]="studentData.profile().profileImageDataUrl!" alt="" />
-                        <span *ngIf="!studentData.profile().profileImageDataUrl">{{ profileInitials() }}</span>
+                        <img *ngIf="profileImageSrc()" [src]="profileImageSrc()!" alt="" />
+                        <span *ngIf="!profileImageSrc()">{{ profileInitials() }}</span>
                         <span class="mentorship-profile-program-avatar-badge" aria-hidden="true">
                           <svg viewBox="0 0 24 24" fill="none">
                             <path d="M8 16h2.2l6.1-6.1a1.6 1.6 0 0 0 0-2.3l-.9-.9a1.6 1.6 0 0 0-2.3 0L7 12.8V15a1 1 0 0 0 1 1Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -483,7 +583,7 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
 
                       <label class="mentorship-form-field mentorship-profile-program-field">
                         <span>Job Title</span>
-                        <input type="text" formControlName="menteeJobTitle" placeholder="Enter job title" />
+                        <input type="text" formControlName="menteeJobTitle" placeholder="Enter job title" readonly />
                       </label>
 
                       <label class="mentorship-form-field mentorship-profile-program-field">
@@ -849,35 +949,84 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
 
           <student-messages *ngIf="selectedPanel() === 'messages'" [initialSection]="messagesInitialSection()"></student-messages>
 
-          <section *ngIf="selectedPanel() === 'external-training'" class="support-section">
-            <div class="section-heading-row">
-              <div>
-                <p class="section-copy">Use this section to request approval or support for external learning opportunities.</p>
+          <section *ngIf="selectedPanel() === 'external-training'" class="et-section">
+            <div class="et-stats-row">
+              <div class="et-stat-card">
+                <div class="et-stat-icon et-stat-icon-blue">
+                  <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M22 2L11 13" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 2L15 22l-4-9-9-4 20-7Z" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div class="et-stat-value">{{ learnerExternalTrainingRequests().length }}</div>
+                <div class="et-stat-label">Total Requests</div>
+              </div>
+              <div class="et-stat-card">
+                <div class="et-stat-icon et-stat-icon-amber">
+                  <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke="#f59e0b" stroke-width="2"/><path d="M12 7v5l3 3" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"/></svg>
+                </div>
+                <div class="et-stat-value">{{ etPendingCount() }}</div>
+                <div class="et-stat-label">Pending Approval</div>
+              </div>
+              <div class="et-stat-card">
+                <div class="et-stat-icon et-stat-icon-green">
+                  <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke="#22c55e" stroke-width="2"/><path d="M8 12l3 3 5-5" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div class="et-stat-value">{{ etApprovedCount() }}</div>
+                <div class="et-stat-label">Approved</div>
               </div>
             </div>
 
-            <div class="utility-grid" style="grid-template-columns:1fr;">
-              <button type="button" class="utility-card" style="width:100%;text-align:left;cursor:pointer;font:inherit;" (click)="openExternalTrainingRequestDialog()">
-                <div class="utility-card-title" style="display:flex;align-items:center;gap:0.7rem;">
-                  <span class="mentorship-item-icon" aria-hidden="true">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="4" y="4" width="16" height="16" rx="4" stroke="currentColor" stroke-width="1.8"/></svg>
-                  </span>
-                  <span>Request Training</span>
+            <div class="et-action-grid">
+              <button type="button" class="et-action-card" (click)="openExternalTrainingRequestDialog()">
+                <div class="et-action-tag">New Request</div>
+                <div class="et-action-icon et-action-icon-purple">
+                  <svg width="28" height="28" fill="none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
                 </div>
-                <p class="utility-card-copy">Start a new external training request for review and approval.</p>
+                <h3 class="et-action-title">Request Training</h3>
+                <p class="et-action-desc">Start a new external training request for review and approval. Fill out the training details, cost estimates, and justification for your learning path.</p>
+                <div class="et-action-footer">
+                  <span class="et-action-time">
+                    <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke="#94a3b8" stroke-width="2"/><path d="M12 7v5l3 3" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/></svg>
+                    ~5 min to complete
+                  </span>
+                  <span class="et-action-link">Get Started →</span>
+                </div>
               </button>
 
-              <button type="button" class="utility-card" style="width:100%;text-align:left;cursor:pointer;font:inherit;" (click)="openExternalTrainingStatusDialog()">
-                <div class="utility-card-title" style="display:flex;align-items:center;gap:0.7rem;">
-                  <span class="mentorship-item-icon" aria-hidden="true">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M7 12.5 10 15.5 17 8.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/></svg>
-                  </span>
-                  <span>Training Status</span>
+              <button type="button" class="et-action-card et-action-card-teal" (click)="openExternalTrainingStatusDialog()">
+                <div class="et-action-tag et-action-tag-teal">Track Progress</div>
+                <div class="et-action-icon et-action-icon-teal">
+                  <svg width="28" height="28" fill="none" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </div>
-                <p class="utility-card-copy">Track the current status of your submitted external training requests.</p>
+                <h3 class="et-action-title">Training Status</h3>
+                <p class="et-action-desc">Track the current status of your submitted external training requests. View approval stages, feedback, and estimated completion timelines.</p>
+                <div class="et-action-footer">
+                  <span class="et-action-time">
+                    <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="12" x2="21" y2="12" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="18" x2="21" y2="18" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/><circle cx="3.5" cy="6" r="1" fill="#94a3b8"/><circle cx="3.5" cy="12" r="1" fill="#94a3b8"/><circle cx="3.5" cy="18" r="1" fill="#94a3b8"/></svg>
+                    {{ learnerExternalTrainingRequests().length }} active request{{ learnerExternalTrainingRequests().length !== 1 ? 's' : '' }}
+                  </span>
+                  <span class="et-action-link et-action-link-teal">View Status →</span>
+                </div>
               </button>
             </div>
 
+            <div class="et-activity">
+              <div class="et-activity-header">
+                <h2 class="et-activity-title">Recent Activity</h2>
+                <button type="button" class="et-activity-view-all" (click)="openExternalTrainingStatusDialog()">View All</button>
+              </div>
+              <div *ngIf="!learnerExternalTrainingRequests().length" class="et-empty">No training requests submitted yet.</div>
+              <div class="et-activity-list">
+                <div *ngFor="let req of etRecentRequests()" class="et-activity-item">
+                  <div class="et-activity-avatar">
+                    <svg width="18" height="18" fill="none" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3" fill="#818cf8"/><path d="M7 10h10M7 14h6" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>
+                  </div>
+                  <div class="et-activity-info">
+                    <div class="et-activity-name">{{ req.courseName }}</div>
+                    <div class="et-activity-meta">Submitted {{ etRelativeTime(req.submittedAt) }}<span *ngIf="req.courseCost"> &bull; R{{ req.courseCost }}</span></div>
+                  </div>
+                  <span class="et-status-badge" [class.et-status-approved]="req.status === 'Approved'" [class.et-status-revision]="req.status === 'Needs Revision'" [class.et-status-pending]="req.status === 'Pending Review'">{{ req.status }}</span>
+                </div>
+              </div>
+            </div>
           </section>
 
           <div *ngIf="externalTrainingRequestDialogOpen()" class="mentorship-dialog-backdrop" (click)="closeExternalTrainingRequestDialog()" aria-hidden="true"></div>
@@ -976,20 +1125,22 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
 
                   <label class="mentorship-form-field mentorship-form-field-full external-training-request-field external-training-request-upload-field">
                     <span>Attach Invoice</span>
-                    <input type="file" class="external-training-request-file-input" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" (change)="onExternalTrainingInvoiceSelected($event)" />
-                    <span *ngIf="externalTrainingInvoiceFileName()" class="utility-card-copy external-training-request-support-copy">Selected: {{ externalTrainingInvoiceFileName() }}</span>
+                    <input type="file" class="external-training-request-file-input" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" [disabled]="externalTrainingInvoiceUploading()" (change)="onExternalTrainingInvoiceSelected($event)" />
+                    <span *ngIf="externalTrainingInvoiceUploading()" class="utility-card-copy external-training-request-support-copy">Uploading…</span>
+                    <span *ngIf="!externalTrainingInvoiceUploading() && externalTrainingInvoiceFileName()" class="utility-card-copy external-training-request-support-copy">Selected: {{ externalTrainingInvoiceFileName() }}</span>
                   </label>
 
                   <label class="mentorship-form-field mentorship-form-field-full external-training-request-field external-training-request-upload-field">
                     <span>Attach Brochure</span>
-                    <input type="file" class="external-training-request-file-input" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" (change)="onExternalTrainingBrochureSelected($event)" />
-                    <span *ngIf="externalTrainingBrochureFileName()" class="utility-card-copy external-training-request-support-copy">Selected: {{ externalTrainingBrochureFileName() }}</span>
+                    <input type="file" class="external-training-request-file-input" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" [disabled]="externalTrainingBrochureUploading()" (change)="onExternalTrainingBrochureSelected($event)" />
+                    <span *ngIf="externalTrainingBrochureUploading()" class="utility-card-copy external-training-request-support-copy">Uploading…</span>
+                    <span *ngIf="!externalTrainingBrochureUploading() && externalTrainingBrochureFileName()" class="utility-card-copy external-training-request-support-copy">Selected: {{ externalTrainingBrochureFileName() }}</span>
                   </label>
                 </div>
 
                 <div class="mentorship-form-actions external-training-request-actions">
                   <p *ngIf="externalTrainingRequestSubmitted()" class="mentorship-form-status external-training-request-status" role="status" aria-live="polite">Training request submitted successfully.</p>
-                  <button type="submit" class="mentorship-save-button external-training-request-submit" [disabled]="externalTrainingRequestForm.invalid">{{ externalTrainingRequestSubmitLabel() }}</button>
+                  <button type="submit" class="mentorship-save-button external-training-request-submit" [disabled]="externalTrainingRequestForm.invalid || externalTrainingInvoiceUploading() || externalTrainingBrochureUploading()">{{ externalTrainingRequestSubmitLabel() }}</button>
                 </div>
               </form>
             </div>
@@ -1133,25 +1284,67 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
             </div>
           </section>
 
-          <section *ngIf="selectedPanel() === 'support'" class="support-section">
-            <div class="section-heading-row">
-              <div>
-                <h2>Help & Support</h2>
-                <p class="section-copy">Find quick answers or contact the support team when you need help.</p>
+          <section *ngIf="selectedPanel() === 'idp'" class="idp-section">
+            <div class="section-heading-block">
+              <p class="eyebrow">Individual Development Plan</p>
+              <h1>My IDP</h1>
+              <p class="section-copy">Review the development entries your manager has saved for you.</p>
+            </div>
+
+            <div class="idp-program-card" *ngIf="managerIdpEntries().length > 0; else noIdpEntries">
+              <div class="idp-program-card-header">
+                <div class="idp-program-card-title-shell">
+                  <span class="idp-program-card-title">Saved IDP Entries</span>
+                  <span class="idp-program-count" aria-hidden="true">{{ managerIdpEntries().length }} {{ managerIdpEntries().length === 1 ? 'entry' : 'entries' }}</span>
+                </div>
+              </div>
+              <div class="idp-program-card-body">
+                <ng-container *ngFor="let entry of managerIdpEntries(); let i = index">
+                  <div class="idp-program-entry">
+                    <div class="idp-program-entry-top">
+                      <div class="idp-program-entry-heading">
+                        <span class="idp-row-number" aria-hidden="true">{{ i + 1 }}</span>
+                        <span class="idp-program-entry-label">Entry {{ i + 1 }}</span>
+                      </div>
+                      <span class="idp-status-badge"
+                        [class.idp-status-in-progress]="entry.status === 'In Progress'"
+                        [class.idp-status-completed]="entry.status === 'Completed'"
+                        [class.idp-status-on-hold]="entry.status === 'On Hold'">
+                        {{ entry.status }}
+                      </span>
+                    </div>
+                    <div class="idp-readonly-grid">
+                      <div class="idp-readonly-field idp-readonly-field-full">
+                        <span>Development Need</span>
+                        <strong>{{ entry.developmentNeed || 'Not provided' }}</strong>
+                      </div>
+                      <div class="idp-readonly-field idp-readonly-field-full">
+                        <span>Planned Action</span>
+                        <strong>{{ entry.plannedAction || 'Not provided' }}</strong>
+                      </div>
+                      <div class="idp-readonly-field">
+                        <span>Support Required</span>
+                        <strong>{{ entry.supportRequired || 'Not provided' }}</strong>
+                      </div>
+                      <div class="idp-readonly-field">
+                        <span>Date Captured</span>
+                        <strong>{{ entry.dateCaptured || 'Not provided' }}</strong>
+                      </div>
+                      <div class="idp-readonly-field">
+                        <span>Target Date</span>
+                        <strong>{{ entry.targetDate || 'Not provided' }}</strong>
+                      </div>
+                    </div>
+                  </div>
+                </ng-container>
               </div>
             </div>
-
-            <div class="utility-grid">
+            <ng-template #noIdpEntries>
               <article class="utility-card">
-                <div class="utility-card-title">Student Support Desk</div>
-                <p class="utility-card-copy">Email support at help@skillsconnect.app or use the message tab to contact your tutor.</p>
+                <div class="utility-card-title">No IDP entries from your manager yet</div>
+                <p class="utility-card-copy">Once your manager fills out your Individual Development Plan, it will appear here as a summary.</p>
               </article>
-
-              <article class="utility-card">
-                <div class="utility-card-title">Common Questions</div>
-                <p class="utility-card-copy">Check course deadlines, message notifications, and certificate downloads from your dashboard.</p>
-              </article>
-            </div>
+            </ng-template>
           </section>
 
           <student-profile-settings *ngIf="selectedPanel() === 'profile'"></student-profile-settings>
@@ -1430,6 +1623,117 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
       white-space: nowrap;
     }
 
+    /* Notification items */
+    .notif-item {
+      display: flex;
+      align-items: flex-start;
+      border-bottom: 1px solid var(--ui-border, #e2e8f0);
+      background: transparent;
+    }
+
+    .notif-item:last-child {
+      border-bottom: none;
+    }
+
+    .notif-item-unread {
+      background: color-mix(in srgb, var(--brand-primary, #6366f1) 5%, transparent);
+    }
+
+    .notif-item-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      padding: calc(0.65rem * var(--ui-scale)) calc(0.9rem * var(--ui-scale));
+      background: transparent;
+      border: none;
+      text-align: left;
+      cursor: pointer;
+      color: inherit;
+      width: 0; /* allow text-overflow inside flex */
+      min-width: 0;
+    }
+
+    .notif-item-body:hover {
+      background: rgba(0,0,0,0.04);
+    }
+
+    .notif-badge-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+    }
+
+    .notif-badge {
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--brand-primary, #6366f1);
+      background: color-mix(in srgb, var(--brand-primary, #6366f1) 12%, transparent);
+      border-radius: 4px;
+      padding: 1px 6px;
+      white-space: nowrap;
+    }
+
+    .notif-date {
+      font-size: 0.72rem;
+      color: #94a3b8;
+      white-space: nowrap;
+    }
+
+    .notif-unread-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--brand-primary, #6366f1);
+      flex-shrink: 0;
+      margin-left: auto;
+    }
+
+    .notif-title {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #1e293b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      width: 100%;
+    }
+
+    .notif-body-text {
+      font-size: 0.78rem;
+      color: #64748b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      width: 100%;
+    }
+
+    .notif-dismiss-btn {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: calc(2rem * var(--ui-scale));
+      height: calc(2rem * var(--ui-scale));
+      margin: calc(0.5rem * var(--ui-scale)) calc(0.4rem * var(--ui-scale)) 0 0;
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      color: #94a3b8;
+      cursor: pointer;
+      opacity: 0.6;
+    }
+
+    .notif-dismiss-btn:hover {
+      background: rgba(0,0,0,0.06);
+      opacity: 1;
+      color: #ef4444;
+    }
+
     .profile-menu-wrap {
       position: relative;
       z-index: 30;
@@ -1546,6 +1850,15 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
       padding-top: 0.55rem;
     }
 
+    .profile-menu-section-label {
+      padding: calc(0.3rem * var(--ui-scale)) calc(0.62rem * var(--ui-scale)) calc(0.15rem * var(--ui-scale));
+      font-size: calc(0.7rem * var(--ui-scale));
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+
     .profile-menu-item {
       display: flex;
       align-items: center;
@@ -1567,6 +1880,11 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
       background: var(--brand-tint);
       color: var(--brand-primary);
       outline: none;
+    }
+
+    .profile-menu-item:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
     }
 
     .profile-menu-item-danger {
@@ -1594,6 +1912,10 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
       min-height: calc(100vh - 6.5rem);
     }
 
+    .profile-layout.profile-layout-side-panel-collapsed {
+      grid-template-columns: calc(92px * var(--ui-scale)) minmax(0, 1fr);
+    }
+
     .side-panel {
       display: flex;
       flex-direction: column;
@@ -1612,9 +1934,36 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
     }
 
     .side-panel-header {
-      margin-bottom: 0.5rem;
-      padding-bottom: 0.9rem;
-      border-bottom: 1px solid var(--brand-tint);
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .side-panel-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: calc(2.5rem * var(--ui-scale));
+      height: calc(2.5rem * var(--ui-scale));
+      border: 1px solid var(--brand-tint);
+      border-radius: calc(14px * var(--ui-scale));
+      background: var(--brand-surface);
+      color: var(--brand-primary);
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease, color 0.15s ease;
+    }
+
+    .side-panel-toggle:hover,
+    .side-panel-toggle:focus-visible {
+      background: var(--brand-tint);
+      border-color: var(--brand-primary);
+      outline: none;
+      transform: translateY(-1px);
+    }
+
+    .side-panel-toggle svg {
+      width: calc(1.1rem * var(--ui-scale));
+      height: calc(1.1rem * var(--ui-scale));
+      stroke: currentColor;
     }
 
     .side-panel-title {
@@ -1688,6 +2037,33 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
       flex: 1 1 auto;
     }
 
+    .side-panel-collapsed {
+      gap: calc(0.55rem * var(--ui-scale));
+      padding-inline: calc(0.7rem * var(--ui-scale));
+    }
+
+    .side-panel-collapsed .side-panel-header {
+      justify-content: center;
+    }
+
+    .side-panel-collapsed .side-panel-toggle {
+      width: calc(2.5rem * var(--ui-scale));
+    }
+
+    .side-panel-collapsed button {
+      justify-content: center;
+      padding-inline: calc(0.7rem * var(--ui-scale));
+    }
+
+    .side-panel-collapsed .side-panel-label {
+      display: none;
+    }
+
+    .side-panel-collapsed .side-panel-icon {
+      flex-basis: calc(2.6rem * var(--ui-scale));
+      width: calc(2.6rem * var(--ui-scale));
+    }
+
     .side-panel button.logout {
       margin-top: auto;
       background: #fee2e2;
@@ -1751,6 +2127,548 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
       font-size: calc(1.5rem * var(--ui-scale));
       font-weight: 700;
     }
+
+    /* ─── Mentorship card redesign ─── */
+    .ms-panel {
+      background: #f8faff !important;
+    }
+
+    .ms-card-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.1rem;
+    }
+
+    .ms-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      padding: 1.35rem 1.4rem;
+      background: #fff;
+      border: 1px solid #e8edf5;
+      border-radius: 20px;
+      box-shadow: 0 2px 12px rgba(15,23,42,0.06);
+      transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.22s ease;
+      cursor: default;
+    }
+
+    .ms-card:hover {
+      transform: translateY(-6px) scale(1.012);
+      box-shadow: 0 16px 36px rgba(99,102,241,0.16), 0 4px 14px rgba(15,23,42,0.08);
+    }
+
+    .ms-card:hover .ms-icon-badge {
+      transform: scale(1.18) rotate(-4deg);
+      box-shadow: 0 6px 20px rgba(99,102,241,0.45);
+    }
+
+    .ms-card-top {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.85rem;
+    }
+
+    .ms-icon-badge {
+      flex-shrink: 0;
+      width: 2.8rem;
+      height: 2.8rem;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.28s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.28s ease;
+    }
+
+    .ms-icon-profile  { background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 14px rgba(99,102,241,0.28); }
+    .ms-icon-objectives { background: linear-gradient(135deg, #06b6d4, #0891b2); box-shadow: 0 4px 14px rgba(6,182,212,0.28); }
+    .ms-icon-form     { background: linear-gradient(135deg, #8b5cf6, #7c3aed); box-shadow: 0 4px 14px rgba(139,92,246,0.28); }
+
+    .ms-card-title-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      min-width: 0;
+    }
+
+    .ms-card-title {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #0f172a;
+      line-height: 1.2;
+    }
+
+    .ms-status-badge {
+      display: inline-block;
+      padding: 0.15rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      width: fit-content;
+    }
+
+    .ms-status-saved { background: #dbeafe; color: #1d4ed8; }
+    .ms-status-draft  { background: #fef9c3; color: #854d0e; }
+
+    .ms-card-desc {
+      margin: 0;
+      font-size: 0.88rem;
+      color: #64748b;
+      line-height: 1.5;
+      flex: 1;
+    }
+
+    .ms-progress-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .ms-progress-label { font-size: 0.85rem; color: #475569; font-weight: 500; }
+    .ms-progress-pct { font-size: 0.85rem; color: #6366f1; font-weight: 700; }
+
+    .ms-track {
+      width: 100%;
+      height: 0.45rem;
+      border-radius: 999px;
+      background: #e2e8f0;
+      overflow: hidden;
+    }
+
+    .ms-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #6366f1, #818cf8);
+      transition: width 0.4s ease;
+    }
+
+    .ms-info-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem 1.1rem;
+    }
+
+    .ms-info-item {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.82rem;
+      color: #64748b;
+    }
+
+    .ms-card-actions {
+      display: flex;
+      gap: 0.6rem;
+      margin-top: auto;
+      padding-top: 0.5rem;
+      border-top: 1px solid #f1f5f9;
+    }
+
+    .ms-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.55rem 0.95rem;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s ease, box-shadow 0.15s ease;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+
+    .ms-btn-primary {
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(99,102,241,0.25);
+    }
+
+    .ms-btn-primary:hover { opacity: 0.88; }
+
+    .ms-btn-outline {
+      background: transparent;
+      color: #6366f1;
+      border: 1.5px solid #c7d2fe;
+    }
+
+    .ms-btn-outline:hover { background: #ede9fe; }
+
+    @media (max-width: 900px) {
+      .ms-card-grid { grid-template-columns: 1fr; }
+    }
+    /* ─── end Mentorship ─── */
+
+    /* ─── IDP Read-only Card (mirrors manager saved style) ─── */
+    .idp-section {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .idp-program-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      margin-bottom: 1.25rem;
+      overflow: hidden;
+    }
+
+    .idp-program-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    .idp-program-card-title-shell {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .idp-program-card-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .idp-program-count {
+      font-size: 0.72rem;
+      font-weight: 800;
+      padding: 0.15rem 0.55rem;
+      border-radius: 999px;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+
+    .idp-program-card-body {
+      padding: 0.75rem 1.25rem;
+    }
+
+    .idp-program-entry {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .idp-program-entry:last-child {
+      margin-bottom: 0;
+    }
+
+    .idp-program-entry-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+      gap: 0.75rem;
+    }
+
+    .idp-program-entry-heading {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .idp-row-number {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #e2e8f0;
+      color: #64748b;
+      font-size: 0.72rem;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .idp-program-entry-label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #334155;
+    }
+
+    .idp-status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.65rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      background: #f1f5f9;
+      color: #475569;
+      white-space: nowrap;
+    }
+
+    .idp-status-badge.idp-status-in-progress {
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+
+    .idp-status-badge.idp-status-completed {
+      background: #f0fdf4;
+      color: #15803d;
+    }
+
+    .idp-status-badge.idp-status-on-hold {
+      background: #fff7ed;
+      color: #c2410c;
+    }
+
+    .idp-readonly-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.6rem;
+      margin-top: 0.5rem;
+    }
+
+    .idp-readonly-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      padding: 0.6rem 0.75rem;
+      background: #fff;
+      border: 1px solid #f1f5f9;
+      border-radius: 7px;
+    }
+
+    .idp-readonly-field span {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .idp-readonly-field strong {
+      font-size: 0.875rem;
+      color: #0f172a;
+      font-weight: 500;
+      line-height: 1.4;
+    }
+
+    .idp-readonly-field-full {
+      grid-column: 1 / -1;
+    }
+
+    /* ─── External Training redesign ─── */
+    .et-section {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      padding: calc(1.6rem * var(--ui-scale));
+      background: #f8faff;
+      border-radius: calc(24px * var(--ui-scale));
+      min-height: 100%;
+      box-sizing: border-box;
+    }
+
+    .et-header { display: flex; flex-direction: column; gap: 0.35rem; }
+    .et-title { margin: 0; font-size: 1.8rem; font-weight: 800; color: #0f172a; }
+    .et-subtitle { margin: 0; color: #64748b; font-size: 0.97rem; max-width: 48rem; line-height: 1.55; }
+
+    .et-stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    .et-stat-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      padding: 1.2rem 1.35rem;
+      background: #fff;
+      border-radius: 16px;
+      border: 1px solid #e8edf5;
+      box-shadow: 0 2px 8px rgba(15,23,42,0.05);
+      transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.22s ease;
+    }
+
+    .et-stat-card:hover {
+      transform: translateY(-6px) scale(1.012);
+      box-shadow: 0 16px 36px rgba(99,102,241,0.16), 0 4px 14px rgba(15,23,42,0.08);
+    }
+
+    .et-stat-icon {
+      width: 2.4rem;
+      height: 2.4rem;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .et-stat-icon-blue  { background: #eff6ff; }
+    .et-stat-icon-amber { background: #fffbeb; }
+    .et-stat-icon-green { background: #f0fdf4; }
+
+    .et-stat-value { font-size: 2rem; font-weight: 800; color: #0f172a; line-height: 1; }
+    .et-stat-label { font-size: 0.88rem; color: #64748b; font-weight: 500; }
+
+    .et-action-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .et-action-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding: 1.4rem 1.5rem 1.25rem;
+      background: #fff;
+      border: 1px solid #e8edf5;
+      border-radius: 20px;
+      box-shadow: 0 4px 16px rgba(15,23,42,0.06);
+      text-align: left;
+      cursor: pointer;
+      font: inherit;
+      transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.22s ease;
+    }
+
+    .et-action-card:hover {
+      transform: translateY(-6px) scale(1.012);
+      box-shadow: 0 16px 36px rgba(99,102,241,0.16), 0 4px 14px rgba(15,23,42,0.08);
+    }
+
+    .et-action-tag {
+      position: absolute;
+      top: 1.1rem;
+      right: 1.1rem;
+      padding: 0.2rem 0.65rem;
+      border-radius: 999px;
+      background: #ede9fe;
+      color: #7c3aed;
+      font-size: 0.76rem;
+      font-weight: 700;
+    }
+
+    .et-action-tag-teal {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .et-action-icon {
+      width: 3rem;
+      height: 3rem;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.28s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.28s ease;
+    }
+
+    .et-action-card:hover .et-action-icon {
+      transform: scale(1.18) rotate(-4deg);
+    }
+
+    .et-action-icon-purple { background: linear-gradient(135deg, #7c3aed, #6366f1); }
+    .et-action-icon-teal   { background: linear-gradient(135deg, #0d9488, #059669); }
+
+    .et-action-title { margin: 0; font-size: 1.15rem; font-weight: 700; color: #0f172a; }
+    .et-action-desc  { margin: 0; font-size: 0.92rem; color: #64748b; line-height: 1.55; flex: 1; }
+
+    .et-action-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 0.25rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #f1f5f9;
+    }
+
+    .et-action-time { display: flex; align-items: center; gap: 0.35rem; color: #94a3b8; font-size: 0.85rem; }
+
+    .et-action-link { color: #6366f1; font-size: 0.9rem; font-weight: 700; }
+    .et-action-link-teal { color: #0d9488; }
+
+    .et-activity {
+      background: #fff;
+      border: 1px solid #e8edf5;
+      border-radius: 20px;
+      padding: 1.35rem 1.5rem;
+      box-shadow: 0 2px 8px rgba(15,23,42,0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .et-activity-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .et-activity-title { margin: 0; font-size: 1.05rem; font-weight: 700; color: #0f172a; }
+
+    .et-activity-view-all {
+      border: none;
+      background: transparent;
+      color: #6366f1;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .et-empty { color: #94a3b8; font-size: 0.9rem; text-align: center; padding: 1rem 0; }
+
+    .et-activity-list { display: flex; flex-direction: column; gap: 0; }
+
+    .et-activity-item {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.85rem 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    .et-activity-item:last-child { border-bottom: none; }
+
+    .et-activity-avatar {
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 10px;
+      background: #ede9fe;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .et-activity-info { flex: 1; min-width: 0; }
+    .et-activity-name { font-size: 0.96rem; font-weight: 600; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .et-activity-meta { font-size: 0.83rem; color: #94a3b8; margin-top: 0.1rem; }
+
+    .et-status-badge {
+      padding: 0.25rem 0.7rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      white-space: nowrap;
+      background: #f1f5f9;
+      color: #64748b;
+    }
+
+    .et-status-approved  { background: #dcfce7; color: #166534; }
+    .et-status-pending   { background: #fef9c3; color: #854d0e; }
+    .et-status-revision  { background: #fce7f3; color: #9d174d; }
+
+    @media (max-width: 960px) {
+      .et-stats-row { grid-template-columns: repeat(3, 1fr); }
+      .et-action-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 600px) {
+      .et-stats-row { grid-template-columns: 1fr 1fr; }
+    }
+    /* ─── end External Training ─── */
 
     .utility-grid {
       display: grid;
@@ -3164,6 +4082,10 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
         grid-template-columns: 1fr;
       }
 
+      .profile-layout.profile-layout-side-panel-collapsed {
+        grid-template-columns: 1fr;
+      }
+
       .side-panel {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -3175,6 +4097,23 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
 
       .side-panel-header {
         grid-column: 1 / -1;
+        justify-content: flex-end;
+      }
+
+      .side-panel-collapsed {
+        padding-inline: calc(1rem * var(--ui-scale));
+      }
+
+      .side-panel-collapsed button {
+        justify-content: flex-start;
+      }
+
+      .side-panel-collapsed .side-panel-label {
+        display: inline;
+      }
+
+      .side-panel-collapsed .side-panel-toggle {
+        width: calc(2.5rem * var(--ui-scale));
       }
 
       .side-panel button.logout {
@@ -3359,13 +4298,39 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
       .mentorship-profile-program-actions .mentorship-list-action {
         width: 100%;
       }
+
+      .idp-program-entry-top {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .idp-readonly-grid {
+        grid-template-columns: 1fr;
+      }
     }
   `],
 })
 export class StudentProfileComponent implements OnInit, OnDestroy {
+  // Manager-entered IDP entries shown in the student view as read-only.
+  readonly managerIdpEntries = computed<StudentIdpEntry[]>(() => {
+    const studentEmail = this.studentData.profile().email.trim().toLocaleLowerCase();
+    if (!studentEmail) {
+      return [];
+    }
+
+    const matchedStudent = this.managerData.students().find(
+      (student) => student.email.trim().toLocaleLowerCase() === studentEmail,
+    );
+    if (!matchedStudent) {
+      return [];
+    }
+
+    return this.managerData.idpEntriesByStudent()[matchedStudent.id] ?? [];
+  });
   readonly studentData = inject(StudentDataService);
   readonly managerData = inject(TrainingManagerDataService);
   readonly branding = inject(LmsBrandingService);
+  private readonly backend = inject(LmsBackendService);
   readonly studentTheme = computed<LmsBrandThemeOption>(
     () => this.branding.themeOptions.find((theme) => theme.id === this.studentData.settings().themePreference) ?? this.branding.currentTheme(),
   );
@@ -3379,11 +4344,16 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
   readonly profileMenuOpen = computed(() => this._profileMenuOpen());
   private readonly _topbarDropdown = signal<'notifications' | 'messages' | null>(null);
   readonly topbarDropdown = computed(() => this._topbarDropdown());
-  readonly recentNotifications = computed(() => this.studentData.notifications().slice(0, 3));
-  readonly recentMessages = computed(() => this.studentData.messages().slice(0, 3));
+  readonly recentNotifications = computed(() => this.studentData.notifications().filter((n) => !n.dismissed).slice(0, 4));
+  readonly recentMessages = computed(() => this.studentData.messages().filter((m) => m.unread).slice(0, 3));
   readonly profileInitials = computed(() => {
     const parts = this.studentData.profile().name.trim().split(/\s+/).filter(Boolean);
     return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('') || 'S';
+  });
+  /** Firebase Storage URL takes priority over legacy base64 data URL. */
+  readonly profileImageSrc = computed(() => {
+    const profile = this.studentData.profile();
+    return profile.profileImageUrl || profile.profileImageDataUrl || null;
   });
   readonly studentFirstName = computed(() => this.studentData.profile().name.trim().split(/\s+/)[0] || 'Student');
   private readonly _mentorshipProfileSaved = signal(false);
@@ -3395,6 +4365,32 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
   readonly savedMentorshipProfile = computed(() => this.studentData.mentorshipProfile());
   readonly savedMentorshipObjectives = computed(() => this.studentData.mentorshipObjectives());
   readonly savedMentorshipProgressReport = computed(() => this.studentData.mentorshipProgressReport());
+
+  readonly mentorshipProfileCompletionPct = computed(() => {
+    const p = this.savedMentorshipProfile();
+    const fields = [p.menteeName, p.menteeSurname, p.menteeJobTitle, p.menteeQualification, p.menteeExperience, p.mentorName, p.mentorSurname, p.mentorJobTitle, p.mentorQualification, p.mentorExperience];
+    const filled = fields.filter(Boolean).length;
+    return Math.round((filled / fields.length) * 100);
+  });
+  readonly mentorshipGoalsDefinedCount = computed(() =>
+    this.savedMentorshipObjectives().mentorshipGoals.filter((g) => g.title?.trim()).length,
+  );
+  readonly mentorshipRelObjectivesDefinedCount = computed(() =>
+    this.savedMentorshipObjectives().objectives.filter((o) => o.title?.trim()).length,
+  );
+  readonly mentorshipObjectivesDefinedCount = computed(() =>
+    this.mentorshipGoalsDefinedCount() + this.mentorshipRelObjectivesDefinedCount(),
+  );
+  readonly mentorshipObjectivesTotalCount = computed(() =>
+    this.savedMentorshipObjectives().mentorshipGoals.length + this.savedMentorshipObjectives().objectives.length,
+  );
+  readonly mentorshipFormCompletionPct = computed(() => {
+    const r = this.savedMentorshipProgressReport();
+    const fields = [r.dateOfMeeting, r.mentorComments, ...r.objectivesAchieved.map((e) => e.objectiveAchieved)];
+    const filled = fields.filter(Boolean).length;
+    const total = Math.max(fields.length, 3);
+    return Math.round((filled / total) * 100);
+  });
   private readonly _activeMentorshipSection = signal<'profile' | 'objectives' | 'form'>('profile');
   private readonly _mentorshipSectionEditMode = signal(false);
   private readonly _mentorshipDialogOpen = signal(false);
@@ -3421,8 +4417,10 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
   private readonly _editingExternalTrainingRequestId = signal<string | null>(null);
   readonly externalTrainingInvoiceFileName = signal('');
   readonly externalTrainingInvoiceDataUrl = signal('');
+  readonly externalTrainingInvoiceUploading = signal(false);
   readonly externalTrainingBrochureFileName = signal('');
   readonly externalTrainingBrochureDataUrl = signal('');
+  readonly externalTrainingBrochureUploading = signal(false);
   readonly externalTrainingRequestDialogTitle = computed(() =>
     this._editingExternalTrainingRequestId() ? 'Edit Training Request' : 'Request Training',
   );
@@ -3438,6 +4436,27 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
   readonly learnerExternalTrainingRequests = computed(() =>
     this.managerData.externalTrainingRequests().filter((request) => request.studentEmail === this.studentData.profile().email),
   );
+  readonly etPendingCount = computed(() => this.learnerExternalTrainingRequests().filter((r) => r.status === 'Pending Review').length);
+  readonly etApprovedCount = computed(() => this.learnerExternalTrainingRequests().filter((r) => r.status === 'Approved').length);
+  readonly etRecentRequests = computed(() =>
+    [...this.learnerExternalTrainingRequests()]
+      .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+      .slice(0, 5),
+  );
+
+  etRelativeTime(dateStr: string): string {
+    if (!dateStr) return 'recently';
+    const diffMs = Date.now() - new Date(dateStr).getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return `${diffMin} minute${diffMin !== 1 ? 's' : ''} ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr} hour${diffHr !== 1 ? 's' : ''} ago`;
+    const diffDay = Math.floor(diffHr / 24);
+    if (diffDay < 30) return `${diffDay} day${diffDay !== 1 ? 's' : ''} ago`;
+    const diffMonth = Math.floor(diffDay / 30);
+    return `${diffMonth} month${diffMonth !== 1 ? 's' : ''} ago`;
+  }
   readonly selectedLearnerExternalTrainingRequestId = signal<string | null>(null);
   readonly selectedLearnerExternalTrainingRequest = computed(() => {
     const selectedId = this.selectedLearnerExternalTrainingRequestId();
@@ -3450,25 +4469,25 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
   });
   readonly mentorshipSectionEditMode = computed(() => this._mentorshipSectionEditMode());
   readonly mentorshipProfileForm = new FormGroup({
-    menteeName: new FormControl(this.studentData.mentorshipProfile().menteeName, { nonNullable: true, validators: [Validators.required] }),
-    menteeSurname: new FormControl(this.studentData.mentorshipProfile().menteeSurname, { nonNullable: true, validators: [Validators.required] }),
-    menteeJobTitle: new FormControl(this.studentData.mentorshipProfile().menteeJobTitle, { nonNullable: true, validators: [Validators.required] }),
-    menteeQualification: new FormControl(this.studentData.mentorshipProfile().menteeQualification, { nonNullable: true, validators: [Validators.required] }),
-    menteeExperience: new FormControl(this.studentData.mentorshipProfile().menteeExperience, { nonNullable: true, validators: [Validators.required] }),
-    mentorName: new FormControl(this.studentData.mentorshipProfile().mentorName, { nonNullable: true, validators: [Validators.required] }),
-    mentorSurname: new FormControl(this.studentData.mentorshipProfile().mentorSurname, { nonNullable: true, validators: [Validators.required] }),
-    mentorJobTitle: new FormControl(this.studentData.mentorshipProfile().mentorJobTitle, { nonNullable: true, validators: [Validators.required] }),
-    mentorQualification: new FormControl(this.studentData.mentorshipProfile().mentorQualification, { nonNullable: true, validators: [Validators.required] }),
-    mentorExperience: new FormControl(this.studentData.mentorshipProfile().mentorExperience, { nonNullable: true, validators: [Validators.required] }),
+    menteeName: new FormControl(this.studentData.mentorshipProfile().menteeName, { nonNullable: true }),
+    menteeSurname: new FormControl(this.studentData.mentorshipProfile().menteeSurname, { nonNullable: true }),
+    menteeJobTitle: new FormControl(this.studentData.mentorshipProfile().menteeJobTitle, { nonNullable: true }),
+    menteeQualification: new FormControl(this.studentData.mentorshipProfile().menteeQualification, { nonNullable: true }),
+    menteeExperience: new FormControl(this.studentData.mentorshipProfile().menteeExperience, { nonNullable: true }),
+    mentorName: new FormControl(this.studentData.mentorshipProfile().mentorName, { nonNullable: true }),
+    mentorSurname: new FormControl(this.studentData.mentorshipProfile().mentorSurname, { nonNullable: true }),
+    mentorJobTitle: new FormControl(this.studentData.mentorshipProfile().mentorJobTitle, { nonNullable: true }),
+    mentorQualification: new FormControl(this.studentData.mentorshipProfile().mentorQualification, { nonNullable: true }),
+    mentorExperience: new FormControl(this.studentData.mentorshipProfile().mentorExperience, { nonNullable: true }),
   });
   readonly mentorshipObjectivesForm = new FormGroup({
     mentorshipGoals: this.createObjectivesArray(this.studentData.mentorshipObjectives().mentorshipGoals),
     objectives: this.createObjectivesArray(this.studentData.mentorshipObjectives().objectives),
   });
   readonly mentorshipProgressReportForm = new FormGroup({
-    dateOfMeeting: new FormControl(this.studentData.mentorshipProgressReport().dateOfMeeting, { nonNullable: true, validators: [Validators.required] }),
+    dateOfMeeting: new FormControl(this.studentData.mentorshipProgressReport().dateOfMeeting, { nonNullable: true }),
     objectivesAchieved: this.createProgressEntryArray(this.studentData.mentorshipProgressReport().objectivesAchieved),
-    mentorComments: new FormControl(this.studentData.mentorshipProgressReport().mentorComments, { nonNullable: true, validators: [Validators.required] }),
+    mentorComments: new FormControl(this.studentData.mentorshipProgressReport().mentorComments, { nonNullable: true }),
   });
   readonly externalTrainingRequestForm = new FormGroup({
     courseName: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -3485,8 +4504,11 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     approvingManagerId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
   });
 
-  private readonly _selectedPanel = signal<'dashboard' | 'courses' | 'mentorship' | 'calendar' | 'badges' | 'messages' | 'external-training' | 'profile' | 'support'>('dashboard');
+  private readonly _selectedPanel = signal<'dashboard' | 'courses' | 'mentorship' | 'calendar' | 'badges' | 'messages' | 'external-training' | 'idp' | 'profile'>('dashboard');
   readonly selectedPanel = computed(() => this._selectedPanel());
+  readonly sidePanelCollapsed = signal(false);
+  readonly availableSwitchRoles = signal<LoginRole[]>([]);
+  readonly switchingRole = signal(false);
   private welcomeBannerExitTimer: ReturnType<typeof setTimeout> | null = null;
   private welcomeBannerHideTimer: ReturnType<typeof setTimeout> | null = null;
   private externalTrainingSuccessPopupExitTimer: ReturnType<typeof setTimeout> | null = null;
@@ -3508,6 +4530,39 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     this.studentData.refreshForCurrentSession();
     this.onAdditionalCostRequiredChange();
     this.startWelcomeBannerSequence();
+    this.loadSwitchableRoles();
+  }
+
+  private loadSwitchableRoles() {
+    this.backend.getSwitchableRoles().subscribe({
+      next: (response) => this.availableSwitchRoles.set(response.roles),
+      error: () => this.availableSwitchRoles.set([]),
+    });
+  }
+
+  switchToRole(targetRole: LoginRole) {
+    if (this.switchingRole()) {
+      return;
+    }
+
+    this.switchingRole.set(true);
+    this.closeProfileMenu();
+    this.backend.switchRole(targetRole).subscribe({
+      next: (result) => {
+        localStorage.setItem('lms-session', JSON.stringify(createLmsSessionRecord({
+          role: result.role,
+          username: result.username,
+          email: result.email,
+          studentId: result.studentId ?? null,
+          displayName: combineDisplayName(result.name, result.surname),
+        })));
+        localStorage.setItem('lms-token', result.token);
+        void this.router.navigate([result.route]);
+      },
+      error: () => {
+        this.switchingRole.set(false);
+      },
+    });
   }
 
   ngOnDestroy() {
@@ -3569,7 +4624,11 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     }
   }
 
-  selectPanel(panel: 'dashboard' | 'courses' | 'mentorship' | 'calendar' | 'badges' | 'messages' | 'external-training' | 'profile' | 'support') {
+  navigateToPanelFromDashboard(panel: string) {
+    this.selectPanel(panel as Parameters<typeof this.selectPanel>[0]);
+  }
+
+  selectPanel(panel: 'dashboard' | 'courses' | 'mentorship' | 'calendar' | 'badges' | 'messages' | 'external-training' | 'idp' | 'profile') {
     this._selectedPanel.set(panel);
     if (panel !== 'messages') {
       this._messagesInitialSection.set(null);
@@ -3585,6 +4644,10 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     this.closeProfileMenu();
   }
 
+  toggleSidePanel() {
+    this.sidePanelCollapsed.update((collapsed) => !collapsed);
+  }
+
   toggleProfileMenu() {
     this.closeTopbarDropdown();
     this._profileMenuOpen.update((open) => !open);
@@ -3594,7 +4657,7 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     this._profileMenuOpen.set(false);
   }
 
-  openProfileMenuItem(item: 'profile' | 'dashboard' | 'support') {
+  openProfileMenuItem(item: 'profile' | 'dashboard') {
     this.selectPanel(item);
   }
 
@@ -3606,10 +4669,6 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     if (nextOpen === 'notifications') {
       this.studentData.markNotificationsRead();
     }
-
-    if (nextOpen === 'messages') {
-      this.studentData.markMessagesRead();
-    }
   }
 
   closeTopbarDropdown() {
@@ -3620,6 +4679,14 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     this.closeTopbarDropdown();
     this.selectPanel('dashboard');
     this.studentData.markNotificationsRead();
+  }
+
+  handleNotificationClick(notification: { id: string }) {
+    this.studentData.dismissNotification(notification.id);
+    this.closeTopbarDropdown();
+    if (notification.id.startsWith('course-')) {
+      this.selectPanel('courses');
+    }
   }
 
   openMessagesPanel() {
@@ -3714,18 +4781,72 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     }
   }
 
-  async onExternalTrainingInvoiceSelected(event: Event) {
+  // Uploaded to storage (via the same chunked relay used for course content) rather than
+  // embedded as a base64 data URL directly in the request record: Firestore rejects any single
+  // field over ~1 MB, and a base64-encoded scanned invoice/brochure crosses that easily — which
+  // used to fail the whole submission with an opaque 500 and no attachment ever saved.
+  onExternalTrainingInvoiceSelected(event: Event) {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0] ?? null;
-    this.externalTrainingInvoiceFileName.set(file?.name ?? '');
-    this.externalTrainingInvoiceDataUrl.set(file ? await this.readFileAsDataUrl(file) : '');
+    if (input) {
+      input.value = '';
+    }
+
+    if (!file) {
+      this.externalTrainingInvoiceFileName.set('');
+      this.externalTrainingInvoiceDataUrl.set('');
+      return;
+    }
+
+    this.externalTrainingInvoiceUploading.set(true);
+    this.backend.uploadFileChunked(file, 'external-training-attachments').subscribe({
+      next: (uploadEvent) => {
+        if (uploadEvent.type !== 'complete') {
+          return;
+        }
+        this.externalTrainingInvoiceUploading.set(false);
+        this.externalTrainingInvoiceFileName.set(file.name);
+        this.externalTrainingInvoiceDataUrl.set(uploadEvent.url);
+      },
+      error: () => {
+        this.externalTrainingInvoiceUploading.set(false);
+        this.externalTrainingInvoiceFileName.set('');
+        this.externalTrainingInvoiceDataUrl.set('');
+        alert(`Failed to upload "${file.name}". Please check your connection and try again.`);
+      },
+    });
   }
 
-  async onExternalTrainingBrochureSelected(event: Event) {
+  onExternalTrainingBrochureSelected(event: Event) {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0] ?? null;
-    this.externalTrainingBrochureFileName.set(file?.name ?? '');
-    this.externalTrainingBrochureDataUrl.set(file ? await this.readFileAsDataUrl(file) : '');
+    if (input) {
+      input.value = '';
+    }
+
+    if (!file) {
+      this.externalTrainingBrochureFileName.set('');
+      this.externalTrainingBrochureDataUrl.set('');
+      return;
+    }
+
+    this.externalTrainingBrochureUploading.set(true);
+    this.backend.uploadFileChunked(file, 'external-training-attachments').subscribe({
+      next: (uploadEvent) => {
+        if (uploadEvent.type !== 'complete') {
+          return;
+        }
+        this.externalTrainingBrochureUploading.set(false);
+        this.externalTrainingBrochureFileName.set(file.name);
+        this.externalTrainingBrochureDataUrl.set(uploadEvent.url);
+      },
+      error: () => {
+        this.externalTrainingBrochureUploading.set(false);
+        this.externalTrainingBrochureFileName.set('');
+        this.externalTrainingBrochureDataUrl.set('');
+        alert(`Failed to upload "${file.name}". Please check your connection and try again.`);
+      },
+    });
   }
 
   submitExternalTrainingRequest() {
@@ -3736,6 +4857,7 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
 
     const formValue = this.externalTrainingRequestForm.getRawValue();
     const requestPayload = {
+      studentId: this.currentStudentRecord()?.id ?? '',
       studentName: this.studentData.profile().name,
       studentEmail: this.studentData.profile().email,
       courseName: formValue.courseName,
@@ -3776,6 +4898,13 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
 
   openExternalTrainingSupportingDocument(dataUrl: string) {
     if (!dataUrl) {
+      return;
+    }
+
+    // New attachments are real Storage URLs — just open them directly. Only requests submitted
+    // before the invoice/brochure upload moved off inline base64 still carry a literal data: URL.
+    if (!dataUrl.startsWith('data:')) {
+      globalThis.open?.(dataUrl, '_blank', 'noopener,noreferrer');
       return;
     }
 
@@ -3830,8 +4959,10 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     this.onAdditionalCostRequiredChange();
     this.externalTrainingInvoiceFileName.set(request.invoiceFileName);
     this.externalTrainingInvoiceDataUrl.set(request.invoiceDataUrl);
+    this.externalTrainingInvoiceUploading.set(false);
     this.externalTrainingBrochureFileName.set(request.brochureFileName);
     this.externalTrainingBrochureDataUrl.set(request.brochureDataUrl);
+    this.externalTrainingBrochureUploading.set(false);
   }
 
   private resetExternalTrainingRequestDraft() {
@@ -3854,17 +4985,10 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     this.onAdditionalCostRequiredChange();
     this.externalTrainingInvoiceFileName.set('');
     this.externalTrainingInvoiceDataUrl.set('');
+    this.externalTrainingInvoiceUploading.set(false);
     this.externalTrainingBrochureFileName.set('');
     this.externalTrainingBrochureDataUrl.set('');
-  }
-
-  private readFileAsDataUrl(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    });
+    this.externalTrainingBrochureUploading.set(false);
   }
 
   openMentorshipSectionEdit() {
@@ -3925,34 +5049,39 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     this.mentorshipProgressReportForm.controls.objectivesAchieved.removeAt(index);
   }
 
-  saveMentorshipProfile() {
-    if (this.mentorshipProfileForm.invalid) {
-      this.mentorshipProfileForm.markAllAsTouched();
+  async saveMentorshipProfile() {
+    const profile = this.mentorshipProfileForm.getRawValue() as StudentMentorshipProfile;
+
+    const saved = await this.studentData.updateMentorshipProfile(profile);
+    if (!saved) {
+      alert('Your mentorship profile could not be saved. Please check your connection and try again.');
       return;
     }
 
-    const profile = this.mentorshipProfileForm.getRawValue() as StudentMentorshipProfile;
-
-    this.studentData.updateMentorshipProfile(profile);
     this.submitMentorshipFormSubmission({
       formId: 'profile',
       formTitle: 'Mentorship Profile Form',
       mentorName: [profile.mentorName, profile.mentorSurname].filter(Boolean).join(' '),
       actionPlan: this.buildMentorshipProfileSubmissionSummary(profile),
+      profileData: {
+        jobTitle: profile.menteeJobTitle,
+        mentorName: profile.mentorName,
+        mentorSurname: profile.mentorSurname,
+      },
     });
     this._mentorshipProfileSaved.set(true);
     this._mentorshipSectionEditMode.set(false);
   }
 
-  saveMentorshipObjectives() {
-    if (this.mentorshipObjectivesForm.invalid) {
-      this.mentorshipObjectivesForm.markAllAsTouched();
+  async saveMentorshipObjectives() {
+    const objectives = this.mentorshipObjectivesForm.getRawValue() as StudentMentorshipObjectives;
+
+    const saved = await this.studentData.updateMentorshipObjectives(objectives);
+    if (!saved) {
+      alert('Your mentorship goals and objectives could not be saved. Please check your connection and try again.');
       return;
     }
 
-    const objectives = this.mentorshipObjectivesForm.getRawValue() as StudentMentorshipObjectives;
-
-    this.studentData.updateMentorshipObjectives(objectives);
     this.submitMentorshipFormSubmission({
       formId: 'objectives',
       formTitle: 'Mentorship Objectives Form',
@@ -3962,15 +5091,15 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     this._mentorshipSectionEditMode.set(false);
   }
 
-  saveMentorshipProgressReport() {
-    if (this.mentorshipProgressReportForm.invalid) {
-      this.mentorshipProgressReportForm.markAllAsTouched();
+  async saveMentorshipProgressReport() {
+    const report = this.mentorshipProgressReportForm.getRawValue() as StudentMentorshipProgressReport;
+
+    const saved = await this.studentData.updateMentorshipProgressReport(report);
+    if (!saved) {
+      alert('Your mentorship progress report could not be saved. Please check your connection and try again.');
       return;
     }
 
-    const report = this.mentorshipProgressReportForm.getRawValue() as StudentMentorshipProgressReport;
-
-    this.studentData.updateMentorshipProgressReport(report);
     this.submitMentorshipFormSubmission({
       formId: 'progress-report',
       formTitle: 'Mentorship Progress Report',
@@ -3991,6 +5120,7 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     actionPlan: string;
     mentorName?: string;
     sessionDate?: string;
+    profileData?: { jobTitle: string; mentorName: string; mentorSurname: string };
   }) {
     const currentStudent = this.currentStudentRecord();
     const studentId = currentStudent?.id ?? '';
@@ -4011,6 +5141,7 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
       formTitle: input.formTitle,
       actionPlan: input.actionPlan,
       sessionDate: input.sessionDate,
+      profileData: input.profileData,
     });
   }
 
@@ -4195,7 +5326,17 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
   private syncMentorshipSectionForm(section: 'profile' | 'objectives' | 'form') {
     switch (section) {
       case 'profile': {
-        this.mentorshipProfileForm.reset(this.savedMentorshipProfile());
+        const profile = this.savedMentorshipProfile();
+        const assignment = this.currentStudentMentorshipAssignment();
+        const ownProfile = this.studentData.profile();
+        this.mentorshipProfileForm.reset({
+          ...profile,
+          menteeName: profile.menteeName || assignment?.menteeName || '',
+          menteeSurname: profile.menteeSurname || assignment?.menteeSurname || '',
+          menteeJobTitle: profile.menteeJobTitle || assignment?.jobTitle || ownProfile.jobTitle || '',
+          mentorName: profile.mentorName || assignment?.mentorName || '',
+          mentorSurname: profile.mentorSurname || assignment?.mentorSurname || '',
+        });
         return;
       }
       case 'objectives': {
@@ -4238,7 +5379,7 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
 
   private createObjectiveGroup(entry?: StudentMentorshipObjectiveEntry) {
     return new FormGroup({
-      title: new FormControl(entry?.title ?? '', { nonNullable: true, validators: [Validators.required] }),
+      title: new FormControl(entry?.title ?? '', { nonNullable: true }),
       date: new FormControl(entry?.date ?? '', { nonNullable: true }),
       achievementDate: new FormControl(entry?.achievementDate ?? '', { nonNullable: true }),
     });
@@ -4246,15 +5387,14 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
 
   private createProgressEntryGroup(entry?: StudentMentorshipProgressEntry) {
     return new FormGroup({
-      objectiveAchieved: new FormControl(entry?.objectiveAchieved ?? '', { nonNullable: true, validators: [Validators.required] }),
-      dateAchieved: new FormControl(entry?.dateAchieved ?? '', { nonNullable: true, validators: [Validators.required] }),
+      objectiveAchieved: new FormControl(entry?.objectiveAchieved ?? '', { nonNullable: true }),
+      dateAchieved: new FormControl(entry?.dateAchieved ?? '', { nonNullable: true }),
     });
   }
 
   logout() {
     if (window.confirm('Are you sure you want to log out?')) {
-      localStorage.removeItem('lms-token');
-      localStorage.removeItem('lms-session');
+      clearLmsAuthSession();
       this.router.navigate(['/']);
     }
   }
