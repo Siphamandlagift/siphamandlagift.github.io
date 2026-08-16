@@ -3497,7 +3497,7 @@ export class StudentCoursesComponent {
     };
   }
 
-  submitAssessment() {
+  async submitAssessment() {
     if (!this.canSubmitAssessment() || this.isAssessmentSubmitted()) {
       return;
     }
@@ -3559,7 +3559,7 @@ export class StudentCoursesComponent {
       const textResponse = this.selectedAssessmentResponse().trim();
       const documentSubmission = this.selectedAssignmentDocumentSubmission();
 
-      const submissionResult = this.managerData.submitAssignmentSubmission({
+      const submissionResult = await this.managerData.submitAssignmentSubmission({
         studentId: student.id,
         offeringId: offering.id,
         assessmentStepId,
@@ -4417,7 +4417,7 @@ export class StudentCoursesComponent {
         student
         && course
         && offering
-        && questionIds.every((questionId) => this.managerData.mentorshipSubmissionForStudentOffering(student.id, offering.id, questionId, false)),
+        && questionIds.every((questionId) => this.managerData.mentorshipSubmissionForStudentOffering(student.id, offering.id, questionId, false)?.status === 'Approved'),
       );
     }
 
@@ -4426,7 +4426,7 @@ export class StudentCoursesComponent {
         student
         && course
         && offering
-        && questionIds.every((questionId) => this.managerData.assignmentSubmissionForStudentOffering(student.id, offering.id, questionId, false)),
+        && questionIds.every((questionId) => this.managerData.assignmentSubmissionForStudentOffering(student.id, offering.id, questionId, false)?.status === 'Approved'),
       );
     }
 

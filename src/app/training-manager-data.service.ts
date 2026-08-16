@@ -135,6 +135,8 @@ export type EnrollmentStudent = {
   race?: string;
   gender?: string;
   municipality?: string;
+  dateOfBirth?: string;
+  nqfLevel?: string;
 };
 
 export type EnrollmentStudentInput = Omit<EnrollmentStudent, 'id' | 'status' | 'assignedOfferingIds' | 'jobTitle' | 'idNumber' | 'lineManager'> & {
@@ -343,116 +345,7 @@ export class TrainingManagerDataService {
 
   private readonly managerMessagesSignal = signal<ManagerMessage[]>([]);
 
-  private readonly studentsSignal = signal<EnrollmentStudent[]>([
-    {
-      id: 'student-1',
-      name: 'Alice',
-      surname: 'Johnson',
-      group: 'Group A',
-      dateEnrolled: '2026-03-04',
-      deadlineDate: '2026-04-24',
-      email: 'alice.johnson@skillsconnect.app',
-      jobTitle: 'Operations Coordinator',
-      idNumber: '9201140082081',
-      activeStatus: 'Active',
-      department: 'Operations',
-      lineManager: 'Nandi Khumalo',
-      status: 'In Progress',
-      assignedOfferingIds: [],
-      role: 'student',
-      isAdmin: false,
-    },
-    {
-      id: 'student-2',
-      name: 'Brian',
-      surname: 'Molefe',
-      group: 'Group B',
-      dateEnrolled: '2026-02-18',
-      deadlineDate: '2026-04-20',
-      email: 'brian.molefe@skillsconnect.app',
-      jobTitle: 'Customer Success Specialist',
-      idNumber: '9007285476086',
-      activeStatus: 'Active',
-      department: 'Customer Success',
-      lineManager: 'Thato Ncube',
-      status: 'Completed',
-      assignedOfferingIds: [],
-      role: 'student',
-      isAdmin: false,
-    },
-    {
-      id: 'student-3',
-      name: 'Chloe',
-      surname: 'Peters',
-      group: 'Group A',
-      dateEnrolled: '2026-03-27',
-      deadlineDate: '2026-05-02',
-      email: 'chloe.peters@skillsconnect.app',
-      jobTitle: 'Finance Administrator',
-      idNumber: '9403051186080',
-      activeStatus: 'Inactive',
-      department: 'Finance',
-      lineManager: 'Michael Petersen',
-      status: 'Not Yet Started',
-      assignedOfferingIds: [],
-      role: 'student',
-      isAdmin: false,
-    },
-    {
-      id: 'student-4',
-      name: 'Daniel',
-      surname: 'Naidoo',
-      group: 'Group C',
-      dateEnrolled: '2026-01-30',
-      deadlineDate: '2026-05-02',
-      email: 'daniel.naidoo@skillsconnect.app',
-      jobTitle: 'People Operations Partner',
-      idNumber: '8806125031089',
-      activeStatus: 'Active',
-      department: 'People Operations',
-      lineManager: 'Lerato Singh',
-      status: 'Completed',
-      assignedOfferingIds: [],
-      role: 'student',
-      isAdmin: false,
-    },
-    {
-      id: 'student-5',
-      name: 'Ella',
-      surname: 'Dlamini',
-      group: 'Group B',
-      dateEnrolled: '2026-03-21',
-      deadlineDate: '2026-04-20',
-      email: 'ella.dlamini@skillsconnect.app',
-      jobTitle: 'Sales Consultant',
-      idNumber: '9509190248084',
-      activeStatus: 'Active',
-      department: 'Sales',
-      lineManager: 'Kabelo Maduna',
-      status: 'Not Yet Started',
-      assignedOfferingIds: [],
-      role: 'student',
-      isAdmin: false,
-    },
-    {
-      id: 'student-6',
-      name: 'Farai',
-      surname: 'Khosa',
-      group: 'Group C',
-      dateEnrolled: '2026-02-06',
-      deadlineDate: '2026-04-24',
-      email: 'farai.khosa@skillsconnect.app',
-      jobTitle: 'Systems Support Analyst',
-      idNumber: '9102216354082',
-      activeStatus: 'Active',
-      department: 'IT',
-      lineManager: 'Ayanda Maseko',
-      status: 'Completed',
-      assignedOfferingIds: [],
-      role: 'student',
-      isAdmin: false,
-    },
-  ]);
+  private readonly studentsSignal = signal<EnrollmentStudent[]>([]);
 
   private readonly mentorshipAssignmentsSignal = signal<MentorshipAssignmentRecord[]>([]);
   private readonly mentorshipSubmissionsSignal = signal<MentorshipSubmissionRecord[]>([]);
@@ -1090,6 +983,8 @@ export class TrainingManagerDataService {
               race: input.race === undefined ? student.race : input.race.trim(),
               gender: input.gender === undefined ? student.gender : input.gender.trim(),
               municipality: input.municipality === undefined ? student.municipality : input.municipality.trim(),
+              dateOfBirth: input.dateOfBirth === undefined ? student.dateOfBirth : input.dateOfBirth.trim(),
+              nqfLevel: input.nqfLevel === undefined ? student.nqfLevel : input.nqfLevel.trim(),
               role: input.role,
               isAdmin: input.isAdmin,
             }
@@ -1837,7 +1732,7 @@ export class TrainingManagerDataService {
     }
   }
 
-  submitAssignmentSubmission(input: {
+  async submitAssignmentSubmission(input: {
     studentId: string;
     offeringId: string;
     assessmentStepId?: string;
@@ -1846,7 +1741,7 @@ export class TrainingManagerDataService {
     responseText?: string;
     documentFileName?: string;
     documentDataUrl?: string;
-  }): LearnerSubmissionResult {
+  }): Promise<LearnerSubmissionResult> {
     const student = this.students().find((item) => item.id === input.studentId);
     const offering = this.offerings().find((item) => item.id === input.offeringId);
     const assignmentStep = this.findAssessmentStep(offering, 'Assignment', input.assessmentStepId);
@@ -1913,44 +1808,49 @@ export class TrainingManagerDataService {
       };
     }
 
-    this.assignmentSubmissionsSignal.update((submissions) => {
-      const recordIdSuffix = assessmentStepId.replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '') || 'default';
+    const recordIdSuffix = assessmentStepId.replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '') || 'default';
 
-      const nextSubmission: AssignmentSubmissionRecord = {
-        id: existingSubmission?.id ?? `assignment-${student.id}-${offering.id}-${recordIdSuffix}`,
-        studentId: student.id,
-        studentName: `${student.name} ${student.surname}`,
-        studentEmail: student.email,
-        courseId: offering.id,
-        offeringId: offering.id,
-        offeringTitle: offering.title,
-        assessmentId: assignmentStep.stepId,
-        assessmentStepId: assessmentStepId || undefined,
-        assessmentTitle,
-        questionType: input.questionType,
-        responseText: input.questionType === 'Short Answer' || input.questionType === 'Long Answer' ? responseText : '',
-        documentFileName: input.questionType === 'Document Upload' ? documentFileName : '',
-        documentDataUrl: input.questionType === 'Document Upload' ? documentDataUrl : '',
-        possiblePoints: assignmentQuestion.points,
-        attemptsUsed: nextAttemptsUsed,
-        awardedPoints: null,
-        submittedAt,
-        status: 'Pending Review',
-        reviewerName: null,
-        reviewerFeedback: '',
-        reviewedAt: null,
-      };
+    const nextSubmission: AssignmentSubmissionRecord = {
+      id: existingSubmission?.id ?? `assignment-${student.id}-${offering.id}-${recordIdSuffix}`,
+      studentId: student.id,
+      studentName: `${student.name} ${student.surname}`,
+      studentEmail: student.email,
+      courseId: offering.id,
+      offeringId: offering.id,
+      offeringTitle: offering.title,
+      assessmentId: assignmentStep.stepId,
+      assessmentStepId: assessmentStepId || undefined,
+      assessmentTitle,
+      questionType: input.questionType,
+      responseText: input.questionType === 'Short Answer' || input.questionType === 'Long Answer' ? responseText : '',
+      documentFileName: input.questionType === 'Document Upload' ? documentFileName : '',
+      documentDataUrl: input.questionType === 'Document Upload' ? documentDataUrl : '',
+      possiblePoints: assignmentQuestion.points,
+      attemptsUsed: nextAttemptsUsed,
+      awardedPoints: null,
+      submittedAt,
+      status: 'Pending Review',
+      reviewerName: null,
+      reviewerFeedback: '',
+      reviewedAt: null,
+    };
 
-      const nextSubmissions = !existingSubmission
-        ? [nextSubmission, ...submissions]
-        : submissions.map((submission) =>
-        submission.id === existingSubmission.id ? nextSubmission : submission,
-      );
+    const previousSubmissions = this.assignmentSubmissionsSignal();
+    const nextSubmissions = !existingSubmission
+      ? [nextSubmission, ...previousSubmissions]
+      : previousSubmissions.map((submission) =>
+      submission.id === existingSubmission.id ? nextSubmission : submission,
+    );
 
-      this.saveAssignmentSubmissions(nextSubmissions);
-      this.persistAssignmentSubmission(nextSubmission);
-      return nextSubmissions;
-    });
+    this.assignmentSubmissionsSignal.set(nextSubmissions);
+    this.saveAssignmentSubmissions(nextSubmissions);
+
+    const saved = await this.persistAssignmentSubmission(nextSubmission);
+    if (!saved) {
+      this.assignmentSubmissionsSignal.set(previousSubmissions);
+      this.saveAssignmentSubmissions(previousSubmissions);
+      return { ok: false, message: 'Your assignment could not be submitted. Please check your connection and try again.' };
+    }
 
     return { ok: true };
   }
@@ -1992,65 +1892,69 @@ export class TrainingManagerDataService {
     return `${baseId}-question-${questionIndex + 1}`;
   }
 
-  reviewAssignmentSubmission(input: {
+  async reviewAssignmentSubmission(input: {
     submissionId: string;
     reviewerName: string;
     status: AssignmentReviewStatus;
     feedback: string;
     awardedPoints: number | null;
-  }) {
+  }): Promise<LearnerSubmissionResult> {
     const submissionId = input.submissionId.trim();
     const reviewerName = input.reviewerName.trim();
     const feedback = input.feedback.trim();
 
     if (!submissionId || !reviewerName || !feedback) {
-      return;
+      return { ok: false, message: 'Add reviewer feedback before submitting your review.' };
     }
 
-    this.assignmentSubmissionsSignal.update((submissions) => {
-      const activeSubmission = submissions.find((submission) => submission.id === submissionId);
-      if (!activeSubmission) {
-        return submissions;
-      }
+    const previousSubmissions = this.assignmentSubmissionsSignal();
+    const activeSubmission = previousSubmissions.find((submission) => submission.id === submissionId);
+    if (!activeSubmission) {
+      return { ok: false, message: 'This submission could not be found. Refresh and try again.' };
+    }
 
-      const awardedPoints = input.status === 'Approved'
-        ? (typeof input.awardedPoints === 'number' && Number.isFinite(input.awardedPoints)
-          ? Math.max(0, Math.min(activeSubmission.possiblePoints, Math.round(input.awardedPoints)))
-          : null)
-        : null;
+    const awardedPoints = input.status === 'Approved'
+      ? (typeof input.awardedPoints === 'number' && Number.isFinite(input.awardedPoints)
+        ? Math.max(0, Math.min(activeSubmission.possiblePoints, Math.round(input.awardedPoints)))
+        : null)
+      : null;
 
-      if (input.status === 'Approved' && awardedPoints === null) {
-        return submissions;
-      }
+    if (input.status === 'Approved' && awardedPoints === null) {
+      return { ok: false, message: 'Enter the points to award before approving this submission.' };
+    }
 
-      const nextSubmissions = submissions.map((submission) =>
-        submission.id === submissionId
-          ? {
-              ...submission,
-              reviewerName,
-              reviewerFeedback: feedback,
-              awardedPoints,
-              status: input.status,
-              reviewedAt: this.formatDisplayDate(new Date()),
-            }
-          : submission,
-      );
+    const updatedSubmission: AssignmentSubmissionRecord = {
+      ...activeSubmission,
+      reviewerName,
+      reviewerFeedback: feedback,
+      awardedPoints,
+      status: input.status,
+      reviewedAt: this.formatDisplayDate(new Date()),
+    };
 
-      const updatedSubmission = nextSubmissions.find((submission) => submission.id === submissionId);
+    const nextSubmissions = previousSubmissions.map((submission) =>
+      submission.id === submissionId ? updatedSubmission : submission,
+    );
 
-      this.saveAssignmentSubmissions(nextSubmissions);
-      if (updatedSubmission) {
-        this.persistAssignmentSubmission(updatedSubmission);
-      }
-      return nextSubmissions;
-    });
+    this.assignmentSubmissionsSignal.set(nextSubmissions);
+    this.saveAssignmentSubmissions(nextSubmissions);
+
+    const saved = await this.persistAssignmentSubmission(updatedSubmission);
+    if (!saved) {
+      this.assignmentSubmissionsSignal.set(previousSubmissions);
+      this.saveAssignmentSubmissions(previousSubmissions);
+      return { ok: false, message: 'Your review could not be saved. Please check your connection and try again.' };
+    }
+
+    return { ok: true };
   }
 
-  private persistAssignmentSubmission(submission: AssignmentSubmissionRecord) {
-    this.backend.upsertAssignmentSubmission(submission).subscribe({
-      error: () => {
-        // Keep local persistence if the backend is temporarily unavailable.
-      },
+  private persistAssignmentSubmission(submission: AssignmentSubmissionRecord): Promise<boolean> {
+    return new Promise((resolve) => {
+      this.backend.upsertAssignmentSubmission(submission).subscribe({
+        next: () => resolve(true),
+        error: () => resolve(false),
+      });
     });
   }
 
@@ -2559,6 +2463,8 @@ export class TrainingManagerDataService {
       ...(input.race !== undefined ? { race: input.race.trim() } : {}),
       ...(input.gender !== undefined ? { gender: input.gender.trim() } : {}),
       ...(input.municipality !== undefined ? { municipality: input.municipality.trim() } : {}),
+      ...(input.dateOfBirth !== undefined ? { dateOfBirth: input.dateOfBirth.trim() } : {}),
+      ...(input.nqfLevel !== undefined ? { nqfLevel: input.nqfLevel.trim() } : {}),
       role: input.role,
       isAdmin: input.isAdmin,
     };
@@ -3002,7 +2908,7 @@ export class TrainingManagerDataService {
       name: session?.displayName ?? this.deriveDisplayNameFromIdentity(session?.username, session?.email),
       role: 'Training Manager',
       team: 'People Enablement',
-      email: session?.email?.trim() || 'ava.mokoena@skillsconnect.app',
+      email: session?.email?.trim() || '',
       profileImageUrl: null,
     };
   }
@@ -3045,7 +2951,7 @@ export class TrainingManagerDataService {
       .filter(Boolean)
       .map((word) => word[0].toUpperCase() + word.slice(1).toLowerCase());
 
-    return words.join(' ') || 'Ava Mokoena';
+    return words.join(' ') || 'Training Manager';
   }
 
   private formatDisplayDate(date: Date) {

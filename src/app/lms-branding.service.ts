@@ -98,18 +98,38 @@ export class LmsBrandingService {
     });
   }
 
-  selectTheme(themeId: LmsBrandThemeId) {
+  selectTheme(themeId: LmsBrandThemeId): Promise<boolean> {
+    const previousThemeId = this.selectedThemeIdSignal();
     this.selectedThemeIdSignal.set(themeId);
-    this.persistBranding();
+
+    return this.persistBranding().then((saved) => {
+      if (!saved) {
+        // Roll back so the UI doesn't keep showing a theme that was never actually saved —
+        // otherwise a reload (or another admin's session) would silently revert it anyway.
+        this.selectedThemeIdSignal.set(previousThemeId);
+        this.saveToLocalStorage({ themeId: previousThemeId, companyLogoDataUrl: this.companyLogoDataUrlSignal() });
+      }
+
+      return saved;
+    });
   }
 
-  setCompanyLogo(logoDataUrl: string | null) {
+  setCompanyLogo(logoDataUrl: string | null): Promise<boolean> {
+    const previousLogoDataUrl = this.companyLogoDataUrlSignal();
     this.companyLogoDataUrlSignal.set(logoDataUrl);
-    this.persistBranding();
+
+    return this.persistBranding().then((saved) => {
+      if (!saved) {
+        this.companyLogoDataUrlSignal.set(previousLogoDataUrl);
+        this.saveToLocalStorage({ themeId: this.selectedThemeIdSignal(), companyLogoDataUrl: previousLogoDataUrl });
+      }
+
+      return saved;
+    });
   }
 
-  clearCompanyLogo() {
-    this.setCompanyLogo(null);
+  clearCompanyLogo(): Promise<boolean> {
+    return this.setCompanyLogo(null);
   }
 
   private loadTheme(): LmsBrandThemeId {
@@ -129,17 +149,21 @@ export class LmsBrandingService {
     }
   }
 
-  private persistBranding() {
+  private persistBranding(): Promise<boolean> {
     const branding: BrandingSettings = {
       themeId: this.selectedThemeIdSignal(),
       companyLogoDataUrl: this.companyLogoDataUrlSignal(),
     };
 
     this.saveToLocalStorage(branding);
-    this.backend.updateBranding(branding).subscribe({
-      error: () => {
-        // Keep local fallback if the API is temporarily unavailable.
-      },
+
+    return new Promise((resolve) => {
+      this.backend.updateBranding(branding).subscribe({
+        next: () => resolve(true),
+        // The local copy (and localStorage fallback) still reflect the attempted change — the
+        // caller decides whether to roll that back when the save didn't actually reach the server.
+        error: () => resolve(false),
+      });
     });
   }
 

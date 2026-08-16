@@ -10,12 +10,12 @@ const defaultDemoCredentialMap = {
     defaultPassword: 'admin',
   },
   'training-manager': {
-    allowedUsernames: new Set(['manager', 'ava.mokoena@skillsconnect.app']),
-    defaultPassword: 'manager',
+    allowedUsernames: new Set<string>(),
+    defaultPassword: '',
   },
   student: {
-    allowedUsernames: new Set(['student', 'alice.johnson@skillsconnect.app']),
-    defaultPassword: 'student',
+    allowedUsernames: new Set<string>(),
+    defaultPassword: '',
   },
 } as const;
 

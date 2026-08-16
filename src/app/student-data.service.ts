@@ -636,13 +636,15 @@ export class StudentDataService {
     return { success: true };
   }
 
-  updateThemePreference(themePreference: LmsBrandThemeId): StudentProfileUpdateResult {
+  async updateThemePreference(themePreference: LmsBrandThemeId): Promise<StudentProfileUpdateResult> {
     this.settingsSignal.update((current) => ({
       ...current,
       themePreference,
     }));
-    this.persistStudentSnapshot();
-    return { success: true };
+    const saved = await this.persistStudentSnapshot();
+    return saved
+      ? { success: true }
+      : { success: false, errorMessage: 'Your theme could not be saved. Please check your connection and try again.' };
   }
 
   openCalendarEvent(event: StudentCalendarEvent) {

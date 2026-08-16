@@ -327,6 +327,8 @@ export type EnrollmentStudentRecord = {
   race?: string;
   gender?: string;
   municipality?: string;
+  dateOfBirth?: string;
+  nqfLevel?: string;
 };
 
 export type StudentIdpStatusRecord = 'Not Started' | 'In Progress' | 'Completed' | 'On Hold';

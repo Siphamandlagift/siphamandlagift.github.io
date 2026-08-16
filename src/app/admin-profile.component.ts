@@ -5,7 +5,7 @@ import { HttpClient } from '@angular/common/http';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { firstValueFrom, interval } from 'rxjs';
-import { EnrollmentStudent, EnrollmentStudentInput, TrainingManagerDataService } from './training-manager-data.service';
+import { EnrollmentStudent, EnrollmentStudentInput, ExternalTrainingRequestRecord, TrainingManagerDataService } from './training-manager-data.service';
 import { LmsBackendService, type LoginRole, type ManagedUserCredentialInput, type ResolveRolesEntry } from './lms-backend.service';
 import { LmsBrandThemeId, LmsBrandingService } from './lms-branding.service';
 import type { StudentCertificateLicence, StudentCertificateStatus, StudentCourse } from './student-data.service';
@@ -18,48 +18,35 @@ type BulkUploadIssue = {
   message: string;
 };
 
-type ReportFieldKey = 'name' | 'surname' | 'email' | 'jobTitle' | 'idNumber' | 'department' | 'lineManager' | 'course' | 'completionStatus' | 'dateCompleted' | 'mentorship' | 'dateEnrolled' | 'deadlineDate';
-
-type ReportFieldOption = {
-  key: ReportFieldKey;
-  label: string;
-};
-
-type ReportAccessFilter = 'All' | 'Active' | 'Inactive';
 type ReportDownloadFormat = 'CSV' | 'XLSX';
-type AdminReportView = 'annual-training' | 'user-reports' | 'idp-report' | 'certificate-licence-report';
+type AdminReportView = 'annual-training' | 'idp-report' | 'certificate-licence-report' | 'seta-report';
+type TrainingReportSource = 'All' | 'LMS' | 'External';
+type SetaReportTab = 'atr' | 'wsp';
+type AtrSubReport = 'beneficiaries-completed' | 'number-beneficiaries' | 'pivotal-actual';
+type WspSubReport = 'beneficiaries-planned' | 'employment-summary' | 'pivotal-planned';
+type CompletedTrainingEvent = { request: ExternalTrainingRequestRecord; student: EnrollmentStudent | undefined };
+type PlannedTrainingEvent = { student: EnrollmentStudent; nameOfLearningProgramme: string; typeOfLearningProgramme: string };
 
-type LearnerReportRow = {
+// The consolidated Training Report merges two very different "training occurred" signals into
+// one row shape: approved external training requests, and completed internal LMS courses (with
+// an assignment mark where the completion was assignment-driven). sourceId keeps the real
+// underlying record id (external request id, or student::offering) separate from the row's
+// synthetic display id so actions like "Upload Proof" can still target the right record.
+type ConsolidatedTrainingReportRow = {
   id: string;
-  student: EnrollmentStudent;
-  offeringId: string | null;
-  courseTitle: string;
-  completionStatus: EnrollmentStudent['status'];
-  dateCompleted: string;
-};
-
-type AnnualTrainingReportRow = {
-  id: string;
+  sourceId: string;
   learnerName: string;
   learnerEmail: string;
   idNumber: string;
   department: string;
-  ofoCode: string;
-  race: string;
-  gender: string;
-  municipality: string;
-  trainingCourse: string;
-  providerName: string;
+  trainingItem: string;
+  source: 'LMS' | 'External';
   trainingType: string;
-  alignedToIdp: string;
-  trainingStartDate: string;
-  trainingStartDateValue: string;
-  trainingEndDate: string;
-  trainingEndDateValue: string;
-  courseCost: string;
-  approvedBy: string;
-  approvedDate: string;
-  approvedDateValue: string;
+  result: string;
+  provider: string;
+  date: string;
+  dateValue: string;
+  status: string;
 };
 
 type IdpReportRow = {
@@ -81,6 +68,140 @@ type IdpReportRow = {
   targetDate: string;
   targetDateValue: string;
   status: string;
+};
+
+// WSP (Workplace Skills Plan) covers training that's planned/in progress — sourced from internal
+// LMS course assignments that haven't been completed yet. ATR (Annual Training Report) covers
+// training already delivered; its 3 sub-reports (further below) match the official SETA MIS
+// upload templates rather than a single generic row shape.
+// The 3 WSP sub-reports mirror the ATR ones' structure but for training that's PLANNED rather
+// than delivered, matching the official templates supplied for this LMS
+// (2024_Beneficiaries_Planned_Non_Pivotal_Training_V1.xlsx, 2024_Employment_Summary_V1.xlsx,
+// 2024_Pivotal_Planned_Training_Report_V1.xlsx). "Planned training" is sourced from two places
+// per student: internal LMS course assignments that haven't been completed yet, AND IDP entries
+// (via their Development Need field, used as the training-intervention name) that aren't marked
+// Completed — see plannedTrainingEvents. Employment Summary is different: it profiles the whole
+// workforce (every user), not just those with planned training, matching how "Employment Summary"
+// is normally used in a WSP submission.
+type WspBeneficiariesPlannedRow = BeneficiaryDemographicCounts & {
+  id: string;
+  ofoOccupation: string;
+  municipality: string;
+  nqfAlignedTraining: string;
+  nqfLevel: string;
+  programmeNeedsAddressed: string;
+  fundingType: string;
+  dgContractNumber: string;
+  socioEconomicStatus: string;
+  typeOfLearningProgramme: string;
+  nameOfLearningProgramme: string;
+  typeOfEducationalInstitution: string;
+  totalEstimatedCost: number;
+  entryLevel: number;
+  intermediateLevel: number;
+  advancedLevel: number;
+};
+
+type WspEmploymentSummaryRow = BeneficiaryDemographicCounts & {
+  id: string;
+  ofoOccupation: string;
+  municipality: string;
+};
+
+type WspPivotalPlannedRow = BeneficiaryDemographicCounts & {
+  id: string;
+  ofoOccupation: string;
+  municipality: string;
+  programmeNeedsAddressed: string;
+  fundingType: string;
+  dgContractNumber: string;
+  idNumber: string;
+  firstName: string;
+  surname: string;
+  socioEconomicStatus: string;
+  typeOfLearningProgramme: string;
+  nameOfLearningProgramme: string;
+  pivotalOfoOccupation: string;
+  typeOfEducationalInstitution: string;
+  nqfLevel: string;
+  cost: number;
+  entryLevel: number;
+  intermediateLevel: number;
+  advancedLevel: number;
+};
+
+// The 3 sub-reports below match the official SETA MIS upload templates supplied for this LMS
+// (2023_Beneficiaries_Completed_Training_V1.xlsx, 2023_Number_Actual_Beneficiaries_V1.xlsx,
+// 2023_Pivotal_Actual_Training_Report_V1.xlsx) column-for-column, including the machine-key /
+// human-readable double header row those templates use. Fields this LMS doesn't capture
+// (NQF Level, NQF Aligned Training, Programme Needs Addressed, Funding Type, DG Contract Number,
+// Socio Economic Status, Type Of Educational Institution, Entry/Intermediate/Advanced Level,
+// Disability status) are always 'Not captured' / 0. Age Group is derived from the South African
+// ID number's embedded date of birth (first 6 digits, YYMMDD) rather than left blank, since that
+// data genuinely is available — see deriveAgeGroupFromIdNumber.
+type BeneficiaryDemographicCounts = {
+  africanMale: number;
+  africanFemale: number;
+  africanDisabled: number;
+  colouredMale: number;
+  colouredFemale: number;
+  colouredDisabled: number;
+  indianMale: number;
+  indianFemale: number;
+  indianDisabled: number;
+  whiteMale: number;
+  whiteFemale: number;
+  whiteDisabled: number;
+  age1: number;
+  age2: number;
+  age3: number;
+};
+
+type BeneficiariesCompletedTrainingRow = BeneficiaryDemographicCounts & {
+  id: string;
+  ofoOccupation: string;
+  municipality: string;
+  nqfAlignedTraining: string;
+  nqfLevel: string;
+  programmeNeedsAddressed: string;
+  fundingType: string;
+  dgContractNumber: string;
+  socioEconomicStatus: string;
+  typeOfLearningProgramme: string;
+  nameOfLearningProgramme: string;
+  typeOfEducationalInstitution: string;
+  totalActualCost: number;
+  entryLevel: number;
+  intermediateLevel: number;
+  advancedLevel: number;
+};
+
+type NumberBeneficiariesRow = BeneficiaryDemographicCounts & {
+  id: string;
+  ofoOccupation: string;
+  municipality: string;
+};
+
+type PivotalActualTrainingRow = BeneficiaryDemographicCounts & {
+  id: string;
+  ofoOccupation: string;
+  municipality: string;
+  programmeNeedsAddressed: string;
+  fundingType: string;
+  dgContractNumber: string;
+  idNumber: string;
+  firstName: string;
+  surname: string;
+  socioEconomicStatus: string;
+  typeOfLearningProgramme: string;
+  nameOfLearningProgramme: string;
+  pivotalOfoOccupation: string;
+  typeOfEducationalInstitution: string;
+  nqfLevel: string;
+  cost: number;
+  entryLevel: number;
+  intermediateLevel: number;
+  advancedLevel: number;
 };
 
 type CertificateLicenceReportRow = {
@@ -112,6 +233,8 @@ type UserFormControls = {
   race: FormControl<string>;
   gender: FormControl<string>;
   municipality: FormControl<string>;
+  dateOfBirth: FormControl<string>;
+  nqfLevel: FormControl<string>;
   department: FormControl<string>;
   lineManagerId: FormControl<string>;
   group: FormControl<string>;
@@ -123,22 +246,6 @@ type UserFormControls = {
 };
 
 type UserFormGroup = FormGroup<UserFormControls>;
-
-const REPORT_FIELD_OPTIONS: ReadonlyArray<ReportFieldOption> = [
-  { key: 'name', label: 'Name' },
-  { key: 'surname', label: 'Surname' },
-  { key: 'email', label: 'Email' },
-  { key: 'jobTitle', label: 'Job Title' },
-  { key: 'idNumber', label: 'ID Number' },
-  { key: 'department', label: 'Department' },
-  { key: 'lineManager', label: 'Line Manager' },
-  { key: 'course', label: 'Course' },
-  { key: 'completionStatus', label: 'Completion Status' },
-  { key: 'dateCompleted', label: 'Date Completed' },
-  { key: 'mentorship', label: 'Mentorship (Y/N)' },
-  { key: 'dateEnrolled', label: 'Start Date' },
-  { key: 'deadlineDate', label: 'End Date' },
-];
 
 /** Best-effort "First Last" display name derived from the logged-in username/email,
  *  used when there's no richer profile name available for this account yet. */
@@ -371,6 +478,30 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     <input type="text" formControlName="municipality" list="municipalityOptions" placeholder="Search municipality…" autocomplete="off" />
                   </label>
                   <label>
+                    Date of Birth
+                    <input type="date" formControlName="dateOfBirth" #dobInput />
+                    @if (computeAge(dobInput.value); as age) {
+                      <span class="admin-field-hint">Age: {{ age }}</span>
+                    }
+                  </label>
+                  <label>
+                    NQF Level
+                    <select formControlName="nqfLevel" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
+                      <option value="">-- None --</option>
+                      <option value="Below Level 01">Below Level 01</option>
+                      <option value="Level 01">Level 01</option>
+                      <option value="Level 02">Level 02</option>
+                      <option value="Level 03">Level 03</option>
+                      <option value="Level 04">Level 04</option>
+                      <option value="Level 05">Level 05</option>
+                      <option value="Level 06">Level 06</option>
+                      <option value="Level 07">Level 07</option>
+                      <option value="Level 08">Level 08</option>
+                      <option value="Level 09">Level 09</option>
+                      <option value="Level 10">Level 10</option>
+                    </select>
+                  </label>
+                  <label>
                     Department
                     <input type="text" formControlName="department" />
                   </label>
@@ -553,6 +684,30 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                   <label>
                     Municipality
                     <input type="text" formControlName="municipality" list="municipalityOptions" placeholder="Search municipality…" autocomplete="off" />
+                  </label>
+                  <label>
+                    Date of Birth
+                    <input type="date" formControlName="dateOfBirth" #dobInput />
+                    @if (computeAge(dobInput.value); as age) {
+                      <span class="admin-field-hint">Age: {{ age }}</span>
+                    }
+                  </label>
+                  <label>
+                    NQF Level
+                    <select formControlName="nqfLevel" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
+                      <option value="">-- None --</option>
+                      <option value="Below Level 01">Below Level 01</option>
+                      <option value="Level 01">Level 01</option>
+                      <option value="Level 02">Level 02</option>
+                      <option value="Level 03">Level 03</option>
+                      <option value="Level 04">Level 04</option>
+                      <option value="Level 05">Level 05</option>
+                      <option value="Level 06">Level 06</option>
+                      <option value="Level 07">Level 07</option>
+                      <option value="Level 08">Level 08</option>
+                      <option value="Level 09">Level 09</option>
+                      <option value="Level 10">Level 10</option>
+                    </select>
                   </label>
                   <label>
                     Department
@@ -878,25 +1033,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           </svg>
                         </span>
                         <span class="admin-report-menu-text">
-                          <strong>Annual Training Report</strong>
-                          <span>Yearly LMS training overview and department summary.</span>
-                        </span>
-                        <span class="admin-report-menu-cta">View report
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        </span>
-                      </button>
-                      <button type="button" class="admin-report-menu-item admin-report-menu-item-users" (click)="selectReportView('user-reports')">
-                        <span class="admin-report-menu-icon" aria-hidden="true">
-                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                            <circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.8"/>
-                            <path d="M3.5 19c0-3.04 2.8-5 5.5-5s5.5 1.96 5.5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                            <circle cx="17" cy="9" r="2.4" stroke="currentColor" stroke-width="1.8"/>
-                            <path d="M14.8 19c.4-2.2 2.15-3.6 4.7-3.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                          </svg>
-                        </span>
-                        <span class="admin-report-menu-text">
-                          <strong>User Reports</strong>
-                          <span>Current learner report with filters, preview, and export.</span>
+                          <strong>Training Report</strong>
+                          <span>Training that has occurred — approved external training and completed LMS courses.</span>
                         </span>
                         <span class="admin-report-menu-cta">View report
                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -934,6 +1072,22 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                         </span>
                       </button>
+                      <button type="button" class="admin-report-menu-item admin-report-menu-item-seta" (click)="selectReportView('seta-report')">
+                        <span class="admin-report-menu-icon" aria-hidden="true">
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                            <path d="M4 20V6.5A2.5 2.5 0 0 1 6.5 4H16l4 4v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                            <path d="M16 4v3.5A1.5 1.5 0 0 0 17.5 9H20" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                            <path d="M7.5 13h9M7.5 16.5h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                          </svg>
+                        </span>
+                        <span class="admin-report-menu-text">
+                          <strong>SETA Report</strong>
+                          <span>ATR and WSP training schedules for SETA submission.</span>
+                        </span>
+                        <span class="admin-report-menu-cta">View report
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </span>
+                      </button>
                     </div>
                   </article>
                 }
@@ -943,13 +1097,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     <div class="admin-section-card-header admin-report-open-header">
                       <div class="admin-report-open-heading">
                         @if (selectedReportView() === 'annual-training') {
-                          <h2>Annual Training Report</h2>
-                          <span>{{ filteredAnnualTrainingReportRows().length }} approved requests</span>
-                        }
-
-                        @if (selectedReportView() === 'user-reports') {
-                          <h2>User Reports</h2>
-                          <span>{{ filteredReportUsers().length }} of {{ totalUsersCount() }} users</span>
+                          <h2>Training Report</h2>
+                          <span>{{ filteredAnnualTrainingReportRows().length }} of {{ annualTrainingReportRows().length }} training records</span>
                         }
 
                         @if (selectedReportView() === 'idp-report') {
@@ -961,9 +1110,28 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           <h2>Certificates and Licences Report</h2>
                           <span>{{ certificateLicenceReportRows().length }} records</span>
                         }
+
+                        @if (selectedReportView() === 'seta-report') {
+                          @if (selectedSetaReportTab() === 'atr') {
+                            <h2>SETA Report — ATR</h2>
+                            <span>{{ selectedAtrSubReport() ? 'Viewing sub-report' : 'Choose a sub-report' }}</span>
+                          } @else if (selectedSetaReportTab() === 'wsp') {
+                            <h2>SETA Report — WSP</h2>
+                            <span>{{ selectedWspSubReport() ? 'Viewing sub-report' : 'Choose a sub-report' }}</span>
+                          } @else {
+                            <h2>SETA Report</h2>
+                            <span>Choose ATR or WSP</span>
+                          }
+                        }
                       </div>
 
-                      <button type="button" class="admin-inline-btn admin-report-back-btn" (click)="clearReportView()">Back to report list</button>
+                      <button type="button" class="admin-inline-btn admin-report-back-btn" (click)="backFromReportView()">
+                        Back
+                        @if (selectedReportView() === 'seta-report' && selectedSetaReportTab() === 'atr' && selectedAtrSubReport()) { to ATR }
+                        @else if (selectedReportView() === 'seta-report' && selectedSetaReportTab() === 'wsp' && selectedWspSubReport()) { to WSP }
+                        @else if (selectedReportView() === 'seta-report' && selectedSetaReportTab()) { to SETA report }
+                        @else { to report list }
+                      </button>
                     </div>
 
                     @if (selectedReportView() === 'annual-training') {
@@ -977,7 +1145,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           <div class="admin-report-filter-grid">
                             <label class="admin-report-filter-field">
                               <span>Search</span>
-                              <input type="text" [value]="annualReportSearchTerm()" (input)="updateAnnualReportSearch($event)" placeholder="Name, course, provider" />
+                              <input type="text" [value]="annualReportSearchTerm()" (input)="updateAnnualReportSearch($event)" placeholder="Name, training item, provider" />
                             </label>
 
                             <label class="admin-report-filter-field">
@@ -991,13 +1159,22 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                             </label>
 
                             <label class="admin-report-filter-field">
-                              <span>Training Start Date</span>
-                              <input type="date" [value]="selectedAnnualReportTrainingStartDate()" (input)="updateAnnualReportTrainingStartDate($event)" />
+                              <span>Source</span>
+                              <select [value]="selectedAnnualReportSource()" (change)="updateAnnualReportSource($event)">
+                                <option value="All">All sources</option>
+                                <option value="LMS">LMS</option>
+                                <option value="External">External</option>
+                              </select>
                             </label>
 
                             <label class="admin-report-filter-field">
-                              <span>Training End Date</span>
-                              <input type="date" [value]="selectedAnnualReportTrainingEndDate()" (input)="updateAnnualReportTrainingEndDate($event)" />
+                              <span>Date From</span>
+                              <input type="date" [value]="selectedAnnualReportDateFrom()" (input)="updateAnnualReportDateFrom($event)" />
+                            </label>
+
+                            <label class="admin-report-filter-field">
+                              <span>Date To</span>
+                              <input type="date" [value]="selectedAnnualReportDateTo()" (input)="updateAnnualReportDateTo($event)" />
                             </label>
 
                           </div>
@@ -1024,19 +1201,13 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th>Email</th>
                                   <th>ID Number</th>
                                   <th>Department</th>
-                                  <th>OFO Code</th>
-                                  <th>Race</th>
-                                  <th>Gender</th>
-                                  <th>Municipality</th>
-                                  <th>Training Course</th>
-                                  <th>Provider Name</th>
-                                  <th>Type of Training</th>
-                                  <th>IDP Aligned</th>
-                                  <th>Training Start Date</th>
-                                  <th>Training End Date</th>
-                                  <th>Course Cost</th>
-                                  <th>Approved By</th>
-                                  <th>Approved Date</th>
+                                  <th>Training Item</th>
+                                  <th>Source</th>
+                                  <th>Type</th>
+                                  <th>Result</th>
+                                  <th>Provider</th>
+                                  <th>Date</th>
+                                  <th>Status</th>
                                   <th>Actions</th>
                                 </tr>
                               </thead>
@@ -1047,21 +1218,17 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                     <td>{{ row.learnerEmail }}</td>
                                     <td>{{ row.idNumber }}</td>
                                     <td>{{ row.department }}</td>
-                                    <td>{{ row.ofoCode }}</td>
-                                    <td>{{ row.race }}</td>
-                                    <td>{{ row.gender }}</td>
-                                    <td>{{ row.municipality }}</td>
-                                    <td>{{ row.trainingCourse }}</td>
-                                    <td>{{ row.providerName }}</td>
+                                    <td>{{ row.trainingItem }}</td>
+                                    <td>{{ row.source }}</td>
                                     <td>{{ row.trainingType }}</td>
-                                    <td>{{ row.alignedToIdp }}</td>
-                                    <td>{{ row.trainingStartDate }}</td>
-                                    <td>{{ row.trainingEndDate }}</td>
-                                    <td>{{ row.courseCost }}</td>
-                                    <td>{{ row.approvedBy }}</td>
-                                    <td>{{ row.approvedDate }}</td>
+                                    <td>{{ row.result }}</td>
+                                    <td>{{ row.provider }}</td>
+                                    <td>{{ row.date }}</td>
+                                    <td>{{ row.status }}</td>
                                     <td>
-                                      <button type="button" class="admin-inline-btn" (click)="openAnnualReportDocumentsEditor(row.id)">Upload Proof</button>
+                                      @if (row.source === 'External') {
+                                        <button type="button" class="admin-inline-btn" (click)="openAnnualReportDocumentsEditor(row.sourceId)">Upload Proof</button>
+                                      }
                                     </td>
                                   </tr>
                                 }
@@ -1069,7 +1236,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                             </table>
                           </div>
                         } @else {
-                          <div class="admin-empty-state">No approved external training requests match the current filters.</div>
+                          <div class="admin-empty-state">No training records match the current filters.</div>
                         }
                       </div>
                     }
@@ -1216,109 +1383,441 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       </div>
                     }
 
-                    @if (selectedReportView() === 'user-reports') {
-                      <div class="admin-report-builder-grid admin-report-builder-grid-stack">
-                        <article class="admin-section-card">
-                        <div class="admin-section-card-header">
-                          <h2>Report filters</h2>
-                          <span>{{ filteredReportUsers().length }} of {{ totalUsersCount() }} users</span>
-                        </div>
-
-                        <div class="admin-report-filter-grid">
-                          <label class="admin-report-filter-field">
-                            <span>Department</span>
-                            <select [value]="selectedReportDepartment()" (change)="updateReportDepartment($event)">
-                              <option value="">All departments</option>
-                              @for (department of reportDepartments(); track department) {
-                                <option [value]="department">{{ department }}</option>
-                              }
-                            </select>
-                          </label>
-
-                          <label class="admin-report-filter-field">
-                            <span>Group</span>
-                            <select [value]="selectedReportGroup()" (change)="updateReportGroup($event)">
-                              <option value="">All groups</option>
-                              @for (group of reportGroups(); track group) {
-                                <option [value]="group">{{ group }}</option>
-                              }
-                            </select>
-                          </label>
-
-                          <label class="admin-report-filter-field">
-                            <span>Access Status</span>
-                            <select [value]="selectedReportAccessStatus()" (change)="updateReportAccessStatus($event)">
-                              <option value="All">All access statuses</option>
-                              <option value="Active">Active</option>
-                              <option value="Inactive">Inactive</option>
-                            </select>
-                          </label>
-
-                          <label class="admin-report-filter-field">
-                            <span>Start Date From</span>
-                            <input type="date" [value]="selectedReportStartDate()" (input)="updateReportStartDate($event)" />
-                          </label>
-
-                          <label class="admin-report-filter-field">
-                            <span>End Date To</span>
-                            <input type="date" [value]="selectedReportEndDate()" (input)="updateReportEndDate($event)" />
-                          </label>
-                        </div>
-
-                        <div class="admin-report-actions">
-                          <button type="button" class="admin-secondary-btn" (click)="clearReportFilters()">Clear filters</button>
-                        </div>
-                      </article>
-
-                        <article class="admin-section-card">
-                        <div class="admin-section-card-header">
-                          <h2>Report preview</h2>
-                          <span>{{ filteredReportRows().length }} rows</span>
-                        </div>
-
-                        <div class="admin-report-preview-meta">
-                          <span class="admin-chip">{{ reportColumns().length }} fields</span>
-                          <span class="admin-chip">{{ filteredReportRows().length }} rows included</span>
-                        </div>
-
-                        <div class="admin-report-actions">
-                          <label class="admin-report-filter-field admin-report-download-field">
-                            <span>Download As</span>
-                            <select [value]="selectedReportDownloadFormat()" (change)="updateReportDownloadFormat($event)">
-                              <option value="CSV">CSV</option>
-                              <option value="XLSX">XLSX</option>
-                            </select>
-                          </label>
-                          <button type="button" class="admin-primary-btn" [disabled]="!canDownloadReport()" (click)="downloadReport()">Download report</button>
-                        </div>
-
-                        @if (filteredReportRows().length) {
-                          <div class="admin-report-table-wrap">
-                            <table class="admin-report-table">
-                              <thead>
-                                <tr>
-                                  @for (column of reportColumns(); track column.key) {
-                                    <th>{{ column.label }}</th>
-                                  }
-                                </tr>
-                              </thead>
-                              <tbody>
-                                @for (row of filteredReportRows(); track row.id) {
-                                  <tr>
-                                    @for (column of reportColumns(); track column.key) {
-                                      <td>{{ getReportCellValue(row, column.key) }}</td>
-                                    }
-                                  </tr>
-                                }
-                              </tbody>
-                            </table>
+                    @if (selectedReportView() === 'seta-report' && !selectedSetaReportTab()) {
+                      <div class="admin-report-content-stack">
+                        <article class="admin-section-card admin-report-menu-card">
+                          <div class="admin-section-card-header">
+                            <h2>SETA Report</h2>
+                            <span>2 available</span>
                           </div>
-                        } @else {
-                          <div class="admin-empty-state">No users match the current report filters.</div>
-                        }
+
+                          <div class="admin-report-menu" role="list" aria-label="SETA report list">
+                            <button type="button" class="admin-report-menu-item" (click)="selectSetaReportTab('atr')">
+                              <span class="admin-report-menu-text">
+                                <strong>ATR — Annual Training Report</strong>
+                                <span>Training already delivered, for SETA submission.</span>
+                              </span>
+                              <span class="admin-report-menu-cta">View report
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                              </span>
+                            </button>
+                            <button type="button" class="admin-report-menu-item" (click)="selectSetaReportTab('wsp')">
+                              <span class="admin-report-menu-text">
+                                <strong>WSP — Workplace Skills Plan</strong>
+                                <span>Training currently planned or in progress.</span>
+                              </span>
+                              <span class="admin-report-menu-cta">View report
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                              </span>
+                            </button>
+                          </div>
                         </article>
                       </div>
                     }
+
+                    @if (selectedReportView() === 'seta-report' && selectedSetaReportTab() === 'atr' && !selectedAtrSubReport()) {
+                      <div class="admin-report-content-stack">
+                        <article class="admin-section-card admin-report-menu-card">
+                          <div class="admin-section-card-header">
+                            <h2>ATR</h2>
+                            <span>3 available</span>
+                          </div>
+
+                          <p class="admin-report-note">
+                            These 3 reports match the official SETA MIS upload templates column-for-column. Fields
+                            this LMS doesn't capture yet (NQF Level, Disability Status, Socio Economic Status,
+                            Funding Type, DG Contract Number, Programme Needs Addressed, Type Of Educational
+                            Institution, Entry/Intermediate/Advanced Level) show "Not captured" or 0 — Age Group is
+                            derived from each learner's South African ID number instead of left blank.
+                          </p>
+
+                          <div class="admin-report-menu" role="list" aria-label="ATR sub-report list">
+                            <button type="button" class="admin-report-menu-item" (click)="selectAtrSubReport('beneficiaries-completed')">
+                              <span class="admin-report-menu-text">
+                                <strong>Beneficiaries Completed Training</strong>
+                                <span>Aggregate by occupation, municipality and programme, with demographic counts.</span>
+                              </span>
+                              <span class="admin-report-menu-cta">View report
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                              </span>
+                            </button>
+                            <button type="button" class="admin-report-menu-item" (click)="selectAtrSubReport('number-beneficiaries')">
+                              <span class="admin-report-menu-text">
+                                <strong>Number of Actual Beneficiaries</strong>
+                                <span>Total headcount by occupation and municipality, with demographic counts.</span>
+                              </span>
+                              <span class="admin-report-menu-cta">View report
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                              </span>
+                            </button>
+                            <button type="button" class="admin-report-menu-item" (click)="selectAtrSubReport('pivotal-actual')">
+                              <span class="admin-report-menu-text">
+                                <strong>Pivotal Actual Training Report</strong>
+                                <span>Per-learner Pivotal programme records with ID number and demographics.</span>
+                              </span>
+                              <span class="admin-report-menu-cta">View report
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                              </span>
+                            </button>
+                          </div>
+                        </article>
+                      </div>
+                    }
+
+                    @if (selectedReportView() === 'seta-report' && selectedSetaReportTab() === 'atr' && selectedAtrSubReport()) {
+                      <div class="admin-report-content-stack">
+                        <article class="admin-section-card">
+                          <div class="admin-section-card-header">
+                            <h2>
+                              @if (selectedAtrSubReport() === 'beneficiaries-completed') { Beneficiaries Completed Training }
+                              @else if (selectedAtrSubReport() === 'number-beneficiaries') { Number of Actual Beneficiaries }
+                              @else { Pivotal Actual Training Report }
+                            </h2>
+                            <span>
+                              @if (selectedAtrSubReport() === 'beneficiaries-completed') { {{ beneficiariesCompletedTrainingRows().length }} rows }
+                              @else if (selectedAtrSubReport() === 'number-beneficiaries') { {{ numberBeneficiariesRows().length }} rows }
+                              @else { {{ pivotalActualTrainingRows().length }} rows }
+                            </span>
+                          </div>
+
+                          <div class="admin-report-actions">
+                            <button type="button" class="admin-secondary-btn" (click)="selectedAtrSubReport.set(null)">Back to ATR</button>
+                            <label class="admin-report-filter-field admin-report-download-field">
+                              <span>Download As</span>
+                              <select [value]="selectedAtrSubReportDownloadFormat()" (change)="updateAtrSubReportDownloadFormat($event)">
+                                <option value="CSV">CSV</option>
+                                <option value="XLSX">XLSX</option>
+                              </select>
+                            </label>
+                            @if (selectedAtrSubReport() === 'beneficiaries-completed') {
+                              <button type="button" class="admin-primary-btn" [disabled]="!canDownloadBeneficiariesCompletedTrainingReport()" (click)="downloadBeneficiariesCompletedTrainingReport()">Download report</button>
+                            } @else if (selectedAtrSubReport() === 'number-beneficiaries') {
+                              <button type="button" class="admin-primary-btn" [disabled]="!canDownloadNumberBeneficiariesReport()" (click)="downloadNumberBeneficiariesReport()">Download report</button>
+                            } @else {
+                              <button type="button" class="admin-primary-btn" [disabled]="!canDownloadPivotalActualTrainingReport()" (click)="downloadPivotalActualTrainingReport()">Download report</button>
+                            }
+                          </div>
+                        </article>
+
+                        @if (selectedAtrSubReport() === 'beneficiaries-completed') {
+                          @if (beneficiariesCompletedTrainingRows().length) {
+                            <div class="admin-report-table-wrap">
+                              <table class="admin-report-table">
+                                <thead>
+                                  <tr>
+                                    <th>OFO Occupation</th><th>Municipality</th><th>NQF Aligned Training</th><th>NQF Level</th>
+                                    <th>Programme Needs Addressed</th><th>Funding Type</th><th>DG Contract Number</th>
+                                    <th>Socio Economic Status</th><th>Type Of Learning Programme</th><th>Name Of Learning Programme</th>
+                                    <th>Type Of Educational Institution</th><th>Total Actual Cost</th>
+                                    <th>Entry Level</th><th>Intermediate Level</th><th>Advanced Level</th>
+                                    <th>African Male</th><th>African Female</th><th>African Disabled</th>
+                                    <th>Coloured Male</th><th>Coloured Female</th><th>Coloured Disabled</th>
+                                    <th>Indian/Asian Male</th><th>Indian/Asian Female</th><th>Indian/Asian Disabled</th>
+                                    <th>White Male</th><th>White Female</th><th>White Disabled</th>
+                                    <th>Age &lt; 35</th><th>Age 35-55</th><th>Age &gt; 55</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  @for (row of beneficiariesCompletedTrainingRows(); track row.id) {
+                                    <tr>
+                                      <td>{{ row.ofoOccupation }}</td><td>{{ row.municipality }}</td><td>{{ row.nqfAlignedTraining }}</td><td>{{ row.nqfLevel }}</td>
+                                      <td>{{ row.programmeNeedsAddressed }}</td><td>{{ row.fundingType }}</td><td>{{ row.dgContractNumber }}</td>
+                                      <td>{{ row.socioEconomicStatus }}</td><td>{{ row.typeOfLearningProgramme }}</td><td>{{ row.nameOfLearningProgramme }}</td>
+                                      <td>{{ row.typeOfEducationalInstitution }}</td><td>{{ row.totalActualCost }}</td>
+                                      <td>{{ row.entryLevel }}</td><td>{{ row.intermediateLevel }}</td><td>{{ row.advancedLevel }}</td>
+                                      <td>{{ row.africanMale }}</td><td>{{ row.africanFemale }}</td><td>{{ row.africanDisabled }}</td>
+                                      <td>{{ row.colouredMale }}</td><td>{{ row.colouredFemale }}</td><td>{{ row.colouredDisabled }}</td>
+                                      <td>{{ row.indianMale }}</td><td>{{ row.indianFemale }}</td><td>{{ row.indianDisabled }}</td>
+                                      <td>{{ row.whiteMale }}</td><td>{{ row.whiteFemale }}</td><td>{{ row.whiteDisabled }}</td>
+                                      <td>{{ row.age1 }}</td><td>{{ row.age2 }}</td><td>{{ row.age3 }}</td>
+                                    </tr>
+                                  }
+                                </tbody>
+                              </table>
+                            </div>
+                          } @else {
+                            <div class="admin-empty-state">No approved training records to summarise yet.</div>
+                          }
+                        }
+
+                        @if (selectedAtrSubReport() === 'number-beneficiaries') {
+                          @if (numberBeneficiariesRows().length) {
+                            <div class="admin-report-table-wrap">
+                              <table class="admin-report-table">
+                                <thead>
+                                  <tr>
+                                    <th>OFO Occupation</th><th>Municipality</th>
+                                    <th>African Male</th><th>African Female</th><th>African Disabled</th>
+                                    <th>Coloured Male</th><th>Coloured Female</th><th>Coloured Disabled</th>
+                                    <th>Indian/Asian Male</th><th>Indian/Asian Female</th><th>Indian/Asian Disabled</th>
+                                    <th>White Male</th><th>White Female</th><th>White Disabled</th>
+                                    <th>Age &lt; 35</th><th>Age 35-55</th><th>Age &gt; 55</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  @for (row of numberBeneficiariesRows(); track row.id) {
+                                    <tr>
+                                      <td>{{ row.ofoOccupation }}</td><td>{{ row.municipality }}</td>
+                                      <td>{{ row.africanMale }}</td><td>{{ row.africanFemale }}</td><td>{{ row.africanDisabled }}</td>
+                                      <td>{{ row.colouredMale }}</td><td>{{ row.colouredFemale }}</td><td>{{ row.colouredDisabled }}</td>
+                                      <td>{{ row.indianMale }}</td><td>{{ row.indianFemale }}</td><td>{{ row.indianDisabled }}</td>
+                                      <td>{{ row.whiteMale }}</td><td>{{ row.whiteFemale }}</td><td>{{ row.whiteDisabled }}</td>
+                                      <td>{{ row.age1 }}</td><td>{{ row.age2 }}</td><td>{{ row.age3 }}</td>
+                                    </tr>
+                                  }
+                                </tbody>
+                              </table>
+                            </div>
+                          } @else {
+                            <div class="admin-empty-state">No approved training records to summarise yet.</div>
+                          }
+                        }
+
+                        @if (selectedAtrSubReport() === 'pivotal-actual') {
+                          @if (pivotalActualTrainingRows().length) {
+                            <div class="admin-report-table-wrap">
+                              <table class="admin-report-table">
+                                <thead>
+                                  <tr>
+                                    <th>OFO Occupation</th><th>Municipality</th><th>Programme Needs Addressed</th><th>Funding Type</th>
+                                    <th>DG Contract Number</th><th>ID Number</th><th>First Name</th><th>Surname</th>
+                                    <th>Socio Economic Status</th><th>Type Of Learning Programme</th><th>Name Of Learning Programme</th>
+                                    <th>Pivotal Programmes</th><th>Type Of Educational Institution</th><th>NQF Level</th><th>Cost</th>
+                                    <th>Entry Level</th><th>Intermediate Level</th><th>Advanced Level</th>
+                                    <th>African Male</th><th>African Female</th><th>African Disabled</th>
+                                    <th>Coloured Male</th><th>Coloured Female</th><th>Coloured Disabled</th>
+                                    <th>Indian/Asian Male</th><th>Indian/Asian Female</th><th>Indian/Asian Disabled</th>
+                                    <th>White Male</th><th>White Female</th><th>White Disabled</th>
+                                    <th>Age &lt; 35</th><th>Age 35-55</th><th>Age &gt; 55</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  @for (row of pivotalActualTrainingRows(); track row.id) {
+                                    <tr>
+                                      <td>{{ row.ofoOccupation }}</td><td>{{ row.municipality }}</td><td>{{ row.programmeNeedsAddressed }}</td><td>{{ row.fundingType }}</td>
+                                      <td>{{ row.dgContractNumber }}</td><td>{{ row.idNumber }}</td><td>{{ row.firstName }}</td><td>{{ row.surname }}</td>
+                                      <td>{{ row.socioEconomicStatus }}</td><td>{{ row.typeOfLearningProgramme }}</td><td>{{ row.nameOfLearningProgramme }}</td>
+                                      <td>{{ row.pivotalOfoOccupation }}</td><td>{{ row.typeOfEducationalInstitution }}</td><td>{{ row.nqfLevel }}</td><td>{{ row.cost }}</td>
+                                      <td>{{ row.entryLevel }}</td><td>{{ row.intermediateLevel }}</td><td>{{ row.advancedLevel }}</td>
+                                      <td>{{ row.africanMale }}</td><td>{{ row.africanFemale }}</td><td>{{ row.africanDisabled }}</td>
+                                      <td>{{ row.colouredMale }}</td><td>{{ row.colouredFemale }}</td><td>{{ row.colouredDisabled }}</td>
+                                      <td>{{ row.indianMale }}</td><td>{{ row.indianFemale }}</td><td>{{ row.indianDisabled }}</td>
+                                      <td>{{ row.whiteMale }}</td><td>{{ row.whiteFemale }}</td><td>{{ row.whiteDisabled }}</td>
+                                      <td>{{ row.age1 }}</td><td>{{ row.age2 }}</td><td>{{ row.age3 }}</td>
+                                    </tr>
+                                  }
+                                </tbody>
+                              </table>
+                            </div>
+                          } @else {
+                            <div class="admin-empty-state">No approved training records yet.</div>
+                          }
+                        }
+                      </div>
+                    }
+
+                    @if (selectedReportView() === 'seta-report' && selectedSetaReportTab() === 'wsp' && !selectedWspSubReport()) {
+                      <div class="admin-report-content-stack">
+                        <article class="admin-section-card admin-report-menu-card">
+                          <div class="admin-section-card-header">
+                            <h2>WSP</h2>
+                            <span>3 available</span>
+                          </div>
+
+                          <p class="admin-report-note">
+                            These 3 reports match the official SETA MIS upload templates column-for-column. Planned
+                            training is drawn from internal LMS course assignments not yet completed and from IDP
+                            Development Need entries not yet marked Completed. Fields this LMS doesn't capture yet
+                            (NQF Level, Disability Status, Socio Economic Status, Funding Type, DG Contract Number,
+                            Programme Needs Addressed, Type Of Educational Institution, Entry/Intermediate/Advanced
+                            Level, cost of planned training) show "Not captured" or 0.
+                          </p>
+
+                          <div class="admin-report-menu" role="list" aria-label="WSP sub-report list">
+                            <button type="button" class="admin-report-menu-item" (click)="selectWspSubReport('beneficiaries-planned')">
+                              <span class="admin-report-menu-text">
+                                <strong>Beneficiaries Planned (Non-Pivotal) Training</strong>
+                                <span>Aggregate by occupation, municipality and planned programme.</span>
+                              </span>
+                              <span class="admin-report-menu-cta">View report
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                              </span>
+                            </button>
+                            <button type="button" class="admin-report-menu-item" (click)="selectWspSubReport('employment-summary')">
+                              <span class="admin-report-menu-text">
+                                <strong>Employment Summary</strong>
+                                <span>Whole-workforce headcount by occupation and municipality.</span>
+                              </span>
+                              <span class="admin-report-menu-cta">View report
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                              </span>
+                            </button>
+                            <button type="button" class="admin-report-menu-item" (click)="selectWspSubReport('pivotal-planned')">
+                              <span class="admin-report-menu-text">
+                                <strong>Pivotal Planned Training Report</strong>
+                                <span>Per-learner planned Pivotal programme records.</span>
+                              </span>
+                              <span class="admin-report-menu-cta">View report
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                              </span>
+                            </button>
+                          </div>
+                        </article>
+                      </div>
+                    }
+
+                    @if (selectedReportView() === 'seta-report' && selectedSetaReportTab() === 'wsp' && selectedWspSubReport()) {
+                      <div class="admin-report-content-stack">
+                        <article class="admin-section-card">
+                          <div class="admin-section-card-header">
+                            <h2>
+                              @if (selectedWspSubReport() === 'beneficiaries-planned') { Beneficiaries Planned (Non-Pivotal) Training }
+                              @else if (selectedWspSubReport() === 'employment-summary') { Employment Summary }
+                              @else { Pivotal Planned Training Report }
+                            </h2>
+                            <span>
+                              @if (selectedWspSubReport() === 'beneficiaries-planned') { {{ wspBeneficiariesPlannedRows().length }} rows }
+                              @else if (selectedWspSubReport() === 'employment-summary') { {{ wspEmploymentSummaryRows().length }} rows }
+                              @else { {{ wspPivotalPlannedRows().length }} rows }
+                            </span>
+                          </div>
+
+                          <div class="admin-report-actions">
+                            <button type="button" class="admin-secondary-btn" (click)="selectedWspSubReport.set(null)">Back to WSP</button>
+                            <label class="admin-report-filter-field admin-report-download-field">
+                              <span>Download As</span>
+                              <select [value]="selectedWspSubReportDownloadFormat()" (change)="updateWspSubReportDownloadFormat($event)">
+                                <option value="CSV">CSV</option>
+                                <option value="XLSX">XLSX</option>
+                              </select>
+                            </label>
+                            @if (selectedWspSubReport() === 'beneficiaries-planned') {
+                              <button type="button" class="admin-primary-btn" [disabled]="!canDownloadWspBeneficiariesPlannedReport()" (click)="downloadWspBeneficiariesPlannedReport()">Download report</button>
+                            } @else if (selectedWspSubReport() === 'employment-summary') {
+                              <button type="button" class="admin-primary-btn" [disabled]="!canDownloadWspEmploymentSummaryReport()" (click)="downloadWspEmploymentSummaryReport()">Download report</button>
+                            } @else {
+                              <button type="button" class="admin-primary-btn" [disabled]="!canDownloadWspPivotalPlannedReport()" (click)="downloadWspPivotalPlannedReport()">Download report</button>
+                            }
+                          </div>
+                        </article>
+
+                        @if (selectedWspSubReport() === 'beneficiaries-planned') {
+                          @if (wspBeneficiariesPlannedRows().length) {
+                            <div class="admin-report-table-wrap">
+                              <table class="admin-report-table">
+                                <thead>
+                                  <tr>
+                                    <th>OFO Occupation</th><th>Municipality</th><th>NQF Aligned Training</th><th>NQF Level</th>
+                                    <th>Programme Needs Addressed</th><th>Funding Type</th><th>DG Contract Number</th>
+                                    <th>Socio Economic Status</th><th>Type Of Learning Programme</th><th>Name Of Learning Programme</th>
+                                    <th>Type Of Educational Institution</th><th>Total Estimated Cost</th>
+                                    <th>Entry Level</th><th>Intermediate Level</th><th>Advanced Level</th>
+                                    <th>African Male</th><th>African Female</th><th>African Disabled</th>
+                                    <th>Coloured Male</th><th>Coloured Female</th><th>Coloured Disabled</th>
+                                    <th>Indian/Asian Male</th><th>Indian/Asian Female</th><th>Indian/Asian Disabled</th>
+                                    <th>White Male</th><th>White Female</th><th>White Disabled</th>
+                                    <th>Age &lt; 35</th><th>Age 35-55</th><th>Age &gt; 55</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  @for (row of wspBeneficiariesPlannedRows(); track row.id) {
+                                    <tr>
+                                      <td>{{ row.ofoOccupation }}</td><td>{{ row.municipality }}</td><td>{{ row.nqfAlignedTraining }}</td><td>{{ row.nqfLevel }}</td>
+                                      <td>{{ row.programmeNeedsAddressed }}</td><td>{{ row.fundingType }}</td><td>{{ row.dgContractNumber }}</td>
+                                      <td>{{ row.socioEconomicStatus }}</td><td>{{ row.typeOfLearningProgramme }}</td><td>{{ row.nameOfLearningProgramme }}</td>
+                                      <td>{{ row.typeOfEducationalInstitution }}</td><td>{{ row.totalEstimatedCost }}</td>
+                                      <td>{{ row.entryLevel }}</td><td>{{ row.intermediateLevel }}</td><td>{{ row.advancedLevel }}</td>
+                                      <td>{{ row.africanMale }}</td><td>{{ row.africanFemale }}</td><td>{{ row.africanDisabled }}</td>
+                                      <td>{{ row.colouredMale }}</td><td>{{ row.colouredFemale }}</td><td>{{ row.colouredDisabled }}</td>
+                                      <td>{{ row.indianMale }}</td><td>{{ row.indianFemale }}</td><td>{{ row.indianDisabled }}</td>
+                                      <td>{{ row.whiteMale }}</td><td>{{ row.whiteFemale }}</td><td>{{ row.whiteDisabled }}</td>
+                                      <td>{{ row.age1 }}</td><td>{{ row.age2 }}</td><td>{{ row.age3 }}</td>
+                                    </tr>
+                                  }
+                                </tbody>
+                              </table>
+                            </div>
+                          } @else {
+                            <div class="admin-empty-state">No planned training records yet.</div>
+                          }
+                        }
+
+                        @if (selectedWspSubReport() === 'employment-summary') {
+                          @if (wspEmploymentSummaryRows().length) {
+                            <div class="admin-report-table-wrap">
+                              <table class="admin-report-table">
+                                <thead>
+                                  <tr>
+                                    <th>OFO Occupation</th><th>Municipality</th>
+                                    <th>African Male</th><th>African Female</th><th>African Disabled</th>
+                                    <th>Coloured Male</th><th>Coloured Female</th><th>Coloured Disabled</th>
+                                    <th>Indian/Asian Male</th><th>Indian/Asian Female</th><th>Indian/Asian Disabled</th>
+                                    <th>White Male</th><th>White Female</th><th>White Disabled</th>
+                                    <th>Age &lt; 35</th><th>Age 35-55</th><th>Age &gt; 55</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  @for (row of wspEmploymentSummaryRows(); track row.id) {
+                                    <tr>
+                                      <td>{{ row.ofoOccupation }}</td><td>{{ row.municipality }}</td>
+                                      <td>{{ row.africanMale }}</td><td>{{ row.africanFemale }}</td><td>{{ row.africanDisabled }}</td>
+                                      <td>{{ row.colouredMale }}</td><td>{{ row.colouredFemale }}</td><td>{{ row.colouredDisabled }}</td>
+                                      <td>{{ row.indianMale }}</td><td>{{ row.indianFemale }}</td><td>{{ row.indianDisabled }}</td>
+                                      <td>{{ row.whiteMale }}</td><td>{{ row.whiteFemale }}</td><td>{{ row.whiteDisabled }}</td>
+                                      <td>{{ row.age1 }}</td><td>{{ row.age2 }}</td><td>{{ row.age3 }}</td>
+                                    </tr>
+                                  }
+                                </tbody>
+                              </table>
+                            </div>
+                          } @else {
+                            <div class="admin-empty-state">No users to summarise yet.</div>
+                          }
+                        }
+
+                        @if (selectedWspSubReport() === 'pivotal-planned') {
+                          @if (wspPivotalPlannedRows().length) {
+                            <div class="admin-report-table-wrap">
+                              <table class="admin-report-table">
+                                <thead>
+                                  <tr>
+                                    <th>OFO Occupation</th><th>Municipality</th><th>Programme Needs Addressed</th><th>Funding Type</th>
+                                    <th>DG Contract Number</th><th>ID Number</th><th>First Name</th><th>Surname</th>
+                                    <th>Socio Economic Status</th><th>Type Of Learning Programme</th><th>Name Of Learning Programme</th>
+                                    <th>Pivotal Programmes</th><th>Type Of Educational Institution</th><th>NQF Level</th><th>Cost</th>
+                                    <th>Entry Level</th><th>Intermediate Level</th><th>Advanced Level</th>
+                                    <th>African Male</th><th>African Female</th><th>African Disabled</th>
+                                    <th>Coloured Male</th><th>Coloured Female</th><th>Coloured Disabled</th>
+                                    <th>Indian/Asian Male</th><th>Indian/Asian Female</th><th>Indian/Asian Disabled</th>
+                                    <th>White Male</th><th>White Female</th><th>White Disabled</th>
+                                    <th>Age &lt; 35</th><th>Age 35-55</th><th>Age &gt; 55</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  @for (row of wspPivotalPlannedRows(); track row.id) {
+                                    <tr>
+                                      <td>{{ row.ofoOccupation }}</td><td>{{ row.municipality }}</td><td>{{ row.programmeNeedsAddressed }}</td><td>{{ row.fundingType }}</td>
+                                      <td>{{ row.dgContractNumber }}</td><td>{{ row.idNumber }}</td><td>{{ row.firstName }}</td><td>{{ row.surname }}</td>
+                                      <td>{{ row.socioEconomicStatus }}</td><td>{{ row.typeOfLearningProgramme }}</td><td>{{ row.nameOfLearningProgramme }}</td>
+                                      <td>{{ row.pivotalOfoOccupation }}</td><td>{{ row.typeOfEducationalInstitution }}</td><td>{{ row.nqfLevel }}</td><td>{{ row.cost }}</td>
+                                      <td>{{ row.entryLevel }}</td><td>{{ row.intermediateLevel }}</td><td>{{ row.advancedLevel }}</td>
+                                      <td>{{ row.africanMale }}</td><td>{{ row.africanFemale }}</td><td>{{ row.africanDisabled }}</td>
+                                      <td>{{ row.colouredMale }}</td><td>{{ row.colouredFemale }}</td><td>{{ row.colouredDisabled }}</td>
+                                      <td>{{ row.indianMale }}</td><td>{{ row.indianFemale }}</td><td>{{ row.indianDisabled }}</td>
+                                      <td>{{ row.whiteMale }}</td><td>{{ row.whiteFemale }}</td><td>{{ row.whiteDisabled }}</td>
+                                      <td>{{ row.age1 }}</td><td>{{ row.age2 }}</td><td>{{ row.age3 }}</td>
+                                    </tr>
+                                  }
+                                </tbody>
+                              </table>
+                            </div>
+                          } @else {
+                            <div class="admin-empty-state">No planned training records yet.</div>
+                          }
+                        }
+                      </div>
+                    }
+
                   </article>
                 }
               </div>
@@ -1334,7 +1833,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       <h2>Admin profile picture</h2>
                       <span>{{ uploadingProfileImage() ? 'Uploading…' : (adminProfileImageDataUrl() ? 'Uploaded' : 'Using initials avatar') }}</span>
                     </div>
-                    <p class="admin-settings-item-copy">Upload a profile picture — this is the same picture shown on the student and training-manager views.</p>
                   </div>
 
                   <div class="admin-settings-item-controls admin-logo-panel">
@@ -1362,7 +1860,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       <h2>Company logo</h2>
                       <span>{{ companyLogoUploading() ? 'Uploading…' : (branding.companyLogoDataUrl() ? 'Uploaded' : 'Default brand mark') }}</span>
                     </div>
-                    <p class="admin-settings-item-copy">Upload a company logo used throughout the workspace. Saved to cloud storage so it stays put across sessions and devices.</p>
                     @if (companyLogoUploadError()) {
                       <div class="admin-upload-feedback admin-upload-feedback-error" role="status" aria-live="polite">{{ companyLogoUploadError() }}</div>
                     }
@@ -1382,7 +1879,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         <span>{{ companyLogoUploading() ? 'Uploading…' : 'Upload logo' }}</span>
                         <input type="file" accept="image/*" [disabled]="companyLogoUploading()" (change)="onLogoSelected($event)" />
                       </label>
-                      <button type="button" class="admin-secondary-btn" [disabled]="!branding.companyLogoDataUrl() || companyLogoUploading()" (click)="branding.clearCompanyLogo()">Remove logo</button>
+                      <button type="button" class="admin-secondary-btn" [disabled]="!branding.companyLogoDataUrl() || companyLogoUploading()" (click)="removeCompanyLogo()">Remove logo</button>
                     </div>
                   </div>
                 </article>
@@ -1393,10 +1890,13 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       <h2>Theme colour</h2>
                       <span>{{ branding.currentTheme().label }}</span>
                     </div>
-                    <p class="admin-settings-item-copy">Choose one colour theme for the full system experience.</p>
                   </div>
 
                   <div class="admin-settings-item-controls admin-settings-item-controls-stack">
+                    @if (themeUpdateError()) {
+                      <div class="admin-upload-feedback admin-upload-feedback-error" role="status" aria-live="polite">{{ themeUpdateError() }}</div>
+                    }
+
                     <label class="admin-settings-field">
                       <span>Colour</span>
                       <select [value]="branding.selectedThemeId()" (change)="onThemeSelectionChange($event)">
@@ -1412,7 +1912,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         <span [style.background]="branding.currentTheme().secondary"></span>
                         <span [style.background]="branding.currentTheme().tint"></span>
                       </div>
-                      <div class="admin-theme-selection-copy">{{ branding.currentTheme().copy }}</div>
                     </div>
                   </div>
                 </article>
@@ -1423,10 +1922,10 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
   `,
   styles: [`
     :host {
-      --ui-scale: 0.9;
+      --ui-scale: 0.86;
       display: block;
       min-height: 100vh;
-      background: #eef3fb;
+      background: #eef2f7;
       color: #173446;
       font-family: 'Inter', 'Segoe UI', 'Roboto', Arial, sans-serif;
     }
@@ -1438,8 +1937,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       padding: calc(1rem * var(--ui-scale));
       box-sizing: border-box;
       background:
-        radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 20%),
-        linear-gradient(180deg, #f5f9ff 0%, var(--admin-surface) 100%);
+        radial-gradient(circle at top left, rgba(56, 189, 248, 0.08), transparent 20%),
+        linear-gradient(180deg, #f6f8fc 0%, var(--admin-surface) 100%);
     }
 
     .admin-topbar,
@@ -1449,10 +1948,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-metric-card,
     .admin-section-card {
       box-sizing: border-box;
-      border: 1px solid rgba(15, 23, 42, 0.08);
-      background: rgba(255, 255, 255, 0.92);
-      box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
-      backdrop-filter: blur(10px);
+      border: 1px solid rgba(15, 23, 42, 0.07);
+      background: #ffffff;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03), 0 4px 14px rgba(15, 23, 42, 0.045);
     }
 
     .admin-topbar {
@@ -1462,10 +1960,10 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       align-items: center;
       justify-content: space-between;
       gap: calc(1rem * var(--ui-scale));
-      min-height: calc(72px * var(--ui-scale));
-      margin-bottom: calc(1rem * var(--ui-scale));
-      padding: calc(0.9rem * var(--ui-scale)) calc(1.2rem * var(--ui-scale));
-      border-radius: calc(22px * var(--ui-scale));
+      min-height: calc(64px * var(--ui-scale));
+      margin-bottom: calc(0.85rem * var(--ui-scale));
+      padding: calc(0.75rem * var(--ui-scale)) calc(1.1rem * var(--ui-scale));
+      border-radius: calc(14px * var(--ui-scale));
       box-sizing: border-box;
     }
 
@@ -1493,7 +1991,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       outline: none;
       background: rgba(15, 23, 42, 0.04);
       border-color: rgba(15, 23, 42, 0.1);
-      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
     }
 
     .admin-topbar-profile-btn:disabled {
@@ -1515,10 +2013,10 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       display: grid;
       gap: calc(0.2rem * var(--ui-scale));
       border: 1px solid rgba(148, 163, 184, 0.22);
-      border-radius: calc(18px * var(--ui-scale));
+      border-radius: calc(12px * var(--ui-scale));
       background: #ffffff;
-      box-shadow: 0 22px 48px rgba(15, 23, 42, 0.18);
-      padding: calc(0.4rem * var(--ui-scale));
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+      padding: calc(0.35rem * var(--ui-scale));
     }
 
     .admin-topbar-menu-section-label {
@@ -1535,7 +2033,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       align-items: center;
       gap: calc(0.55rem * var(--ui-scale));
       border: none;
-      border-radius: calc(12px * var(--ui-scale));
+      border-radius: calc(9px * var(--ui-scale));
       background: transparent;
       color: #0f172a;
       text-align: left;
@@ -1613,9 +2111,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-brand-logo,
     .admin-avatar {
-      width: calc(2.8rem * var(--ui-scale));
-      height: calc(2.8rem * var(--ui-scale));
-      border-radius: calc(16px * var(--ui-scale));
+      width: calc(2.6rem * var(--ui-scale));
+      height: calc(2.6rem * var(--ui-scale));
+      border-radius: calc(11px * var(--ui-scale));
       background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
     }
 
@@ -1637,17 +2135,17 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-profile-avatar,
     .admin-logo-preview {
-      width: 3.5rem;
-      height: 3.5rem;
-      border-radius: 1.2rem;
+      width: 3.2rem;
+      height: 3.2rem;
+      border-radius: 0.9rem;
       background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
     }
 
     .admin-logo-preview {
-      width: 6rem;
-      height: 6rem;
-      border-radius: 1.4rem;
-      font-size: 1.45rem;
+      width: 4rem;
+      height: 4rem;
+      border-radius: 0.9rem;
+      font-size: 1.15rem;
     }
 
     .admin-brand-name,
@@ -1698,9 +2196,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       top: calc(1rem * var(--ui-scale));
       display: flex;
       flex-direction: column;
-      gap: calc(0.65rem * var(--ui-scale));
-      padding: calc(1rem * var(--ui-scale));
-      border-radius: calc(24px * var(--ui-scale));
+      gap: calc(0.6rem * var(--ui-scale));
+      padding: calc(0.85rem * var(--ui-scale));
+      border-radius: calc(14px * var(--ui-scale));
     }
 
     .admin-sidebar-header {
@@ -1715,7 +2213,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       width: calc(2.5rem * var(--ui-scale));
       height: calc(2.5rem * var(--ui-scale));
       border: 1px solid var(--admin-tint);
-      border-radius: calc(14px * var(--ui-scale));
+      border-radius: calc(10px * var(--ui-scale));
       background: var(--admin-surface);
       color: var(--admin-primary);
       cursor: pointer;
@@ -1750,9 +2248,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-sidebar button:not(.admin-sidebar-toggle) {
       display: flex;
       align-items: center;
-      gap: calc(0.75rem * var(--ui-scale));
-      border-radius: calc(14px * var(--ui-scale));
-      padding: calc(0.85rem * var(--ui-scale)) calc(1rem * var(--ui-scale));
+      gap: calc(0.7rem * var(--ui-scale));
+      border-radius: calc(10px * var(--ui-scale));
+      padding: calc(0.65rem * var(--ui-scale)) calc(0.85rem * var(--ui-scale));
       background: transparent;
       color: #334155;
       text-align: left;
@@ -1764,10 +2262,10 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      flex: 0 0 calc(2.35rem * var(--ui-scale));
-      width: calc(2.35rem * var(--ui-scale));
-      height: calc(2.35rem * var(--ui-scale));
-      border-radius: calc(14px * var(--ui-scale));
+      flex: 0 0 calc(2.2rem * var(--ui-scale));
+      width: calc(2.2rem * var(--ui-scale));
+      height: calc(2.2rem * var(--ui-scale));
+      border-radius: calc(10px * var(--ui-scale));
       background: rgba(148, 163, 184, 0.12);
       color: currentColor;
       flex-shrink: 0;
@@ -1794,7 +2292,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-sidebar button:not(.admin-sidebar-toggle).active {
       background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
       color: #fff;
-      box-shadow: 0 12px 24px rgba(79, 70, 229, 0.18);
+      box-shadow: 0 3px 10px rgba(79, 70, 229, 0.16);
     }
 
     .admin-sidebar button:not(.admin-sidebar-toggle):hover .admin-nav-icon,
@@ -1847,9 +2345,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-panel {
       display: grid;
-      gap: 1.2rem;
-      padding: calc(1.2rem * var(--ui-scale));
-      border-radius: calc(26px * var(--ui-scale));
+      gap: 1rem;
+      padding: calc(1rem * var(--ui-scale));
+      border-radius: calc(16px * var(--ui-scale));
     }
 
     .section-heading-block {
@@ -1916,12 +2414,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-report-menu {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
-      gap: 1.25rem;
+      grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+      gap: 1rem;
       min-width: 0;
-      padding: 1.25rem;
+      padding: 1rem;
       border: 1px solid rgba(148, 163, 184, 0.14);
-      border-radius: 22px;
+      border-radius: 14px;
       background: linear-gradient(180deg, #fbfdff 0%, #f6faff 100%);
       box-sizing: border-box;
     }
@@ -1950,13 +2448,13 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 0.55rem;
-      min-height: 3rem;
-      padding: 0.82rem 1rem;
+      gap: 0.5rem;
+      min-height: 2.6rem;
+      padding: 0.65rem 0.95rem;
       border: 1px solid transparent;
-      border-radius: 16px;
+      border-radius: 10px;
       box-sizing: border-box;
-      font-weight: 800;
+      font-weight: 700;
       letter-spacing: 0.01em;
       line-height: 1;
       text-decoration: none;
@@ -1967,20 +2465,20 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-upload-btn {
       background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
       color: #fff;
-      box-shadow: 0 14px 28px rgba(23, 52, 70, 0.18);
+      box-shadow: 0 2px 6px rgba(23, 52, 70, 0.14);
     }
 
     .admin-secondary-btn,
     .admin-inline-btn {
-      background: rgba(255, 255, 255, 0.96);
+      background: #ffffff;
       color: #173446;
-      border-color: rgba(148, 163, 184, 0.26);
-      box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+      border-color: rgba(148, 163, 184, 0.32);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
     }
 
     .admin-inline-btn {
-      min-height: 2.35rem;
-      padding: 0.58rem 0.9rem;
+      min-height: 2.2rem;
+      padding: 0.5rem 0.85rem;
       border-radius: 999px;
       font-size: 0.82rem;
     }
@@ -1989,7 +2487,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       background: rgba(254, 242, 242, 0.98);
       color: #b91c1c;
       border-color: rgba(248, 113, 113, 0.28);
-      box-shadow: 0 10px 20px rgba(239, 68, 68, 0.1);
+      box-shadow: none;
     }
 
     .admin-primary-btn:hover,
@@ -1997,7 +2495,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-upload-btn:hover,
     .admin-upload-btn:focus-within {
       transform: translateY(-1px);
-      box-shadow: 0 18px 32px rgba(23, 52, 70, 0.22);
+      box-shadow: 0 4px 12px rgba(23, 52, 70, 0.2);
       outline: none;
     }
 
@@ -2006,15 +2504,15 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-inline-btn:hover,
     .admin-inline-btn:focus-visible {
       transform: translateY(-1px);
-      border-color: rgba(56, 189, 248, 0.28);
-      box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
+      border-color: rgba(56, 189, 248, 0.32);
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.1);
       outline: none;
     }
 
     .admin-inline-btn-danger:hover,
     .admin-inline-btn-danger:focus-visible {
       border-color: rgba(239, 68, 68, 0.34);
-      box-shadow: 0 14px 28px rgba(239, 68, 68, 0.14);
+      box-shadow: 0 3px 10px rgba(239, 68, 68, 0.12);
     }
 
     .admin-primary-btn:disabled,
@@ -2030,13 +2528,13 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       display: grid;
       align-content: start;
       gap: 0.3rem;
-      min-height: 16.5rem;
+      min-height: 12.5rem;
       width: 100%;
       max-width: 100%;
-      padding: 1.65rem 1.65rem 1.4rem;
+      padding: 1.2rem 1.2rem 1.05rem;
       border: 1px solid rgba(148, 163, 184, 0.18);
-      border-radius: 22px;
-      background: rgba(255, 255, 255, 0.98);
+      border-radius: 14px;
+      background: #ffffff;
       box-sizing: border-box;
       text-align: left;
       color: #173446;
@@ -2062,10 +2560,10 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 3.6rem;
-      height: 3.6rem;
-      border-radius: 16px;
-      margin-bottom: 1.1rem;
+      width: 2.8rem;
+      height: 2.8rem;
+      border-radius: 10px;
+      margin-bottom: 0.8rem;
       flex-shrink: 0;
       position: relative;
       z-index: 1;
@@ -2073,8 +2571,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .admin-report-menu-icon svg {
-      width: 26px;
-      height: 26px;
+      width: 20px;
+      height: 20px;
     }
 
     .admin-report-menu-item-annual .admin-report-menu-icon {
@@ -2136,7 +2634,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-report-menu-item:hover,
     .admin-report-menu-item:focus-visible {
       border-color: rgba(56, 189, 248, 0.3);
-      box-shadow: 0 14px 28px rgba(15, 23, 42, 0.09);
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
       transform: translateY(-2px);
       outline: none;
     }
@@ -2159,7 +2657,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-report-menu-item-active {
       border-color: rgba(56, 189, 248, 0.36);
       background: linear-gradient(180deg, rgba(240, 249, 255, 0.98) 0%, rgba(255, 255, 255, 0.92) 100%);
-      box-shadow: 0 16px 28px rgba(56, 189, 248, 0.12);
+      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.1);
     }
 
     .admin-settings-list {
@@ -2178,9 +2676,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-profile-card,
     .admin-section-card {
       display: grid;
-      gap: 1rem;
-      padding: 1.15rem;
-      border-radius: 22px;
+      gap: 0.9rem;
+      padding: 0.95rem;
+      border-radius: 14px;
     }
 
     .admin-profile-card {
@@ -2196,8 +2694,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       align-items: center;
       justify-content: center;
       padding: 1.5rem;
-      background: rgba(15, 23, 42, 0.36);
-      backdrop-filter: blur(6px);
+      background: rgba(15, 23, 42, 0.4);
+      backdrop-filter: blur(3px);
       overflow-y: auto;
     }
 
@@ -2205,12 +2703,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       width: min(860px, 100%);
       max-height: min(calc(100vh - 3rem), 860px);
       display: grid;
-      gap: 1rem;
-      padding: 1.25rem;
+      gap: 0.9rem;
+      padding: 1.1rem;
       border: 1px solid rgba(15, 23, 42, 0.08);
-      border-radius: 24px;
-      background: rgba(255, 255, 255, 0.98);
-      box-shadow: 0 28px 60px rgba(15, 23, 42, 0.24);
+      border-radius: 16px;
+      background: #ffffff;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
       overflow-y: auto;
     }
 
@@ -2258,8 +2756,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-profile-meta-item {
       display: grid;
       gap: 0.28rem;
-      padding: 0.9rem;
-      border-radius: 18px;
+      padding: 0.7rem 0.8rem;
+      border-radius: 10px;
       background: #f8fbff;
       border: 1px solid rgba(148, 163, 184, 0.16);
     }
@@ -2286,9 +2784,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-edit-form select,
     .admin-search-field input {
       width: 100%;
-      padding: 0.9rem 1rem;
-      border: 1px solid rgba(148, 163, 184, 0.3);
-      border-radius: 14px;
+      padding: 0.65rem 0.8rem;
+      border: 1px solid rgba(148, 163, 184, 0.32);
+      border-radius: 10px;
       background: #fff;
       color: #173446;
       box-sizing: border-box;
@@ -2302,7 +2800,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-edit-form select:focus,
     .admin-search-field input:focus {
       border-color: var(--admin-secondary);
-      box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.14);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.14);
     }
 
     .admin-profile-meta-item strong,
@@ -2314,15 +2812,15 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-metric-card {
       display: grid;
-      gap: 0.45rem;
-      padding: 1.05rem;
-      border-radius: 20px;
+      gap: 0.4rem;
+      padding: 0.85rem;
+      border-radius: 12px;
       transition: transform 0.18s ease, box-shadow 0.18s ease;
     }
 
     .admin-metric-card:hover {
       transform: translateY(-2px);
-      box-shadow: 0 18px 36px rgba(15, 23, 42, 0.1);
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
     }
 
     .admin-metric-card-accent {
@@ -2348,9 +2846,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 2.6rem;
-      height: 2.6rem;
-      border-radius: 13px;
+      width: 2.3rem;
+      height: 2.3rem;
+      border-radius: 9px;
       margin-bottom: 0.2rem;
     }
 
@@ -2444,13 +2942,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       min-width: 0;
     }
 
-    .admin-settings-item-copy,
-    .admin-theme-selection-copy {
-      color: #475569;
-      font-size: 0.92rem;
-      line-height: 1.5;
-    }
-
     .admin-settings-item-controls {
       display: flex;
       align-items: center;
@@ -2478,9 +2969,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-settings-field select {
       width: 100%;
-      padding: 0.9rem 1rem;
+      padding: 0.65rem 0.8rem;
       border: 1px solid rgba(148, 163, 184, 0.3);
-      border-radius: 14px;
+      border-radius: 10px;
       background: #fff;
       color: #173446;
       box-sizing: border-box;
@@ -2493,7 +2984,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-settings-field select:focus {
       border-color: var(--admin-secondary);
-      box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.14);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.14);
     }
 
     .admin-bulk-upload-template-field {
@@ -2512,8 +3003,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       display: grid;
       gap: 0.55rem;
       min-width: min(100%, 18rem);
-      padding: 0.95rem 1rem;
-      border-radius: 18px;
+      padding: 0.7rem 0.85rem;
+      border-radius: 10px;
       background: #fbfdff;
       border: 1px solid rgba(148, 163, 184, 0.16);
     }
@@ -2543,9 +3034,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-report-filter-field input,
     .admin-report-filter-field select {
       width: 100%;
-      padding: 0.78rem 0.9rem;
+      padding: 0.6rem 0.75rem;
       border: 1px solid rgba(148, 163, 184, 0.3);
-      border-radius: 14px;
+      border-radius: 10px;
       background: #fff;
       color: #173446;
       box-sizing: border-box;
@@ -2556,7 +3047,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-report-filter-field input:focus,
     .admin-report-filter-field select:focus {
       border-color: var(--admin-secondary);
-      box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.14);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.14);
     }
 
     .admin-report-download-field {
@@ -2608,8 +3099,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       align-items: center;
       justify-content: space-between;
       gap: 0.75rem;
-      padding: 0.85rem 0.95rem;
-      border-radius: 16px;
+      padding: 0.65rem 0.8rem;
+      border-radius: 10px;
       background: #f8fbff;
       border: 1px solid rgba(148, 163, 184, 0.16);
     }
@@ -2648,9 +3139,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       justify-content: space-between;
       gap: 1rem;
       flex-wrap: wrap;
-      margin-bottom: 1rem;
-      padding: 1rem;
-      border-radius: 18px;
+      margin-bottom: 0.85rem;
+      padding: 0.85rem;
+      border-radius: 12px;
       background: #f8fbff;
       border: 1px solid rgba(148, 163, 184, 0.18);
     }
@@ -2670,8 +3161,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-upload-feedback {
       margin-bottom: 1rem;
-      padding: 0.8rem 1rem;
-      border-radius: 14px;
+      padding: 0.6rem 0.85rem;
+      border-radius: 10px;
       background: rgba(16, 185, 129, 0.12);
       color: #047857;
       font-size: 0.9rem;
@@ -2684,11 +3175,11 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .admin-upload-btn-prominent {
-      gap: 0.75rem;
-      min-height: 3.3rem;
-      padding: 0.62rem 1rem;
-      border-radius: 18px;
-      box-shadow: 0 16px 28px rgba(23, 52, 70, 0.16);
+      gap: 0.7rem;
+      min-height: 2.8rem;
+      padding: 0.6rem 0.95rem;
+      border-radius: 10px;
+      box-shadow: 0 3px 10px rgba(23, 52, 70, 0.14);
     }
 
     .admin-upload-btn-icon {
@@ -2712,9 +3203,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .admin-upload-issues {
-      margin-bottom: 1rem;
-      padding: 1rem;
-      border-radius: 16px;
+      margin-bottom: 0.85rem;
+      padding: 0.85rem;
+      border-radius: 10px;
       border: 1px solid rgba(239, 68, 68, 0.18);
       background: #fff7f7;
       color: #7f1d1d;
@@ -2750,9 +3241,27 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       font-size: 0.82rem;
     }
 
+    .admin-report-note {
+      margin: 0;
+      padding: 0.65rem 0.9rem;
+      border-radius: 12px;
+      background: rgba(59, 130, 246, 0.08);
+      border: 1px solid rgba(59, 130, 246, 0.18);
+      font-size: 0.82rem;
+      color: #334155;
+      line-height: 1.45;
+    }
+
+    .admin-field-hint {
+      display: block;
+      margin-top: 0.3rem;
+      font-size: 0.78rem;
+      color: #64748b;
+    }
+
     .admin-report-table-wrap {
       overflow-x: auto;
-      border-radius: 18px;
+      border-radius: 10px;
       border: 1px solid rgba(148, 163, 184, 0.18);
       background: #fbfdff;
     }
@@ -2765,7 +3274,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-report-table th,
     .admin-report-table td {
-      padding: 0.72rem 0.88rem;
+      padding: 0.55rem 0.7rem;
       text-align: left;
       border-bottom: 1px solid rgba(148, 163, 184, 0.14);
       color: #173446;
@@ -2840,8 +3349,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .admin-user-row {
-      padding: 0.95rem 1rem;
-      border-radius: 18px;
+      padding: 0.7rem 0.85rem;
+      border-radius: 10px;
       background: #fbfdff;
       border: 1px solid rgba(148, 163, 184, 0.16);
     }
@@ -2863,14 +3372,22 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .admin-logo-panel {
-      align-items: flex-start;
+      align-items: center;
       justify-content: space-between;
       flex-wrap: wrap;
     }
 
     .admin-logo-actions {
+      flex-direction: column;
       align-items: stretch;
-      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+      min-width: 9rem;
+    }
+
+    .admin-logo-actions .admin-upload-btn,
+    .admin-logo-actions .admin-secondary-btn {
+      width: 100%;
     }
 
     .admin-upload-btn {
@@ -2903,7 +3420,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       border-radius: 999px;
       display: inline-flex;
       border: 1px solid rgba(255, 255, 255, 0.55);
-      box-shadow: 0 6px 12px rgba(15, 23, 42, 0.08);
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
     }
 
     .admin-welcome-banner {
@@ -2912,16 +3429,15 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       left: 50%;
       z-index: 150;
       width: min(calc(360px * var(--ui-scale)), calc(100vw - 2rem));
-      padding: calc(0.95rem * var(--ui-scale)) calc(1.2rem * var(--ui-scale));
+      padding: calc(0.85rem * var(--ui-scale)) calc(1.1rem * var(--ui-scale));
       border: 1px solid rgba(56, 189, 248, 0.18);
-      border-radius: calc(20px * var(--ui-scale));
+      border-radius: calc(14px * var(--ui-scale));
       background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
-      box-shadow: 0 20px 40px rgba(79, 70, 229, 0.24);
+      box-shadow: 0 8px 22px rgba(79, 70, 229, 0.22);
       color: #fff;
       transform: translate(-50%, -120%);
       opacity: 0;
       animation: admin-welcome-banner-drop 0.6s cubic-bezier(0.2, 0.9, 0.2, 1) forwards;
-      backdrop-filter: blur(12px);
       pointer-events: none;
     }
 
@@ -3125,21 +3641,21 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly uploadingInvoice = signal(false);
   readonly uploadingProofOfPayment = signal(false);
   readonly uploadingCertificate = signal(false);
-  readonly selectedReportDepartment = signal('');
-  readonly selectedReportGroup = signal('');
-  readonly selectedReportAccessStatus = signal<ReportAccessFilter>('All');
-  readonly selectedReportStartDate = signal('');
-  readonly selectedReportEndDate = signal('');
-  readonly selectedReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
   readonly selectedAnnualReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
   readonly selectedIdpReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
   readonly selectedCertificateReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
+  readonly selectedAtrSubReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
+  readonly selectedWspSubReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
   readonly selectedBulkUploadTemplateFormat = signal<ReportDownloadFormat>('CSV');
   readonly selectedReportView = signal<AdminReportView | null>(null);
+  readonly selectedSetaReportTab = signal<SetaReportTab | null>(null);
+  readonly selectedAtrSubReport = signal<AtrSubReport | null>(null);
+  readonly selectedWspSubReport = signal<WspSubReport | null>(null);
   readonly annualReportSearchTerm = signal('');
   readonly selectedAnnualReportDepartment = signal('');
-  readonly selectedAnnualReportTrainingStartDate = signal('');
-  readonly selectedAnnualReportTrainingEndDate = signal('');
+  readonly selectedAnnualReportSource = signal<TrainingReportSource>('All');
+  readonly selectedAnnualReportDateFrom = signal('');
+  readonly selectedAnnualReportDateTo = signal('');
   readonly showSingleUserModal = signal(false);
   readonly singleUserMessage = signal('');
   readonly singleUserTone = signal<'success' | 'error'>('success');
@@ -3150,6 +3666,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly uploadingProfileImage = signal(false);
   readonly companyLogoUploading = signal(false);
   readonly companyLogoUploadError = signal('');
+  readonly themeUpdateError = signal('');
   readonly adminName = signal(
     readLmsSessionRecord()?.displayName
       ?? deriveDisplayNameFromIdentity(readLmsSessionRecord()?.username, readLmsSessionRecord()?.email),
@@ -3270,139 +3787,104 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       { label: 'Not Yet Started', count: countBy('Not Yet Started'), color: '#f59e0b' },
     ];
   });
-  readonly reportColumns = computed(() => REPORT_FIELD_OPTIONS);
-  readonly reportDepartments = computed(() =>
-    Array.from(new Set(this.users().map((student) => student.department).filter(Boolean))).sort((left, right) => left.localeCompare(right)),
-  );
-  readonly reportGroups = computed(() =>
-    Array.from(new Set(this.users().map((student) => student.group).filter(Boolean))).sort((left, right) => left.localeCompare(right)),
-  );
   readonly reportOfferingTitlesById = computed(() =>
     new Map(this.managerData.offerings().map((offering) => [offering.id, offering.title])),
   );
   readonly reportManagerNamesById = computed(() =>
     new Map(this.users().map((student) => [student.id, `${student.name} ${student.surname}`.trim()])),
   );
-  readonly mentorshipStudentIds = computed(() => {
-    const studentIds = new Set<string>();
-
-    for (const assignment of this.managerData.mentorshipAssignments()) {
-      studentIds.add(assignment.menteeId);
-    }
-
-    for (const submission of this.managerData.mentorshipSubmissions()) {
-      studentIds.add(submission.studentId);
-    }
-
-    return studentIds;
-  });
-  readonly filteredReportUsers = computed(() => {
-    const department = this.selectedReportDepartment();
-    const group = this.selectedReportGroup();
-    const accessStatus = this.selectedReportAccessStatus();
-    const startDate = this.selectedReportStartDate();
-    const endDate = this.selectedReportEndDate();
-
-    return this.users().filter((student) => {
-      if (department && student.department !== department) {
-        return false;
-      }
-
-      if (group && student.group !== group) {
-        return false;
-      }
-
-      if (accessStatus !== 'All' && student.activeStatus !== accessStatus) {
-        return false;
-      }
-
-      if (startDate && student.dateEnrolled < startDate) {
-        return false;
-      }
-
-      if (endDate && student.deadlineDate > endDate) {
-        return false;
-      }
-
-      return true;
-    });
-  });
-  readonly filteredReportRows = computed(() => {
-    const offeringTitlesById = this.reportOfferingTitlesById();
-    const rows: LearnerReportRow[] = [];
-
-    for (const student of this.filteredReportUsers()) {
-      const assignedOfferings = student.assignedOfferingIds
-        .map((offeringId) => ({ offeringId, title: offeringTitlesById.get(offeringId) ?? 'Unknown course' }));
-
-      if (!assignedOfferings.length) {
-        rows.push({
-          id: `${student.id}::not-assigned`,
-          student,
-          offeringId: null,
-          courseTitle: 'Not assigned',
-          completionStatus: student.status,
-          dateCompleted: 'Not completed',
-        });
-        continue;
-      }
-
-      for (const offering of assignedOfferings) {
-        rows.push({
-          id: `${student.id}::${offering.offeringId}`,
-          student,
-          offeringId: offering.offeringId,
-          courseTitle: offering.title,
-          completionStatus: this.resolveReportCompletionStatus(student, offering.offeringId, offering.title),
-          dateCompleted: this.resolveReportCompletionDate(student, offering.offeringId, offering.title),
-        });
-      }
-    }
-
-    return rows;
-  });
-  readonly annualTrainingReportRows = computed<AnnualTrainingReportRow[]>(() => {
+  // "Training that has occurred" — merges two very different sources into one row shape:
+  // (a) external training requests that were requested and approved, and (b) internal LMS
+  // courses the student has actually completed (with an assignment mark where the completion
+  // was assignment-driven, since quiz/document/video completions have no per-student mark
+  // visible admin-side, only a pass/complete state).
+  readonly annualTrainingReportRows = computed<ConsolidatedTrainingReportRow[]>(() => {
+    const rows: ConsolidatedTrainingReportRow[] = [];
     const studentsById = new Map(this.users().map((student) => [student.id, student]));
     const studentsByEmail = new Map(this.users().map((student) => [student.email.toLowerCase(), student]));
 
-    return this.managerData.externalTrainingRequests()
-      .filter((request) => request.status === 'Approved')
-      .map((request) => {
-        // Prefer the stable studentId captured at submission time. Older requests (submitted
-        // before studentId existed on this record) fall back to matching by email, which breaks
-        // if the student's email has since changed.
-        const matchedStudent = (request.studentId ? studentsById.get(request.studentId) : undefined)
-          ?? studentsByEmail.get(request.studentEmail.toLowerCase());
-        const approvedDateValue = this.normalizeReportDateValue(request.reviewedAt ?? request.submittedAt);
-        const approvedDate = this.formatReportDateLabel(request.reviewedAt ?? request.submittedAt);
-        const trainingStartDateValue = this.normalizeReportDateValue(request.trainingStartDate);
-        const trainingEndDateValue = this.normalizeReportDateValue(request.trainingEndDate);
+    for (const request of this.managerData.externalTrainingRequests()) {
+      if (request.status !== 'Approved') {
+        continue;
+      }
 
-        return {
-          id: request.id,
-          learnerName: request.studentName,
-          learnerEmail: request.studentEmail,
-          idNumber: matchedStudent?.idNumber || 'Not provided',
-          department: matchedStudent?.department || 'Unassigned',
-          ofoCode: matchedStudent?.ofoCode || 'Not provided',
-          race: matchedStudent?.race || 'Not provided',
-          gender: matchedStudent?.gender || 'Not provided',
-          municipality: matchedStudent?.municipality || 'Not provided',
-          trainingCourse: request.courseName,
-          providerName: request.provider,
-          trainingType: request.trainingType,
-          alignedToIdp: request.alignedToIdp,
-          trainingStartDate: this.formatReportDateLabel(request.trainingStartDate),
-          trainingStartDateValue,
-          trainingEndDate: this.formatReportDateLabel(request.trainingEndDate),
-          trainingEndDateValue,
-          courseCost: request.courseCost,
-          approvedBy: request.reviewerName || request.approvingManagerName,
-          approvedDate,
-          approvedDateValue,
-        };
-      })
-      .sort((left, right) => right.approvedDateValue.localeCompare(left.approvedDateValue));
+      // Prefer the stable studentId captured at submission time. Older requests (submitted
+      // before studentId existed on this record) fall back to matching by email, which breaks
+      // if the student's email has since changed.
+      const matchedStudent = (request.studentId ? studentsById.get(request.studentId) : undefined)
+        ?? studentsByEmail.get(request.studentEmail.toLowerCase());
+      const dateValue = this.normalizeReportDateValue(request.reviewedAt ?? request.submittedAt);
+
+      rows.push({
+        id: `external::${request.id}`,
+        sourceId: request.id,
+        learnerName: request.studentName,
+        learnerEmail: request.studentEmail,
+        idNumber: matchedStudent?.idNumber || 'Not provided',
+        department: matchedStudent?.department || 'Unassigned',
+        trainingItem: request.courseName,
+        source: 'External',
+        trainingType: request.trainingType || 'External training',
+        result: 'Approved',
+        provider: request.provider || 'External provider',
+        date: this.formatReportDateLabel(request.reviewedAt ?? request.submittedAt),
+        dateValue,
+        status: 'Approved',
+      });
+    }
+
+    const offeringTitlesById = this.reportOfferingTitlesById();
+    const coursesByStudentId = this.reportStudentCoursesById();
+    const approvedAssignmentsByStudentOffering = new Map<string, string[]>();
+
+    for (const submission of this.managerData.assignmentSubmissions()) {
+      if (submission.status !== 'Approved') {
+        continue;
+      }
+
+      const key = `${submission.studentId}::${submission.offeringId}`;
+      const mark = `${submission.awardedPoints ?? 0}/${submission.possiblePoints}`;
+      const existing = approvedAssignmentsByStudentOffering.get(key);
+      if (existing) {
+        existing.push(mark);
+      } else {
+        approvedAssignmentsByStudentOffering.set(key, [mark]);
+      }
+    }
+
+    for (const student of this.users()) {
+      const studentCourses = coursesByStudentId[student.id] ?? [];
+
+      for (const offeringId of student.assignedOfferingIds) {
+        const courseTitle = offeringTitlesById.get(offeringId) ?? 'Unknown course';
+        if (this.resolveReportCompletionStatus(student, offeringId, courseTitle) !== 'Completed') {
+          continue;
+        }
+
+        const matchedCourse = studentCourses.find((course) => course.offeringId === offeringId || course.name === courseTitle);
+        const rawCompletedAt = matchedCourse?.completedAt ?? '';
+        const marks = approvedAssignmentsByStudentOffering.get(`${student.id}::${offeringId}`);
+
+        rows.push({
+          id: `lms::${student.id}::${offeringId}`,
+          sourceId: `${student.id}::${offeringId}`,
+          learnerName: `${student.name} ${student.surname}`.trim(),
+          learnerEmail: student.email,
+          idNumber: student.idNumber || 'Not provided',
+          department: student.department || 'Unassigned',
+          trainingItem: courseTitle,
+          source: 'LMS',
+          trainingType: marks ? 'Assignment' : 'Course',
+          result: marks ? marks.join(', ') : 'Completed',
+          provider: 'Internal LMS',
+          date: this.formatReportDateLabel(rawCompletedAt),
+          dateValue: this.normalizeReportDateValue(rawCompletedAt),
+          status: 'Completed',
+        });
+      }
+    }
+
+    return rows.sort((left, right) => right.dateValue.localeCompare(left.dateValue));
   });
   readonly idpReportRows = computed<IdpReportRow[]>(() => {
     const managerNamesById = this.reportManagerNamesById();
@@ -3486,8 +3968,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly filteredAnnualTrainingReportRows = computed(() => {
     const searchQuery = this.annualReportSearchTerm().trim().toLowerCase();
     const department = this.selectedAnnualReportDepartment();
-    const trainingStartDate = this.selectedAnnualReportTrainingStartDate();
-    const trainingEndDate = this.selectedAnnualReportTrainingEndDate();
+    const source = this.selectedAnnualReportSource();
+    const dateFrom = this.selectedAnnualReportDateFrom();
+    const dateTo = this.selectedAnnualReportDateTo();
 
     return this.annualTrainingReportRows().filter((row) => {
       if (searchQuery) {
@@ -3496,10 +3979,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
           row.learnerEmail,
           row.idNumber,
           row.department,
-          row.trainingCourse,
-          row.providerName,
+          row.trainingItem,
+          row.provider,
           row.trainingType,
-          row.approvedBy,
         ].some((value) => value.toLowerCase().includes(searchQuery));
 
         if (!matchesSearch) {
@@ -3511,11 +3993,15 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         return false;
       }
 
-      if (trainingStartDate && (!row.trainingStartDateValue || row.trainingStartDateValue < trainingStartDate)) {
+      if (source !== 'All' && row.source !== source) {
         return false;
       }
 
-      if (trainingEndDate && (!row.trainingEndDateValue || row.trainingEndDateValue > trainingEndDate)) {
+      if (dateFrom && (!row.dateValue || row.dateValue < dateFrom)) {
+        return false;
+      }
+
+      if (dateTo && (!row.dateValue || row.dateValue > dateTo)) {
         return false;
       }
 
@@ -3523,9 +4009,277 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     });
   });
   readonly canDownloadAnnualReport = computed(() => this.filteredAnnualTrainingReportRows().length > 0);
-  readonly canDownloadReport = computed(() => this.filteredReportRows().length > 0);
   readonly canDownloadIdpReport = computed(() => this.idpReportRows().length > 0);
   readonly canDownloadCertificateLicenceReport = computed(() => this.certificateLicenceReportRows().length > 0);
+  // The 3 ATR sub-reports below share one base dataset — approved external training requests
+  // matched to their beneficiary's student record. Built directly (rather than as a flat
+  // per-request list) since each needs the raw student record for demographic bucketing
+  // (resolveBeneficiaryDemographics) and, for the aggregate reports, group-by/summing.
+  private readonly completedTrainingEvents = computed<CompletedTrainingEvent[]>(() => {
+    const studentsById = new Map(this.users().map((student) => [student.id, student]));
+    const studentsByEmail = new Map(this.users().map((student) => [student.email.toLowerCase(), student]));
+
+    return this.managerData.externalTrainingRequests()
+      .filter((request) => request.status === 'Approved')
+      .map((request) => ({
+        request,
+        student: (request.studentId ? studentsById.get(request.studentId) : undefined)
+          ?? studentsByEmail.get(request.studentEmail.toLowerCase()),
+      }));
+  });
+  readonly beneficiariesCompletedTrainingRows = computed<BeneficiariesCompletedTrainingRow[]>(() => {
+    const groups = new Map<string, { sample: CompletedTrainingEvent; demographics: BeneficiaryDemographicCounts[]; totalCost: number }>();
+
+    for (const event of this.completedTrainingEvents()) {
+      const ofoOccupation = event.student?.ofoCode || 'Not captured';
+      const municipality = event.student?.municipality || 'Not captured';
+      const groupKey = [ofoOccupation, municipality, event.request.courseName].join('::');
+      const existing = groups.get(groupKey);
+      const cost = Number(event.request.courseCost) || 0;
+      const demographics = event.student ? this.resolveBeneficiaryDemographics(event.student) : this.resolveBeneficiaryDemographics({ race: undefined, gender: undefined, idNumber: '', dateOfBirth: undefined });
+
+      if (existing) {
+        existing.demographics.push(demographics);
+        existing.totalCost += cost;
+      } else {
+        groups.set(groupKey, { sample: event, demographics: [demographics], totalCost: cost });
+      }
+    }
+
+    return Array.from(groups.entries()).map(([groupKey, group]) => {
+      const counts = this.sumBeneficiaryDemographics(group.demographics);
+      const [ofoOccupation, municipality] = groupKey.split('::');
+
+      return {
+        id: groupKey,
+        ofoOccupation,
+        municipality,
+        nqfAlignedTraining: 'Not captured',
+        nqfLevel: group.sample.student?.nqfLevel || 'Not captured',
+        programmeNeedsAddressed: 'Not captured',
+        fundingType: 'Not captured',
+        dgContractNumber: 'Not captured',
+        socioEconomicStatus: 'Not captured',
+        typeOfLearningProgramme: this.mapToSetaLearningProgrammeType(group.sample.request.trainingType),
+        nameOfLearningProgramme: group.sample.request.courseName,
+        typeOfEducationalInstitution: 'Not captured',
+        totalActualCost: group.totalCost,
+        entryLevel: 0,
+        intermediateLevel: 0,
+        advancedLevel: 0,
+        ...counts,
+      };
+    }).sort((left, right) => left.ofoOccupation.localeCompare(right.ofoOccupation) || left.municipality.localeCompare(right.municipality));
+  });
+  readonly canDownloadBeneficiariesCompletedTrainingReport = computed(() => this.beneficiariesCompletedTrainingRows().length > 0);
+
+  readonly numberBeneficiariesRows = computed<NumberBeneficiariesRow[]>(() => {
+    const groups = new Map<string, BeneficiaryDemographicCounts[]>();
+
+    for (const event of this.completedTrainingEvents()) {
+      const ofoOccupation = event.student?.ofoCode || 'Not captured';
+      const municipality = event.student?.municipality || 'Not captured';
+      const groupKey = [ofoOccupation, municipality].join('::');
+      const demographics = event.student ? this.resolveBeneficiaryDemographics(event.student) : this.resolveBeneficiaryDemographics({ race: undefined, gender: undefined, idNumber: '', dateOfBirth: undefined });
+
+      const existing = groups.get(groupKey);
+      if (existing) {
+        existing.push(demographics);
+      } else {
+        groups.set(groupKey, [demographics]);
+      }
+    }
+
+    return Array.from(groups.entries()).map(([groupKey, demographics]) => {
+      const [ofoOccupation, municipality] = groupKey.split('::');
+      return {
+        id: groupKey,
+        ofoOccupation,
+        municipality,
+        ...this.sumBeneficiaryDemographics(demographics),
+      };
+    }).sort((left, right) => left.ofoOccupation.localeCompare(right.ofoOccupation) || left.municipality.localeCompare(right.municipality));
+  });
+  readonly canDownloadNumberBeneficiariesReport = computed(() => this.numberBeneficiariesRows().length > 0);
+
+  // Pivotal programmes are a specific SETA grant category (Apprenticeships, Bursaries,
+  // Internships, Learnerships, etc.) — this LMS doesn't capture that distinction, so every
+  // completed-training event is included here rather than silently dropping rows a real
+  // submission would need. pivotalOfoOccupation reuses the beneficiary's own OFO code since
+  // there's no separate "target occupation of the Pivotal programme" field captured.
+  readonly pivotalActualTrainingRows = computed<PivotalActualTrainingRow[]>(() => {
+    return this.completedTrainingEvents().map((event) => {
+      const ofoOccupation = event.student?.ofoCode || 'Not captured';
+      const demographics = event.student ? this.resolveBeneficiaryDemographics(event.student) : this.resolveBeneficiaryDemographics({ race: undefined, gender: undefined, idNumber: '', dateOfBirth: undefined });
+
+      return {
+        id: event.request.id,
+        ofoOccupation,
+        municipality: event.student?.municipality || 'Not captured',
+        programmeNeedsAddressed: 'Not captured',
+        fundingType: 'Not captured',
+        dgContractNumber: 'Not captured',
+        idNumber: event.student?.idNumber || 'Not provided',
+        firstName: event.student?.name || event.request.studentName.trim().split(/\s+/)[0] || 'Not provided',
+        surname: event.student?.surname || event.request.studentName.trim().split(/\s+/).slice(1).join(' ') || 'Not provided',
+        socioEconomicStatus: 'Not captured',
+        typeOfLearningProgramme: this.mapToSetaLearningProgrammeType(event.request.trainingType),
+        nameOfLearningProgramme: event.request.courseName,
+        pivotalOfoOccupation: ofoOccupation,
+        typeOfEducationalInstitution: 'Not captured',
+        nqfLevel: event.student?.nqfLevel || 'Not captured',
+        cost: Number(event.request.courseCost) || 0,
+        entryLevel: 0,
+        intermediateLevel: 0,
+        advancedLevel: 0,
+        ...demographics,
+      };
+    }).sort((left, right) => left.surname.localeCompare(right.surname) || left.firstName.localeCompare(right.firstName));
+  });
+  readonly canDownloadPivotalActualTrainingReport = computed(() => this.pivotalActualTrainingRows().length > 0);
+
+  // "Planned training" for WSP purposes comes from two places per student: internal LMS course
+  // assignments not yet completed, and IDP entries (Development Need field, used as the training
+  // intervention name) that aren't marked Completed. Neither source distinguishes Pivotal from
+  // non-Pivotal programmes, so — same reasoning as the ATR Pivotal report — every planned event
+  // is included in both the non-Pivotal aggregate and the Pivotal per-learner report rather than
+  // silently dropping rows a real submission would need.
+  private readonly plannedTrainingEvents = computed<PlannedTrainingEvent[]>(() => {
+    const offeringsById = new Map(this.managerData.offerings().map((offering) => [offering.id, offering]));
+    const events: PlannedTrainingEvent[] = [];
+
+    for (const student of this.users()) {
+      for (const offeringId of student.assignedOfferingIds) {
+        const offering = offeringsById.get(offeringId);
+        if (!offering) {
+          continue;
+        }
+
+        if (this.resolveReportCompletionStatus(student, offeringId, offering.title) === 'Completed') {
+          continue;
+        }
+
+        events.push({
+          student,
+          nameOfLearningProgramme: offering.title,
+          typeOfLearningProgramme: offering.type === 'Programme'
+            ? 'Learnership'
+            : 'Short Skills Programme / Courses (E.g. Accredited / Non-Accredited)',
+        });
+      }
+
+      for (const entry of this.managerData.idpEntriesForStudent(student.id)) {
+        const developmentNeed = entry.developmentNeed?.trim();
+        if (!developmentNeed || entry.status === 'Completed') {
+          continue;
+        }
+
+        events.push({ student, nameOfLearningProgramme: developmentNeed, typeOfLearningProgramme: 'Not captured' });
+      }
+    }
+
+    return events;
+  });
+  readonly wspBeneficiariesPlannedRows = computed<WspBeneficiariesPlannedRow[]>(() => {
+    const groups = new Map<string, { sample: PlannedTrainingEvent; demographics: BeneficiaryDemographicCounts[] }>();
+
+    for (const event of this.plannedTrainingEvents()) {
+      const ofoOccupation = event.student.ofoCode || 'Not captured';
+      const municipality = event.student.municipality || 'Not captured';
+      const groupKey = [ofoOccupation, municipality, event.nameOfLearningProgramme].join('::');
+      const demographics = this.resolveBeneficiaryDemographics(event.student);
+      const existing = groups.get(groupKey);
+
+      if (existing) {
+        existing.demographics.push(demographics);
+      } else {
+        groups.set(groupKey, { sample: event, demographics: [demographics] });
+      }
+    }
+
+    return Array.from(groups.entries()).map(([groupKey, group]) => {
+      const [ofoOccupation, municipality] = groupKey.split('::');
+
+      return {
+        id: groupKey,
+        ofoOccupation,
+        municipality,
+        nqfAlignedTraining: 'Not captured',
+        nqfLevel: group.sample.student.nqfLevel || 'Not captured',
+        programmeNeedsAddressed: 'Not captured',
+        fundingType: 'Not captured',
+        dgContractNumber: 'Not captured',
+        socioEconomicStatus: 'Not captured',
+        typeOfLearningProgramme: group.sample.typeOfLearningProgramme,
+        nameOfLearningProgramme: group.sample.nameOfLearningProgramme,
+        typeOfEducationalInstitution: 'Not captured',
+        // Neither internal course assignments nor IDP development needs carry a cost.
+        totalEstimatedCost: 0,
+        entryLevel: 0,
+        intermediateLevel: 0,
+        advancedLevel: 0,
+        ...this.sumBeneficiaryDemographics(group.demographics),
+      };
+    }).sort((left, right) => left.ofoOccupation.localeCompare(right.ofoOccupation) || left.municipality.localeCompare(right.municipality));
+  });
+  readonly canDownloadWspBeneficiariesPlannedReport = computed(() => this.wspBeneficiariesPlannedRows().length > 0);
+
+  // Unlike the other WSP/ATR reports, Employment Summary profiles the whole workforce (every
+  // user in the LMS), not just those with planned training — that's the standard meaning of
+  // "Employment Summary" in a WSP submission.
+  readonly wspEmploymentSummaryRows = computed<WspEmploymentSummaryRow[]>(() => {
+    const groups = new Map<string, BeneficiaryDemographicCounts[]>();
+
+    for (const student of this.users()) {
+      const ofoOccupation = student.ofoCode || 'Not captured';
+      const municipality = student.municipality || 'Not captured';
+      const groupKey = [ofoOccupation, municipality].join('::');
+      const demographics = this.resolveBeneficiaryDemographics(student);
+      const existing = groups.get(groupKey);
+
+      if (existing) {
+        existing.push(demographics);
+      } else {
+        groups.set(groupKey, [demographics]);
+      }
+    }
+
+    return Array.from(groups.entries()).map(([groupKey, demographics]) => {
+      const [ofoOccupation, municipality] = groupKey.split('::');
+      return { id: groupKey, ofoOccupation, municipality, ...this.sumBeneficiaryDemographics(demographics) };
+    }).sort((left, right) => left.ofoOccupation.localeCompare(right.ofoOccupation) || left.municipality.localeCompare(right.municipality));
+  });
+  readonly canDownloadWspEmploymentSummaryReport = computed(() => this.wspEmploymentSummaryRows().length > 0);
+
+  readonly wspPivotalPlannedRows = computed<WspPivotalPlannedRow[]>(() => {
+    return this.plannedTrainingEvents().map((event, index) => {
+      const ofoOccupation = event.student.ofoCode || 'Not captured';
+
+      return {
+        id: `${event.student.id}::${index}`,
+        ofoOccupation,
+        municipality: event.student.municipality || 'Not captured',
+        programmeNeedsAddressed: 'Not captured',
+        fundingType: 'Not captured',
+        dgContractNumber: 'Not captured',
+        idNumber: event.student.idNumber || 'Not provided',
+        firstName: event.student.name || 'Not provided',
+        surname: event.student.surname || 'Not provided',
+        socioEconomicStatus: 'Not captured',
+        typeOfLearningProgramme: event.typeOfLearningProgramme,
+        nameOfLearningProgramme: event.nameOfLearningProgramme,
+        pivotalOfoOccupation: ofoOccupation,
+        typeOfEducationalInstitution: 'Not captured',
+        nqfLevel: event.student.nqfLevel || 'Not captured',
+        cost: 0,
+        entryLevel: 0,
+        intermediateLevel: 0,
+        advancedLevel: 0,
+        ...this.resolveBeneficiaryDemographics(event.student),
+      };
+    }).sort((left, right) => left.surname.localeCompare(right.surname) || left.firstName.localeCompare(right.firstName));
+  });
+  readonly canDownloadWspPivotalPlannedReport = computed(() => this.wspPivotalPlannedRows().length > 0);
 
   readonly singleUserForm = this.createUserForm();
   readonly userEditForm = this.createUserForm();
@@ -3562,10 +4316,49 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   selectReportView(view: AdminReportView) {
     this.selectedReportView.set(view);
+    this.selectedSetaReportTab.set(null);
+    this.selectedAtrSubReport.set(null);
+    this.selectedWspSubReport.set(null);
   }
 
   clearReportView() {
     this.selectedReportView.set(null);
+    this.selectedSetaReportTab.set(null);
+    this.selectedAtrSubReport.set(null);
+    this.selectedWspSubReport.set(null);
+  }
+
+  selectSetaReportTab(tab: SetaReportTab) {
+    this.selectedSetaReportTab.set(tab);
+    this.selectedAtrSubReport.set(null);
+    this.selectedWspSubReport.set(null);
+  }
+
+  selectAtrSubReport(subReport: AtrSubReport) {
+    this.selectedAtrSubReport.set(subReport);
+  }
+
+  selectWspSubReport(subReport: WspSubReport) {
+    this.selectedWspSubReport.set(subReport);
+  }
+
+  backFromReportView() {
+    if (this.selectedReportView() === 'seta-report' && this.selectedSetaReportTab() === 'atr' && this.selectedAtrSubReport()) {
+      this.selectedAtrSubReport.set(null);
+      return;
+    }
+
+    if (this.selectedReportView() === 'seta-report' && this.selectedSetaReportTab() === 'wsp' && this.selectedWspSubReport()) {
+      this.selectedWspSubReport.set(null);
+      return;
+    }
+
+    if (this.selectedReportView() === 'seta-report' && this.selectedSetaReportTab()) {
+      this.selectedSetaReportTab.set(null);
+      return;
+    }
+
+    this.clearReportView();
   }
 
   private normalizeReportDateValue(dateValue: string | null | undefined) {
@@ -3611,40 +4404,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.userSearchTerm.set(input?.value ?? '');
   }
 
-  updateReportDepartment(event: Event) {
-    const input = event.target as HTMLSelectElement | null;
-    this.selectedReportDepartment.set(input?.value ?? '');
-  }
-
-  updateReportGroup(event: Event) {
-    const input = event.target as HTMLSelectElement | null;
-    this.selectedReportGroup.set(input?.value ?? '');
-  }
-
-  updateReportAccessStatus(event: Event) {
-    const input = event.target as HTMLSelectElement | null;
-    const nextValue = input?.value === 'Active' || input?.value === 'Inactive' ? input.value : 'All';
-    this.selectedReportAccessStatus.set(nextValue);
-  }
-
-  updateReportStartDate(event: Event) {
-    const input = event.target as HTMLInputElement | null;
-    this.selectedReportStartDate.set(input?.value ?? '');
-  }
-
-  updateReportEndDate(event: Event) {
-    const input = event.target as HTMLInputElement | null;
-    this.selectedReportEndDate.set(input?.value ?? '');
-  }
-
   updateBulkUploadTemplateFormat(event: Event) {
     const input = event.target as HTMLSelectElement | null;
     this.selectedBulkUploadTemplateFormat.set(input?.value === 'XLSX' ? 'XLSX' : 'CSV');
-  }
-
-  updateReportDownloadFormat(event: Event) {
-    const input = event.target as HTMLSelectElement | null;
-    this.selectedReportDownloadFormat.set(input?.value === 'XLSX' ? 'XLSX' : 'CSV');
   }
 
   updateAnnualReportDownloadFormat(event: Event) {
@@ -3672,29 +4434,39 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.selectedAnnualReportDepartment.set(input?.value ?? '');
   }
 
-  updateAnnualReportTrainingStartDate(event: Event) {
-    const input = event.target as HTMLInputElement | null;
-    this.selectedAnnualReportTrainingStartDate.set(input?.value ?? '');
+  updateAnnualReportSource(event: Event) {
+    const input = event.target as HTMLSelectElement | null;
+    const nextValue = input?.value === 'LMS' || input?.value === 'External' ? input.value : 'All';
+    this.selectedAnnualReportSource.set(nextValue);
   }
 
-  updateAnnualReportTrainingEndDate(event: Event) {
+  updateAnnualReportDateFrom(event: Event) {
     const input = event.target as HTMLInputElement | null;
-    this.selectedAnnualReportTrainingEndDate.set(input?.value ?? '');
+    this.selectedAnnualReportDateFrom.set(input?.value ?? '');
   }
 
-  clearReportFilters() {
-    this.selectedReportDepartment.set('');
-    this.selectedReportGroup.set('');
-    this.selectedReportAccessStatus.set('All');
-    this.selectedReportStartDate.set('');
-    this.selectedReportEndDate.set('');
+  updateAnnualReportDateTo(event: Event) {
+    const input = event.target as HTMLInputElement | null;
+    this.selectedAnnualReportDateTo.set(input?.value ?? '');
   }
 
   clearAnnualReportFilters() {
     this.annualReportSearchTerm.set('');
     this.selectedAnnualReportDepartment.set('');
-    this.selectedAnnualReportTrainingStartDate.set('');
-    this.selectedAnnualReportTrainingEndDate.set('');
+    this.selectedAnnualReportSource.set('All');
+    this.selectedAnnualReportDateFrom.set('');
+    this.selectedAnnualReportDateTo.set('');
+  }
+
+
+  updateAtrSubReportDownloadFormat(event: Event) {
+    const input = event.target as HTMLSelectElement | null;
+    this.selectedAtrSubReportDownloadFormat.set(input?.value === 'XLSX' ? 'XLSX' : 'CSV');
+  }
+
+  updateWspSubReportDownloadFormat(event: Event) {
+    const input = event.target as HTMLSelectElement | null;
+    this.selectedWspSubReportDownloadFormat.set(input?.value === 'XLSX' ? 'XLSX' : 'CSV');
   }
 
   async handleBulkUserUpload(event: Event) {
@@ -3760,6 +4532,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       race: student.race ?? '',
       gender: student.gender ?? '',
       municipality: student.municipality ?? '',
+      dateOfBirth: student.dateOfBirth ?? '',
+      nqfLevel: student.nqfLevel ?? '',
       department: student.department,
       lineManagerId: student.lineManagerId ?? '',
       group: student.group,
@@ -3805,6 +4579,16 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       // login credentials to that record — otherwise the credentials call can silently skip
       // because it can't find a student that only exists in the local, not-yet-synced state yet.
       await firstValueFrom(this.backend.patchManagerState({ students: this.managerData.students() }));
+    } catch {
+      // The record only exists in this session's local state at this point — it was never
+      // actually written to the server, so don't claim it was saved (that previously showed a
+      // misleading "password could not be updated" message even when nothing had persisted).
+      this.singleUserTone.set('error');
+      this.singleUserMessage.set('User could not be saved. Please check your connection and try again.');
+      return;
+    }
+
+    try {
       await this.syncManagedUserCredentials([{ email: studentInput.email, password }]);
     } catch {
       if (result.added || result.updated) {
@@ -3859,6 +4643,16 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       // Wait for the directory record change (e.g. a role change) to actually land on the server
       // before syncing credentials against it — see saveSingleUser() for why this ordering matters.
       await firstValueFrom(this.backend.patchManagerState({ students: this.managerData.students() }));
+    } catch {
+      // The edit only exists in this session's local state at this point — it was never actually
+      // written to the server, so don't claim it was saved and don't close the form, so the admin
+      // knows to retry rather than assuming the change already went through.
+      this.singleUserTone.set('error');
+      this.singleUserMessage.set('User details could not be saved. Please check your connection and try again.');
+      return;
+    }
+
+    try {
       await this.syncManagedUserCredentials([{ email: studentInput.email, password }]);
       this.singleUserTone.set('success');
       this.singleUserMessage.set(password ? 'User details saved. Password updated.' : 'User details saved.');
@@ -3883,8 +4677,12 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     }
   }
 
-  selectTheme(themeId: LmsBrandThemeId) {
-    this.branding.selectTheme(themeId);
+  async selectTheme(themeId: LmsBrandThemeId) {
+    this.themeUpdateError.set('');
+    const saved = await this.branding.selectTheme(themeId);
+    if (!saved) {
+      this.themeUpdateError.set('The theme could not be saved. Please check your connection and try again.');
+    }
   }
 
   onThemeSelectionChange(event: Event) {
@@ -3893,7 +4691,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.selectTheme(target.value as LmsBrandThemeId);
+    void this.selectTheme(target.value as LmsBrandThemeId);
   }
 
   async downloadBulkUploadTemplateXlsx() {
@@ -4074,6 +4872,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       race: new FormControl('', { nonNullable: true }),
       gender: new FormControl('', { nonNullable: true }),
       municipality: new FormControl('', { nonNullable: true }),
+      dateOfBirth: new FormControl('', { nonNullable: true }),
+      nqfLevel: new FormControl('', { nonNullable: true }),
       department: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
       lineManagerId: new FormControl('', { nonNullable: true }),
       group: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -4097,6 +4897,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       race: '',
       gender: '',
       municipality: '',
+      dateOfBirth: '',
+      nqfLevel: '',
       department: '',
       lineManagerId: '',
       group: '',
@@ -4122,6 +4924,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       race: form.controls.race.value.trim(),
       gender: form.controls.gender.value.trim(),
       municipality: form.controls.municipality.value.trim(),
+      dateOfBirth: form.controls.dateOfBirth.value,
+      nqfLevel: form.controls.nqfLevel.value.trim(),
       activeStatus: form.controls.activeStatus.value,
       department: form.controls.department.value.trim(),
       lineManagerId: form.controls.lineManagerId.value || undefined,
@@ -4151,6 +4955,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     const race = record.has('race') ? (record.get('race') ?? '').trim() : undefined;
     const gender = record.has('gender') ? (record.get('gender') ?? '').trim() : undefined;
     const municipality = record.has('municipality') ? (record.get('municipality') ?? '').trim() : undefined;
+    const dateOfBirth = record.has('dateofbirth') ? (this.normalizeBulkUploadDate(record.get('dateofbirth') ?? '') ?? '') : undefined;
+    const nqfLevel = record.has('nqflevel') ? (record.get('nqflevel') ?? '').trim() : undefined;
     const department = record.get('department') ?? '';
     const lineManager = record.has('linemanager') ? (record.get('linemanager') ?? '').trim() : undefined;
     const group = record.get('group') ?? '';
@@ -4203,6 +5009,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         ...(race !== undefined ? { race } : {}),
         ...(gender !== undefined ? { gender } : {}),
         ...(municipality !== undefined ? { municipality } : {}),
+        ...(dateOfBirth !== undefined ? { dateOfBirth } : {}),
+        ...(nqfLevel !== undefined ? { nqfLevel } : {}),
         department: department.trim(),
         ...(lineManager !== undefined ? { lineManager } : {}),
         group: group.trim(),
@@ -4244,8 +5052,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   private getBulkUploadTemplateRows() {
     return [
-      ['Name', 'Surname', 'Email', 'Password', 'Job Title', 'ID Number', 'OFO Code', 'Race', 'Gender', 'Municipality', 'Department', 'Line Manager', 'Group', 'Start Date', 'End Date', 'Training Manager', 'Admin', 'Access'],
-      ['Lebo', 'Mokoena', 'lebo.mokoena@example.com', 'Welcome@123', 'Operations Coordinator', '9201015800083', '2021-121202 - Education Training and Skills Development Manager', 'African', 'Female', 'Buffalo City', 'Operations', 'Nandi Khumalo', 'Cohort A', '2026-04-01', '2026-10-30', 'No', 'No', 'Active'],
+      ['Name', 'Surname', 'Email', 'Password', 'Job Title', 'ID Number', 'OFO Code', 'Race', 'Gender', 'Municipality', 'Date of Birth', 'NQF Level', 'Department', 'Line Manager', 'Group', 'Start Date', 'End Date', 'Training Manager', 'Admin', 'Access'],
+      ['Lebo', 'Mokoena', 'lebo.mokoena@example.com', 'Welcome@123', 'Operations Coordinator', '9201015800083', '2021-121202 - Education Training and Skills Development Manager', 'African', 'Female', 'Buffalo City', '1992-04-15', 'Level 07', 'Operations', 'Nandi Khumalo', 'Cohort A', '2026-04-01', '2026-10-30', 'No', 'No', 'Active'],
     ];
   }
 
@@ -4299,56 +5107,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     }
 
     return await firstValueFrom(this.backend.upsertManagedUserCredentials({ users }));
-  }
-
-  getReportCellValue(row: LearnerReportRow, field: ReportFieldKey) {
-    const student = row.student;
-
-    switch (field) {
-      case 'name':
-        return student.name;
-      case 'surname':
-        return student.surname;
-      case 'email':
-        return student.email;
-      case 'jobTitle':
-        return student.jobTitle || 'Not provided';
-      case 'idNumber':
-        return student.idNumber || 'Not provided';
-      case 'department':
-        return student.department || 'Unassigned';
-      case 'lineManager': {
-        // Prefer a live lookup by id over the plain-text snapshot stored on the student record:
-        // that snapshot is only recomputed when the student's own record is next saved, so it
-        // goes stale the moment the manager's own name changes.
-        const liveManagerName = student.lineManagerId ? this.reportManagerNamesById().get(student.lineManagerId) : undefined;
-        return liveManagerName || student.lineManager || 'Not provided';
-      }
-      case 'course':
-        return row.courseTitle;
-      case 'completionStatus':
-        return row.completionStatus;
-      case 'dateCompleted':
-        return row.dateCompleted;
-      case 'mentorship':
-        return this.mentorshipStudentIds().has(student.id) ? 'Y' : 'N';
-      case 'dateEnrolled':
-        return student.dateEnrolled;
-      case 'deadlineDate':
-        return student.deadlineDate;
-    }
-  }
-
-  private buildSelectedReportRows() {
-    const columns = this.reportColumns();
-    const reportRows = this.filteredReportRows();
-
-    return {
-      columns,
-      students: this.filteredReportUsers(),
-      reportRows,
-      rows: reportRows.map((row) => columns.map((column) => this.getReportCellValue(row, column.key))),
-    };
   }
 
   private buildIdpReportExportRows() {
@@ -4538,25 +5296,357 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     return new Date(now.getFullYear(), now.getMonth(), now.getDate());
   }
 
+  /** South African ID numbers encode date of birth as the first 6 digits (YYMMDD). This LMS
+   *  doesn't capture age/date of birth directly, but the SETA MIS templates require an age-group
+   *  bucket, so derive it here instead of leaving it blank. Returns null for anything that isn't
+   *  a valid 13-digit SA ID number (e.g. a passport number, or simply not captured). */
+  private deriveAgeGroupFromIdNumber(idNumber: string): 'lt35' | 'mid' | 'gt55' | null {
+    const digits = idNumber.trim();
+    if (!/^\d{13}$/.test(digits)) {
+      return null;
+    }
+
+    const yy = Number(digits.slice(0, 2));
+    const mm = Number(digits.slice(2, 4));
+    const dd = Number(digits.slice(4, 6));
+    if (mm < 1 || mm > 12 || dd < 1 || dd > 31) {
+      return null;
+    }
+
+    const now = new Date();
+    const currentYy = now.getFullYear() % 100;
+    // A 2-digit birth year could mean either century — assume whichever gives a plausible
+    // working-age person (i.e. treat it as the more recent century unless that would put their
+    // birth year in the future).
+    const century = yy <= currentYy ? 2000 : 1900;
+    const birthDate = new Date(century + yy, mm - 1, dd);
+    if (Number.isNaN(birthDate.getTime())) {
+      return null;
+    }
+
+    let age = now.getFullYear() - birthDate.getFullYear();
+    const hasHadBirthdayThisYear = now.getMonth() > birthDate.getMonth()
+      || (now.getMonth() === birthDate.getMonth() && now.getDate() >= birthDate.getDate());
+    if (!hasHadBirthdayThisYear) {
+      age -= 1;
+    }
+
+    if (age < 0 || age > 110) {
+      return null;
+    }
+
+    if (age < 35) return 'lt35';
+    if (age <= 55) return 'mid';
+    return 'gt55';
+  }
+
+  /** Buckets one student into the SETA templates' race x gender x disability x age-group count
+   *  columns. Disability status isn't captured by this LMS, so the *Disabled columns always stay
+   *  0 — beneficiaries are counted under their race/gender combination only. A student whose race
+   *  is 'Foreign' or unset, or whose gender is unset, contributes to none of the race/gender
+   *  columns (the official templates only have African/Coloured/Indian/White buckets). */
+  /** Computes a whole-number age in years from a YYYY-MM-DD date of birth — used both for the
+   *  "Age: X" hint shown next to the Date of Birth field in the user form, and (via
+   *  resolveAgeGroup) to bucket beneficiaries into the SETA reports' age-group columns. Returns
+   *  null for an empty or unparseable date. */
+  computeAge(dateOfBirth: string): number | null {
+    const trimmed = dateOfBirth?.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    const birthDate = new Date(trimmed);
+    if (Number.isNaN(birthDate.getTime())) {
+      return null;
+    }
+
+    const now = new Date();
+    let age = now.getFullYear() - birthDate.getFullYear();
+    const hasHadBirthdayThisYear = now.getMonth() > birthDate.getMonth()
+      || (now.getMonth() === birthDate.getMonth() && now.getDate() >= birthDate.getDate());
+    if (!hasHadBirthdayThisYear) {
+      age -= 1;
+    }
+
+    return age >= 0 && age <= 130 ? age : null;
+  }
+
+  private ageGroupFromAge(age: number): 'lt35' | 'mid' | 'gt55' {
+    if (age < 35) return 'lt35';
+    if (age <= 55) return 'mid';
+    return 'gt55';
+  }
+
+  /** Prefers the explicit Date of Birth captured on the student record; falls back to deriving
+   *  age from the South African ID number when Date of Birth hasn't been captured. */
+  private resolveAgeGroup(student: Pick<EnrollmentStudent, 'dateOfBirth' | 'idNumber'>): 'lt35' | 'mid' | 'gt55' | null {
+    const age = student.dateOfBirth ? this.computeAge(student.dateOfBirth) : null;
+    if (age !== null) {
+      return this.ageGroupFromAge(age);
+    }
+
+    return student.idNumber ? this.deriveAgeGroupFromIdNumber(student.idNumber) : null;
+  }
+
+  private resolveBeneficiaryDemographics(student: Pick<EnrollmentStudent, 'race' | 'gender' | 'idNumber' | 'dateOfBirth'>): BeneficiaryDemographicCounts {
+    const counts: BeneficiaryDemographicCounts = {
+      africanMale: 0, africanFemale: 0, africanDisabled: 0,
+      colouredMale: 0, colouredFemale: 0, colouredDisabled: 0,
+      indianMale: 0, indianFemale: 0, indianDisabled: 0,
+      whiteMale: 0, whiteFemale: 0, whiteDisabled: 0,
+      age1: 0, age2: 0, age3: 0,
+    };
+
+    const race = student.race?.trim();
+    const gender = student.gender?.trim();
+    const key: keyof BeneficiaryDemographicCounts | null =
+      race === 'African' && gender === 'Male' ? 'africanMale'
+      : race === 'African' && gender === 'Female' ? 'africanFemale'
+      : race === 'Coloured' && gender === 'Male' ? 'colouredMale'
+      : race === 'Coloured' && gender === 'Female' ? 'colouredFemale'
+      : race === 'Indian' && gender === 'Male' ? 'indianMale'
+      : race === 'Indian' && gender === 'Female' ? 'indianFemale'
+      : race === 'White' && gender === 'Male' ? 'whiteMale'
+      : race === 'White' && gender === 'Female' ? 'whiteFemale'
+      : null;
+
+    if (key) {
+      counts[key] = 1;
+    }
+
+    const ageGroup = this.resolveAgeGroup(student);
+    if (ageGroup === 'lt35') counts.age1 = 1;
+    else if (ageGroup === 'mid') counts.age2 = 1;
+    else if (ageGroup === 'gt55') counts.age3 = 1;
+
+    return counts;
+  }
+
+  private sumBeneficiaryDemographics(rows: BeneficiaryDemographicCounts[]): BeneficiaryDemographicCounts {
+    return rows.reduce<BeneficiaryDemographicCounts>((total, row) => ({
+      africanMale: total.africanMale + row.africanMale,
+      africanFemale: total.africanFemale + row.africanFemale,
+      africanDisabled: total.africanDisabled + row.africanDisabled,
+      colouredMale: total.colouredMale + row.colouredMale,
+      colouredFemale: total.colouredFemale + row.colouredFemale,
+      colouredDisabled: total.colouredDisabled + row.colouredDisabled,
+      indianMale: total.indianMale + row.indianMale,
+      indianFemale: total.indianFemale + row.indianFemale,
+      indianDisabled: total.indianDisabled + row.indianDisabled,
+      whiteMale: total.whiteMale + row.whiteMale,
+      whiteFemale: total.whiteFemale + row.whiteFemale,
+      whiteDisabled: total.whiteDisabled + row.whiteDisabled,
+      age1: total.age1 + row.age1,
+      age2: total.age2 + row.age2,
+      age3: total.age3 + row.age3,
+    }), {
+      africanMale: 0, africanFemale: 0, africanDisabled: 0,
+      colouredMale: 0, colouredFemale: 0, colouredDisabled: 0,
+      indianMale: 0, indianFemale: 0, indianDisabled: 0,
+      whiteMale: 0, whiteFemale: 0, whiteDisabled: 0,
+      age1: 0, age2: 0, age3: 0,
+    });
+  }
+
+  /** Best-effort mapping from this LMS's training-type field to the closest official SETA
+   *  "Type Of Learning Programme" dropdown value — there's no exact match since this LMS doesn't
+   *  capture the full official taxonomy (Learnership, Bursary, Internship, etc.) separately. */
+  private mapToSetaLearningProgrammeType(trainingType: string): string {
+    switch (trainingType) {
+      case 'Accredited':
+      case 'Short Course':
+        return 'Short Skills Programme / Courses (E.g. Accredited / Non-Accredited)';
+      case 'Workshop/Seminar':
+      case 'Informal Training':
+        return 'Internal Training (E.g. Formal safety toolbox talks / Inductions)';
+      default:
+        return 'Not captured';
+    }
+  }
+
+  // The 3 builders below intentionally do NOT prepend the "Report / Generated By / Generated On"
+  // metadata block that this component's other exports use — these files are meant to be
+  // uploaded directly into the SETA's MIS system, which expects the machine-key header on the
+  // first row and the human-readable header on the second, with no extra rows above them.
+  private readonly setaDemographicColumns = [
+    'African Male', 'African Female', 'African Disabled',
+    'Coloured Male', 'Coloured Female', 'Coloured Disabled',
+    'Indian/Asian Male', 'Indian/Asian Female', 'Indian/Asian Disabled',
+    'White Male', 'White Female', 'White Disabled',
+    'Age Group - Less than 35', 'Age Group - 35 to 55', 'Age Group - Greater than 55',
+  ];
+  private readonly setaDemographicMachineKeys = [
+    'AfricanMale', 'AfricanFemale', 'AfricanDisabled',
+    'ColouredMale', 'ColouredFemale', 'ColouredDisabled',
+    'IndianMale', 'IndianFemale', 'IndianDisabled',
+    'WhiteMale', 'WhiteFemale', 'WhiteDisabled',
+    'Age1', 'Age2', 'Age3',
+  ];
+  private demographicValues(row: BeneficiaryDemographicCounts) {
+    return [
+      row.africanMale, row.africanFemale, row.africanDisabled,
+      row.colouredMale, row.colouredFemale, row.colouredDisabled,
+      row.indianMale, row.indianFemale, row.indianDisabled,
+      row.whiteMale, row.whiteFemale, row.whiteDisabled,
+      row.age1, row.age2, row.age3,
+    ];
+  }
+
+  private buildBeneficiariesCompletedTrainingExportRows() {
+    const machineKeys = [
+      'OFOOccupation', 'Municipality', 'NQFAlignedTraining', 'NQFLevel', 'FormProgrammeNeedsAddressed',
+      'FormFundingType', 'DGContractNumber', 'SocioEconomicStatus', 'FormTypeOfLearningProgramme',
+      'NameOfLearningProgramme', 'FormTypeOfEducationalInstitution', 'TotalActualCost',
+      'EntryLevel', 'IntermediateLevel', 'AdvancedLevel', ...this.setaDemographicMachineKeys,
+    ];
+    const columns = [
+      'OFO Occupation', 'Municipality', 'NQF Aligned Training', 'NQF Level', 'Programme Needs Addressed',
+      'FundingTypeID', 'DG Contract Number', 'Socio Economic Status', 'Type Of Learning Programme',
+      'Name Of Learning Programme', 'Type Of Educational Institution', 'Total Actual Cost',
+      'Entry Level', 'Intermediate Level', 'Advanced Level', ...this.setaDemographicColumns,
+    ];
+    const reportRows = this.beneficiariesCompletedTrainingRows();
+
+    return {
+      machineKeys,
+      columns,
+      reportRows,
+      rows: reportRows.map((row) => [
+        row.ofoOccupation, row.municipality, row.nqfAlignedTraining, row.nqfLevel, row.programmeNeedsAddressed,
+        row.fundingType, row.dgContractNumber, row.socioEconomicStatus, row.typeOfLearningProgramme,
+        row.nameOfLearningProgramme, row.typeOfEducationalInstitution, row.totalActualCost,
+        row.entryLevel, row.intermediateLevel, row.advancedLevel, ...this.demographicValues(row),
+      ]),
+    };
+  }
+
+  private buildNumberBeneficiariesExportRows() {
+    const machineKeys = ['OFOOccupation', 'Municipality', ...this.setaDemographicMachineKeys];
+    const columns = ['OFO Occupation', 'Municipality', ...this.setaDemographicColumns];
+    const reportRows = this.numberBeneficiariesRows();
+
+    return {
+      machineKeys,
+      columns,
+      reportRows,
+      rows: reportRows.map((row) => [
+        row.ofoOccupation, row.municipality, ...this.demographicValues(row),
+      ]),
+    };
+  }
+
+  private buildPivotalActualTrainingExportRows() {
+    const machineKeys = [
+      'OFOOccupation', 'Municipality', 'FormProgrammeNeedsAddressed', 'FormFundingType', 'DGContractNumber',
+      'IDNumber', 'FirstName', 'Surname', 'SocioEconomicStatus', 'FormTypeOfLearningProgramme',
+      'NameOfLearningProgramme', 'PivotalOFOOccupation', 'FormTypeOfEducationalInstitution', 'NQFLevel',
+      'Cost', 'EntryLevel', 'IntermediateLevel', 'AdvancedLevel', ...this.setaDemographicMachineKeys,
+    ];
+    const columns = [
+      'OFO Occupation', 'Municipality', 'Programme Needs Addressed', 'FundingTypeID', 'DG Contract Number',
+      'ID Number', 'First Name', 'Surname', 'Socio Economic Status', 'Type Of Learning Programme',
+      'Name Of Learning Programme', 'Pivotal Programmes', 'Type Of Educational Institution', 'NQF Level',
+      'Cost', 'Entry Level', 'Intermediate Level', 'Advanced Level', ...this.setaDemographicColumns,
+    ];
+    const reportRows = this.pivotalActualTrainingRows();
+
+    return {
+      machineKeys,
+      columns,
+      reportRows,
+      rows: reportRows.map((row) => [
+        row.ofoOccupation, row.municipality, row.programmeNeedsAddressed, row.fundingType, row.dgContractNumber,
+        row.idNumber, row.firstName, row.surname, row.socioEconomicStatus, row.typeOfLearningProgramme,
+        row.nameOfLearningProgramme, row.pivotalOfoOccupation, row.typeOfEducationalInstitution, row.nqfLevel,
+        row.cost, row.entryLevel, row.intermediateLevel, row.advancedLevel, ...this.demographicValues(row),
+      ]),
+    };
+  }
+
+  private buildWspBeneficiariesPlannedExportRows() {
+    const machineKeys = [
+      'OFOOccupation', 'Municipality', 'NQFAlignedTraining', 'NQFLevel', 'FormProgrammeNeedsAddressed',
+      'FormFundingType', 'DGContractNumber', 'SocioEconomicStatus', 'FormTypeOfLearningProgramme',
+      'NameOfLearningProgramme', 'FormTypeOfEducationalInstitution', 'TotalEstimatedCost',
+      'EntryLevel', 'IntermediateLevel', 'AdvancedLevel', ...this.setaDemographicMachineKeys,
+    ];
+    const columns = [
+      'OFO Occupation', 'Municipality', 'NQF Aligned Training', 'NQF Level', 'Programme Needs Addressed',
+      'FundingTypeID', 'DG Contract Number', 'Socio Economic Status', 'Type Of Learning Programme',
+      'Name Of Learning Programme', 'Type Of Educational Institution', 'Total Estimated Cost',
+      'Entry Level', 'Intermediate Level', 'Advanced Level', ...this.setaDemographicColumns,
+    ];
+    const reportRows = this.wspBeneficiariesPlannedRows();
+
+    return {
+      machineKeys,
+      columns,
+      reportRows,
+      rows: reportRows.map((row) => [
+        row.ofoOccupation, row.municipality, row.nqfAlignedTraining, row.nqfLevel, row.programmeNeedsAddressed,
+        row.fundingType, row.dgContractNumber, row.socioEconomicStatus, row.typeOfLearningProgramme,
+        row.nameOfLearningProgramme, row.typeOfEducationalInstitution, row.totalEstimatedCost,
+        row.entryLevel, row.intermediateLevel, row.advancedLevel, ...this.demographicValues(row),
+      ]),
+    };
+  }
+
+  private buildWspEmploymentSummaryExportRows() {
+    const machineKeys = ['OFOOccupation', 'Municipality', ...this.setaDemographicMachineKeys];
+    const columns = ['OFO Occupation', 'Municipality', ...this.setaDemographicColumns];
+    const reportRows = this.wspEmploymentSummaryRows();
+
+    return {
+      machineKeys,
+      columns,
+      reportRows,
+      rows: reportRows.map((row) => [
+        row.ofoOccupation, row.municipality, ...this.demographicValues(row),
+      ]),
+    };
+  }
+
+  private buildWspPivotalPlannedExportRows() {
+    const machineKeys = [
+      'OFOOccupation', 'Municipality', 'FormProgrammeNeedsAddressed', 'FormFundingType', 'DGContractNumber',
+      'IDNumber', 'FirstName', 'Surname', 'SocioEconomicStatus', 'FormTypeOfLearningProgramme',
+      'NameOfLearningProgramme', 'PivotalOFOOccupation', 'FormTypeOfEducationalInstitution', 'NQFLevel',
+      'Cost', 'EntryLevel', 'IntermediateLevel', 'AdvancedLevel', ...this.setaDemographicMachineKeys,
+    ];
+    const columns = [
+      'OFO Occupation', 'Municipality', 'Programme Needs Addressed', 'FundingType', 'DG Contract Number',
+      'ID Number', 'First Name', 'Surname', 'Socio Economic Status', 'Type Of Learning Programme',
+      'Name Of Learning Programme', 'Pivotal Programmes', 'Type Of Educational Institution', 'NQF Level',
+      'Cost', 'Entry Level', 'Intermediate Level', 'Advanced Level', ...this.setaDemographicColumns,
+    ];
+    const reportRows = this.wspPivotalPlannedRows();
+
+    return {
+      machineKeys,
+      columns,
+      reportRows,
+      rows: reportRows.map((row) => [
+        row.ofoOccupation, row.municipality, row.programmeNeedsAddressed, row.fundingType, row.dgContractNumber,
+        row.idNumber, row.firstName, row.surname, row.socioEconomicStatus, row.typeOfLearningProgramme,
+        row.nameOfLearningProgramme, row.pivotalOfoOccupation, row.typeOfEducationalInstitution, row.nqfLevel,
+        row.cost, row.entryLevel, row.intermediateLevel, row.advancedLevel, ...this.demographicValues(row),
+      ]),
+    };
+  }
+
   private buildAnnualReportExportRows() {
     const columns = [
       'Name',
       'Email',
       'ID Number',
       'Department',
-      'OFO Code',
-      'Race',
-      'Gender',
-      'Municipality',
-      'Training Course',
-      'Provider Name',
-      'Type of Training',
-      'IDP Aligned',
-      'Training Start Date',
-      'Training End Date',
-      'Course Cost',
-      'Approved By',
-      'Approved Date',
+      'Training Item',
+      'Source',
+      'Type',
+      'Result',
+      'Provider',
+      'Date',
+      'Status',
     ];
     const reportRows = this.filteredAnnualTrainingReportRows();
 
@@ -4568,19 +5658,13 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         row.learnerEmail,
         row.idNumber,
         row.department,
-        row.ofoCode,
-        row.race,
-        row.gender,
-        row.municipality,
-        row.trainingCourse,
-        row.providerName,
+        row.trainingItem,
+        row.source,
         row.trainingType,
-        row.alignedToIdp,
-        row.trainingStartDate,
-        row.trainingEndDate,
-        row.courseCost,
-        row.approvedBy,
-        row.approvedDate,
+        row.result,
+        row.provider,
+        row.date,
+        row.status,
       ]),
     };
   }
@@ -4742,9 +5826,12 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.companyLogoUploading.set(true);
 
     this.backend.uploadFileBase64(file, 'branding').subscribe({
-      next: (result) => {
+      next: async (result) => {
+        const saved = await this.branding.setCompanyLogo(result.url);
         this.companyLogoUploading.set(false);
-        this.branding.setCompanyLogo(result.url);
+        if (!saved) {
+          this.companyLogoUploadError.set('The logo was uploaded, but could not be saved. Please try again.');
+        }
       },
       error: () => {
         this.companyLogoUploading.set(false);
@@ -4753,58 +5840,12 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     });
   }
 
-  downloadReportsCsv() {
-    const { columns, rows, students, reportRows } = this.buildSelectedReportRows();
-
-    if (!columns.length) {
-      return;
+  async removeCompanyLogo() {
+    this.companyLogoUploadError.set('');
+    const saved = await this.branding.clearCompanyLogo();
+    if (!saved) {
+      this.companyLogoUploadError.set('The logo could not be removed. Please try again.');
     }
-
-    const lines = [
-      ['Report', 'Learner Export'],
-      ['Generated By', this.adminName()],
-      ['Generated On', this.reportGeneratedOnLabel()],
-      ['Users Included', String(students.length)],
-      ['Rows Included', String(reportRows.length)],
-      [],
-      columns.map((column) => column.label),
-      ...rows,
-    ];
-
-    const csv = lines
-      .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
-      .join('\n');
-
-    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), 'LMS-Learner-Report.csv');
-  }
-
-  async downloadReportsXlsx() {
-    const { columns, rows, students, reportRows } = this.buildSelectedReportRows();
-
-    if (!columns.length) {
-      return;
-    }
-
-    const xlsx = await import('xlsx');
-    const workbook = xlsx.utils.book_new();
-    const worksheetRows = [
-      ['Report', 'Learner Export'],
-      ['Generated By', this.adminName()],
-      ['Generated On', this.reportGeneratedOnLabel()],
-      ['Users Included', String(students.length)],
-      ['Rows Included', String(reportRows.length)],
-      [],
-      columns.map((column) => column.label),
-      ...rows,
-    ];
-    const worksheet = xlsx.utils.aoa_to_sheet(worksheetRows);
-
-    xlsx.utils.book_append_sheet(workbook, worksheet, 'Learner Report');
-    const workbookArray = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
-    this.triggerDownload(
-      new Blob([workbookArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-      'LMS-Learner-Report.xlsx',
-    );
   }
 
   downloadAnnualReportCsv() {
@@ -4815,7 +5856,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     }
 
     const lines = [
-      ['Report', 'Annual Training Report'],
+      ['Report', 'Training Report'],
       ['Generated By', this.adminName()],
       ['Generated On', this.reportGeneratedOnLabel()],
       ['Rows Included', String(reportRows.length)],
@@ -4828,7 +5869,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
       .join('\n');
 
-    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), 'LMS-Annual-Training-Report.csv');
+    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), 'LMS-Training-Report.csv');
   }
 
   async downloadAnnualReportXlsx() {
@@ -4841,7 +5882,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     const xlsx = await import('xlsx');
     const workbook = xlsx.utils.book_new();
     const worksheetRows = [
-      ['Report', 'Annual Training Report'],
+      ['Report', 'Training Report'],
       ['Generated By', this.adminName()],
       ['Generated On', this.reportGeneratedOnLabel()],
       ['Rows Included', String(reportRows.length)],
@@ -4851,11 +5892,11 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     ];
     const worksheet = xlsx.utils.aoa_to_sheet(worksheetRows);
 
-    xlsx.utils.book_append_sheet(workbook, worksheet, 'Annual Training Report');
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Training Report');
     const workbookArray = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
     this.triggerDownload(
       new Blob([workbookArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-      'LMS-Annual-Training-Report.xlsx',
+      'LMS-Training-Report.xlsx',
     );
   }
 
@@ -4866,6 +5907,240 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     }
 
     this.downloadAnnualReportCsv();
+  }
+
+  downloadWspBeneficiariesPlannedCsv() {
+    const { machineKeys, columns, rows } = this.buildWspBeneficiariesPlannedExportRows();
+    if (!rows.length) {
+      return;
+    }
+
+    const csv = [machineKeys, columns, ...rows]
+      .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+
+    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), '2024_Beneficiaries_Planned_Non_Pivotal_Training_V1.csv');
+  }
+
+  async downloadWspBeneficiariesPlannedXlsx() {
+    const { machineKeys, columns, rows } = this.buildWspBeneficiariesPlannedExportRows();
+    if (!rows.length) {
+      return;
+    }
+
+    const xlsx = await import('xlsx');
+    const workbook = xlsx.utils.book_new();
+    const worksheet = xlsx.utils.aoa_to_sheet([machineKeys, columns, ...rows]);
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'NumberBeneficiaries');
+    const workbookArray = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
+    this.triggerDownload(
+      new Blob([workbookArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      '2024_Beneficiaries_Planned_Non_Pivotal_Training_V1.xlsx',
+    );
+  }
+
+  downloadWspBeneficiariesPlannedReport() {
+    if (this.selectedWspSubReportDownloadFormat() === 'XLSX') {
+      void this.downloadWspBeneficiariesPlannedXlsx();
+      return;
+    }
+
+    this.downloadWspBeneficiariesPlannedCsv();
+  }
+
+  downloadWspEmploymentSummaryCsv() {
+    const { machineKeys, columns, rows } = this.buildWspEmploymentSummaryExportRows();
+    if (!rows.length) {
+      return;
+    }
+
+    const csv = [machineKeys, columns, ...rows]
+      .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+
+    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), '2024_Employment_Summary_V1.csv');
+  }
+
+  async downloadWspEmploymentSummaryXlsx() {
+    const { machineKeys, columns, rows } = this.buildWspEmploymentSummaryExportRows();
+    if (!rows.length) {
+      return;
+    }
+
+    const xlsx = await import('xlsx');
+    const workbook = xlsx.utils.book_new();
+    const worksheet = xlsx.utils.aoa_to_sheet([machineKeys, columns, ...rows]);
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'EmploymentSummary');
+    const workbookArray = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
+    this.triggerDownload(
+      new Blob([workbookArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      '2024_Employment_Summary_V1.xlsx',
+    );
+  }
+
+  downloadWspEmploymentSummaryReport() {
+    if (this.selectedWspSubReportDownloadFormat() === 'XLSX') {
+      void this.downloadWspEmploymentSummaryXlsx();
+      return;
+    }
+
+    this.downloadWspEmploymentSummaryCsv();
+  }
+
+  downloadWspPivotalPlannedCsv() {
+    const { machineKeys, columns, rows } = this.buildWspPivotalPlannedExportRows();
+    if (!rows.length) {
+      return;
+    }
+
+    const csv = [machineKeys, columns, ...rows]
+      .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+
+    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), '2024_Pivotal_Planned_Training_Report_V1.csv');
+  }
+
+  async downloadWspPivotalPlannedXlsx() {
+    const { machineKeys, columns, rows } = this.buildWspPivotalPlannedExportRows();
+    if (!rows.length) {
+      return;
+    }
+
+    const xlsx = await import('xlsx');
+    const workbook = xlsx.utils.book_new();
+    const worksheet = xlsx.utils.aoa_to_sheet([machineKeys, columns, ...rows]);
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Pivotal Planned');
+    const workbookArray = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
+    this.triggerDownload(
+      new Blob([workbookArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      '2024_Pivotal_Planned_Training_Report_V1.xlsx',
+    );
+  }
+
+  downloadWspPivotalPlannedReport() {
+    if (this.selectedWspSubReportDownloadFormat() === 'XLSX') {
+      void this.downloadWspPivotalPlannedXlsx();
+      return;
+    }
+
+    this.downloadWspPivotalPlannedCsv();
+  }
+
+  downloadBeneficiariesCompletedTrainingCsv() {
+    const { machineKeys, columns, rows } = this.buildBeneficiariesCompletedTrainingExportRows();
+    if (!rows.length) {
+      return;
+    }
+
+    const csv = [machineKeys, columns, ...rows]
+      .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+
+    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), '2023_Beneficiaries_Completed_Training_V1.csv');
+  }
+
+  async downloadBeneficiariesCompletedTrainingXlsx() {
+    const { machineKeys, columns, rows } = this.buildBeneficiariesCompletedTrainingExportRows();
+    if (!rows.length) {
+      return;
+    }
+
+    const xlsx = await import('xlsx');
+    const workbook = xlsx.utils.book_new();
+    const worksheet = xlsx.utils.aoa_to_sheet([machineKeys, columns, ...rows]);
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'NumberBeneficiaries');
+    const workbookArray = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
+    this.triggerDownload(
+      new Blob([workbookArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      '2023_Beneficiaries_Completed_Training_V1.xlsx',
+    );
+  }
+
+  downloadBeneficiariesCompletedTrainingReport() {
+    if (this.selectedAtrSubReportDownloadFormat() === 'XLSX') {
+      void this.downloadBeneficiariesCompletedTrainingXlsx();
+      return;
+    }
+
+    this.downloadBeneficiariesCompletedTrainingCsv();
+  }
+
+  downloadNumberBeneficiariesCsv() {
+    const { machineKeys, columns, rows } = this.buildNumberBeneficiariesExportRows();
+    if (!rows.length) {
+      return;
+    }
+
+    const csv = [machineKeys, columns, ...rows]
+      .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+
+    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), '2023_Number_Actual_Beneficiaries_V1.csv');
+  }
+
+  async downloadNumberBeneficiariesXlsx() {
+    const { machineKeys, columns, rows } = this.buildNumberBeneficiariesExportRows();
+    if (!rows.length) {
+      return;
+    }
+
+    const xlsx = await import('xlsx');
+    const workbook = xlsx.utils.book_new();
+    const worksheet = xlsx.utils.aoa_to_sheet([machineKeys, columns, ...rows]);
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'NumberBeneficiaries');
+    const workbookArray = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
+    this.triggerDownload(
+      new Blob([workbookArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      '2023_Number_Actual_Beneficiaries_V1.xlsx',
+    );
+  }
+
+  downloadNumberBeneficiariesReport() {
+    if (this.selectedAtrSubReportDownloadFormat() === 'XLSX') {
+      void this.downloadNumberBeneficiariesXlsx();
+      return;
+    }
+
+    this.downloadNumberBeneficiariesCsv();
+  }
+
+  downloadPivotalActualTrainingCsv() {
+    const { machineKeys, columns, rows } = this.buildPivotalActualTrainingExportRows();
+    if (!rows.length) {
+      return;
+    }
+
+    const csv = [machineKeys, columns, ...rows]
+      .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+
+    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), '2023_Pivotal_Actual_Training_Report_V1.csv');
+  }
+
+  async downloadPivotalActualTrainingXlsx() {
+    const { machineKeys, columns, rows } = this.buildPivotalActualTrainingExportRows();
+    if (!rows.length) {
+      return;
+    }
+
+    const xlsx = await import('xlsx');
+    const workbook = xlsx.utils.book_new();
+    const worksheet = xlsx.utils.aoa_to_sheet([machineKeys, columns, ...rows]);
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Pivotal Actual');
+    const workbookArray = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
+    this.triggerDownload(
+      new Blob([workbookArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      '2023_Pivotal_Actual_Training_Report_V1.xlsx',
+    );
+  }
+
+  downloadPivotalActualTrainingReport() {
+    if (this.selectedAtrSubReportDownloadFormat() === 'XLSX') {
+      void this.downloadPivotalActualTrainingXlsx();
+      return;
+    }
+
+    this.downloadPivotalActualTrainingCsv();
   }
 
   downloadIdpReportCsv() {
@@ -4988,15 +6263,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     }
 
     this.downloadCertificateLicenceReportCsv();
-  }
-
-  downloadReport() {
-    if (this.selectedReportDownloadFormat() === 'XLSX') {
-      void this.downloadReportsXlsx();
-      return;
-    }
-
-    this.downloadReportsCsv();
   }
 
   openTopbarProfileMenu() {

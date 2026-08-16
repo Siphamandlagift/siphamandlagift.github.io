@@ -2,7 +2,7 @@ import { copyFile, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/pr
 import path from 'node:path';
 import { getApp, getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, type Firestore, type WriteBatch } from 'firebase-admin/firestore';
-import { createDefaultData } from './default-data.js';
+import { createDefaultData, createDefaultStudentTemplate } from './default-data.js';
 import {
   createPasswordCredentials,
   generatePasswordResetToken,
@@ -48,7 +48,7 @@ const backupDataFilePath = path.join(dataDirectory, 'lms-data.backup.json');
 const tempDataFilePath = path.join(dataDirectory, 'lms-data.json.tmp');
 const defaultCourseImage = 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=400&q=80';
 const passwordResetLifetimeMs = 60 * 60 * 1000;
-const defaultStudentTemplate = createDefaultData().students[0];
+const defaultStudentTemplate = createDefaultStudentTemplate();
 const firestoreCollectionNames = [
   'offerings',
   'students',
@@ -448,32 +448,31 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
   const defaults = createDefaultData();
   const offerings = data.offerings ?? defaults.offerings;
   const students = data.students.map((student) => {
-    const defaultStudent = defaults.students.find((entry) => entry.id === student.id);
-    const rawRole = (student.role ?? defaultStudent?.role ?? 'student') as EnrollmentStudentRecord['role'] | LoginRole | 'admin';
+    const rawRole = (student.role ?? defaultStudentTemplate.role ?? 'student') as EnrollmentStudentRecord['role'] | LoginRole | 'admin';
     // Legacy migration: 'admin'/'administrator' used to be a base role. It's now the isAdmin flag
     // layered on top of a student/manager base role — normalize any old data to that shape.
     const isLegacyAdminRole = rawRole === 'admin' || rawRole === 'administrator';
     const role = isLegacyAdminRole ? 'student' as const : normalizeEnrollmentRole(rawRole);
     const isAdmin = isLegacyAdminRole || student.isAdmin === true;
     const settings = {
-      ...(defaultStudent?.settings ?? defaults.students[0]?.settings),
+      ...defaultStudentTemplate.settings,
       ...(student.settings ?? {}),
     };
-    const courses = student.courses ?? defaultStudent?.courses ?? [];
-    const assignedOfferingIds = student.assignedOfferingIds ?? defaultStudent?.assignedOfferingIds ?? [];
-    const notifiedOfferingIds = student.notifiedOfferingIds ?? defaultStudent?.notifiedOfferingIds ?? [];
-    const notifications = student.notifications ?? defaultStudent?.notifications ?? [];
-    const messages = student.messages ?? defaultStudent?.messages ?? [];
-    const idpEntries = normalizeStudentIdpEntries(student.idpEntries ?? defaultStudent?.idpEntries ?? []);
+    const courses = student.courses ?? defaultStudentTemplate.courses ?? [];
+    const assignedOfferingIds = student.assignedOfferingIds ?? defaultStudentTemplate.assignedOfferingIds ?? [];
+    const notifiedOfferingIds = student.notifiedOfferingIds ?? defaultStudentTemplate.notifiedOfferingIds ?? [];
+    const notifications = student.notifications ?? defaultStudentTemplate.notifications ?? [];
+    const messages = student.messages ?? defaultStudentTemplate.messages ?? [];
+    const idpEntries = normalizeStudentIdpEntries(student.idpEntries ?? defaultStudentTemplate.idpEntries ?? []);
 
     return {
-      ...defaultStudent,
+      ...defaultStudentTemplate,
       ...student,
       role,
       isAdmin,
       settings,
       assignedOfferingIds,
-      assessmentAttempts: student.assessmentAttempts ?? defaultStudent?.assessmentAttempts ?? {},
+      assessmentAttempts: student.assessmentAttempts ?? defaultStudentTemplate.assessmentAttempts ?? {},
       courses,
       notifications,
       messages,

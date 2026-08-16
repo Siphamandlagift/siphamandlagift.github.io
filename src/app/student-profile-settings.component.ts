@@ -797,7 +797,7 @@ export class StudentProfileSettingsComponent {
     this.errorMessageSignal.set(result.errorMessage ?? null);
   }
 
-  onAppearanceSettingsSubmit() {
+  async onAppearanceSettingsSubmit() {
     if (this.saving()) {
       return;
     }
@@ -807,7 +807,7 @@ export class StudentProfileSettingsComponent {
     this.successMessageSignal.set(null);
     this.errorMessageSignal.set(null);
 
-    const result = this.studentData.updateThemePreference(this.appearanceSettingsForm.controls.themePreference.value);
+    const result = await this.studentData.updateThemePreference(this.appearanceSettingsForm.controls.themePreference.value);
     this.savingSignal.set(false);
     this.appearanceSettingsForm.markAsPristine();
     this.submittedSignal.set(result.success);

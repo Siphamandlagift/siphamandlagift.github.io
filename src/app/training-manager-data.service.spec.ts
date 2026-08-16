@@ -107,6 +107,13 @@ describe('TrainingManagerDataService assignment submission hydration', () => {
   });
 
   it('routes student mentorship form submissions to the assigned manager review list', () => {
+    localStorage.setItem('lms-session', JSON.stringify({
+      role: 'training-manager',
+      username: 'ava.mokoena',
+      email: 'ava.mokoena@example-test.local',
+      displayName: 'Ava Mokoena',
+    }));
+
     const service = TestBed.runInInjectionContext(() => new TrainingManagerDataService());
 
     service.createMentorshipAssignment({

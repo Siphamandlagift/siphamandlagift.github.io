@@ -457,7 +457,6 @@ type IdpEntryFormGroup = FormGroup<{
 
                         <div class="course-studio-sidebar-copy">
                           <strong>{{ courseForm.controls.title.value || 'New course' }}</strong>
-                          <span>{{ editingCourseId() ? 'Update the existing course flow and save your changes.' : 'Build the course structure and publish when you are ready.' }}</span>
                         </div>
 
                         <div class="course-studio-quick-actions">
@@ -541,9 +540,6 @@ type IdpEntryFormGroup = FormGroup<{
                             </div>
                           }
 
-                          @if (contentItemsArray.length > 1) {
-                            <p class="course-studio-unit-ordering-note">Drag units in this list to reorder the course flow.</p>
-                          }
                         </div>
                       </aside>
 
@@ -551,7 +547,6 @@ type IdpEntryFormGroup = FormGroup<{
                         <div class="course-studio-workspace-header">
                           <div>
                             <h2>{{ courseStudioWorkspaceTitle() }}</h2>
-                            <p>{{ courseStudioWorkspaceSubtitle() }}</p>
                           </div>
 
                           @if (selectedCreateSection() === 'content' && selectedContentItem()) {
@@ -651,19 +646,16 @@ type IdpEntryFormGroup = FormGroup<{
                                       <option [value]="assessmentType">{{ assessmentType }}</option>
                                     }
                                   </select>
-                                  <span class="field-hint">{{ assessmentTypeHelperText(activeContentItemIndex()) }}</span>
                                 </label>
 
                                 <label title="Set the minimum percentage learners must achieve to pass this assessment.">
                                   <span class="required-label">Pass Mark (%) <span class="required-marker" aria-hidden="true">*</span></span>
                                   <input formControlName="passMarkPercentage" type="number" min="1" max="100" />
-                                  <span class="field-hint">Use a percentage target for quiz pass/fail checks and assignment scoring guidance.</span>
                                 </label>
 
                                 <label title="Set how many times a learner can submit or retry this assessment.">
                                   <span class="required-label">Attempts Allowed <span class="required-marker" aria-hidden="true">*</span></span>
                                   <input formControlName="maxAttempts" type="number" min="1" step="1" />
-                                  <span class="field-hint">After the final attempt, the learner can no longer retry this assessment.</span>
                                 </label>
                               </div>
 
@@ -743,7 +735,6 @@ type IdpEntryFormGroup = FormGroup<{
                                               <div class="assessment-choice-header">
                                                 <div>
                                                   <p class="form-section-eyebrow">Answer Options</p>
-                                                  <h5>Set the available options and correct answers</h5>
                                                 </div>
                                                 <button type="button" class="assessment-add-btn assessment-choice-add-btn" (click)="addAssessmentChoice(activeContentItemIndex(), questionIndex)">Add option</button>
                                               </div>
@@ -787,7 +778,6 @@ type IdpEntryFormGroup = FormGroup<{
                                               <div class="assessment-choice-header">
                                                 <div>
                                                   <p class="form-section-eyebrow">True Or False</p>
-                                                  <h5>Choose the correct answer</h5>
                                                 </div>
                                               </div>
 
@@ -812,7 +802,6 @@ type IdpEntryFormGroup = FormGroup<{
                                               <div class="assessment-choice-header">
                                                 <div>
                                                   <p class="form-section-eyebrow">Matching Pairs</p>
-                                                  <h5>Build the drag-and-drop matches</h5>
                                                 </div>
                                                 <button type="button" class="assessment-add-btn assessment-choice-add-btn" (click)="addMatchingPair(activeContentItemIndex(), questionIndex)">Add pair</button>
                                               </div>
@@ -852,7 +841,6 @@ type IdpEntryFormGroup = FormGroup<{
                                 <div class="assessment-submit-row">
                                   <div class="assessment-submit-copy">
                                     <strong>Submit this assessment setup</strong>
-                                    <span>Confirm all questions together once the assessment is ready.</span>
                                   </div>
                                   <button type="button" class="detail-action-btn detail-action-btn-primary" (click)="submitAssessmentSetup(activeContentItemIndex())">Submit assessment</button>
                                 </div>
@@ -895,7 +883,6 @@ type IdpEntryFormGroup = FormGroup<{
                                     <svg width="38" height="38" viewBox="0 0 24 24" fill="none"><path d="M10 13a4 4 0 0 0 5.66 0l2.12-2.12a4 4 0 1 0-5.66-5.66L10.9 6.44" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 11a4 4 0 0 0-5.66 0l-2.12 2.12a4 4 0 1 0 5.66 5.66l1.22-1.22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                   </span>
                                   <strong>Use a link</strong>
-                                  <span class="course-studio-upload-caption">Paste a hosted link for this unit.</span>
                                   <input formControlName="resourceLink" type="url" placeholder="Paste a hosted link for this item" />
                                 </label>
                               </div>
@@ -923,14 +910,18 @@ type IdpEntryFormGroup = FormGroup<{
                               }
 
                               @if (activeItem.controls.kind.value === 'Document') {
-                                <label class="assessment-drag-toggle form-grid-span-two" [class.assessment-drag-toggle-active]="activeItem.controls.requiresAcknowledgement.value">
-                                  <input formControlName="requiresAcknowledgement" type="checkbox" />
-                                  <span>Require learners to open this document in the LMS and acknowledge that they have read it.</span>
-                                </label>
-                                <label class="assessment-drag-toggle form-grid-span-two" [class.assessment-drag-toggle-active]="activeItem.controls.allowDownload.value">
-                                  <input formControlName="allowDownload" type="checkbox" />
-                                  <span>Allow students to download or open this document in a new tab.</span>
-                                </label>
+                                <div class="doc-toggle-row form-grid-span-two">
+                                  <label class="doc-toggle" [class.doc-toggle-active]="activeItem.controls.requiresAcknowledgement.value" title="Learners must open this document in the LMS and confirm they've read it.">
+                                    <input formControlName="requiresAcknowledgement" type="checkbox" class="doc-toggle-input" />
+                                    <span class="doc-toggle-track" aria-hidden="true"><span class="doc-toggle-thumb"></span></span>
+                                    <span class="doc-toggle-label">Requires acknowledgement</span>
+                                  </label>
+                                  <label class="doc-toggle" [class.doc-toggle-active]="activeItem.controls.allowDownload.value" title="Learners can download this document or open it in a new tab.">
+                                    <input formControlName="allowDownload" type="checkbox" class="doc-toggle-input" />
+                                    <span class="doc-toggle-track" aria-hidden="true"><span class="doc-toggle-thumb"></span></span>
+                                    <span class="doc-toggle-label">Allow download</span>
+                                  </label>
+                                </div>
                               }
                             }
                           </section>
@@ -978,7 +969,7 @@ type IdpEntryFormGroup = FormGroup<{
                         }
 
                         <div class="course-studio-footer">
-                          <span class="form-action-copy">{{ courseForm.invalid ? 'Complete the required course details before publishing.' : (editingCourseId() ? 'Save your updates when the course flow looks right.' : 'Publish when your course setup is ready. You can keep adding units later.') }}</span>
+                          <span class="form-action-copy">{{ courseForm.invalid ? 'Complete the required fields to publish.' : (editingCourseId() ? 'Save your changes.' : 'Ready to publish.') }}</span>
                           <div class="builder-step-actions">
                             <button type="button" class="builder-secondary-btn" [disabled]="!hasPreviousCreateSection()" (click)="goToPreviousCreateSection()">Previous</button>
                             <button type="button" class="builder-secondary-btn" [disabled]="!hasNextCreateSection()" (click)="goToNextCreateSection()">Next</button>
@@ -1138,6 +1129,10 @@ type IdpEntryFormGroup = FormGroup<{
                                 Feedback for learner
                                 <textarea formControlName="feedback" rows="5" placeholder="Add review feedback or revision guidance"></textarea>
                               </label>
+
+                              @if (assignmentWorkspaceReviewError()) {
+                                <span class="field-error">{{ assignmentWorkspaceReviewError() }}</span>
+                              }
 
                               <div class="mentorship-review-actions">
                                 <button type="button" class="detail-action-btn" (click)="applyAssignmentWorkspaceReview('Needs Revision')">Request revision</button>
@@ -3274,6 +3269,78 @@ type IdpEntryFormGroup = FormGroup<{
       grid-column: 1 / -1;
     }
 
+    .doc-toggle-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+    }
+
+    .doc-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.45rem 0.75rem;
+      border: 1px solid rgba(148, 163, 184, 0.32);
+      border-radius: 999px;
+      background: #fff;
+      cursor: pointer;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .doc-toggle-active {
+      border-color: var(--brand-primary);
+      background: var(--brand-tint);
+    }
+
+    .doc-toggle-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .doc-toggle-track {
+      position: relative;
+      flex-shrink: 0;
+      width: 2.1rem;
+      height: 1.15rem;
+      border-radius: 999px;
+      background: #cbd5e1;
+      transition: background 0.15s ease;
+    }
+
+    .doc-toggle-active .doc-toggle-track {
+      background: var(--brand-primary);
+    }
+
+    .doc-toggle-thumb {
+      position: absolute;
+      top: 0.13rem;
+      left: 0.13rem;
+      width: 0.9rem;
+      height: 0.9rem;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
+      transition: transform 0.15s ease;
+    }
+
+    .doc-toggle-active .doc-toggle-thumb {
+      transform: translateX(0.95rem);
+    }
+
+    .doc-toggle-input:focus-visible + .doc-toggle-track {
+      outline: 2px solid var(--brand-primary);
+      outline-offset: 2px;
+    }
+
+    .doc-toggle-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #173446;
+    }
+
     .form-grid-two,
     .media-preview-grid {
       display: grid;
@@ -5340,6 +5407,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     awardedPoints: new FormControl<number | null>(null, { validators: [Validators.min(0)] }),
     feedback: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(6)] }),
   });
+  readonly assignmentWorkspaceReviewError = signal('');
   readonly assignmentSubmissionFilterOptions: ReadonlyArray<AssignmentSubmissionFilter> = ['All', 'Pending Review', 'Approved', 'Needs Revision'];
 
   get contentItemsArray() {
@@ -5571,14 +5639,18 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.externalTrainingReviewForm.reset({ feedback });
   }
 
-  applyAssignmentReview(event: { submissionId: string; status: 'Approved' | 'Needs Revision'; feedback: string; awardedPoints: number | null }) {
-    this.managerData.reviewAssignmentSubmission({
+  async applyAssignmentReview(event: { submissionId: string; status: 'Approved' | 'Needs Revision'; feedback: string; awardedPoints: number | null }) {
+    const result = await this.managerData.reviewAssignmentSubmission({
       submissionId: event.submissionId,
       reviewerName: this.managerData.profile().name,
       status: event.status,
       awardedPoints: event.awardedPoints,
       feedback: event.feedback,
     });
+
+    if (!result.ok) {
+      alert(result.message);
+    }
   }
 
   replyToSelectedManagerMessage() {
@@ -5633,6 +5705,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       this.selectedAssignmentSubmissionId.set(firstSubmission?.id ?? null);
       this.assignmentWorkspaceReviewForm.reset({ awardedPoints: firstSubmission?.awardedPoints ?? null, feedback: firstSubmission?.reviewerFeedback ?? '' });
     }
+    this.assignmentWorkspaceReviewError.set('');
 
     this.selectedCoursesView.set(view);
   }
@@ -5642,6 +5715,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     const firstSubmission = this.filteredAssignmentSubmissions()[0] ?? null;
     this.selectedAssignmentSubmissionId.set(firstSubmission?.id ?? null);
     this.assignmentWorkspaceReviewForm.reset({ awardedPoints: firstSubmission?.awardedPoints ?? null, feedback: firstSubmission?.reviewerFeedback ?? '' });
+    this.assignmentWorkspaceReviewError.set('');
   }
 
   setAssignmentSubmissionStatusFilter(status: AssignmentSubmissionFilter) {
@@ -5649,15 +5723,17 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     const firstSubmission = this.filteredAssignmentSubmissions()[0] ?? null;
     this.selectedAssignmentSubmissionId.set(firstSubmission?.id ?? null);
     this.assignmentWorkspaceReviewForm.reset({ awardedPoints: firstSubmission?.awardedPoints ?? null, feedback: firstSubmission?.reviewerFeedback ?? '' });
+    this.assignmentWorkspaceReviewError.set('');
   }
 
   openAssignmentSubmission(submissionId: string) {
     this.selectedAssignmentSubmissionId.set(submissionId);
     const activeSubmission = this.filteredAssignmentSubmissions().find((submission) => submission.id === submissionId) ?? null;
     this.assignmentWorkspaceReviewForm.reset({ awardedPoints: activeSubmission?.awardedPoints ?? null, feedback: activeSubmission?.reviewerFeedback ?? '' });
+    this.assignmentWorkspaceReviewError.set('');
   }
 
-  applyAssignmentWorkspaceReview(status: 'Approved' | 'Needs Revision') {
+  async applyAssignmentWorkspaceReview(status: 'Approved' | 'Needs Revision') {
     const activeSubmission = this.selectedAssignmentSubmission();
     if (!activeSubmission || this.assignmentWorkspaceReviewForm.invalid) {
       this.assignmentWorkspaceReviewForm.markAllAsTouched();
@@ -5670,16 +5746,24 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.managerData.reviewAssignmentSubmission({
+    this.assignmentWorkspaceReviewError.set('');
+    const feedback = this.assignmentWorkspaceReviewForm.controls.feedback.value.trim();
+    const result = await this.managerData.reviewAssignmentSubmission({
       submissionId: activeSubmission.id,
       reviewerName: this.managerData.profile().name,
       status,
       awardedPoints: status === 'Approved' ? awardedPoints : null,
-      feedback: this.assignmentWorkspaceReviewForm.controls.feedback.value.trim(),
+      feedback,
     });
+
+    if (!result.ok) {
+      this.assignmentWorkspaceReviewError.set(result.message ?? 'Your review could not be saved. Please try again.');
+      return;
+    }
+
     this.assignmentWorkspaceReviewForm.reset({
       awardedPoints: status === 'Approved' ? awardedPoints : null,
-      feedback: this.assignmentWorkspaceReviewForm.controls.feedback.value.trim(),
+      feedback,
     });
   }
 
@@ -5985,29 +6069,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       return 'Add content';
     }
 
-    const title = activeItem.controls.title.value.trim();
-    if (title) {
-      return title;
-    }
-
-    return this.courseStudioItemTitle(this.activeContentItemIndex());
-  }
-
-  courseStudioWorkspaceSubtitle() {
-    if (this.selectedCreateSection() === 'basics') {
-      return 'Set up the course summary, dates, and learner-facing description.';
-    }
-
-    const activeItem = this.selectedContentItem();
-    if (!activeItem) {
-      return 'Select a unit from the left or add a new one to start building the flow.';
-    }
-
-    if (activeItem.controls.kind.value === 'Assessment') {
-      return 'Configure the activity, questions, and submission flow for learners.';
-    }
-
-    return `Add the ${activeItem.controls.kind.value.toLowerCase()} file or hosted link for this unit.`;
+    return activeItem.controls.title.value.trim() || 'Untitled';
   }
 
   isAddItemMenuOpen() {
@@ -6206,20 +6268,6 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       case 'Quiz':
       default:
         return this.questionTypeOptions;
-    }
-  }
-
-  assessmentTypeHelperText(itemIndex: number) {
-    switch (this.assessmentTypeForItem(itemIndex)) {
-      case 'Assignment':
-        return 'Assignments use task-style prompts with either a long-answer response or a document submission.';
-      case 'Mentorship':
-        return 'Mentorship assessments capture coach check-ins, reflections, and action plans for a student.';
-      case 'Read and Acknowledge':
-        return 'Read-and-acknowledge items require the learner to open the attached document and confirm they have read it.';
-      case 'Quiz':
-      default:
-        return 'Quizzes support standard knowledge-check questions.';
     }
   }
 

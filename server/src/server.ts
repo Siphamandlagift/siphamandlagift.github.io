@@ -578,6 +578,8 @@ const enrollmentStudentSchema = z.object({
   race: z.string().optional(),
   gender: z.string().optional(),
   municipality: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  nqfLevel: z.string().optional(),
 });
 
 const studentMessageReplySchema = z.object({
@@ -2477,9 +2479,37 @@ app.get('/api/quiz-submissions', async (_request, response, next) => {
   }
 });
 
+// A write is a "review write" when it sets any field only a manager/admin should be able to
+// set (status other than the initial Pending Review, or any reviewer field) — as opposed to a
+// student's own submit/resubmit, which always lands in Pending Review with no reviewer set yet.
+function isReviewWrite(submission: { status: string; reviewerName: string | null; awardedPoints?: number | null; reviewedAt: string | null }) {
+  return submission.status !== 'Pending Review'
+    || submission.reviewerName !== null
+    || submission.reviewedAt !== null
+    || (('awardedPoints' in submission) && submission.awardedPoints !== null);
+}
+
 app.post('/api/assignment-submissions', async (request, response, next) => {
   try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
     const submission = assignmentSubmissionSchema.parse(request.body);
+    const isManagerOrAdmin = identity.role === 'administrator' || identity.role === 'training-manager';
+
+    if (isReviewWrite(submission)) {
+      if (!isManagerOrAdmin) {
+        response.status(403).json({ message: 'Only a training manager or administrator can review a submission.' });
+        return;
+      }
+    } else if (!isManagerOrAdmin && !(await isOwnStudentRecord(submission.studentId, identity))) {
+      response.status(403).json({ message: 'You can only submit your own assignment.' });
+      return;
+    }
+
     response.status(201).json(await repository.upsertAssignmentSubmission(submission));
   } catch (error) {
     next(error);
@@ -2488,7 +2518,20 @@ app.post('/api/assignment-submissions', async (request, response, next) => {
 
 app.post('/api/quiz-submissions', async (request, response, next) => {
   try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
     const submission = quizSubmissionSchema.parse(request.body);
+    const isManagerOrAdmin = identity.role === 'administrator' || identity.role === 'training-manager';
+
+    if (!isManagerOrAdmin && !(await isOwnStudentRecord(submission.studentId, identity))) {
+      response.status(403).json({ message: 'You can only submit your own quiz.' });
+      return;
+    }
+
     response.status(201).json(await repository.upsertQuizSubmission(submission));
   } catch (error) {
     next(error);
@@ -2497,7 +2540,25 @@ app.post('/api/quiz-submissions', async (request, response, next) => {
 
 app.post('/api/mentorship-submissions', async (request, response, next) => {
   try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
     const submission = mentorshipSubmissionSchema.parse(request.body);
+    const isManagerOrAdmin = identity.role === 'administrator' || identity.role === 'training-manager';
+
+    if (isReviewWrite(submission)) {
+      if (!isManagerOrAdmin) {
+        response.status(403).json({ message: 'Only a training manager or administrator can review a submission.' });
+        return;
+      }
+    } else if (!isManagerOrAdmin && !(await isOwnStudentRecord(submission.studentId, identity))) {
+      response.status(403).json({ message: 'You can only submit your own mentorship response.' });
+      return;
+    }
+
     response.status(201).json(await repository.upsertMentorshipSubmission(submission));
   } catch (error) {
     next(error);
