@@ -873,11 +873,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     <path d="M 30,120 A 90,90 0 0,1 83.40,37.78" class="admin-gauge-band admin-gauge-band-critical" [class.admin-gauge-band-ready]="dashboardGaugeReady()" />
                     <path d="M 87.75,35.98 A 90,90 0 0,1 152.25,35.98" class="admin-gauge-band admin-gauge-band-serious" [class.admin-gauge-band-ready]="dashboardGaugeReady()" />
                     <path d="M 156.60,37.78 A 90,90 0 0,1 210,120" class="admin-gauge-band admin-gauge-band-good" [class.admin-gauge-band-ready]="dashboardGaugeReady()" />
-                    <g class="admin-gauge-needle" [attr.transform]="'rotate(' + performanceGaugeNeedleRotation() + ' 120 120)'" [class.admin-gauge-needle-idle]="performanceGaugeAverage() === null">
-                      <polygon points="117,120 120,44 123,120" />
-                    </g>
-                    <circle cx="120" cy="120" r="7" class="admin-gauge-hub-ring" [class.admin-gauge-hub-ring-ready]="dashboardGaugeReady()" />
-                    <circle cx="120" cy="120" r="7" class="admin-gauge-hub" />
                     <text x="120" y="102" text-anchor="middle" class="admin-gauge-value" [class.admin-gauge-value-ready]="dashboardGaugeReady()">{{ performanceGaugeAverageLabel() }}</text>
                     <text x="120" y="120" text-anchor="middle" class="admin-gauge-value-caption" dy="14">average / 5</text>
                     <text x="18" y="129" text-anchor="start" class="admin-gauge-scale-label">1</text>
@@ -3442,52 +3437,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       stroke-dashoffset: 0;
     }
 
-    /* The needle's rotation always comes straight from performanceGaugeNeedleRotation(), applied
-       via the SVG rotate(angle, cx, cy) transform function — its pivot is part of the transform
-       value itself, so it's exact regardless of any CSS transform-origin/transform-box ambiguity.
-       No entrance flourish on the needle specifically: an earlier attempt at a decorative
-       "settle-in wiggle" nested group relied on CSS transform-origin resolving against the right
-       reference box, which isn't reliable across browsers and could swing the needle off its
-       pivot before settling. The transition below still smooths any later change once the real
-       average updates during a session — it just doesn't animate the very first paint. */
-    .admin-gauge-needle {
-      transition: transform 0.6s ease;
-      transform-origin: 120px 120px;
-      filter: drop-shadow(0 2px 2px rgba(15, 23, 42, 0.28));
-    }
-
-    .admin-gauge-needle polygon {
-      fill: #0f172a;
-    }
-
-    .admin-gauge-needle-idle {
-      opacity: 0.32;
-    }
-
-    .admin-gauge-hub {
-      fill: #0f172a;
-      stroke: #ffffff;
-      stroke-width: 2;
-    }
-
-    .admin-gauge-hub-ring {
-      fill: none;
-      stroke: #0f172a;
-      stroke-width: 2;
-      opacity: 0;
-      transform-box: fill-box;
-      transform-origin: center;
-    }
-
-    @keyframes admin-gauge-hub-pulse {
-      0% { opacity: 0.5; transform: scale(1); }
-      100% { opacity: 0; transform: scale(3.2); }
-    }
-
-    .admin-gauge-hub-ring-ready {
-      animation: admin-gauge-hub-pulse 0.7s ease-out 0.55s both;
-    }
-
     @keyframes admin-gauge-value-pop {
       0% { opacity: 0; transform: scale(0.55); }
       65% { opacity: 1; transform: scale(1.12); }
@@ -3580,12 +3529,10 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     @media (prefers-reduced-motion: reduce) {
       .admin-gauge-card,
       .admin-gauge-legend-row,
-      .admin-gauge-value-ready,
-      .admin-gauge-hub-ring-ready {
+      .admin-gauge-value-ready {
         animation: none;
       }
 
-      .admin-gauge-needle,
       .admin-gauge-band-critical,
       .admin-gauge-band-serious,
       .admin-gauge-band-good {
@@ -4593,14 +4540,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     return average === null ? '—' : average.toFixed(1);
   });
 
-  // Needle rests at the neutral centre (rating 3, 0deg) when there's nothing to average yet,
-  // shown at reduced opacity in the template rather than defaulting to either end of the scale.
-  readonly performanceGaugeNeedleRotation = computed(() => {
-    const average = this.performanceGaugeAverage() ?? 3;
-    const clamped = Math.min(5, Math.max(1, average));
-    return 45 * clamped - 135;
-  });
-
   // Band thresholds mirror the gauge's colour zones: below 2.5 rounds to a rating of 2, 2.5–3.5
   // rounds to 3, 3.5 and up rounds to 4 or 5. Ratings that would round to 1 are folded into the
   // same red/critical band as 2 — there's no separate zone for it, and it's clearly no better.
@@ -4612,12 +4551,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     return { critical, serious, good, total: rows.length };
   });
 
-  // Parks the bands/legend/value in a hidden "pre-reveal" state and flips them into view a beat
-  // later, so the gauge plays its pop-in animation fresh every time the admin lands on or returns
-  // to the dashboard tab. The needle deliberately does NOT depend on this — its rotation is always
-  // bound directly to the real, immediate value (see performanceGaugeNeedleRotation / the template)
-  // so its actual position can never get stuck behind a timer or animation that fails to fire; only
-  // its decorative settle-in wiggle is a plain CSS animation, independent of this signal entirely.
+  // Parks the bands/value in a hidden "pre-reveal" state and flips them into view a beat later, so
+  // the gauge plays its pop-in animation fresh every time the admin lands on or returns to the
+  // dashboard tab.
   readonly dashboardGaugeReady = signal(false);
   private readonly dashboardGaugePopEffect = effect((onCleanup) => {
     if (this.selectedPanel() !== 'dashboard') {
