@@ -869,14 +869,16 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
                 <div class="admin-gauge-body">
                   <svg class="admin-gauge-svg" viewBox="0 0 240 145" role="img" [attr.aria-label]="'Average overall performance rating ' + performanceGaugeAverageLabel() + ' out of 5'">
-                    <path d="M 30,120 A 90,90 0 0,1 83.40,37.78" class="admin-gauge-band admin-gauge-band-critical" />
-                    <path d="M 87.75,35.98 A 90,90 0 0,1 152.25,35.98" class="admin-gauge-band admin-gauge-band-serious" />
-                    <path d="M 156.60,37.78 A 90,90 0 0,1 210,120" class="admin-gauge-band admin-gauge-band-good" />
-                    <g class="admin-gauge-needle" [attr.transform]="'rotate(' + performanceGaugeNeedleRotation() + ' 120 120)'" [class.admin-gauge-needle-idle]="performanceGaugeAverage() === null">
+                    <path d="M 30,120 A 90,90 0 1,1 210,120" class="admin-gauge-band-track" />
+                    <path d="M 30,120 A 90,90 0 0,1 83.40,37.78" class="admin-gauge-band admin-gauge-band-critical" [class.admin-gauge-band-ready]="dashboardGaugeReady()" />
+                    <path d="M 87.75,35.98 A 90,90 0 0,1 152.25,35.98" class="admin-gauge-band admin-gauge-band-serious" [class.admin-gauge-band-ready]="dashboardGaugeReady()" />
+                    <path d="M 156.60,37.78 A 90,90 0 0,1 210,120" class="admin-gauge-band admin-gauge-band-good" [class.admin-gauge-band-ready]="dashboardGaugeReady()" />
+                    <g class="admin-gauge-needle" [attr.transform]="'rotate(' + performanceGaugeNeedleDisplayRotation() + ' 120 120)'" [class.admin-gauge-needle-idle]="performanceGaugeAverage() === null">
                       <polygon points="117,120 120,44 123,120" />
                     </g>
+                    <circle cx="120" cy="120" r="7" class="admin-gauge-hub-ring" [class.admin-gauge-hub-ring-ready]="dashboardGaugeReady()" />
                     <circle cx="120" cy="120" r="7" class="admin-gauge-hub" />
-                    <text x="120" y="102" text-anchor="middle" class="admin-gauge-value">{{ performanceGaugeAverageLabel() }}</text>
+                    <text x="120" y="102" text-anchor="middle" class="admin-gauge-value" [class.admin-gauge-value-ready]="dashboardGaugeReady()">{{ performanceGaugeAverageLabel() }}</text>
                     <text x="120" y="120" text-anchor="middle" class="admin-gauge-value-caption" dy="14">average / 5</text>
                     <text x="18" y="129" text-anchor="start" class="admin-gauge-scale-label">1</text>
                     <text x="222" y="129" text-anchor="end" class="admin-gauge-scale-label">5</text>
@@ -3369,7 +3371,23 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     /* Overall performance gauge — bands are fixed value zones on the 1–5 KPI rating scale
        (< 2.5 rounds to 2, 2.5–3.5 rounds to 3, >= 3.5 rounds to 4 or 5), not proportional to the
        band's own employee count — the legend counts carry that instead, since packing both onto
-       the arc geometry would make it lie about where the average actually sits on the scale. */
+       the arc geometry would make it lie about where the average actually sits on the scale.
+       The card replays its pop-in every time the admin (re)opens the Dashboard tab: the outer
+       @if in the template destroys and recreates this whole subtree on each visit, which is what
+       lets a CSS animation (auto-plays from 0% on insertion) restart for free, while the needle/
+       bands/value additionally wait for dashboardGaugeReady() before their transition fires —
+       see the effect that drives that signal. */
+    @keyframes admin-gauge-card-pop {
+      0% { opacity: 0; transform: translateY(10px) scale(0.96); }
+      60% { opacity: 1; transform: translateY(-2px) scale(1.015); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .admin-gauge-card {
+      background: linear-gradient(165deg, rgba(224, 242, 254, 0.55) 0%, rgba(255, 255, 255, 0.98) 55%);
+      animation: admin-gauge-card-pop 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
     .admin-gauge-body {
       display: flex;
       align-items: center;
@@ -3381,6 +3399,15 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       width: 220px;
       height: auto;
       flex: 0 0 auto;
+      filter: drop-shadow(0 6px 10px rgba(15, 23, 42, 0.08));
+      overflow: visible;
+    }
+
+    .admin-gauge-band-track {
+      fill: none;
+      stroke: #eef0f3;
+      stroke-width: 22;
+      stroke-linecap: round;
     }
 
     .admin-gauge-band {
@@ -3389,13 +3416,35 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       stroke-linecap: round;
     }
 
-    .admin-gauge-band-critical { stroke: #d03b3b; }
-    .admin-gauge-band-serious { stroke: #ec835a; }
-    .admin-gauge-band-good { stroke: #0ca30c; }
+    .admin-gauge-band-critical {
+      stroke: #d03b3b;
+      stroke-dasharray: 112;
+      stroke-dashoffset: 112;
+      transition: stroke-dashoffset 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.05s;
+    }
+
+    .admin-gauge-band-serious {
+      stroke: #ec835a;
+      stroke-dasharray: 74;
+      stroke-dashoffset: 74;
+      transition: stroke-dashoffset 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.18s;
+    }
+
+    .admin-gauge-band-good {
+      stroke: #0ca30c;
+      stroke-dasharray: 112;
+      stroke-dashoffset: 112;
+      transition: stroke-dashoffset 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.3s;
+    }
+
+    .admin-gauge-band-ready {
+      stroke-dashoffset: 0;
+    }
 
     .admin-gauge-needle {
-      transition: transform 0.4s ease;
+      transition: transform 0.9s cubic-bezier(0.34, 1.56, 0.64, 1);
       transform-origin: 120px 120px;
+      filter: drop-shadow(0 2px 2px rgba(15, 23, 42, 0.28));
     }
 
     .admin-gauge-needle polygon {
@@ -3412,10 +3461,41 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       stroke-width: 2;
     }
 
+    .admin-gauge-hub-ring {
+      fill: none;
+      stroke: #0f172a;
+      stroke-width: 2;
+      opacity: 0;
+      transform-box: fill-box;
+      transform-origin: center;
+    }
+
+    @keyframes admin-gauge-hub-pulse {
+      0% { opacity: 0.5; transform: scale(1); }
+      100% { opacity: 0; transform: scale(3.2); }
+    }
+
+    .admin-gauge-hub-ring-ready {
+      animation: admin-gauge-hub-pulse 0.7s ease-out 0.55s both;
+    }
+
+    @keyframes admin-gauge-value-pop {
+      0% { opacity: 0; transform: scale(0.55); }
+      65% { opacity: 1; transform: scale(1.12); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
     .admin-gauge-value {
       font-size: 1.9rem;
       font-weight: 800;
       fill: #0f172a;
+      opacity: 0;
+      transform-box: fill-box;
+      transform-origin: center;
+    }
+
+    .admin-gauge-value-ready {
+      animation: admin-gauge-value-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 0.55s both;
     }
 
     .admin-gauge-value-caption {
@@ -3439,11 +3519,21 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       min-width: 220px;
     }
 
+    @keyframes admin-gauge-legend-row-in {
+      0% { opacity: 0; transform: translateX(-6px); }
+      100% { opacity: 1; transform: translateX(0); }
+    }
+
     .admin-gauge-legend-row {
       display: flex;
       align-items: center;
       gap: 0.55rem;
+      animation: admin-gauge-legend-row-in 0.45s ease-out both;
     }
+
+    .admin-gauge-legend-row:nth-child(1) { animation-delay: 0.15s; }
+    .admin-gauge-legend-row:nth-child(2) { animation-delay: 0.28s; }
+    .admin-gauge-legend-row:nth-child(3) { animation-delay: 0.41s; }
 
     .admin-gauge-legend-dot {
       width: 0.72rem;
@@ -3476,6 +3566,26 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       margin: 0.2rem 0 0;
       font-size: 0.8rem;
       color: #898781;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .admin-gauge-card,
+      .admin-gauge-legend-row,
+      .admin-gauge-value-ready,
+      .admin-gauge-hub-ring-ready {
+        animation: none;
+      }
+
+      .admin-gauge-needle,
+      .admin-gauge-band-critical,
+      .admin-gauge-band-serious,
+      .admin-gauge-band-good {
+        transition: none;
+      }
+
+      .admin-gauge-value {
+        opacity: 1;
+      }
     }
 
     .admin-search-field {
@@ -4492,6 +4602,25 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     const good = rows.filter((row) => row.overallRating >= 3.5).length;
     return { critical, serious, good, total: rows.length };
   });
+
+  // Parks the needle/bands/legend in a hidden "pre-reveal" state and flips them into their real
+  // position a beat later, so the gauge plays its pop-in animation fresh every time the admin
+  // lands on or returns to the dashboard tab, instead of only once on first page load.
+  readonly dashboardGaugeReady = signal(false);
+  private readonly dashboardGaugePopEffect = effect((onCleanup) => {
+    if (this.selectedPanel() !== 'dashboard') {
+      this.dashboardGaugeReady.set(false);
+      return;
+    }
+
+    this.dashboardGaugeReady.set(false);
+    const timer = setTimeout(() => this.dashboardGaugeReady.set(true), 60);
+    onCleanup(() => clearTimeout(timer));
+  });
+
+  readonly performanceGaugeNeedleDisplayRotation = computed(() =>
+    this.dashboardGaugeReady() ? this.performanceGaugeNeedleRotation() : -135,
+  );
   readonly canDownloadCertificateLicenceReport = computed(() => this.certificateLicenceReportRows().length > 0);
   // The 3 ATR sub-reports below share one base dataset — approved external training requests
   // matched to their beneficiary's student record. Built directly (rather than as a flat
