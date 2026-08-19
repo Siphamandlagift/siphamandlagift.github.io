@@ -370,6 +370,13 @@ export class TrainingManagerDataService {
   private readonly idpEntriesByStudentSignal = signal<Record<string, StudentIdpEntry[]>>({});
   private readonly kpiEntriesByStudentSignal = signal<Record<string, StudentKpiEntry[]>>({});
 
+  // Timestamp of the last local write per student id, so a periodic bootstrap poll that was
+  // already in flight when that write happened doesn't clobber it with stale data once the poll
+  // resolves (see mergeServerAuthoritativeRecord) — this is what made a student's KPI self-score
+  // "disappear" a few seconds after saving.
+  private readonly idpEntriesDirtyAt: Record<string, number> = {};
+  private readonly kpiEntriesDirtyAt: Record<string, number> = {};
+
   readonly profile = this.profileSignal.asReadonly();
   readonly offerings = this.offeringsSignal.asReadonly();
   readonly trainingManagers = computed(() => this.buildTrainingManagers());
@@ -534,6 +541,7 @@ export class TrainingManagerDataService {
       return;
     }
 
+    this.idpEntriesDirtyAt[normalizedStudentId] = Date.now();
     this.idpEntriesByStudentSignal.update((current) => {
       const next = {
         ...current,
@@ -557,6 +565,7 @@ export class TrainingManagerDataService {
       return;
     }
 
+    this.kpiEntriesDirtyAt[normalizedStudentId] = Date.now();
     this.kpiEntriesByStudentSignal.update((current) => {
       const next = {
         ...current,
@@ -585,6 +594,7 @@ export class TrainingManagerDataService {
 
     const previousEntries = this.kpiEntriesByStudentSignal()[normalizedStudentId] ?? [];
 
+    this.kpiEntriesDirtyAt[normalizedStudentId] = Date.now();
     this.kpiEntriesByStudentSignal.update((current) => {
       const next = {
         ...current,
@@ -597,6 +607,7 @@ export class TrainingManagerDataService {
     return new Promise<boolean>((resolve) => {
       this.backend.updateKpiEmployeeScoring(normalizedStudentId, [{ id: entryId, employeeScoring }]).subscribe({
         next: (entries) => {
+          this.kpiEntriesDirtyAt[normalizedStudentId] = Date.now();
           this.kpiEntriesByStudentSignal.update((current) => {
             const next = { ...current, [normalizedStudentId]: entries };
             this.saveKpiEntriesByStudent(next);
@@ -2370,10 +2381,21 @@ export class TrainingManagerDataService {
     return [...serverItems, ...onlyLocal];
   }
 
-  private mergeServerAuthoritativeRecord<T>(serverRecord: Record<string, T>, localRecord: Record<string, T>): Record<string, T> {
+  // requestStartedAt/dirtyAt guard against a poll that was already in flight when a local write
+  // happened: if the write landed after this particular fetch started, the fetch's response can't
+  // possibly reflect it yet, so the (more current) local value wins instead of being clobbered by
+  // that stale response once it resolves.
+  private mergeServerAuthoritativeRecord<T>(
+    serverRecord: Record<string, T>,
+    localRecord: Record<string, T>,
+    dirtyAt?: Record<string, number>,
+    requestStartedAt?: number,
+  ): Record<string, T> {
     const merged = { ...serverRecord };
     for (const [key, value] of Object.entries(localRecord)) {
-      if (!(key in merged)) {
+      const dirtiedAt = dirtyAt?.[key];
+      const isStaleForKey = dirtiedAt !== undefined && requestStartedAt !== undefined && dirtiedAt >= requestStartedAt;
+      if (!(key in merged) || isStaleForKey) {
         merged[key] = value;
       }
     }
@@ -2385,6 +2407,7 @@ export class TrainingManagerDataService {
    *  dashboards don't silently go stale for the life of a long-lived session — mirroring the
    *  refresh that already existed for managerMessages. */
   private refreshBootstrapState() {
+    const requestStartedAt = Date.now();
     this.backend.getBootstrap().subscribe({
       next: (bootstrap) => {
         this.offeringsSignal.set(this.mergeServerAuthoritative(bootstrap.offerings, this.offeringsSignal()));
@@ -2399,10 +2422,20 @@ export class TrainingManagerDataService {
           this.mergeServerAuthoritative(bootstrap.externalTrainingRequests, this.externalTrainingRequestsSignal()),
         );
         this.idpEntriesByStudentSignal.set(
-          this.mergeServerAuthoritativeRecord(this.normalizeIdpEntriesByStudent(bootstrap.idpEntriesByStudent), this.idpEntriesByStudentSignal()),
+          this.mergeServerAuthoritativeRecord(
+            this.normalizeIdpEntriesByStudent(bootstrap.idpEntriesByStudent),
+            this.idpEntriesByStudentSignal(),
+            this.idpEntriesDirtyAt,
+            requestStartedAt,
+          ),
         );
         this.kpiEntriesByStudentSignal.set(
-          this.mergeServerAuthoritativeRecord(this.normalizeKpiEntriesByStudent(bootstrap.kpiEntriesByStudent), this.kpiEntriesByStudentSignal()),
+          this.mergeServerAuthoritativeRecord(
+            this.normalizeKpiEntriesByStudent(bootstrap.kpiEntriesByStudent),
+            this.kpiEntriesByStudentSignal(),
+            this.kpiEntriesDirtyAt,
+            requestStartedAt,
+          ),
         );
       },
       error: () => { /* Silently skip failed polls */ },

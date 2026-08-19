@@ -37,7 +37,7 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
   template: `
     <div
       class="profile-shell"
-      [class.profile-shell-dialog-open]="mentorshipDialogOpen() || externalTrainingRequestDialogOpen() || externalTrainingStatusDialogOpen()"
+      [class.profile-shell-dialog-open]="mentorshipDialogOpen() || externalTrainingRequestDialogOpen() || externalTrainingStatusDialogOpen() || kpiFullScreen()"
       [style.--brand-primary]="studentTheme().primary"
       [style.--brand-secondary]="studentTheme().secondary"
       [style.--brand-tint]="studentTheme().tint"

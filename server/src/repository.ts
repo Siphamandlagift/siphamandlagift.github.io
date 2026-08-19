@@ -2001,6 +2001,52 @@ class FirestoreLmsRepository extends LmsRepository {
     await this.firestoreWriteQueue;
     return nextData;
   }
+
+  // Scoped, transactional overrides for the two high-frequency single-student KPI writes.
+  // The inherited read()+write() path round-trips and rewrites *every* collection in the whole
+  // store for any change, serialized only by an in-memory queue that's local to one warm Cloud
+  // Function instance — under real concurrent traffic (two different requests landing on two
+  // different instances, which is normal for HTTPS functions under load) two of those full-store
+  // read-modify-write cycles can interleave: both read the store before either writes, so
+  // whichever writes second overwrites the first's change with its own (older) snapshot of that
+  // student. That's what let a student's KPI self-score appear saved and then silently vanish —
+  // not a display bug, an actual lost write. Touching only the one affected student document
+  // inside a Firestore transaction sidesteps both problems: the transaction's own optimistic-
+  // concurrency retry keeps two concurrent writes to the *same* document from losing one, and nothing
+  // outside that one document is read or rewritten, so unrelated writes elsewhere can't collide with it.
+  override async setKpiEntriesForStudent(studentId: string, entries: StudentKpiEntryRecord[]) {
+    const ref = this.collection('students').doc(studentId);
+    return this.firestore.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(ref);
+      if (!snapshot.exists) {
+        return null;
+      }
+
+      const nextEntries = normalizeStudentKpiEntries(entries);
+      transaction.update(ref, { kpiEntries: this.sanitizeForFirestore(nextEntries) });
+      return nextEntries;
+    });
+  }
+
+  override async updateKpiEmployeeScoring(studentId: string, updates: { id: string; employeeScoring: StudentKpiScoreRecord | null }[]) {
+    const ref = this.collection('students').doc(studentId);
+    return this.firestore.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(ref);
+      if (!snapshot.exists) {
+        return null;
+      }
+
+      const student = snapshot.data() as StudentRecord;
+      const scoringById = new Map(updates.map((update) => [update.id, update.employeeScoring]));
+      const existingEntries = student.kpiEntries ?? [];
+      const nextEntries = existingEntries.map((entry) =>
+        scoringById.has(entry.id) ? { ...entry, employeeScoring: scoringById.get(entry.id) ?? null } : entry,
+      );
+
+      transaction.update(ref, { kpiEntries: this.sanitizeForFirestore(nextEntries) });
+      return nextEntries;
+    });
+  }
 }
 
 export function createLmsRepository() {
