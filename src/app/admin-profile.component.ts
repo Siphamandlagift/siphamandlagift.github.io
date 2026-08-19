@@ -851,6 +851,59 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     <div class="admin-metric-copy">Learners assigned to at least one offering.</div>
                   </article>
                 </div>
+
+              <article class="admin-section-card admin-gauge-card">
+                <div class="admin-section-card-header">
+                  <div class="admin-section-card-heading">
+                    <span class="admin-section-card-icon" aria-hidden="true">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                        <path d="M4 20V5.5a1.5 1.5 0 0 1 1.5-1.5h13A1.5 1.5 0 0 1 20 5.5V20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M7.5 16.5v-4M12 16.5v-7M16.5 16.5v-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      </svg>
+                    </span>
+                    <h2>Overall performance rating</h2>
+                  </div>
+                  <span>{{ performanceGaugeBandCounts().total }} scored employees</span>
+                </div>
+
+                <div class="admin-gauge-body">
+                  <svg class="admin-gauge-svg" viewBox="0 0 240 145" role="img" [attr.aria-label]="'Average overall performance rating ' + performanceGaugeAverageLabel() + ' out of 5'">
+                    <path d="M 30,120 A 90,90 0 0,1 83.40,37.78" class="admin-gauge-band admin-gauge-band-critical" />
+                    <path d="M 87.75,35.98 A 90,90 0 0,1 152.25,35.98" class="admin-gauge-band admin-gauge-band-serious" />
+                    <path d="M 156.60,37.78 A 90,90 0 0,1 210,120" class="admin-gauge-band admin-gauge-band-good" />
+                    <g class="admin-gauge-needle" [attr.transform]="'rotate(' + performanceGaugeNeedleRotation() + ' 120 120)'" [class.admin-gauge-needle-idle]="performanceGaugeAverage() === null">
+                      <polygon points="117,120 120,44 123,120" />
+                    </g>
+                    <circle cx="120" cy="120" r="7" class="admin-gauge-hub" />
+                    <text x="120" y="102" text-anchor="middle" class="admin-gauge-value">{{ performanceGaugeAverageLabel() }}</text>
+                    <text x="120" y="120" text-anchor="middle" class="admin-gauge-value-caption" dy="14">average / 5</text>
+                    <text x="18" y="129" text-anchor="start" class="admin-gauge-scale-label">1</text>
+                    <text x="222" y="129" text-anchor="end" class="admin-gauge-scale-label">5</text>
+                  </svg>
+
+                  <div class="admin-gauge-legend">
+                    <div class="admin-gauge-legend-row">
+                      <span class="admin-gauge-legend-dot admin-gauge-legend-dot-critical"></span>
+                      <span class="admin-gauge-legend-text"><strong>Not fully effective</strong> — rating 2</span>
+                      <span class="admin-gauge-legend-count">{{ performanceGaugeBandCounts().critical }}</span>
+                    </div>
+                    <div class="admin-gauge-legend-row">
+                      <span class="admin-gauge-legend-dot admin-gauge-legend-dot-serious"></span>
+                      <span class="admin-gauge-legend-text"><strong>Fully effective</strong> — rating 3</span>
+                      <span class="admin-gauge-legend-count">{{ performanceGaugeBandCounts().serious }}</span>
+                    </div>
+                    <div class="admin-gauge-legend-row">
+                      <span class="admin-gauge-legend-dot admin-gauge-legend-dot-good"></span>
+                      <span class="admin-gauge-legend-text"><strong>Highly effective+</strong> — rating 4–5</span>
+                      <span class="admin-gauge-legend-count">{{ performanceGaugeBandCounts().good }}</span>
+                    </div>
+                    @if (!performanceGaugeBandCounts().total) {
+                      <p class="admin-gauge-empty-note">No employees have a scored KPI yet.</p>
+                    }
+                  </div>
+                </div>
+              </article>
+
               <div class="admin-snapshot-grid">
                 <article class="admin-section-card">
                   <div class="admin-section-card-header">
@@ -3304,6 +3357,118 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       flex: 0 0 auto;
     }
 
+    /* Overall performance gauge — bands are fixed value zones on the 1–5 KPI rating scale
+       (< 2.5 rounds to 2, 2.5–3.5 rounds to 3, >= 3.5 rounds to 4 or 5), not proportional to the
+       band's own employee count — the legend counts carry that instead, since packing both onto
+       the arc geometry would make it lie about where the average actually sits on the scale. */
+    .admin-gauge-body {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .admin-gauge-svg {
+      width: 220px;
+      height: auto;
+      flex: 0 0 auto;
+    }
+
+    .admin-gauge-band {
+      fill: none;
+      stroke-width: 22;
+      stroke-linecap: round;
+    }
+
+    .admin-gauge-band-critical { stroke: #d03b3b; }
+    .admin-gauge-band-serious { stroke: #ec835a; }
+    .admin-gauge-band-good { stroke: #0ca30c; }
+
+    .admin-gauge-needle {
+      transition: transform 0.4s ease;
+      transform-origin: 120px 120px;
+    }
+
+    .admin-gauge-needle polygon {
+      fill: #0f172a;
+    }
+
+    .admin-gauge-needle-idle {
+      opacity: 0.32;
+    }
+
+    .admin-gauge-hub {
+      fill: #0f172a;
+      stroke: #ffffff;
+      stroke-width: 2;
+    }
+
+    .admin-gauge-value {
+      font-size: 1.9rem;
+      font-weight: 800;
+      fill: #0f172a;
+    }
+
+    .admin-gauge-value-caption {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      fill: #898781;
+    }
+
+    .admin-gauge-scale-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      fill: #52514e;
+    }
+
+    .admin-gauge-legend {
+      display: grid;
+      gap: 0.55rem;
+      flex: 1 1 220px;
+      min-width: 220px;
+    }
+
+    .admin-gauge-legend-row {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+    }
+
+    .admin-gauge-legend-dot {
+      width: 0.72rem;
+      height: 0.72rem;
+      border-radius: 999px;
+      flex: 0 0 auto;
+    }
+
+    .admin-gauge-legend-dot-critical { background: #d03b3b; }
+    .admin-gauge-legend-dot-serious { background: #ec835a; }
+    .admin-gauge-legend-dot-good { background: #0ca30c; }
+
+    .admin-gauge-legend-text {
+      flex: 1 1 auto;
+      font-size: 0.85rem;
+      color: #52514e;
+    }
+
+    .admin-gauge-legend-text strong {
+      color: #0f172a;
+    }
+
+    .admin-gauge-legend-count {
+      font-weight: 800;
+      color: #0f172a;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .admin-gauge-empty-note {
+      margin: 0.2rem 0 0;
+      font-size: 0.8rem;
+      color: #898781;
+    }
+
     .admin-search-field {
       display: grid;
       gap: 0.45rem;
@@ -4276,6 +4441,48 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly canDownloadAnnualReport = computed(() => this.filteredAnnualTrainingReportRows().length > 0);
   readonly canDownloadIdpReport = computed(() => this.idpReportRows().length > 0);
   readonly canDownloadPerformanceReport = computed(() => this.performanceReportRows().length > 0);
+
+  // ── Dashboard performance gauge ─────────────────────────────────────────
+  // Scored employees only — someone with no KPIs set up yet has no rating to
+  // average in, same exclusion the Performance Report itself uses.
+  private readonly scoredPerformanceRows = computed(() =>
+    this.performanceReportRows().filter(
+      (row): row is PerformanceReportRow & { overallRating: number } => row.overallRating !== null,
+    ),
+  );
+
+  readonly performanceGaugeAverage = computed<number | null>(() => {
+    const rows = this.scoredPerformanceRows();
+    if (!rows.length) {
+      return null;
+    }
+
+    return rows.reduce((total, row) => total + row.overallRating, 0) / rows.length;
+  });
+
+  readonly performanceGaugeAverageLabel = computed(() => {
+    const average = this.performanceGaugeAverage();
+    return average === null ? '—' : average.toFixed(1);
+  });
+
+  // Needle rests at the neutral centre (rating 3, 0deg) when there's nothing to average yet,
+  // shown at reduced opacity in the template rather than defaulting to either end of the scale.
+  readonly performanceGaugeNeedleRotation = computed(() => {
+    const average = this.performanceGaugeAverage() ?? 3;
+    const clamped = Math.min(5, Math.max(1, average));
+    return 45 * clamped - 135;
+  });
+
+  // Band thresholds mirror the gauge's colour zones: below 2.5 rounds to a rating of 2, 2.5–3.5
+  // rounds to 3, 3.5 and up rounds to 4 or 5. Ratings that would round to 1 are folded into the
+  // same red/critical band as 2 — there's no separate zone for it, and it's clearly no better.
+  readonly performanceGaugeBandCounts = computed(() => {
+    const rows = this.scoredPerformanceRows();
+    const critical = rows.filter((row) => row.overallRating < 2.5).length;
+    const serious = rows.filter((row) => row.overallRating >= 2.5 && row.overallRating < 3.5).length;
+    const good = rows.filter((row) => row.overallRating >= 3.5).length;
+    return { critical, serious, good, total: rows.length };
+  });
   readonly canDownloadCertificateLicenceReport = computed(() => this.certificateLicenceReportRows().length > 0);
   // The 3 ATR sub-reports below share one base dataset — approved external training requests
   // matched to their beneficiary's student record. Built directly (rather than as a flat
