@@ -873,8 +873,10 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     <path d="M 30,120 A 90,90 0 0,1 83.40,37.78" class="admin-gauge-band admin-gauge-band-critical" [class.admin-gauge-band-ready]="dashboardGaugeReady()" />
                     <path d="M 87.75,35.98 A 90,90 0 0,1 152.25,35.98" class="admin-gauge-band admin-gauge-band-serious" [class.admin-gauge-band-ready]="dashboardGaugeReady()" />
                     <path d="M 156.60,37.78 A 90,90 0 0,1 210,120" class="admin-gauge-band admin-gauge-band-good" [class.admin-gauge-band-ready]="dashboardGaugeReady()" />
-                    <g class="admin-gauge-needle" [attr.transform]="'rotate(' + performanceGaugeNeedleDisplayRotation() + ' 120 120)'" [class.admin-gauge-needle-idle]="performanceGaugeAverage() === null">
-                      <polygon points="117,120 120,44 123,120" />
+                    <g class="admin-gauge-needle" [attr.transform]="'rotate(' + performanceGaugeNeedleRotation() + ' 120 120)'" [class.admin-gauge-needle-idle]="performanceGaugeAverage() === null">
+                      <g class="admin-gauge-needle-swing">
+                        <polygon points="117,120 120,44 123,120" />
+                      </g>
                     </g>
                     <circle cx="120" cy="120" r="7" class="admin-gauge-hub-ring" [class.admin-gauge-hub-ring-ready]="dashboardGaugeReady()" />
                     <circle cx="120" cy="120" r="7" class="admin-gauge-hub" />
@@ -3374,9 +3376,10 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
        the arc geometry would make it lie about where the average actually sits on the scale.
        The card replays its pop-in every time the admin (re)opens the Dashboard tab: the outer
        @if in the template destroys and recreates this whole subtree on each visit, which is what
-       lets a CSS animation (auto-plays from 0% on insertion) restart for free, while the needle/
-       bands/value additionally wait for dashboardGaugeReady() before their transition fires —
-       see the effect that drives that signal. */
+       lets a CSS animation (auto-plays from 0% on insertion) restart for free, while the bands/
+       value additionally wait for dashboardGaugeReady() before their transition fires — see the
+       effect that drives that signal. The needle is deliberately NOT gated by that signal: its
+       rotation always comes straight from the real data so its position can never get stuck. */
     @keyframes admin-gauge-card-pop {
       0% { opacity: 0; transform: translateY(10px) scale(0.96); }
       60% { opacity: 1; transform: translateY(-2px) scale(1.015); }
@@ -3441,8 +3444,14 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       stroke-dashoffset: 0;
     }
 
+    /* The needle's actual position always comes straight from performanceGaugeNeedleRotation()
+       with no gating — it must never depend on an animation or timer firing to be correct. The
+       inner -swing group is purely decorative: a CSS animation (auto-plays on insertion, unlike a
+       transition, so it needs no JS trigger) that adds a settling overshoot on top of the real
+       angle. Worst case, if it doesn't run at all, the needle still lands exactly on the correct
+       value immediately — it just skips the flourish. */
     .admin-gauge-needle {
-      transition: transform 0.9s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transition: transform 0.6s ease;
       transform-origin: 120px 120px;
       filter: drop-shadow(0 2px 2px rgba(15, 23, 42, 0.28));
     }
@@ -3453,6 +3462,16 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-gauge-needle-idle {
       opacity: 0.32;
+    }
+
+    @keyframes admin-gauge-needle-settle {
+      0% { transform: rotate(-46deg); }
+      100% { transform: rotate(0deg); }
+    }
+
+    .admin-gauge-needle-swing {
+      transform-origin: 120px 120px;
+      animation: admin-gauge-needle-settle 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both;
     }
 
     .admin-gauge-hub {
@@ -3572,7 +3591,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       .admin-gauge-card,
       .admin-gauge-legend-row,
       .admin-gauge-value-ready,
-      .admin-gauge-hub-ring-ready {
+      .admin-gauge-hub-ring-ready,
+      .admin-gauge-needle-swing {
         animation: none;
       }
 
@@ -4603,9 +4623,12 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     return { critical, serious, good, total: rows.length };
   });
 
-  // Parks the needle/bands/legend in a hidden "pre-reveal" state and flips them into their real
-  // position a beat later, so the gauge plays its pop-in animation fresh every time the admin
-  // lands on or returns to the dashboard tab, instead of only once on first page load.
+  // Parks the bands/legend/value in a hidden "pre-reveal" state and flips them into view a beat
+  // later, so the gauge plays its pop-in animation fresh every time the admin lands on or returns
+  // to the dashboard tab. The needle deliberately does NOT depend on this — its rotation is always
+  // bound directly to the real, immediate value (see performanceGaugeNeedleRotation / the template)
+  // so its actual position can never get stuck behind a timer or animation that fails to fire; only
+  // its decorative settle-in wiggle is a plain CSS animation, independent of this signal entirely.
   readonly dashboardGaugeReady = signal(false);
   private readonly dashboardGaugePopEffect = effect((onCleanup) => {
     if (this.selectedPanel() !== 'dashboard') {
@@ -4618,9 +4641,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     onCleanup(() => clearTimeout(timer));
   });
 
-  readonly performanceGaugeNeedleDisplayRotation = computed(() =>
-    this.dashboardGaugeReady() ? this.performanceGaugeNeedleRotation() : -135,
-  );
   readonly canDownloadCertificateLicenceReport = computed(() => this.certificateLicenceReportRows().length > 0);
   // The 3 ATR sub-reports below share one base dataset — approved external training requests
   // matched to their beneficiary's student record. Built directly (rather than as a flat
