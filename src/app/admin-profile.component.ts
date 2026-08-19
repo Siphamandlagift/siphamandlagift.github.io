@@ -19,7 +19,7 @@ type BulkUploadIssue = {
 };
 
 type ReportDownloadFormat = 'CSV' | 'XLSX';
-type AdminReportView = 'annual-training' | 'idp-report' | 'certificate-licence-report' | 'seta-report';
+type AdminReportView = 'annual-training' | 'idp-report' | 'performance-report' | 'certificate-licence-report' | 'seta-report';
 type TrainingReportSource = 'All' | 'LMS' | 'External';
 type SetaReportTab = 'atr' | 'wsp';
 type AtrSubReport = 'beneficiaries-completed' | 'number-beneficiaries' | 'pivotal-actual';
@@ -73,6 +73,26 @@ type IdpReportRow = {
   targetDate: string;
   targetDateValue: string;
   status: string;
+};
+
+// One row per student (not per KPI, unlike IdpReportRow) — a performance report is meant to give
+// an at-a-glance standing per employee, not a line-item dump. overallRating mirrors the same
+// overallScoring-falls-back-to-employeeScoring weighted average used on the student/manager KPI
+// views, so this report never contradicts what those pages show.
+type PerformanceReportRow = {
+  id: string;
+  name: string;
+  surname: string;
+  idNumber: string;
+  jobTitle: string;
+  department: string;
+  manager: string;
+  kpiCount: number;
+  totalWeight: number;
+  overallRating: number | null;
+  overallRatingLabel: string;
+  lastReviewDate: string;
+  lastReviewDateValue: string;
 };
 
 // WSP (Workplace Skills Plan) covers training that's planned/in progress — sourced from internal
@@ -1024,7 +1044,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                   <article class="admin-section-card admin-report-menu-card admin-report-menu-card-primary">
                     <div class="admin-section-card-header">
                       <h2>Report List</h2>
-                      <span>4 available</span>
+                      <span>5 available</span>
                     </div>
 
                     <div class="admin-report-menu" role="list" aria-label="Admin report list">
@@ -1056,6 +1076,22 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         <span class="admin-report-menu-text">
                           <strong>IDP Report</strong>
                           <span>Employee IDP entries with manager and development details.</span>
+                        </span>
+                        <span class="admin-report-menu-cta">View report
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </span>
+                      </button>
+                      <button type="button" class="admin-report-menu-item admin-report-menu-item-performance" (click)="selectReportView('performance-report')">
+                        <span class="admin-report-menu-icon" aria-hidden="true">
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                            <path d="M4 20V5.5a1.5 1.5 0 0 1 1.5-1.5h13A1.5 1.5 0 0 1 20 5.5V20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M7.5 16.5v-4M12 16.5v-7M16.5 16.5v-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                            <path d="M2.5 20h19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                          </svg>
+                        </span>
+                        <span class="admin-report-menu-text">
+                          <strong>Performance Report</strong>
+                          <span>KPI standing per employee — weighting, overall rating, and last review date.</span>
                         </span>
                         <span class="admin-report-menu-cta">View report
                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -1109,6 +1145,11 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         @if (selectedReportView() === 'idp-report') {
                           <h2>IDP Report</h2>
                           <span>{{ idpReportRows().length }} IDP entries</span>
+                        }
+
+                        @if (selectedReportView() === 'performance-report') {
+                          <h2>Performance Report</h2>
+                          <span>{{ performanceReportRows().length }} employees</span>
                         }
 
                         @if (selectedReportView() === 'certificate-licence-report') {
@@ -1325,6 +1366,74 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                     <td>{{ row.dateCaptured }}</td>
                                     <td>{{ row.targetDate }}</td>
                                     <td>{{ row.status }}</td>
+                                  </tr>
+                                }
+                              </tbody>
+                            </table>
+                          </div>
+                        }
+                      </div>
+                    }
+
+                    @if (selectedReportView() === 'performance-report') {
+                      <div class="admin-report-content-stack">
+                        <article class="admin-section-card">
+                          <div class="admin-section-card-header">
+                            <h2>Report preview</h2>
+                            <span>{{ performanceReportRows().length }} rows</span>
+                          </div>
+
+                          <div class="admin-report-preview-meta">
+                            <span class="admin-chip">10 fields</span>
+                            <span class="admin-chip">{{ performanceReportRows().length }} rows included</span>
+                          </div>
+
+                          <div class="admin-report-actions">
+                            <label class="admin-report-filter-field admin-report-download-field">
+                              <span>Download As</span>
+                              <select [value]="selectedPerformanceReportDownloadFormat()" (change)="updatePerformanceReportDownloadFormat($event)">
+                                <option value="CSV">CSV</option>
+                                <option value="XLSX">XLSX</option>
+                              </select>
+                            </label>
+                            <button type="button" class="admin-primary-btn" [disabled]="!canDownloadPerformanceReport()" (click)="downloadPerformanceReport()">Download report</button>
+                          </div>
+
+                          @if (!performanceReportRows().length) {
+                            <div class="admin-empty-state">No LMS users were found to include in this report.</div>
+                          }
+                        </article>
+
+                        @if (performanceReportRows().length) {
+                          <div class="admin-report-table-wrap">
+                            <table class="admin-report-table">
+                              <thead>
+                                <tr>
+                                  <th>Name</th>
+                                  <th>Surname</th>
+                                  <th>ID Number</th>
+                                  <th>Job Title</th>
+                                  <th>Department</th>
+                                  <th>Manager</th>
+                                  <th>KPIs</th>
+                                  <th>Total Weight</th>
+                                  <th>Overall Rating</th>
+                                  <th>Last Review</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                @for (row of performanceReportRows(); track row.id) {
+                                  <tr>
+                                    <td>{{ row.name }}</td>
+                                    <td>{{ row.surname }}</td>
+                                    <td>{{ row.idNumber }}</td>
+                                    <td>{{ row.jobTitle }}</td>
+                                    <td>{{ row.department }}</td>
+                                    <td>{{ row.manager }}</td>
+                                    <td>{{ row.kpiCount }}</td>
+                                    <td>{{ row.totalWeight }}%</td>
+                                    <td>{{ row.overallRatingLabel }}</td>
+                                    <td>{{ row.lastReviewDate }}</td>
                                   </tr>
                                 }
                               </tbody>
@@ -3735,6 +3844,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly uploadingCertificate = signal(false);
   readonly selectedAnnualReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
   readonly selectedIdpReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
+  readonly selectedPerformanceReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
   readonly selectedCertificateReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
   readonly selectedAtrSubReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
   readonly selectedWspSubReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
@@ -4034,6 +4144,54 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         return right.dateCapturedValue.localeCompare(left.dateCapturedValue);
       });
   });
+  readonly performanceReportRows = computed<PerformanceReportRow[]>(() => {
+    const managerNamesById = this.reportManagerNamesById();
+
+    return this.users()
+      .map((student) => {
+        const manager = (student.lineManagerId ? managerNamesById.get(student.lineManagerId) : undefined)
+          || student.lineManager?.trim()
+          || 'Not provided';
+
+        const entries = this.managerData.kpiEntriesForStudent(student.id);
+        const totalWeight = entries.reduce((total, entry) => total + (entry.weight || 0), 0);
+
+        // Same fallback as the student/manager KPI views: an entry counts toward the overall
+        // rating using the manager's Overall score where set, otherwise the employee's own
+        // self-score — so this report agrees with what those pages show instead of only ever
+        // reflecting the manager's (possibly still-blank) Overall column.
+        const scoredEntries = entries
+          .map((entry) => ({ weight: entry.weight, score: entry.overallScoring ?? entry.employeeScoring }))
+          .filter((entry) => entry.score !== null && entry.weight > 0);
+        const scoredWeight = scoredEntries.reduce((total, entry) => total + entry.weight, 0);
+        const overallRating = scoredWeight
+          ? scoredEntries.reduce((total, entry) => total + entry.weight * (entry.score ?? 0), 0) / scoredWeight
+          : null;
+
+        const lastReviewDateValue = entries
+          .map((entry) => this.normalizeReportDateValue(entry.dateOfReview))
+          .filter(Boolean)
+          .sort()
+          .at(-1) ?? '';
+
+        return {
+          id: student.id,
+          name: student.name,
+          surname: student.surname,
+          idNumber: student.idNumber || 'Not provided',
+          jobTitle: student.jobTitle || 'Not provided',
+          department: student.department || 'Unassigned',
+          manager,
+          kpiCount: entries.length,
+          totalWeight,
+          overallRating,
+          overallRatingLabel: overallRating === null ? 'Not yet scored' : `${overallRating.toFixed(1)} / 5`,
+          lastReviewDate: this.formatReportDateLabel(lastReviewDateValue || null),
+          lastReviewDateValue,
+        };
+      })
+      .sort((left, right) => `${left.name} ${left.surname}`.localeCompare(`${right.name} ${right.surname}`));
+  });
   readonly certificateLicenceReportRows = computed<CertificateLicenceReportRow[]>(() => {
     const certificatesByStudentId = this.reportStudentCertificatesById();
 
@@ -4117,6 +4275,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   });
   readonly canDownloadAnnualReport = computed(() => this.filteredAnnualTrainingReportRows().length > 0);
   readonly canDownloadIdpReport = computed(() => this.idpReportRows().length > 0);
+  readonly canDownloadPerformanceReport = computed(() => this.performanceReportRows().length > 0);
   readonly canDownloadCertificateLicenceReport = computed(() => this.certificateLicenceReportRows().length > 0);
   // The 3 ATR sub-reports below share one base dataset — approved external training requests
   // matched to their beneficiary's student record. Built directly (rather than as a flat
@@ -4576,6 +4735,11 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   updateIdpReportDownloadFormat(event: Event) {
     const input = event.target as HTMLSelectElement | null;
     this.selectedIdpReportDownloadFormat.set(input?.value === 'XLSX' ? 'XLSX' : 'CSV');
+  }
+
+  updatePerformanceReportDownloadFormat(event: Event) {
+    const input = event.target as HTMLSelectElement | null;
+    this.selectedPerformanceReportDownloadFormat.set(input?.value === 'XLSX' ? 'XLSX' : 'CSV');
   }
 
   updateCertificateReportDownloadFormat(event: Event) {
@@ -5337,6 +5501,39 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         row.dateCaptured,
         row.targetDate,
         row.status,
+      ]),
+    };
+  }
+
+  private buildPerformanceReportExportRows() {
+    const columns = [
+      'Name',
+      'Surname',
+      'ID Number',
+      'Job Title',
+      'Department',
+      'Manager',
+      'KPI Count',
+      'Total Weight (%)',
+      'Overall Rating',
+      'Last Review Date',
+    ];
+    const reportRows = this.performanceReportRows();
+
+    return {
+      columns,
+      reportRows,
+      rows: reportRows.map((row) => [
+        row.name,
+        row.surname,
+        row.idNumber,
+        row.jobTitle,
+        row.department,
+        row.manager,
+        String(row.kpiCount),
+        String(row.totalWeight),
+        row.overallRatingLabel,
+        row.lastReviewDate,
       ]),
     };
   }
@@ -6401,6 +6598,67 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     }
 
     this.downloadIdpReportCsv();
+  }
+
+  downloadPerformanceReportCsv() {
+    const { columns, rows, reportRows } = this.buildPerformanceReportExportRows();
+
+    if (!rows.length) {
+      return;
+    }
+
+    const lines = [
+      ['Report', 'Performance Report'],
+      ['Generated By', this.adminName()],
+      ['Generated On', this.reportGeneratedOnLabel()],
+      ['Rows Included', String(reportRows.length)],
+      [],
+      columns,
+      ...rows,
+    ];
+
+    const csv = lines
+      .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+
+    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), 'LMS-Performance-Report.csv');
+  }
+
+  async downloadPerformanceReportXlsx() {
+    const { columns, rows, reportRows } = this.buildPerformanceReportExportRows();
+
+    if (!rows.length) {
+      return;
+    }
+
+    const xlsx = await import('xlsx');
+    const workbook = xlsx.utils.book_new();
+    const worksheetRows = [
+      ['Report', 'Performance Report'],
+      ['Generated By', this.adminName()],
+      ['Generated On', this.reportGeneratedOnLabel()],
+      ['Rows Included', String(reportRows.length)],
+      [],
+      columns,
+      ...rows,
+    ];
+    const worksheet = xlsx.utils.aoa_to_sheet(worksheetRows);
+
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Performance Report');
+    const workbookArray = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
+    this.triggerDownload(
+      new Blob([workbookArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      'LMS-Performance-Report.xlsx',
+    );
+  }
+
+  downloadPerformanceReport() {
+    if (this.selectedPerformanceReportDownloadFormat() === 'XLSX') {
+      void this.downloadPerformanceReportXlsx();
+      return;
+    }
+
+    this.downloadPerformanceReportCsv();
   }
 
   downloadCertificateLicenceReportCsv() {
