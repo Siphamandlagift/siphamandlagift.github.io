@@ -1,4 +1,7 @@
-<div class="login-bg">
+<div class="login-bg"
+	[style.--brand-primary]="branding.currentTheme().primary"
+	[style.--brand-secondary]="branding.currentTheme().secondary"
+	[style.--brand-tint]="branding.currentTheme().tint">
 	<div class="login-card" [class.shake]="shaking()">
 		<div class="login-company-logo" [class.login-company-logo-has-image]="!!branding.companyLogoDataUrl()" aria-hidden="true">
 			@if (branding.companyLogoDataUrl()) {

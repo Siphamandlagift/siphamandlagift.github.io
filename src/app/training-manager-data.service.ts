@@ -4,7 +4,7 @@ import { LmsBackendService } from './lms-backend.service';
 import { combineDisplayName, readLmsSessionRecord } from './session-auth';
 import type { StudentMessage } from './student-data.service';
 
-export type ManagerPanel = 'dashboard' | 'requested-training' | 'courses' | 'mentorship' | 'enrollment' | 'messages' | 'idp';
+export type ManagerPanel = 'dashboard' | 'requested-training' | 'courses' | 'mentorship' | 'enrollment' | 'messages' | 'idp' | 'performance';
 
 export type ManagerProfile = {
   name: string;
@@ -36,6 +36,21 @@ export type StudentIdpEntry = {
   dateCaptured: string;
   targetDate: string;
   status: TrainingIdpStatus;
+};
+
+export type StudentKpiScore = 1 | 2 | 3 | 4 | 5;
+
+export type StudentKpiEntry = {
+  id: string;
+  kpi: string;
+  weight: number;
+  agreedOutput: string;
+  measure: string;
+  comments: string;
+  managerScoring: StudentKpiScore | null;
+  employeeScoring: StudentKpiScore | null;
+  overallScoring: StudentKpiScore | null;
+  dateOfReview: string;
 };
 
 export type TrainingAssessment = {
@@ -325,6 +340,7 @@ export class TrainingManagerDataService {
   private static readonly studentsStorageKey = 'lms-app.students';
   private static readonly assignmentSubmissionsStorageKey = 'lms-app.assignment-submissions';
   private static readonly idpEntriesByStudentStorageKey = 'lms-app.idp-entries-by-student';
+  private static readonly kpiEntriesByStudentStorageKey = 'lms-app.kpi-entries-by-student';
 
   private readonly backend = inject(LmsBackendService);
   private backendHydrated = false;
@@ -352,6 +368,7 @@ export class TrainingManagerDataService {
   private readonly assignmentSubmissionsSignal = signal<AssignmentSubmissionRecord[]>([]);
   private readonly externalTrainingRequestsSignal = signal<ExternalTrainingRequestRecord[]>([]);
   private readonly idpEntriesByStudentSignal = signal<Record<string, StudentIdpEntry[]>>({});
+  private readonly kpiEntriesByStudentSignal = signal<Record<string, StudentKpiEntry[]>>({});
 
   readonly profile = this.profileSignal.asReadonly();
   readonly offerings = this.offeringsSignal.asReadonly();
@@ -443,6 +460,7 @@ export class TrainingManagerDataService {
     [...this.assignmentSubmissionsSignal()].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt)),
   );
   readonly idpEntriesByStudent = this.idpEntriesByStudentSignal.asReadonly();
+  readonly kpiEntriesByStudent = this.kpiEntriesByStudentSignal.asReadonly();
   readonly externalTrainingRequests = computed(() =>
     [...this.externalTrainingRequestsSignal()].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt)),
   );
@@ -532,6 +550,75 @@ export class TrainingManagerDataService {
     return this.idpEntriesByStudentSignal()[studentId] ?? [];
   }
 
+  // Manager-facing: full replace of a student's KPI table (add/remove rows, edit every field).
+  setKpiEntriesForStudent(studentId: string, entries: StudentKpiEntry[]) {
+    const normalizedStudentId = studentId.trim();
+    if (!normalizedStudentId) {
+      return;
+    }
+
+    this.kpiEntriesByStudentSignal.update((current) => {
+      const next = {
+        ...current,
+        [normalizedStudentId]: entries.map((entry) => this.normalizeKpiEntry(entry)),
+      };
+      this.saveKpiEntriesByStudent(next);
+      return next;
+    });
+
+    this.persistKpiEntriesToBackend(normalizedStudentId);
+  }
+
+  kpiEntriesForStudent(studentId: string): StudentKpiEntry[] {
+    return this.kpiEntriesByStudentSignal()[studentId] ?? [];
+  }
+
+  // Student-facing: merges only the Employee scoring field into an existing KPI row — can't
+  // add/remove rows or touch any other field. The backend enforces that same restriction
+  // independently (see /kpi-entries/employee-scoring in server.ts); this just keeps the local
+  // cache in sync with what the backend actually accepted.
+  updateEmployeeKpiScoring(studentId: string, entryId: string, employeeScoring: StudentKpiScore | null): Promise<boolean> {
+    const normalizedStudentId = studentId.trim();
+    if (!normalizedStudentId) {
+      return Promise.resolve(false);
+    }
+
+    const previousEntries = this.kpiEntriesByStudentSignal()[normalizedStudentId] ?? [];
+
+    this.kpiEntriesByStudentSignal.update((current) => {
+      const next = {
+        ...current,
+        [normalizedStudentId]: previousEntries.map((entry) => (entry.id === entryId ? { ...entry, employeeScoring } : entry)),
+      };
+      this.saveKpiEntriesByStudent(next);
+      return next;
+    });
+
+    return new Promise<boolean>((resolve) => {
+      this.backend.updateKpiEmployeeScoring(normalizedStudentId, [{ id: entryId, employeeScoring }]).subscribe({
+        next: (entries) => {
+          this.kpiEntriesByStudentSignal.update((current) => {
+            const next = { ...current, [normalizedStudentId]: entries };
+            this.saveKpiEntriesByStudent(next);
+            return next;
+          });
+          resolve(true);
+        },
+        // Roll back the optimistic update the backend didn't actually accept — otherwise the
+        // score looks saved (still shown selected) until the next bootstrap poll silently
+        // reverts it, which is exactly the "input isn't seen" symptom this was reported as.
+        error: () => {
+          this.kpiEntriesByStudentSignal.update((current) => {
+            const next = { ...current, [normalizedStudentId]: previousEntries };
+            this.saveKpiEntriesByStudent(next);
+            return next;
+          });
+          resolve(false);
+        },
+      });
+    });
+  }
+
   constructor() {
     this.hydrateOwnDisplayName();
 
@@ -542,6 +629,9 @@ export class TrainingManagerDataService {
 
     const localIdpEntriesByStudent = this.loadIdpEntriesByStudent();
     this.idpEntriesByStudentSignal.set(localIdpEntriesByStudent);
+
+    const localKpiEntriesByStudent = this.loadKpiEntriesByStudent();
+    this.kpiEntriesByStudentSignal.set(localKpiEntriesByStudent);
 
     this.backend.getBootstrap().subscribe({
       next: (bootstrap) => {
@@ -564,6 +654,13 @@ export class TrainingManagerDataService {
         };
         this.idpEntriesByStudentSignal.set(mergedIdpEntriesByStudent);
         this.saveIdpEntriesByStudent(mergedIdpEntriesByStudent);
+        const backendKpiEntriesByStudent = this.normalizeKpiEntriesByStudent(bootstrap.kpiEntriesByStudent);
+        const mergedKpiEntriesByStudent = {
+          ...localKpiEntriesByStudent,
+          ...backendKpiEntriesByStudent,
+        };
+        this.kpiEntriesByStudentSignal.set(mergedKpiEntriesByStudent);
+        this.saveKpiEntriesByStudent(mergedKpiEntriesByStudent);
         this.backendHydrated = true;
         this.offeringsHydratedSignal.set(true);
 
@@ -2304,6 +2401,9 @@ export class TrainingManagerDataService {
         this.idpEntriesByStudentSignal.set(
           this.mergeServerAuthoritativeRecord(this.normalizeIdpEntriesByStudent(bootstrap.idpEntriesByStudent), this.idpEntriesByStudentSignal()),
         );
+        this.kpiEntriesByStudentSignal.set(
+          this.mergeServerAuthoritativeRecord(this.normalizeKpiEntriesByStudent(bootstrap.kpiEntriesByStudent), this.kpiEntriesByStudentSignal()),
+        );
       },
       error: () => { /* Silently skip failed polls */ },
     });
@@ -2828,6 +2928,111 @@ export class TrainingManagerDataService {
       },
       error: () => {
         // Ignore backend sync failures and preserve local IDP entries.
+      },
+    });
+  }
+
+  private loadKpiEntriesByStudent() {
+    if (typeof localStorage === 'undefined') {
+      return {};
+    }
+
+    try {
+      const raw = localStorage.getItem(TrainingManagerDataService.kpiEntriesByStudentStorageKey);
+      if (!raw) {
+        return {};
+      }
+
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {};
+      }
+
+      const entriesByStudent: Record<string, StudentKpiEntry[]> = {};
+      for (const [studentId, entries] of Object.entries(parsed as Record<string, unknown>)) {
+        if (!Array.isArray(entries) || !studentId.trim()) {
+          continue;
+        }
+
+        entriesByStudent[studentId] = entries.map((entry) => this.normalizeKpiEntry(entry));
+      }
+
+      return entriesByStudent;
+    } catch {
+      return {};
+    }
+  }
+
+  private saveKpiEntriesByStudent(entriesByStudent: Record<string, StudentKpiEntry[]>) {
+    if (typeof localStorage === 'undefined') {
+      return;
+    }
+
+    try {
+      localStorage.setItem(TrainingManagerDataService.kpiEntriesByStudentStorageKey, JSON.stringify(entriesByStudent));
+    } catch {
+      return;
+    }
+  }
+
+  private normalizeKpiScoreValue(score: unknown): StudentKpiScore | null {
+    return score === 1 || score === 2 || score === 3 || score === 4 || score === 5 ? score : null;
+  }
+
+  private normalizeKpiEntry(entry: unknown): StudentKpiEntry {
+    const candidate = (entry && typeof entry === 'object' ? entry : {}) as Partial<StudentKpiEntry>;
+    const weight = typeof candidate.weight === 'number' && Number.isFinite(candidate.weight) ? candidate.weight : 0;
+
+    return {
+      id: typeof candidate.id === 'string' && candidate.id.trim() ? candidate.id.trim() : `kpi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      kpi: typeof candidate.kpi === 'string' ? candidate.kpi : '',
+      weight,
+      agreedOutput: typeof candidate.agreedOutput === 'string' ? candidate.agreedOutput : '',
+      measure: typeof candidate.measure === 'string' ? candidate.measure : '',
+      comments: typeof candidate.comments === 'string' ? candidate.comments : '',
+      managerScoring: this.normalizeKpiScoreValue(candidate.managerScoring),
+      employeeScoring: this.normalizeKpiScoreValue(candidate.employeeScoring),
+      overallScoring: this.normalizeKpiScoreValue(candidate.overallScoring),
+      dateOfReview: typeof candidate.dateOfReview === 'string' ? candidate.dateOfReview : '',
+    };
+  }
+
+  private normalizeKpiEntriesByStudent(entriesByStudent: unknown) {
+    if (!entriesByStudent || typeof entriesByStudent !== 'object' || Array.isArray(entriesByStudent)) {
+      return {};
+    }
+
+    const normalized: Record<string, StudentKpiEntry[]> = {};
+    for (const [studentId, entries] of Object.entries(entriesByStudent as Record<string, unknown>)) {
+      if (!studentId.trim() || !Array.isArray(entries)) {
+        continue;
+      }
+
+      normalized[studentId] = entries.map((entry) => this.normalizeKpiEntry(entry));
+    }
+
+    return normalized;
+  }
+
+  // Unlike IDP entries, KPI entries have their own dedicated endpoint (see server.ts) rather
+  // than riding along on the general student snapshot — that's what lets the server enforce the
+  // manager-vs-student write split described on setKpiEntriesForStudent / updateEmployeeKpiScoring.
+  private persistKpiEntriesToBackend(studentId: string) {
+    if (!this.backendHydrated) {
+      return;
+    }
+
+    const kpiEntries = this.kpiEntriesForStudent(studentId);
+    this.backend.setKpiEntries(studentId, kpiEntries).subscribe({
+      next: (entries) => {
+        this.kpiEntriesByStudentSignal.update((current) => {
+          const next = { ...current, [studentId]: entries };
+          this.saveKpiEntriesByStudent(next);
+          return next;
+        });
+      },
+      error: () => {
+        // Keep local KPI state if backend persistence is temporarily unavailable.
       },
     });
   }

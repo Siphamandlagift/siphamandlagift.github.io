@@ -683,6 +683,8 @@ const studentCertificateLicenceSchema = z.object({
   expiryDate: z.string(),
   fileName: z.string(),
   fileDataUrl: z.string(),
+  fileUrl: z.string().nullable().optional(),
+  source: z.enum(['manual', 'course-completion']).optional(),
   status: z.enum(['Active', 'Expired', 'Pending Renewal']),
   renewalRequired: z.enum(['Yes', 'No']),
   reminderNotification: z.enum(['Yes', 'No']),
@@ -707,6 +709,32 @@ const studentIdpEntrySchema = z.object({
   status: z.enum(['Not Started', 'In Progress', 'Completed', 'On Hold']),
 });
 
+const studentKpiScoreSchema = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).nullable();
+
+const studentKpiEntrySchema = z.object({
+  id: z.string().min(1),
+  kpi: z.string(),
+  weight: z.number(),
+  agreedOutput: z.string(),
+  measure: z.string(),
+  comments: z.string(),
+  managerScoring: studentKpiScoreSchema,
+  employeeScoring: studentKpiScoreSchema,
+  overallScoring: studentKpiScoreSchema,
+  dateOfReview: z.string(),
+});
+
+const kpiEntriesReplaceSchema = z.object({
+  entries: z.array(studentKpiEntrySchema),
+});
+
+const kpiEmployeeScoringUpdateSchema = z.object({
+  entries: z.array(z.object({
+    id: z.string().min(1),
+    employeeScoring: studentKpiScoreSchema,
+  })),
+});
+
 const studentNotificationPreferencesSchema = z.object({
   emailUpdates: z.boolean(),
   smsAlerts: z.boolean(),
@@ -725,7 +753,7 @@ const studentPrivacySettingsSchema = z.object({
 const studentSettingsSchema = z.object({
   notificationPreferences: studentNotificationPreferencesSchema,
   privacySettings: studentPrivacySettingsSchema,
-  themePreference: z.enum(['ocean', 'forest', 'sunrise', 'purple', 'black', 'grey']),
+  themePreference: z.enum(['ocean', 'forest', 'sunrise', 'purple', 'black', 'grey']).nullable(),
 });
 
 const brandingSettingsSchema = z.object({
@@ -1179,7 +1207,14 @@ app.post('/api/storage/upload-scorm', scormUpload.single('file'), async (request
 
     const packageId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const packagePrefix = `lms-scorm/${packageId}`;
-    const zipEntries = unzipSync(new Uint8Array(file.buffer));
+
+    let zipEntries: ReturnType<typeof unzipSync>;
+    try {
+      zipEntries = unzipSync(new Uint8Array(file.buffer));
+    } catch {
+      response.status(400).json({ message: 'This file is not a valid SCORM .zip package. Please re-export it and try again.' });
+      return;
+    }
 
     const safeEntries = Object.entries(zipEntries)
       .map(([entryPath, content]) => ({
@@ -1219,23 +1254,33 @@ app.post('/api/storage/upload-scorm', scormUpload.single('file'), async (request
       await storageFile.makePublic();
     }
 
-    const launchUrl = `${resolveAppBaseUrl(request)}/api/storage/scorm?packageId=${encodeURIComponent(packageId)}&file=${encodePathSegments(launchEntryPath)}`;
+    // Path-based (not query-string) so relative references inside the SCORM content
+    // (<script src="js/app.js">, relative fetch()/XHR, etc.) resolve against the real
+    // package folder structure instead of collapsing to /api/storage/.
+    const launchUrl = `${resolveAppBaseUrl(request)}/api/storage/scorm/${encodeURIComponent(packageId)}/${encodePathSegments(launchEntryPath)}`;
     response.status(201).json({ packageId, entryPath: launchEntryPath, launchUrl });
   } catch (error) {
     next(error);
   }
 });
 
-app.get('/api/storage/scorm', async (request, response, next) => {
-  try {
-    const packageId = normalizeScormRelativePath(String(request.query['packageId'] || ''));
-    const filePath = normalizeScormRelativePath(String(request.query['file'] || ''));
+// SCORM content is untrusted third-party HTML/JS that almost always relies on inline
+// <script> to call the SCORM API — Helmet's default CSP (script-src 'self', no
+// 'unsafe-inline') silently blocks that, so both SCORM routes strip the CSP header
+// Helmet already attached to this response before streaming the asset back.
+function stripContentSecurityPolicy(response: express.Response) {
+  response.removeHeader('Content-Security-Policy');
+  response.removeHeader('Content-Security-Policy-Report-Only');
+}
 
+async function streamScormAsset(packageId: string, filePath: string, response: express.Response, next: express.NextFunction) {
+  try {
     if (!packageId || !filePath) {
       response.status(400).json({ message: 'packageId and file are required.' });
       return;
     }
 
+    stripContentSecurityPolicy(response);
     response.setHeader('Cache-Control', 'public, max-age=3600');
     response.setHeader('Content-Type', contentTypeForFile(filePath));
 
@@ -1260,6 +1305,24 @@ app.get('/api/storage/scorm', async (request, response, next) => {
   } catch (error) {
     next(error);
   }
+}
+
+// Path-based route (current): the URL shape new uploads get, so relative asset
+// references inside the SCORM package resolve correctly.
+app.get('/api/storage/scorm/:packageId/*splat', async (request, response, next) => {
+  const packageId = normalizeScormRelativePath(String(request.params['packageId'] || ''));
+  const splatParam = request.params['splat'];
+  const rawFilePath = Array.isArray(splatParam) ? splatParam.join('/') : String(splatParam ?? '');
+  const filePath = normalizeScormRelativePath(rawFilePath);
+  await streamScormAsset(packageId, filePath, response, next);
+});
+
+// Query-string route (legacy): kept so SCORM items uploaded before this fix — whose
+// saved resourceLink still points at the old shape — keep working, not just new ones.
+app.get('/api/storage/scorm', async (request, response, next) => {
+  const packageId = normalizeScormRelativePath(String(request.query['packageId'] || ''));
+  const filePath = normalizeScormRelativePath(String(request.query['file'] || ''));
+  await streamScormAsset(packageId, filePath, response, next);
 });
 
 // Direct-to-GCS upload: returns a resumable session URL the browser PUTs to directly.
@@ -2263,6 +2326,67 @@ app.put('/api/students/:studentId/snapshot', async (request, response, next) => 
     }
 
     response.json(updated);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// KPI tables are deliberately NOT part of the general student snapshot above — they need a
+// write split the snapshot endpoint can't express: a training manager can rewrite every field
+// on every row, but a student may only fill in Employee scoring on rows that already exist. Two
+// endpoints below enforce that split at the schema level rather than by trusting the client to
+// only send the field it's allowed to.
+app.put('/api/students/:studentId/kpi-entries', async (request, response, next) => {
+  try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
+    if (identity.role !== 'administrator' && identity.role !== 'training-manager') {
+      response.status(403).json({ message: 'Only a training manager or administrator can edit a KPI table.' });
+      return;
+    }
+
+    const body = kpiEntriesReplaceSchema.parse(request.body);
+    const entries = await repository.setKpiEntriesForStudent(request.params.studentId, body.entries);
+
+    if (entries === null) {
+      response.status(404).json({ message: 'Student not found.' });
+      return;
+    }
+
+    response.json({ entries });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/students/:studentId/kpi-entries/employee-scoring', async (request, response, next) => {
+  try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
+    // A student may only score their own KPI table; managers/admins may score any student's.
+    const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
+    if (!isPrivileged && !(await isOwnStudentRecord(request.params.studentId, identity))) {
+      response.status(403).json({ message: 'You do not have permission to update this student.' });
+      return;
+    }
+
+    const body = kpiEmployeeScoringUpdateSchema.parse(request.body);
+    const entries = await repository.updateKpiEmployeeScoring(request.params.studentId, body.entries);
+
+    if (entries === null) {
+      response.status(404).json({ message: 'Student not found.' });
+      return;
+    }
+
+    response.json({ entries });
   } catch (error) {
     next(error);
   }

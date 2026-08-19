@@ -39,7 +39,6 @@ type StudentCertificate = {
       <div class="section-heading-row">
         <div>
           <h2>Badges & Certificates</h2>
-          <p class="section-copy">Open a section folder to browse your badges or view issued certificates.</p>
         </div>
       </div>
 
@@ -71,31 +70,57 @@ type StudentCertificate = {
           <span class="section-badge">{{ studentData.earnedBadgesCount() }} earned</span>
         </div>
 
-        <div class="badges-grid">
-          @for (badge of studentData.badges(); track badge.id) {
-            <button
-              type="button"
-              class="badge-card"
-              [class.badge-card-locked]="!badge.earned"
-              [class.badge-card-selected]="selectedBadge()?.id === badge.id"
-              (click)="openBadge(badge)">
-              <div class="badge-mark" [style.background]="badge.color">
-                @if (badge.icon === 'star') {
-                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 3 2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 16.52l-5.3 2.79 1.01-5.9L3.42 9.23l5.93-.86L12 3Z" fill="currentColor"/></svg>
-                }
-                @if (badge.icon === 'bolt') {
-                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M13 2 6 13h4l-1 9 7-11h-4l1-9Z" fill="currentColor"/></svg>
-                }
-                @if (badge.icon === 'book') {
-                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H19v15.5A2.5 2.5 0 0 0 16.5 16H5V5.5Z" fill="currentColor"/><path d="M5 16v1a2 2 0 0 0 2 2h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                }
-                @if (badge.icon === 'flask') {
-                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 3h4M10 3v4.5l-4.8 7.7A3 3 0 0 0 7.76 20h8.48a3 3 0 0 0 2.56-4.8L14 7.5V3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 14h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                }
-              </div>
-              <span class="badge-title badge-title-card">{{ badge.title }}</span>
-            </button>
+        <ng-template #badgeCardTemplate let-badge>
+          <button
+            type="button"
+            class="badge-card"
+            [class.badge-card-locked]="!badge.earned"
+            [class.badge-card-selected]="selectedBadge()?.id === badge.id"
+            (click)="openBadge(badge)">
+            <div class="badge-mark" [style.background]="badge.color">
+              @if (badge.icon === 'star') {
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 3 2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 16.52l-5.3 2.79 1.01-5.9L3.42 9.23l5.93-.86L12 3Z" fill="currentColor"/></svg>
+              }
+              @if (badge.icon === 'bolt') {
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M13 2 6 13h4l-1 9 7-11h-4l1-9Z" fill="currentColor"/></svg>
+              }
+              @if (badge.icon === 'book') {
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H19v15.5A2.5 2.5 0 0 0 16.5 16H5V5.5Z" fill="currentColor"/><path d="M5 16v1a2 2 0 0 0 2 2h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              }
+              @if (badge.icon === 'flask') {
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 3h4M10 3v4.5l-4.8 7.7A3 3 0 0 0 7.76 20h8.48a3 3 0 0 0 2.56-4.8L14 7.5V3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 14h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              }
+            </div>
+            <span class="badge-title badge-title-card">{{ badge.title }}</span>
+          </button>
+        </ng-template>
+
+        <div class="badges-subsection">
+          <div class="badges-subsection-heading">
+            <h4>Earned</h4>
+            <span class="section-badge">{{ earnedBadges().length }}</span>
+          </div>
+          @if (earnedBadges().length) {
+            <div class="badges-grid">
+              @for (badge of earnedBadges(); track badge.id) {
+                <ng-container [ngTemplateOutlet]="badgeCardTemplate" [ngTemplateOutletContext]="{ $implicit: badge }"></ng-container>
+              }
+            </div>
+          } @else {
+            <div class="badges-empty-state">No badges earned yet — keep learning to unlock your first one.</div>
           }
+        </div>
+
+        <div class="badges-subsection">
+          <div class="badges-subsection-heading">
+            <h4>Not Yet Earned</h4>
+            <span class="section-badge section-badge-muted">{{ lockedBadges().length }}</span>
+          </div>
+          <div class="badges-grid">
+            @for (badge of lockedBadges(); track badge.id) {
+              <ng-container [ngTemplateOutlet]="badgeCardTemplate" [ngTemplateOutletContext]="{ $implicit: badge }"></ng-container>
+            }
+          </div>
         </div>
       }
 
@@ -208,8 +233,8 @@ type StudentCertificate = {
                   <div class="certificate-meta">File: {{ certificate.fileName || 'No file uploaded' }}</div>
                   <div class="certificate-actions">
                     <button type="button" class="secondary-btn" (click)="startCertificateEdit(certificate)">Edit</button>
-                    @if (certificate.fileDataUrl) {
-                      <a class="secondary-btn secondary-btn-link" [href]="certificate.fileDataUrl" [download]="certificate.fileName || 'certificate-file'">Download file</a>
+                    @if (certificate.fileUrl || certificate.fileDataUrl) {
+                      <a class="secondary-btn secondary-btn-link" [href]="certificate.fileUrl || certificate.fileDataUrl" [download]="certificate.fileName || 'certificate-file'">Download file</a>
                     }
                   </div>
                 </div>
@@ -230,33 +255,35 @@ type StudentCertificate = {
         <button type="button" class="badge-modal-backdrop" aria-label="Close badge details" (click)="closeBadge()"></button>
 
         <section class="badge-detail-card">
-          <div class="badge-fireworks-layer" aria-hidden="true">
-            @for (burst of fireworkBursts; track burst.id) {
-              <span
-                class="badge-firework-burst"
-                [style.left]="burst.left"
-                [style.top]="burst.top"
-                [style.animation-delay]="burst.delay"
-                [style.--firework-color]="burst.color">
-                <span class="badge-firework-core"></span>
-                @for (angle of fireworkRayAngles; track angle) {
-                  <span class="badge-firework-ray" [style.--ray-angle]="angle"></span>
-                }
-              </span>
-            }
-          </div>
+          @if (selectedBadge()!.earned) {
+            <div class="badge-fireworks-layer" aria-hidden="true">
+              @for (burst of fireworkBursts; track burst.id) {
+                <span
+                  class="badge-firework-burst"
+                  [style.left]="burst.left"
+                  [style.top]="burst.top"
+                  [style.animation-delay]="burst.delay"
+                  [style.--firework-color]="burst.color">
+                  <span class="badge-firework-core"></span>
+                  @for (angle of fireworkRayAngles; track angle) {
+                    <span class="badge-firework-ray" [style.--ray-angle]="angle"></span>
+                  }
+                </span>
+              }
+            </div>
 
-          <div class="badge-confetti-layer" aria-hidden="true">
-            @for (piece of confettiPieces; track piece.id) {
-              <span
-                class="badge-confetti-piece"
-                [style.left]="piece.left"
-                [style.animation-delay]="piece.delay"
-                [style.animation-duration]="piece.duration"
-                [style.transform]="'rotate(' + piece.rotation + ')'"
-                [style.background]="piece.color"></span>
-            }
-          </div>
+            <div class="badge-confetti-layer" aria-hidden="true">
+              @for (piece of confettiPieces; track piece.id) {
+                <span
+                  class="badge-confetti-piece"
+                  [style.left]="piece.left"
+                  [style.animation-delay]="piece.delay"
+                  [style.animation-duration]="piece.duration"
+                  [style.transform]="'rotate(' + piece.rotation + ')'"
+                  [style.background]="piece.color"></span>
+              }
+            </div>
+          }
 
           <div class="badge-detail-header">
             <div class="badge-mark badge-mark-large" [style.background]="selectedBadge()!.color">
@@ -414,6 +441,45 @@ type StudentCertificate = {
       color: #14213d;
       font-size: 1.08rem;
       font-weight: 700;
+    }
+
+    .badges-subsection {
+      display: grid;
+      gap: 0.75rem;
+      margin-top: 1.25rem;
+    }
+
+    .badges-subsection:first-of-type {
+      margin-top: 0.5rem;
+    }
+
+    .badges-subsection-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .badges-subsection-heading h4 {
+      margin: 0;
+      color: #14213d;
+      font-size: 0.94rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .section-badge-muted {
+      background: #f1f5f9;
+      color: #64748b;
+    }
+
+    .badges-empty-state {
+      padding: 1rem 1.1rem;
+      border: 1px dashed #dbe7f5;
+      border-radius: 14px;
+      background: #f8fbff;
+      color: #64748b;
+      font-size: 0.9rem;
     }
 
     .badges-grid {
@@ -1041,6 +1107,8 @@ export class StudentBadgesComponent {
   readonly selectedSection = computed(() => this.selectedSectionSignal());
   private readonly selectedBadgeSignal = signal<StudentBadge | null>(null);
   readonly selectedBadge = computed(() => this.selectedBadgeSignal());
+  readonly earnedBadges = computed(() => this.studentData.badges().filter((badge) => badge.earned));
+  readonly lockedBadges = computed(() => this.studentData.badges().filter((badge) => !badge.earned));
   readonly certificates = this.studentData.certificatesAndLicences;
   private readonly editingCertificateIdSignal = signal<string | null>(null);
   readonly editingCertificateId = computed(() => this.editingCertificateIdSignal());

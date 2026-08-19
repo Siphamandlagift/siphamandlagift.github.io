@@ -3,6 +3,7 @@ import { firstValueFrom, interval } from 'rxjs';
 import { LmsBackendService } from './lms-backend.service';
 import { LmsBrandThemeId } from './lms-branding.service';
 import { ManagerMessage, ManagerMessageReply, TrainingManagerDataService, TrainingOffering } from './training-manager-data.service';
+import { dataUrlToFile, renderCourseCompletionCertificate } from './certificate-template';
 
 export type StudentProfileData = {
   name: string;
@@ -172,6 +173,8 @@ export type StudentCertificateLicence = {
   expiryDate: string;
   fileName: string;
   fileDataUrl: string;
+  fileUrl?: string | null;
+  source?: 'manual' | 'course-completion';
   status: StudentCertificateStatus;
   renewalRequired: 'Yes' | 'No';
   reminderNotification: 'Yes' | 'No';
@@ -196,7 +199,8 @@ export type StudentPrivacySettings = {
 export type StudentSettingsData = {
   notificationPreferences: StudentNotificationPreferences;
   privacySettings: StudentPrivacySettings;
-  themePreference: LmsBrandThemeId;
+  // null means "follow the company's theme" — the student hasn't personally overridden it.
+  themePreference: LmsBrandThemeId | null;
 };
 
 export type StudentProfileUpdateResult = {
@@ -304,19 +308,19 @@ export class StudentDataService {
       id: 'induction-complete',
       title: 'Induction Complete',
       category: 'Completion',
-      description: 'Completed the Company Induction course and unlocked your onboarding certificate.',
+      description: 'Completed your first course and unlocked your onboarding certificate.',
       color: '#10b981',
       icon: 'book',
-      earnedOnWhenLocked: 'Complete Company Induction',
+      earnedOnWhenLocked: 'Complete your first course',
     },
     {
       id: 'respect-at-work',
       title: 'Respect At Work',
       category: 'Achievement',
-      description: 'Complete Sexual Harassment In The Workplace training to unlock this badge.',
+      description: 'Completed 3 courses, showing consistent commitment to workplace learning.',
       color: '#0ea5e9',
       icon: 'flask',
-      earnedOnWhenLocked: 'Complete Sexual Harassment training',
+      earnedOnWhenLocked: 'Complete 3 courses',
     },
   ];
 
@@ -368,7 +372,7 @@ export class StudentDataService {
       return {
         ...badge,
         earned,
-        earnedOn: earned ? this.resolveEarnedDate(badge.id, fastFinisherEarnedOn) : badge.earnedOnWhenLocked,
+        earnedOn: earned ? this.resolveEarnedDate(badge.id, completedCourses, fastFinisherEarnedOn) : badge.earnedOnWhenLocked,
       };
     });
   });
@@ -636,7 +640,7 @@ export class StudentDataService {
     return { success: true };
   }
 
-  async updateThemePreference(themePreference: LmsBrandThemeId): Promise<StudentProfileUpdateResult> {
+  async updateThemePreference(themePreference: LmsBrandThemeId | null): Promise<StudentProfileUpdateResult> {
     this.settingsSignal.update((current) => ({
       ...current,
       themePreference,
@@ -860,6 +864,7 @@ export class StudentDataService {
   syncCourseProgress(courseName: string, progress: number) {
     const normalizedProgress = Math.max(0, Math.min(100, Math.round(progress)));
     let updatedCourse: StudentCourse | null = null;
+    let justCompleted = false;
 
     this.coursesSignal.update((courses) =>
       courses.map((course) => {
@@ -876,6 +881,8 @@ export class StudentDataService {
           return course;
         }
 
+        justCompleted = nextCompleted && !course.completed;
+
         updatedCourse = {
           ...course,
           progress: nextProgress,
@@ -887,7 +894,11 @@ export class StudentDataService {
     );
 
     if (updatedCourse) {
+      const completedCourse: StudentCourse = updatedCourse;
       this.recordCourseEngagement();
+      if (justCompleted) {
+        void this.generateCourseCompletionCertificate(completedCourse.name, completedCourse.completedAt ?? this.createCompletionDateStamp());
+      }
       this.persistStudentSnapshot();
     }
 
@@ -959,9 +970,11 @@ export class StudentDataService {
         ...snapshotUpdate.profile,
         profileImageDataUrl: snapshotUpdate.profile.profileImageUrl ? null : snapshotUpdate.profile.profileImageDataUrl,
       },
+      // Keep fileDataUrl (a heavy base64 blob) out of Firestore once a durable Storage
+      // fileUrl exists for it — same split as profileImageDataUrl/profileImageUrl above.
       certificatesAndLicences: snapshotUpdate.certificatesAndLicences.map((record) => ({
         ...record,
-        fileDataUrl: '',
+        fileDataUrl: record.fileUrl ? '' : record.fileDataUrl,
       })),
     };
     this.pendingSnapshotWriteCount += 1;
@@ -988,6 +1001,57 @@ export class StudentDataService {
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  /** Generates a "Certificate of Completion" image for a just-finished course and adds it to the
+   *  student's certificates list. Uploads it to Storage for a durable fileUrl in the background —
+   *  if that fails, the certificate still shows and downloads from this browser's local copy. */
+  private async generateCourseCompletionCertificate(courseName: string, completionDate: string) {
+    const alreadyExists = this.certificatesAndLicencesSignal().some(
+      (record) => record.source === 'course-completion' && record.certificationName === courseName,
+    );
+    if (alreadyExists) {
+      return;
+    }
+
+    const studentName = this.profileSignal().name.trim() || 'Learner';
+    const dataUrl = renderCourseCompletionCertificate({ studentName, courseName, completionDate });
+    if (!dataUrl) {
+      return;
+    }
+
+    const safeCourseName = courseName.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'certificate';
+    const fileName = `${safeCourseName}-Certificate-of-Completion.png`;
+
+    const certificate: StudentCertificateLicence = {
+      id: `cert-completion-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      certificationName: courseName,
+      completionDate,
+      expiryDate: '',
+      fileName,
+      fileDataUrl: dataUrl,
+      fileUrl: null,
+      source: 'course-completion',
+      status: 'Active',
+      renewalRequired: 'No',
+      reminderNotification: 'No',
+      reminderDaysBeforeExpiry: 0,
+    };
+
+    this.certificatesAndLicencesSignal.update((records) => [certificate, ...records]);
+    this.persistStudentSnapshot();
+
+    try {
+      const file = dataUrlToFile(dataUrl, fileName);
+      const uploaded = await firstValueFrom(this.backend.uploadFileBase64(file, 'certificates'));
+      this.certificatesAndLicencesSignal.update((records) =>
+        records.map((record) => (record.id === certificate.id ? { ...record, fileUrl: uploaded.url } : record)),
+      );
+      this.persistStudentSnapshot();
+    } catch {
+      // Keep the local-only copy if the upload fails — it still shows and downloads in this
+      // browser session, it just won't survive a device switch until the next successful sync.
+    }
   }
 
   private refreshStudentSnapshot(force = false) {
@@ -1283,23 +1347,19 @@ export class StudentDataService {
     }
 
     if (badgeId === 'induction-complete') {
-      return completedCourses.some((course) => course.name === 'Company Induction');
+      return completedCourses.length >= 1;
     }
 
     if (badgeId === 'respect-at-work') {
-      return completedCourses.some((course) => course.name === 'Sexual Harassment In The Workplace');
+      return completedCourses.length >= 3;
     }
 
     return false;
   }
 
-  private resolveEarnedDate(badgeId: string, fastFinisherEarnedOn: string | null) {
-    if (badgeId === 'consistency-star') {
-      return 'April 2026';
-    }
-
+  private resolveEarnedDate(badgeId: string, completedCourses: StudentCourse[], fastFinisherEarnedOn: string | null) {
     if (badgeId === 'induction-complete') {
-      return 'April 2026';
+      return this.milestoneCourseEarnedOn(completedCourses, 1) ?? 'Recently earned';
     }
 
     if (badgeId === 'fast-finisher') {
@@ -1307,10 +1367,22 @@ export class StudentDataService {
     }
 
     if (badgeId === 'respect-at-work') {
-      return 'Pending review';
+      return this.milestoneCourseEarnedOn(completedCourses, 3) ?? 'Recently earned';
     }
 
     return 'Recently earned';
+  }
+
+  /** The month the student's Nth completed course finished, sorted chronologically —
+   *  used to show a real earn date for course-count milestone badges. */
+  private milestoneCourseEarnedOn(completedCourses: StudentCourse[], count: number): string | null {
+    const sortedDates = completedCourses
+      .map((course) => this.parseCalendarDate(course.completedAt ?? ''))
+      .filter((date): date is Date => date !== null)
+      .sort((left, right) => left.getTime() - right.getTime());
+
+    const milestoneDate = sortedDates[count - 1];
+    return milestoneDate ? this.formatBadgeEarnedMonth(milestoneDate) : null;
   }
 
   private fastFinisherEarnedOn() {
@@ -1354,7 +1426,7 @@ export class StudentDataService {
     }).format(date);
   }
 
-  private persistBadgeUnlock(badgeId: string) {
+  private async persistBadgeUnlock(badgeId: string) {
     const current = this.persistedEarnedBadgeIdsSignal();
     if (current.includes(badgeId)) {
       return;
@@ -1363,7 +1435,15 @@ export class StudentDataService {
     const next = [...current, badgeId];
     this.persistedEarnedBadgeIdsSignal.set(next);
     this.savePersistedBadgeIds(next);
-    this.persistStudentSnapshot();
+
+    const saved = await this.persistStudentSnapshot();
+    if (!saved) {
+      // Roll back so the badges computed sees this id as not-yet-persisted again and
+      // retries on its next recompute, instead of treating a failed write as done —
+      // which would let the next poll-refresh silently revert an earned badge.
+      this.persistedEarnedBadgeIdsSignal.set(current);
+      this.savePersistedBadgeIds(current);
+    }
   }
 
   private syncPublishedOfferingsToLearnerCourses(publishedOfferings: TrainingOffering[]) {
@@ -1519,6 +1599,12 @@ export class StudentDataService {
 
   private buildCalendarEvents(courses: StudentCourse[], offerings: TrainingOffering[]) {
     const events = courses.flatMap((course) => {
+      // A finished course's deadline is no longer something the student needs to act on —
+      // skip it so the calendar only surfaces work that's actually still due.
+      if (course.completed) {
+        return [];
+      }
+
       const offering = course.offeringId
         ? offerings.find((candidate) => candidate.id === course.offeringId)
         : offerings.find((candidate) => candidate.title === course.name);
@@ -1532,7 +1618,19 @@ export class StudentDataService {
         return [];
       }
 
-      return offering.contentItems.flatMap((item, itemIndex) => {
+      // The course itself always gets a due-date event, even when it has no Assignment-type
+      // step (e.g. a video/quiz-only course) — previously only courses containing at least one
+      // Assignment produced any calendar entry at all.
+      const courseEvent: StudentCalendarEvent = {
+        id: `${offering.id}-course-deadline`,
+        date: deadline,
+        title: `Course due: ${offering.title}`,
+        courseName: course.name,
+        offeringId: offering.id,
+        actionLabel: 'Open in Courses',
+      };
+
+      const assignmentEvents = offering.contentItems.flatMap((item, itemIndex) => {
         if (item.kind !== 'Assessment' || item.assessmentType !== 'Assignment') {
           return [];
         }
@@ -1541,13 +1639,15 @@ export class StudentDataService {
         return [{
           id: `${offering.id}-${item.id || `assignment-${itemIndex + 1}`}-deadline`,
           date: deadline,
-          title: `Deadline reminder: ${title}`,
+          title: `Assignment due: ${title}`,
           courseName: course.name,
           offeringId: offering.id,
           stepId: item.id || `${offering.id}-assessment-${itemIndex + 1}`,
           actionLabel: 'Open in Courses',
         } satisfies StudentCalendarEvent];
       });
+
+      return [courseEvent, ...assignmentEvents];
     });
 
     return events.sort((left, right) => left.date.getTime() - right.date.getTime());
@@ -1744,7 +1844,7 @@ export class StudentDataService {
         showEmailAddress: false,
         showContactNumber: false,
       },
-      themePreference: 'ocean',
+      themePreference: null,
     };
   }
 

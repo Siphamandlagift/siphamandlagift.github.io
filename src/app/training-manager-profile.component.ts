@@ -17,6 +17,7 @@ import {
   ManagerPanel,
   MentorshipAssignmentRecord,
   MentorshipSubmissionRecord,
+  StudentKpiScore,
   TrainingAssessmentType,
   TrainingManagerDataService,
   TrainingMatchingPair,
@@ -103,6 +104,19 @@ type IdpEntryFormGroup = FormGroup<{
   dateCaptured: FormControl<string | null>;
   targetDate: FormControl<string | null>;
   status: FormControl<IdpStatus | null>;
+}>;
+
+type KpiEntryFormGroup = FormGroup<{
+  id: FormControl<string | null>;
+  kpi: FormControl<string | null>;
+  weight: FormControl<number | null>;
+  agreedOutput: FormControl<string | null>;
+  measure: FormControl<string | null>;
+  comments: FormControl<string | null>;
+  managerScoring: FormControl<StudentKpiScore | null>;
+  employeeScoring: FormControl<StudentKpiScore | null>;
+  overallScoring: FormControl<StudentKpiScore | null>;
+  dateOfReview: FormControl<string | null>;
 }>;
 
 @Component({
@@ -274,7 +288,7 @@ type IdpEntryFormGroup = FormGroup<{
       }
 
       <div class="manager-layout" [class.manager-layout-sidebar-collapsed]="managerSidebarCollapsed()">
-        <aside class="manager-sidebar" [class.manager-sidebar-collapsed]="managerSidebarCollapsed()" aria-label="Training manager navigation">
+        <aside class="manager-sidebar" [class.manager-sidebar-collapsed]="managerSidebarCollapsed()" [class.manager-sidebar-scrolling]="sidebarScrolling()" (scroll)="onSidebarScroll()" aria-label="Training manager navigation">
           <div class="manager-sidebar-header">
             <button
               type="button"
@@ -343,6 +357,15 @@ type IdpEntryFormGroup = FormGroup<{
                       <path d="M7 10h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
                       <path d="M7 14h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
                       <path d="M9 18h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    </svg>
+                  }
+                  @case ('performance') {
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                      <path d="M4.25 19.25V4.75" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      <path d="M4.25 19.25h15.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      <rect x="7" y="12" width="2.75" height="7.25" rx="1" fill="currentColor"/>
+                      <rect x="12" y="8.5" width="2.75" height="10.75" rx="1" fill="currentColor"/>
+                      <rect x="17" y="5.5" width="2.75" height="13.75" rx="1" fill="currentColor"/>
                     </svg>
                   }
                 }
@@ -1154,9 +1177,7 @@ type IdpEntryFormGroup = FormGroup<{
           @if (selectedPanel() === 'mentorship') {
             <section class="manager-panel">
               <div class="section-heading-block">
-                <p class="eyebrow">Mentorship</p>
                 <h1>Mentorship</h1>
-                <p class="section-copy">View mentorship details and submissions for your team.</p>
               </div>
 
               <div class="mentorship-panel-nav" aria-label="Mentorship sections">
@@ -1332,7 +1353,7 @@ type IdpEntryFormGroup = FormGroup<{
             <section class="manager-panel">
               <section class="activity-card mentorship-review-card">
                 <div class="section-heading-row">
-                  <h2>External Training Requests</h2>
+                  <h2>Training Requests</h2>
                   <span>{{ managerData.pendingExternalTrainingRequestsCount() }} pending review</span>
                 </div>
 
@@ -1462,7 +1483,7 @@ type IdpEntryFormGroup = FormGroup<{
                     }
                   </div>
                 } @else {
-                  <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">No external training requests are assigned to this manager yet.</div>
+                  <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">No training requests are assigned to this manager yet.</div>
                 }
               </section>
             </section>
@@ -1471,9 +1492,7 @@ type IdpEntryFormGroup = FormGroup<{
           @if (selectedPanel() === 'enrollment') {
             <section class="manager-panel">
               <div class="section-heading-block">
-                <p class="eyebrow">Student Enrollment</p>
                 <h1>Assign students to created courses</h1>
-                <p class="section-copy">Review each learner in one list and assign courses or programmes from the row actions.</p>
               </div>
 
               <div class="enrollment-tab-nav" aria-label="Enrollment views">
@@ -1938,16 +1957,13 @@ type IdpEntryFormGroup = FormGroup<{
           @if (selectedPanel() === 'idp') {
             <section class="manager-panel">
               <div class="section-heading-block">
-                <p class="eyebrow">Individual Development Plan</p>
                 <h1>IDP Management</h1>
-                <p class="section-copy">Review and manage individual development plans for your learners.</p>
               </div>
 
               @if (!selectedIdpStudentId()) {
                 <!-- Team member list -->
                 <div class="student-search-row">
                   <label class="student-search-field">
-                    <span class="student-search-label">Search by name</span>
                     <input
                       type="search"
                       [value]="idpMemberSearchTerm()"
@@ -2130,6 +2146,257 @@ type IdpEntryFormGroup = FormGroup<{
                       </div>
                     </form>
                   }
+                </div>
+              }
+            </section>
+          }
+
+          @if (selectedPanel() === 'performance') {
+            <section class="manager-panel">
+              <div class="section-heading-block">
+                <p class="eyebrow">Performance</p>
+                <h1>KPI Management</h1>
+              </div>
+
+              @if (!selectedKpiStudentId()) {
+                <!-- Team member list -->
+                <div class="student-search-row">
+                  <label class="student-search-field">
+                    <input
+                      type="search"
+                      [value]="kpiMemberSearchTerm()"
+                      (input)="kpiMemberSearchTerm.set($any($event.target).value)"
+                      placeholder="Search by name, surname, department, or group" />
+                  </label>
+                  <span class="student-search-count">{{ filteredKpiMembers().length }} shown</span>
+                </div>
+
+                <div class="idp-member-grid">
+                  @for (student of filteredKpiMembers(); track student.id) {
+                    <button type="button" class="idp-member-card" (click)="selectKpiStudent(student.id)">
+                      <div class="idp-member-avatar" aria-hidden="true">{{ student.name[0] }}{{ student.surname[0] }}</div>
+                      <div class="idp-member-info">
+                        <strong class="idp-member-name">{{ student.name }} {{ student.surname }}</strong>
+                        <span class="idp-member-meta">{{ student.jobTitle || student.group }}</span>
+                        <span class="idp-member-dept">{{ student.department }}</span>
+                      </div>
+                      <div class="idp-member-status">
+                        @if (kpiEntryCountForStudent(student.id) > 0) {
+                          <span class="idp-program-count">{{ kpiEntryCountForStudent(student.id) }} {{ kpiEntryCountForStudent(student.id) === 1 ? 'KPI' : 'KPIs' }}</span>
+                        } @else {
+                          <span class="idp-member-no-entries">No KPIs</span>
+                        }
+                        <span class="idp-member-chevron" aria-hidden="true">›</span>
+                      </div>
+                    </button>
+                  }
+                  @if (!managerData.students().length) {
+                    <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">No team members found.</div>
+                  } @else if (!filteredKpiMembers().length) {
+                    <div class="student-search-empty">No team members match your search.</div>
+                  }
+                </div>
+              } @else if (selectedKpiStudent(); as student) {
+                <!-- Per-student KPI table pops out into a bigger overlay so the wide table has room to breathe -->
+                <div class="kpi-overlay" role="dialog" aria-modal="true" aria-labelledby="kpi-overlay-title">
+                  <button type="button" class="kpi-overlay-backdrop" aria-label="Close KPI table" (click)="clearKpiStudent()"></button>
+
+                  <div class="kpi-overlay-panel">
+                    <div class="idp-detail-header">
+                      <button type="button" class="idp-back-btn" (click)="clearKpiStudent()">← Back to team</button>
+                      <div class="idp-detail-identity">
+                        <div class="idp-member-avatar idp-member-avatar-lg" aria-hidden="true">{{ student.name[0] }}{{ student.surname[0] }}</div>
+                        <div>
+                          <h2 class="idp-detail-name" id="kpi-overlay-title">{{ student.name }} {{ student.surname }}</h2>
+                          <span class="idp-detail-meta">{{ student.jobTitle }} · {{ student.department }}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="activity-card mentorship-review-card">
+                      @if (kpiHasSavedEntries() && !kpiEditMode()) {
+                    <!-- Read-only view -->
+                    <div class="idp-program-card">
+                      <div class="idp-program-card-header">
+                        <div class="idp-program-card-title-shell">
+                          <span class="idp-program-card-title">Saved KPIs</span>
+                          <span class="idp-program-count" aria-hidden="true">{{ savedKpiEntries().length }} {{ savedKpiEntries().length === 1 ? 'KPI' : 'KPIs' }}</span>
+                          <span class="kpi-total-weight" [class.kpi-total-weight-off]="savedKpiTotalWeight() !== 100">
+                            Total weight: {{ savedKpiTotalWeight() }}%
+                          </span>
+                        </div>
+                        <button type="button" class="idp-program-add" (click)="openKpiEdit()">Edit table</button>
+                      </div>
+
+                      <div class="kpi-table-wrap">
+                        <table class="kpi-table">
+                          <colgroup>
+                            <col style="width: 16%" />
+                            <col style="width: 7%" />
+                            <col style="width: 13%" />
+                            <col style="width: 12%" />
+                            <col style="width: 12%" />
+                            <col style="width: 11%" />
+                            <col style="width: 11%" />
+                            <col style="width: 11%" />
+                            <col style="width: 7%" />
+                          </colgroup>
+                          <thead>
+                            <tr>
+                              <th>KPI</th>
+                              <th class="kpi-cell-weight">Weight</th>
+                              <th>Agreed Output</th>
+                              <th>Measure</th>
+                              <th>Comments</th>
+                              <th class="kpi-cell-center">Manager Scoring</th>
+                              <th class="kpi-cell-center">Employee Scoring</th>
+                              <th class="kpi-cell-center">Overall Scoring</th>
+                              <th class="kpi-cell-center">Date of Review</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            @for (entry of savedKpiEntries(); track entry.id) {
+                              <tr>
+                                <td>{{ entry.kpi || 'Not provided' }}</td>
+                                <td class="kpi-cell-weight">{{ entry.weight }}%</td>
+                                <td>{{ entry.agreedOutput || 'Not provided' }}</td>
+                                <td>{{ entry.measure || 'Not provided' }}</td>
+                                <td>{{ entry.comments || 'Not provided' }}</td>
+                                <td class="kpi-cell-center"><span class="kpi-score-pill" [class.kpi-score-flag]="entry.managerScoring === 2" [class.kpi-score-empty]="entry.managerScoring === null">{{ kpiScoreLabel(entry.managerScoring) }}</span></td>
+                                <td class="kpi-cell-center"><span class="kpi-score-pill" [class.kpi-score-flag]="entry.employeeScoring === 2" [class.kpi-score-empty]="entry.employeeScoring === null">{{ kpiScoreLabel(entry.employeeScoring) }}</span></td>
+                                <td class="kpi-cell-center"><span class="kpi-score-pill" [class.kpi-score-flag]="entry.overallScoring === 2" [class.kpi-score-empty]="entry.overallScoring === null">{{ kpiScoreLabel(entry.overallScoring) }}</span></td>
+                                <td class="kpi-cell-center">{{ entry.dateOfReview || 'Not provided' }}</td>
+                              </tr>
+                            }
+                          </tbody>
+                          <tfoot>
+                            <tr class="kpi-totals-row">
+                              <td>Totals</td>
+                              <td class="kpi-cell-weight" [class.kpi-total-weight-off]="savedKpiTotalWeight() !== 100">{{ savedKpiTotalWeight() }}%</td>
+                              <td></td>
+                              <td></td>
+                              <td></td>
+                              <td class="kpi-cell-center"></td>
+                              <td class="kpi-cell-center"></td>
+                              <td class="kpi-cell-center"><span class="kpi-score-pill kpi-total-rating-pill">{{ formatKpiOverallRating(savedKpiOverallWeightedRating()) }}</span></td>
+                              <td class="kpi-cell-center"></td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  } @else {
+                    <!-- Editable form -->
+                    <form [formGroup]="kpiForm" (ngSubmit)="saveKpiEntries()">
+                      <div class="idp-program-card" formArrayName="entries">
+                        <div class="idp-program-card-header">
+                          <div class="idp-program-card-title-shell">
+                            <span class="idp-program-card-title">KPI Table</span>
+                            <span class="idp-program-count" aria-hidden="true">{{ kpiEntriesControls().length }}</span>
+                            <span class="kpi-total-weight" [class.kpi-total-weight-off]="kpiTotalWeight() !== 100">
+                              Total weight: {{ kpiTotalWeight() }}% (must equal 100%)
+                            </span>
+                          </div>
+                          <button class="idp-program-add" type="button" (click)="addKpiEntry()">+ Add KPI</button>
+                        </div>
+
+                        <div class="kpi-table-wrap">
+                          <table class="kpi-table kpi-table-editable">
+                            <colgroup>
+                              <col style="width: 13%" />
+                              <col style="width: 6%" />
+                              <col style="width: 11%" />
+                              <col style="width: 10%" />
+                              <col style="width: 10%" />
+                              <col style="width: 10%" />
+                              <col style="width: 9%" />
+                              <col style="width: 10%" />
+                              <col style="width: 13%" />
+                              <col style="width: 8%" />
+                            </colgroup>
+                            <thead>
+                              <tr>
+                                <th>KPI</th>
+                                <th class="kpi-cell-weight">Weight %</th>
+                                <th>Agreed Output</th>
+                                <th>Measure</th>
+                                <th>Comments</th>
+                                <th class="kpi-cell-center">Manager Scoring</th>
+                                <th class="kpi-cell-center">Employee Scoring</th>
+                                <th class="kpi-cell-center">Overall Scoring</th>
+                                <th class="kpi-cell-center">Date of Review</th>
+                                <th></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              @for (entryControl of kpiEntriesControls(); track $index) {
+                                <tr [formGroupName]="$index">
+                                  <td><textarea rows="2" formControlName="kpi" placeholder="e.g. Improve customer response time"></textarea></td>
+                                  <td class="kpi-cell-weight"><input type="number" min="0" max="100" formControlName="weight" /></td>
+                                  <td><textarea rows="2" formControlName="agreedOutput" placeholder="Agreed output..."></textarea></td>
+                                  <td><textarea rows="2" formControlName="measure" placeholder="How is this measured?"></textarea></td>
+                                  <td><textarea rows="2" formControlName="comments" placeholder="Comments..."></textarea></td>
+                                  <td class="kpi-cell-center">
+                                    <select formControlName="managerScoring" [class.kpi-score-flag]="entryControl.controls.managerScoring.value === 2">
+                                      <option [ngValue]="null">Not scored</option>
+                                      @for (option of kpiScoreOptions; track option.value) {
+                                        <option [ngValue]="option.value">{{ option.label }}</option>
+                                      }
+                                    </select>
+                                  </td>
+                                  <td class="kpi-cell-center kpi-employee-scoring-cell"><span class="kpi-score-pill" [class.kpi-score-flag]="entryControl.controls.employeeScoring.value === 2" [class.kpi-score-empty]="entryControl.controls.employeeScoring.value === null">{{ kpiScoreLabel(entryControl.controls.employeeScoring.value) }}</span></td>
+                                  <td class="kpi-cell-center">
+                                    <select formControlName="overallScoring" [class.kpi-score-flag]="entryControl.controls.overallScoring.value === 2">
+                                      <option [ngValue]="null">Not scored</option>
+                                      @for (option of kpiScoreOptions; track option.value) {
+                                        <option [ngValue]="option.value">{{ option.label }}</option>
+                                      }
+                                    </select>
+                                  </td>
+                                  <td class="kpi-cell-center"><input type="date" formControlName="dateOfReview" /></td>
+                                  <td>
+                                    <button
+                                      type="button"
+                                      class="idp-program-remove"
+                                      [disabled]="kpiEntriesControls().length === 1"
+                                      (click)="removeKpiEntry($index)">
+                                      Remove
+                                    </button>
+                                  </td>
+                                </tr>
+                              }
+                            </tbody>
+                            <tfoot>
+                              <tr class="kpi-totals-row">
+                                <td>Totals</td>
+                                <td class="kpi-cell-weight" [class.kpi-total-weight-off]="kpiTotalWeight() !== 100">{{ kpiTotalWeight() }}%</td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td class="kpi-cell-center"></td>
+                                <td class="kpi-cell-center"></td>
+                                <td class="kpi-cell-center"><span class="kpi-score-pill kpi-total-rating-pill">{{ formatKpiOverallRating(kpiOverallWeightedRating()) }}</span></td>
+                                <td class="kpi-cell-center"></td>
+                                <td></td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      </div>
+
+                      <div class="idp-program-actions">
+                        @if (kpiSaved()) {
+                          <p class="idp-form-status" role="status" aria-live="polite">KPI table saved.</p>
+                        }
+                        @if (kpiHasSavedEntries()) {
+                          <button type="button" class="idp-cancel-btn" (click)="cancelKpiEdit()">Cancel</button>
+                        }
+                        <button class="idp-save-button" type="submit">Save</button>
+                      </div>
+                    </form>
+                  }
+                    </div>
+                  </div>
                 </div>
               }
             </section>
@@ -2324,10 +2591,11 @@ type IdpEntryFormGroup = FormGroup<{
   `,
   styles: [`
     :host {
-      --ui-scale: 0.9;
+      --ui-scale: 0.86;
+      --sidebar-stack-offset: calc(6.8rem * var(--ui-scale) + 4px);
       display: block;
       min-height: 100vh;
-      background: #eef3fb;
+      background: #eef2f7;
       color: #173446;
       font-family: 'Inter', 'Segoe UI', 'Roboto', Arial, sans-serif;
     }
@@ -2340,7 +2608,7 @@ type IdpEntryFormGroup = FormGroup<{
       box-sizing: border-box;
       background:
         radial-gradient(circle at top left, var(--brand-tint), transparent 20%),
-        linear-gradient(180deg, #f5f8ff 0%, var(--brand-surface) 100%);
+        linear-gradient(180deg, #f6f8fc 0%, var(--brand-surface) 100%);
     }
 
     .manager-topbar,
@@ -2352,15 +2620,15 @@ type IdpEntryFormGroup = FormGroup<{
     .course-list-card,
     .offering-card,
     .student-card {
-      border: 1px solid rgba(15, 23, 42, 0.08);
-      background: rgba(255, 255, 255, 0.92);
-      box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
-      backdrop-filter: blur(10px);
+      border: 1px solid rgba(15, 23, 42, 0.07);
+      background: #ffffff;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03), 0 4px 14px rgba(15, 23, 42, 0.045);
     }
 
     .manager-topbar {
-      position: relative;
-      z-index: 20;
+      position: sticky;
+      top: calc(1rem * var(--ui-scale));
+      z-index: 70;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -2368,6 +2636,68 @@ type IdpEntryFormGroup = FormGroup<{
       margin-bottom: calc(1rem * var(--ui-scale));
       padding: calc(0.9rem * var(--ui-scale)) calc(1.2rem * var(--ui-scale));
       border-radius: calc(22px * var(--ui-scale));
+      background: linear-gradient(180deg, var(--brand-tint) 0%, rgba(255, 255, 255, 0.92) 70%);
+      border-bottom: 3px solid var(--brand-primary);
+    }
+
+    .manager-welcome-banner {
+      position: fixed;
+      top: calc(1rem * var(--ui-scale));
+      left: 50%;
+      z-index: 150;
+      width: min(calc(360px * var(--ui-scale)), calc(100vw - 2rem));
+      padding: calc(0.95rem * var(--ui-scale)) calc(1.2rem * var(--ui-scale));
+      border: 1px solid rgba(129, 140, 248, 0.18);
+      border-radius: calc(20px * var(--ui-scale));
+      background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+      box-shadow: 0 20px 40px rgba(79, 70, 229, 0.24);
+      color: #fff;
+      transform: translate(-50%, -120%);
+      opacity: 0;
+      animation: manager-welcome-banner-drop 0.6s cubic-bezier(0.2, 0.9, 0.2, 1) forwards;
+      pointer-events: none;
+    }
+
+    .manager-welcome-banner-leaving {
+      animation: manager-welcome-banner-exit 0.45s ease forwards;
+    }
+
+    .manager-welcome-banner-title {
+      font-size: calc(1rem * var(--ui-scale));
+      font-weight: 800;
+      letter-spacing: 0.01em;
+    }
+
+    .manager-welcome-banner-copy {
+      margin-top: calc(0.2rem * var(--ui-scale));
+      font-size: calc(0.86rem * var(--ui-scale));
+      color: rgba(255, 255, 255, 0.88);
+    }
+
+    @keyframes manager-welcome-banner-drop {
+      0% {
+        transform: translate(-50%, -120%);
+        opacity: 0;
+      }
+      60% {
+        transform: translate(-50%, 6%);
+        opacity: 1;
+      }
+      100% {
+        transform: translate(-50%, 0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes manager-welcome-banner-exit {
+      0% {
+        transform: translate(-50%, 0);
+        opacity: 1;
+      }
+      100% {
+        transform: translate(-50%, -120%);
+        opacity: 0;
+      }
     }
 
     .manager-brand-block,
@@ -2466,10 +2796,10 @@ type IdpEntryFormGroup = FormGroup<{
       z-index: 40;
       width: min(17rem, calc(100vw - 2rem));
       padding: calc(0.4rem * var(--ui-scale)) 0;
-      border-radius: calc(18px * var(--ui-scale));
+      border-radius: calc(12px * var(--ui-scale));
       border: 1px solid var(--brand-tint);
-      background: var(--brand-surface);
-      box-shadow: 0 22px 48px rgba(15, 23, 42, 0.18);
+      background: #ffffff;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
       overflow: hidden;
     }
 
@@ -2571,11 +2901,10 @@ type IdpEntryFormGroup = FormGroup<{
       display: grid;
       gap: calc(0.2rem * var(--ui-scale));
       border: 1px solid var(--brand-tint);
-      border-radius: calc(18px * var(--ui-scale));
-      background: var(--brand-surface);
-      box-shadow: 0 22px 48px rgba(15, 23, 42, 0.18);
+      border-radius: calc(12px * var(--ui-scale));
+      background: #ffffff;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
       padding: calc(0.35rem * var(--ui-scale));
-      backdrop-filter: blur(8px);
     }
 
     .manager-topbar-caret {
@@ -2756,12 +3085,42 @@ type IdpEntryFormGroup = FormGroup<{
 
     .manager-sidebar {
       position: sticky;
-      top: calc(1rem * var(--ui-scale));
+      top: var(--sidebar-stack-offset);
       display: flex;
       flex-direction: column;
       gap: calc(0.65rem * var(--ui-scale));
-      padding: calc(1rem * var(--ui-scale));
-      border-radius: calc(24px * var(--ui-scale));
+      align-self: start;
+      height: calc(100vh - var(--sidebar-stack-offset) - calc(1rem * var(--ui-scale)));
+      overflow: auto;
+      padding: calc(0.85rem * var(--ui-scale));
+      border-radius: calc(14px * var(--ui-scale));
+      background: linear-gradient(180deg, var(--brand-tint) 0%, rgba(255, 255, 255, 0.92) 45%);
+      border-left: 4px solid var(--brand-primary);
+      scrollbar-width: none;
+      scrollbar-color: transparent transparent;
+    }
+
+    .manager-sidebar.manager-sidebar-scrolling {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(15, 23, 42, 0.28) transparent;
+    }
+
+    .manager-sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .manager-sidebar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .manager-sidebar::-webkit-scrollbar-thumb {
+      background-color: transparent;
+      border-radius: 999px;
+      transition: background-color 0.3s ease;
+    }
+
+    .manager-sidebar.manager-sidebar-scrolling::-webkit-scrollbar-thumb {
+      background-color: rgba(15, 23, 42, 0.28);
     }
 
     .manager-sidebar-header {
@@ -2936,8 +3295,8 @@ type IdpEntryFormGroup = FormGroup<{
     }
 
     .published-offering-overlay-backdrop {
-      background: rgba(15, 23, 42, 0.52);
-      backdrop-filter: blur(8px);
+      background: rgba(15, 23, 42, 0.5);
+      backdrop-filter: blur(3px);
     }
 
     .published-offering-overlay-panel {
@@ -2950,7 +3309,7 @@ type IdpEntryFormGroup = FormGroup<{
 
     .published-offering-overlay-panel {
       width: min(980px, 100%);
-      border-radius: 28px;
+      border-radius: 16px;
       transform-origin: right center;
     }
 
@@ -2963,6 +3322,53 @@ type IdpEntryFormGroup = FormGroup<{
       to {
         opacity: 1;
         transform: translateX(0);
+      }
+    }
+
+    /* KPI table pops out into a large centered overlay instead of squeezing into the
+       sidebar-constrained content column — a wide table needs room a narrow card can't give it. */
+    .kpi-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 1.5rem;
+    }
+
+    .kpi-overlay-backdrop {
+      position: absolute;
+      inset: 0;
+      border: none;
+      cursor: pointer;
+      background: rgba(15, 23, 42, 0.5);
+      backdrop-filter: blur(3px);
+    }
+
+    .kpi-overlay-panel {
+      position: relative;
+      z-index: 1;
+      width: min(1500px, 96vw);
+      max-height: min(1000px, 92vh);
+      overflow: auto;
+      padding: 1.5rem;
+      border-radius: 20px;
+      background: #f8fafc;
+      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+      animation: kpi-overlay-panel-enter 0.22s ease-out;
+      box-sizing: border-box;
+    }
+
+    @keyframes kpi-overlay-panel-enter {
+      from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.98);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
       }
     }
 
@@ -3452,6 +3858,66 @@ type IdpEntryFormGroup = FormGroup<{
       background: linear-gradient(135deg, #6366f1, #4f46e5);
     }
 
+    .detail-action-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      min-height: 2.4rem;
+      padding: 0.55rem 0.9rem;
+      border: 1px solid rgba(148, 163, 184, 0.32);
+      border-radius: 10px;
+      background: #ffffff;
+      color: #173446;
+      font: inherit;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .detail-action-btn:hover,
+    .detail-action-btn:focus-visible {
+      transform: translateY(-1px);
+      border-color: var(--brand-secondary);
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.1);
+      outline: none;
+    }
+
+    .detail-action-btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .detail-action-btn-primary {
+      background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 2px 6px rgba(23, 52, 70, 0.14);
+    }
+
+    .detail-action-btn-primary:hover,
+    .detail-action-btn-primary:focus-visible {
+      box-shadow: 0 4px 12px rgba(23, 52, 70, 0.2);
+    }
+
+    .detail-action-btn-subtle {
+      background: transparent;
+      border-color: transparent;
+      color: #64748b;
+      box-shadow: none;
+    }
+
+    .detail-action-btn-subtle:hover,
+    .detail-action-btn-subtle:focus-visible {
+      background: rgba(15, 23, 42, 0.05);
+      box-shadow: none;
+      transform: none;
+    }
+
     .activity-chart-shell {
       position: relative;
       display: grid;
@@ -3613,13 +4079,13 @@ type IdpEntryFormGroup = FormGroup<{
     .builder-secondary-btn,
     .builder-submit-btn,
     .assign-btn {
-      border-radius: 12px;
-      padding: 0.72rem 0.88rem;
+      border-radius: 10px;
+      padding: 0.6rem 0.85rem;
       font-weight: 700;
-      font-size: 0.88rem;
+      font-size: 0.85rem;
       color: #fff;
       background: linear-gradient(135deg, #6366f1, #4f46e5);
-      box-shadow: 0 12px 24px rgba(79, 70, 229, 0.18);
+      box-shadow: 0 2px 6px rgba(79, 70, 229, 0.16);
     }
 
     .course-form button:disabled,
@@ -3746,10 +4212,232 @@ type IdpEntryFormGroup = FormGroup<{
 
     .student-enrollment-list {
       display: grid;
-      gap: 0.75rem;
+      gap: 0.6rem;
       width: 100%;
       overflow-x: auto;
       padding-bottom: 0.25rem;
+    }
+
+    .student-list-head,
+    .student-list-item {
+      display: grid;
+      grid-template-columns: 1fr 1fr 0.8fr 1fr 1fr 1.4fr 0.9fr 1fr 0.8fr;
+      gap: 0.6rem;
+      align-items: center;
+      min-width: 62rem;
+    }
+
+    .student-list-head {
+      padding: 0 0.9rem;
+      color: #64748b;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .student-list-item {
+      padding: 0.65rem 0.9rem;
+      border: 1px solid rgba(15, 23, 42, 0.07);
+      border-radius: 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+      transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+
+    .student-list-item:hover,
+    .student-list-item:focus-within {
+      border-color: var(--brand-tint);
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
+    }
+
+    .student-list-cell {
+      min-width: 0;
+      font-size: 0.86rem;
+      color: #173446;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .student-name {
+      font-weight: 700;
+    }
+
+    .student-list-email {
+      overflow-wrap: anywhere;
+      white-space: normal;
+    }
+
+    .student-list-actions {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .student-active-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.24rem 0.6rem;
+      border-radius: 999px;
+      background: rgba(16, 185, 129, 0.14);
+      color: #047857;
+      font-size: 0.76rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .student-active-pill-inactive {
+      background: rgba(148, 163, 184, 0.2);
+      color: #475569;
+    }
+
+    .mentorship-list-table,
+    .enrollment-groups-list {
+      display: grid;
+      gap: 0.6rem;
+      overflow-x: auto;
+      padding-bottom: 0.25rem;
+    }
+
+    .mentorship-list-head,
+    .mentorship-list-item {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr 1.2fr 1fr;
+      gap: 0.6rem;
+      align-items: center;
+      min-width: 52rem;
+    }
+
+    .mentorship-list-head {
+      padding: 0 0.9rem;
+      color: #64748b;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .mentorship-list-item {
+      padding: 0.65rem 0.9rem;
+      border: 1px solid rgba(15, 23, 42, 0.07);
+      border-radius: 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+      transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+
+    .mentorship-list-item:hover,
+    .mentorship-list-item:focus-within {
+      border-color: var(--brand-tint);
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
+    }
+
+    .mentorship-list-cell {
+      min-width: 0;
+      font-size: 0.86rem;
+      color: #173446;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .mentorship-list-cell-strong {
+      font-weight: 700;
+    }
+
+    .mentorship-list-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      justify-content: flex-end;
+    }
+
+    .enrollment-groups-head,
+    .enrollment-group-row {
+      display: grid;
+      grid-template-columns: 1.4fr 0.8fr 1fr 1fr 0.6fr 0.6fr 0.6fr;
+      gap: 0.6rem;
+      align-items: center;
+      min-width: 46rem;
+    }
+
+    .enrollment-groups-head {
+      padding: 0 0.9rem;
+      color: #64748b;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .enrollment-group-row {
+      padding: 0.65rem 0.9rem;
+      border: 1px solid rgba(15, 23, 42, 0.07);
+      border-radius: 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+      transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+
+    .enrollment-group-row:hover,
+    .enrollment-group-row:focus-within {
+      border-color: var(--brand-tint);
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
+    }
+
+    .enrollment-group-cell {
+      min-width: 0;
+      font-size: 0.86rem;
+      color: #173446;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .enrollment-group-name {
+      font-weight: 700;
+    }
+
+    .enrollment-group-action-cell {
+      display: flex;
+    }
+
+    .edit-btn,
+    .group-delete-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 2.1rem;
+      padding: 0.4rem 0.75rem;
+      border: 1px solid rgba(148, 163, 184, 0.32);
+      border-radius: 9px;
+      background: #ffffff;
+      color: #173446;
+      font: inherit;
+      font-weight: 700;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .edit-btn:hover,
+    .edit-btn:focus-visible {
+      border-color: var(--brand-secondary);
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.1);
+      outline: none;
+    }
+
+    .group-delete-btn {
+      border-color: rgba(248, 113, 113, 0.35);
+      color: #b91c1c;
+      background: rgba(254, 242, 242, 0.9);
+    }
+
+    .group-delete-btn:hover,
+    .group-delete-btn:focus-visible {
+      border-color: rgba(239, 68, 68, 0.5);
+      box-shadow: 0 3px 10px rgba(239, 68, 68, 0.14);
+      outline: none;
     }
 
     .enrollment-modal {
@@ -3777,11 +4465,11 @@ type IdpEntryFormGroup = FormGroup<{
       display: grid;
       gap: 1rem;
       width: min(100%, 52rem);
-      padding: 1.2rem;
-      border-radius: 22px;
+      padding: 1.1rem;
+      border-radius: 16px;
       border: 1px solid rgba(15, 23, 42, 0.08);
       background: #fff;
-      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
     }
 
     .enrollment-edit-modal-card {
@@ -3925,22 +4613,22 @@ type IdpEntryFormGroup = FormGroup<{
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 2.85rem;
-      height: 2.85rem;
-      border-radius: 16px;
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 11px;
       background: rgba(255, 255, 255, 0.14);
       color: #fff;
     }
 
     .course-studio-publish-btn {
-      min-width: 120px;
-      padding: 0.72rem 1.05rem;
-      border-radius: 16px;
+      min-width: 110px;
+      padding: 0.6rem 0.95rem;
+      border-radius: 10px;
       background: #fff;
       color: #a04c11;
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       font-weight: 800;
-      box-shadow: 0 12px 24px rgba(70, 31, 4, 0.16);
+      box-shadow: 0 2px 8px rgba(70, 31, 4, 0.18);
     }
 
     .course-studio-publish-btn:disabled {
@@ -4368,6 +5056,8 @@ type IdpEntryFormGroup = FormGroup<{
         position: static;
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        height: auto;
+        overflow: visible;
       }
 
       .manager-sidebar-header {
@@ -4540,7 +5230,7 @@ type IdpEntryFormGroup = FormGroup<{
       align-items: flex-start;
       padding: 1rem;
       background: rgba(15, 23, 42, 0.5);
-      backdrop-filter: blur(8px);
+      backdrop-filter: blur(3px);
     }
 
     .mentorship-review-request-panel {
@@ -4950,6 +5640,177 @@ type IdpEntryFormGroup = FormGroup<{
         font-size: 0.83rem;
         color: #64748b;
       }
+
+      /* ── KPI Table ─────────────────────────────────────────────────── */
+      /* .manager-panel is a column flexbox — without min-width: 0 here, a flex item won't
+         shrink below its content's natural width, so the wide KPI table (min-width: 62rem)
+         was forcing this whole card past its intended bounds instead of scrolling internally
+         inside .kpi-table-wrap where it belongs. */
+      .mentorship-review-card {
+        min-width: 0;
+      }
+      .idp-program-card {
+        min-width: 0;
+      }
+      .kpi-table-wrap {
+        overflow-x: auto;
+        min-width: 0;
+        padding: 0 1.25rem 1.25rem;
+      }
+      .kpi-table {
+        width: 100%;
+        min-width: 46rem;
+        table-layout: fixed;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 0.83rem;
+      }
+      /* The editable table needs more floor width than the read-only one — a native date
+         input can't shrink past its own internal minimum, so its column needs enough absolute
+         room even at the table's narrowest. */
+      .kpi-table-editable {
+        min-width: 58rem;
+      }
+      .kpi-table th,
+      .kpi-table td {
+        padding: 0.75rem 0.85rem;
+        text-align: left;
+        vertical-align: middle;
+        border-bottom: 1px solid #eef1f6;
+        overflow-wrap: break-word;
+      }
+      .kpi-table thead th {
+        padding-top: 0.7rem;
+        padding-bottom: 0.7rem;
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: #64748b;
+        white-space: normal;
+        overflow-wrap: break-word;
+        background: linear-gradient(180deg, #f8fafc 0%, #f3f6fb 100%);
+        border-bottom: 1px solid #e7ecf3;
+      }
+      .kpi-table td {
+        color: #1e293b;
+        line-height: 1.45;
+      }
+      .kpi-table tbody tr:last-of-type td {
+        border-bottom: none;
+      }
+      .kpi-table tbody tr:nth-child(even) td {
+        background: #fbfcfe;
+      }
+      .kpi-table tbody tr:hover td {
+        background: #f3f7ff;
+      }
+      .kpi-cell-weight {
+        text-align: right;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .kpi-cell-center {
+        text-align: center;
+      }
+      .kpi-table-editable textarea,
+      .kpi-table-editable input,
+      .kpi-table-editable select {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        padding: 0.5rem 0.6rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font: inherit;
+        color: #0f172a;
+        background: #fff;
+        box-sizing: border-box;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      }
+      .kpi-table-editable input[type='number'] {
+        text-align: right;
+      }
+      .kpi-table-editable textarea {
+        resize: vertical;
+        min-height: 2.6rem;
+      }
+      .kpi-table-editable textarea:hover,
+      .kpi-table-editable input:hover,
+      .kpi-table-editable select:hover {
+        border-color: #cbd5e1;
+      }
+      .kpi-table-editable textarea:focus,
+      .kpi-table-editable input:focus,
+      .kpi-table-editable select:focus {
+        border-color: #60a5fa;
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.16);
+      }
+
+      .kpi-score-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 0.3rem;
+        max-width: 100%;
+        padding: 0.28rem 0.6rem;
+        border-radius: 14px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-size: 0.72rem;
+        font-weight: 700;
+        line-height: 1.3;
+        white-space: normal;
+        overflow-wrap: break-word;
+      }
+      .kpi-score-pill.kpi-score-empty {
+        background: #f1f5f9;
+        color: #94a3b8;
+        font-weight: 600;
+      }
+      .kpi-score-pill.kpi-score-flag {
+        background: #fef2f2;
+        color: #b91c1c;
+      }
+
+      .kpi-total-weight {
+        font-size: 0.76rem;
+        font-weight: 700;
+        color: #15803d;
+        white-space: nowrap;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        background: #f0fdf4;
+      }
+
+      .kpi-total-weight-off {
+        color: #b91c1c;
+        background: #fef2f2;
+      }
+
+      .kpi-table-editable select.kpi-score-flag {
+        border-color: #ef4444;
+        background: #fef2f2;
+        color: #b91c1c;
+        font-weight: 700;
+      }
+
+      .kpi-totals-row td {
+        font-weight: 800;
+        color: #0f172a;
+        background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+        border-top: 2px solid #e2e8f0;
+        border-bottom: none;
+      }
+
+      .kpi-total-rating-pill {
+        background: #eef2ff;
+        color: #4338ca;
+        font-size: 0.78rem;
+      }
   `],
 })
 export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
@@ -4978,11 +5839,14 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     { label: 'Mentorship', value: 'mentorship' },
     { label: 'Student Enrollment', value: 'enrollment' },
     { label: 'IDP', value: 'idp' },
+    { label: 'Performance', value: 'performance' },
     { label: 'Messages', value: 'messages' },
   ];
 
   readonly selectedPanel = signal<ManagerPanel>('dashboard');
   readonly managerSidebarCollapsed = signal(false);
+  readonly sidebarScrolling = signal(false);
+  private sidebarScrollTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // EnrollmentStudent.status is only ever set by seed data and one enrollment-time transition
   // (Not Yet Started -> In Progress); it never advances to Completed as a student actually
@@ -5422,6 +6286,19 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.clearWelcomeBannerTimers();
+    if (this.sidebarScrollTimeout) {
+      clearTimeout(this.sidebarScrollTimeout);
+    }
+  }
+
+  /** Shows the sidebar's scrollbar thumb only while actively scrolling, hiding it again
+   *  shortly after — keeps the sidebar looking clean instead of a permanent scroll track. */
+  onSidebarScroll() {
+    this.sidebarScrolling.set(true);
+    if (this.sidebarScrollTimeout) {
+      clearTimeout(this.sidebarScrollTimeout);
+    }
+    this.sidebarScrollTimeout = setTimeout(() => this.sidebarScrolling.set(false), 900);
   }
 
   private startWelcomeBannerSequence() {
@@ -5905,6 +6782,11 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
     if (this.selectedPanel() === 'courses' && this.selectedCoursesView() === 'created' && this.selectedPublishedOfferingId()) {
       this.closePublishedOfferingDetail();
+      return;
+    }
+
+    if (this.selectedPanel() === 'performance' && this.selectedKpiStudentId()) {
+      this.clearKpiStudent();
     }
   }
 
@@ -7073,7 +7955,9 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
             uploadedFileDataUrl: '',
             resourceLink: result.launchUrl,
             requiresAcknowledgement: false,
-            allowDownload: false,
+            // Keep the "Launch SCORM package" open-in-new-tab fallback visible — it's
+            // gated on this same flag, so forcing it false hid that button entirely.
+            allowDownload: true,
           });
         },
         error: () => {
@@ -7828,5 +8712,189 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.idpEditMode.set(false);
     this.idpSaved.set(true);
     setTimeout(() => this.idpSaved.set(false), 3000);
+  }
+
+  // ── Performance / KPI ─────────────────────────────────────────────────
+  readonly kpiScoreOptions: ReadonlyArray<{ value: StudentKpiScore; label: string }> = [
+    { value: 1, label: '1 - Unacceptable' },
+    { value: 2, label: '2 - Not Fully Effective' },
+    { value: 3, label: '3 - Fully Effective' },
+    { value: 4, label: '4 - Highly Effective' },
+    { value: 5, label: '5 - Outstanding' },
+  ];
+
+  kpiScoreLabel(score: StudentKpiScore | null): string {
+    return this.kpiScoreOptions.find((option) => option.value === score)?.label ?? 'Not scored';
+  }
+
+  readonly selectedKpiStudentId = signal<string | null>(null);
+  readonly kpiSaved = signal(false);
+  readonly kpiEditMode = signal(false);
+  readonly kpiMemberSearchTerm = signal('');
+  private readonly kpiEntriesByStudent = this.managerData.kpiEntriesByStudent;
+
+  readonly filteredKpiMembers = computed(() => {
+    const query = this.kpiMemberSearchTerm().trim().toLowerCase();
+    const students = this.managerData.students();
+
+    if (!query) {
+      return students;
+    }
+
+    return students.filter((student) =>
+      [student.name, student.surname, `${student.name} ${student.surname}`, student.jobTitle, student.department, student.group]
+        .some((value) => (value ?? '').toLowerCase().includes(query)),
+    );
+  });
+
+  readonly selectedKpiStudent = computed(() => {
+    const id = this.selectedKpiStudentId();
+    return id ? this.managerData.students().find((s) => s.id === id) ?? null : null;
+  });
+
+  readonly savedKpiEntries = computed(() => {
+    const id = this.selectedKpiStudentId();
+    return id ? (this.kpiEntriesByStudent()[id] ?? []) : [];
+  });
+
+  readonly kpiHasSavedEntries = computed(() => this.savedKpiEntries().length > 0);
+
+  readonly savedKpiTotalWeight = computed(() =>
+    this.savedKpiEntries().reduce((total, entry) => total + (entry.weight || 0), 0),
+  );
+
+  // Weight-weighted average of Overall Scoring across every KPI that's actually been given an
+  // Overall score — unscored rows are excluded from both the numerator and denominator so a
+  // still-blank KPI doesn't silently drag the total down.
+  readonly savedKpiOverallWeightedRating = computed(() => this.computeKpiOverallWeightedRating(this.savedKpiEntries()));
+
+  private computeKpiOverallWeightedRating(entries: ReadonlyArray<{ weight: number; overallScoring: StudentKpiScore | null }>): number | null {
+    const scoredEntries = entries.filter((entry) => entry.overallScoring !== null && entry.weight > 0);
+    const totalWeight = scoredEntries.reduce((total, entry) => total + entry.weight, 0);
+    if (!totalWeight) {
+      return null;
+    }
+
+    const weightedSum = scoredEntries.reduce((total, entry) => total + entry.weight * (entry.overallScoring ?? 0), 0);
+    return weightedSum / totalWeight;
+  }
+
+  formatKpiOverallRating(rating: number | null): string {
+    return rating === null ? 'Not yet scored' : `${rating.toFixed(1)} / 5`;
+  }
+
+  // Not computed(): FormControl values aren't signals, so these are recalculated on every change
+  // detection pass instead — cheap enough for a handful of rows, and CD already runs on every
+  // keystroke in this form (OnPush still checks a component when a DOM event fires in its own
+  // template, which every Weight/Scoring edit does).
+  kpiTotalWeight(): number {
+    return this.kpiEntriesControls().reduce((total, control) => total + (control.controls.weight.value ?? 0), 0);
+  }
+
+  kpiOverallWeightedRating(): number | null {
+    const entries = this.kpiEntriesControls().map((control) => ({
+      weight: control.controls.weight.value ?? 0,
+      overallScoring: control.controls.overallScoring.value,
+    }));
+    return this.computeKpiOverallWeightedRating(entries);
+  }
+
+  private createKpiEntryGroup(): KpiEntryFormGroup {
+    return new FormGroup({
+      id: new FormControl<string | null>(''),
+      kpi: new FormControl<string | null>(''),
+      weight: new FormControl<number | null>(0),
+      agreedOutput: new FormControl<string | null>(''),
+      measure: new FormControl<string | null>(''),
+      comments: new FormControl<string | null>(''),
+      managerScoring: new FormControl<StudentKpiScore | null>(null),
+      employeeScoring: new FormControl<StudentKpiScore | null>(null),
+      overallScoring: new FormControl<StudentKpiScore | null>(null),
+      dateOfReview: new FormControl<string | null>(this.todayIsoDate()),
+    }) as KpiEntryFormGroup;
+  }
+
+  readonly kpiForm = new FormGroup({
+    entries: new FormArray<KpiEntryFormGroup>([this.createKpiEntryGroup()]),
+  });
+
+  kpiEntriesControls(): KpiEntryFormGroup[] {
+    return this.kpiForm.controls.entries.controls as KpiEntryFormGroup[];
+  }
+
+  kpiEntryCountForStudent(studentId: string): number {
+    return this.kpiEntriesByStudent()[studentId]?.length ?? 0;
+  }
+
+  private loadKpiFormForStudent(studentId: string) {
+    const entriesArray = this.kpiForm.controls.entries;
+    while (entriesArray.length > 0) entriesArray.removeAt(0);
+    const saved = this.kpiEntriesByStudent()[studentId];
+    if (saved?.length) {
+      for (const entry of saved) {
+        const g = this.createKpiEntryGroup();
+        g.setValue(entry);
+        entriesArray.push(g);
+      }
+    } else {
+      entriesArray.push(this.createKpiEntryGroup());
+    }
+  }
+
+  selectKpiStudent(studentId: string) {
+    this.selectedKpiStudentId.set(studentId);
+    this.loadKpiFormForStudent(studentId);
+    // start in read-only if entries already saved, else jump straight to form
+    const hasSaved = (this.kpiEntriesByStudent()[studentId]?.length ?? 0) > 0;
+    this.kpiEditMode.set(!hasSaved);
+    this.kpiSaved.set(false);
+  }
+
+  clearKpiStudent() {
+    this.selectedKpiStudentId.set(null);
+    this.kpiEditMode.set(false);
+    this.kpiSaved.set(false);
+  }
+
+  openKpiEdit() {
+    const id = this.selectedKpiStudentId();
+    if (id) this.loadKpiFormForStudent(id);
+    this.kpiEditMode.set(true);
+  }
+
+  cancelKpiEdit() {
+    const id = this.selectedKpiStudentId();
+    if (id) this.loadKpiFormForStudent(id);
+    this.kpiEditMode.set(false);
+    this.kpiSaved.set(false);
+  }
+
+  addKpiEntry() {
+    this.kpiForm.controls.entries.push(this.createKpiEntryGroup());
+  }
+
+  removeKpiEntry(index: number) {
+    this.kpiForm.controls.entries.removeAt(index);
+  }
+
+  saveKpiEntries() {
+    const studentId = this.selectedKpiStudentId();
+    if (!studentId) return;
+    const entries = this.kpiForm.controls.entries.controls.map((g) => ({
+      id: g.controls.id.value?.trim() || '',
+      kpi: g.controls.kpi.value ?? '',
+      weight: g.controls.weight.value ?? 0,
+      agreedOutput: g.controls.agreedOutput.value ?? '',
+      measure: g.controls.measure.value ?? '',
+      comments: g.controls.comments.value ?? '',
+      managerScoring: g.controls.managerScoring.value ?? null,
+      employeeScoring: g.controls.employeeScoring.value ?? null,
+      overallScoring: g.controls.overallScoring.value ?? null,
+      dateOfReview: g.controls.dateOfReview.value ?? '',
+    }));
+    this.managerData.setKpiEntriesForStudent(studentId, entries);
+    this.kpiEditMode.set(false);
+    this.kpiSaved.set(true);
+    setTimeout(() => this.kpiSaved.set(false), 3000);
   }
 }

@@ -31,6 +31,8 @@ import {
   PasswordResetTokenStatus,
   QuizSubmissionRecord,
   StudentIdpEntryRecord,
+  StudentKpiEntryRecord,
+  StudentKpiScoreRecord,
   StudentNotificationRecord,
   StudentSnapshotUpdate,
   StudentRecord,
@@ -396,6 +398,35 @@ function normalizeStudentIdpEntries(entries: unknown): StudentIdpEntryRecord[] {
   });
 }
 
+function normalizeStudentKpiScore(value: unknown): StudentKpiScoreRecord | null {
+  return value === 1 || value === 2 || value === 3 || value === 4 || value === 5 ? value : null;
+}
+
+function normalizeStudentKpiEntries(entries: unknown): StudentKpiEntryRecord[] {
+  if (!Array.isArray(entries)) {
+    return [];
+  }
+
+  return entries.map((entry, index) => {
+    const candidate = entry as Partial<StudentKpiEntryRecord>;
+    const id = typeof candidate.id === 'string' && candidate.id.trim() ? candidate.id.trim() : `kpi-${Date.now()}-${index}`;
+    const weight = typeof candidate.weight === 'number' && Number.isFinite(candidate.weight) ? candidate.weight : 0;
+
+    return {
+      id,
+      kpi: typeof candidate.kpi === 'string' ? candidate.kpi : '',
+      weight,
+      agreedOutput: typeof candidate.agreedOutput === 'string' ? candidate.agreedOutput : '',
+      measure: typeof candidate.measure === 'string' ? candidate.measure : '',
+      comments: typeof candidate.comments === 'string' ? candidate.comments : '',
+      managerScoring: normalizeStudentKpiScore(candidate.managerScoring),
+      employeeScoring: normalizeStudentKpiScore(candidate.employeeScoring),
+      overallScoring: normalizeStudentKpiScore(candidate.overallScoring),
+      dateOfReview: typeof candidate.dateOfReview === 'string' ? candidate.dateOfReview : '',
+    };
+  });
+}
+
 function createStudentRecordFromEnrollment(student: EnrollmentStudentRecord): StudentRecord {
   return {
     ...student,
@@ -420,6 +451,7 @@ function createStudentRecordFromEnrollment(student: EnrollmentStudentRecord): St
     notifiedOfferingIds: [],
     assessmentAttempts: {},
     idpEntries: [],
+    kpiEntries: [],
   };
 }
 
@@ -464,6 +496,7 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
     const notifications = student.notifications ?? defaultStudentTemplate.notifications ?? [];
     const messages = student.messages ?? defaultStudentTemplate.messages ?? [];
     const idpEntries = normalizeStudentIdpEntries(student.idpEntries ?? defaultStudentTemplate.idpEntries ?? []);
+    const kpiEntries = normalizeStudentKpiEntries(student.kpiEntries ?? defaultStudentTemplate.kpiEntries ?? []);
 
     return {
       ...defaultStudentTemplate,
@@ -477,6 +510,7 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
       notifications,
       messages,
       idpEntries,
+      kpiEntries,
       notifiedOfferingIds,
     } satisfies StudentRecord;
   });
@@ -613,12 +647,16 @@ export class LmsRepository {
     const idpEntriesByStudent = Object.fromEntries(
       data.students.map((student) => [student.id, student.idpEntries ?? []]),
     );
+    const kpiEntriesByStudent = Object.fromEntries(
+      data.students.map((student) => [student.id, student.kpiEntries ?? []]),
+    );
 
     return {
       offerings: data.offerings,
       branding: data.branding,
-      students: data.students.map(({ courses, notifications, messages, notifiedOfferingIds, idpEntries, ...student }) => student),
+      students: data.students.map(({ courses, notifications, messages, notifiedOfferingIds, idpEntries, kpiEntries, ...student }) => student),
       idpEntriesByStudent,
+      kpiEntriesByStudent,
       trainingManagers: data.trainingManagers,
       managerMessages: data.managerMessages,
       mentorshipAssignments: data.mentorshipAssignments,
@@ -732,6 +770,53 @@ export class LmsRepository {
           idpEntries: student.idpEntries ?? [],
         }
       : null;
+  }
+
+  // Full replace of a student's KPI table — only a training manager or administrator may call
+  // this (enforced in server.ts), since it can add/remove rows and edit every field including
+  // Manager scoring.
+  async setKpiEntriesForStudent(studentId: string, entries: StudentKpiEntryRecord[]) {
+    const data = await this.read();
+    const studentIndex = data.students.findIndex((entry) => entry.id === studentId);
+
+    if (studentIndex === -1) {
+      return null;
+    }
+
+    data.students[studentIndex] = {
+      ...data.students[studentIndex],
+      kpiEntries: normalizeStudentKpiEntries(entries),
+    };
+
+    const next = await this.write(data);
+    return next.students.find((entry) => entry.id === studentId)?.kpiEntries ?? [];
+  }
+
+  // Merges only the Employee scoring field into existing KPI rows, matched by id. Unlike
+  // setKpiEntriesForStudent, this can't add, remove, or otherwise edit a row — that's what lets
+  // server.ts safely allow a student to call this for their own KPI table without also handing
+  // them the ability to rewrite their Manager scoring or the KPI text itself.
+  async updateKpiEmployeeScoring(studentId: string, updates: { id: string; employeeScoring: StudentKpiScoreRecord | null }[]) {
+    const data = await this.read();
+    const studentIndex = data.students.findIndex((entry) => entry.id === studentId);
+
+    if (studentIndex === -1) {
+      return null;
+    }
+
+    const scoringById = new Map(updates.map((update) => [update.id, update.employeeScoring]));
+    const existingEntries = data.students[studentIndex].kpiEntries ?? [];
+    const nextEntries = existingEntries.map((entry) =>
+      scoringById.has(entry.id) ? { ...entry, employeeScoring: scoringById.get(entry.id) ?? null } : entry,
+    );
+
+    data.students[studentIndex] = {
+      ...data.students[studentIndex],
+      kpiEntries: nextEntries,
+    };
+
+    const next = await this.write(data);
+    return next.students.find((entry) => entry.id === studentId)?.kpiEntries ?? [];
   }
 
   async listOfferings() {

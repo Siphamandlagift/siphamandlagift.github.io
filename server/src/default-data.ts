@@ -66,7 +66,7 @@ function createStudentSettings(): LmsDataStore['students'][number]['settings'] {
       showEmailAddress: false,
       showContactNumber: false,
     },
-    themePreference: 'ocean',
+    themePreference: null,
   };
 }
 

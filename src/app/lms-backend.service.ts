@@ -15,6 +15,8 @@ import type {
   MentorshipAssignmentRecord,
   MentorshipSubmissionRecord,
   StudentIdpEntry,
+  StudentKpiEntry,
+  StudentKpiScore,
   SystemTrainingManager,
   TrainingOffering,
   TrainingQuestionType,
@@ -41,6 +43,7 @@ export type LmsBootstrapResponse = {
   branding: BrandingSettings;
   students: EnrollmentStudent[];
   idpEntriesByStudent?: Record<string, StudentIdpEntry[]>;
+  kpiEntriesByStudent?: Record<string, StudentKpiEntry[]>;
   trainingManagers: SystemTrainingManager[];
   managerMessages: ManagerMessage[];
   mentorshipAssignments: MentorshipAssignmentRecord[];
@@ -377,6 +380,16 @@ export class LmsBackendService {
 
   updateStudentSnapshot(snapshot: StudentSnapshotUpdate, studentId = this.config.defaultStudentId): Observable<StudentSnapshotResponse> {
     return this.http.put<StudentSnapshotResponse>(`${this.config.baseUrl}/students/${studentId}/snapshot`, snapshot);
+  }
+
+  setKpiEntries(studentId: string, entries: StudentKpiEntry[]): Observable<StudentKpiEntry[]> {
+    return this.http.put<{ entries: StudentKpiEntry[] }>(`${this.config.baseUrl}/students/${studentId}/kpi-entries`, { entries })
+      .pipe(map((response) => response.entries));
+  }
+
+  updateKpiEmployeeScoring(studentId: string, updates: { id: string; employeeScoring: StudentKpiScore | null }[]): Observable<StudentKpiEntry[]> {
+    return this.http.put<{ entries: StudentKpiEntry[] }>(`${this.config.baseUrl}/students/${studentId}/kpi-entries/employee-scoring`, { entries: updates })
+      .pipe(map((response) => response.entries));
   }
 
   patchManagerState(patch: ManagerStatePatch): Observable<unknown> {

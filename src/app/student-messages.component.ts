@@ -29,7 +29,6 @@ const trimmedMinLengthValidator = (minLength: number): ValidatorFn => (control: 
     <section class="messages-section">
       <div>
         <h2>Messages</h2>
-        <p class="section-copy">Choose a message area first, then work inside the relevant view.</p>
       </div>
 
       @if (!selectedSection()) {

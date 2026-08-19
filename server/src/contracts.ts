@@ -144,6 +144,8 @@ export type StudentCertificateLicenceRecord = {
   expiryDate: string;
   fileName: string;
   fileDataUrl: string;
+  fileUrl?: string | null;
+  source?: 'manual' | 'course-completion';
   status: StudentCertificateStatusRecord;
   renewalRequired: 'Yes' | 'No';
   reminderNotification: 'Yes' | 'No';
@@ -168,7 +170,7 @@ export type StudentPrivacySettingsRecord = {
 export type StudentSettingsRecord = {
   notificationPreferences: StudentNotificationPreferencesRecord;
   privacySettings: StudentPrivacySettingsRecord;
-  themePreference: LmsBrandThemeId;
+  themePreference: LmsBrandThemeId | null;
 };
 
 export type StudentNotificationRecord = {
@@ -342,6 +344,25 @@ export type StudentIdpEntryRecord = {
   status: StudentIdpStatusRecord;
 };
 
+export type StudentKpiScoreRecord = 1 | 2 | 3 | 4 | 5;
+
+export type StudentKpiEntryRecord = {
+  id: string;
+  kpi: string;
+  weight: number;
+  agreedOutput: string;
+  measure: string;
+  comments: string;
+  managerScoring: StudentKpiScoreRecord | null;
+  employeeScoring: StudentKpiScoreRecord | null;
+  overallScoring: StudentKpiScoreRecord | null;
+  dateOfReview: string;
+};
+
+export type StudentKpiEmployeeScoringUpdateInput = {
+  entries: { id: string; employeeScoring: StudentKpiScoreRecord | null }[];
+};
+
 export type MentorshipAssignmentRecord = {
   id: string;
   menteeId: string;
@@ -367,6 +388,7 @@ export type StudentRecord = EnrollmentStudentRecord & {
   notifiedOfferingIds: string[];
   assessmentAttempts?: Record<string, StudentAssessmentAttemptRecord>;
   idpEntries?: StudentIdpEntryRecord[];
+  kpiEntries?: StudentKpiEntryRecord[];
 };
 
 export type BrandingSettingsRecord = {
@@ -502,6 +524,7 @@ export type LmsBootstrapResponse = {
   branding: BrandingSettingsRecord;
   students: EnrollmentStudentRecord[];
   idpEntriesByStudent: Record<string, StudentIdpEntryRecord[]>;
+  kpiEntriesByStudent: Record<string, StudentKpiEntryRecord[]>;
   trainingManagers: SystemTrainingManagerRecord[];
   managerMessages: ManagerMessageRecord[];
   mentorshipAssignments: MentorshipAssignmentRecord[];

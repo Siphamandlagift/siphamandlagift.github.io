@@ -16,10 +16,10 @@ import {
   StudentMentorshipProgressEntry,
   StudentMentorshipProgressReport,
 } from './student-data.service';
-import { ExternalTrainingRequestRecord, StudentIdpEntry, TrainingManagerDataService } from './training-manager-data.service';
+import { ExternalTrainingRequestRecord, StudentIdpEntry, StudentKpiEntry, StudentKpiScore, TrainingManagerDataService } from './training-manager-data.service';
 import { LmsBackendService, type LoginRole } from './lms-backend.service';
 import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service';
-import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from './session-auth';
+import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLmsSessionRecord } from './session-auth';
 
 @Component({
   selector: 'student-profile',
@@ -209,7 +209,7 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from 
       <button *ngIf="profileMenuOpen()" class="profile-menu-backdrop" type="button" aria-label="Close profile menu" (click)="closeProfileMenu()"></button>
 
       <div class="profile-layout" [class.profile-layout-side-panel-collapsed]="sidePanelCollapsed()">
-        <nav class="side-panel" [class.side-panel-collapsed]="sidePanelCollapsed()" aria-label="Student Navigation">
+        <nav class="side-panel" [class.side-panel-collapsed]="sidePanelCollapsed()" [class.side-panel-scrolling]="sidebarScrolling()" (scroll)="onSidebarScroll()" aria-label="Student Navigation">
           <div class="side-panel-header">
             <button
               type="button"
@@ -254,7 +254,7 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from 
                 <path d="M19 13v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4"></path>
               </svg>
             </span>
-            <span class="side-panel-label">External Training Request</span>
+            <span class="side-panel-label">Training Request</span>
           </button>
           <button [class.active]="selectedPanel() === 'mentorship'" (click)="selectPanel('mentorship')">
             <span class="side-panel-icon" aria-hidden="true">
@@ -290,6 +290,18 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from 
               </svg>
             </span>
             <span class="side-panel-label">Badges & Certificates</span>
+          </button>
+          <button [class.active]="selectedPanel() === 'performance'" (click)="selectPanel('performance')">
+            <span class="side-panel-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M4 20V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M4 20h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <rect x="7" y="12" width="3" height="8" rx="1"></rect>
+                <rect x="12.5" y="8" width="3" height="12" rx="1"></rect>
+                <rect x="18" y="4.5" width="3" height="15.5" rx="1"></rect>
+              </svg>
+            </span>
+            <span class="side-panel-label">Performance</span>
           </button>
           <button [class.active]="selectedPanel() === 'idp'" (click)="selectPanel('idp')">
             <span class="side-panel-icon" aria-hidden="true">
@@ -947,6 +959,108 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from 
 
           <student-badges *ngIf="selectedPanel() === 'badges'"></student-badges>
 
+          <section *ngIf="selectedPanel() === 'performance'" class="performance-section">
+            <div class="section-heading-block">
+              <p class="eyebrow">Performance</p>
+              <h1>Performance</h1>
+            </div>
+
+            <button type="button" class="kpi-overlay-backdrop" aria-label="Exit full screen" *ngIf="kpiFullScreen()" (click)="kpiFullScreen.set(false)"></button>
+
+            <div class="idp-program-card" [class.kpi-overlay-active]="kpiFullScreen()" *ngIf="myKpiEntries().length > 0; else noKpiEntries">
+              <div class="idp-program-card-header">
+                <div class="idp-program-card-title-shell">
+                  <span class="idp-program-card-title">My KPIs</span>
+                  <span class="idp-program-count" aria-hidden="true">{{ myKpiEntries().length }} {{ myKpiEntries().length === 1 ? 'KPI' : 'KPIs' }}</span>
+                  <span class="kpi-total-weight" [class.kpi-total-weight-off]="myKpiTotalWeight() !== 100">
+                    Total weight: {{ myKpiTotalWeight() }}%
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  class="kpi-fullscreen-toggle"
+                  [class.kpi-fullscreen-toggle-active]="kpiFullScreen()"
+                  [attr.aria-pressed]="kpiFullScreen()"
+                  (click)="kpiFullScreen.set(!kpiFullScreen())">
+                  <svg *ngIf="!kpiFullScreen()" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <svg *ngIf="kpiFullScreen()" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <span>{{ kpiFullScreen() ? 'Exit full screen' : 'Full screen' }}</span>
+                </button>
+              </div>
+
+              <div class="kpi-table-wrap">
+                <table class="kpi-table">
+                  <colgroup>
+                    <col style="width: 15%" />
+                    <col style="width: 7%" />
+                    <col style="width: 13%" />
+                    <col style="width: 12%" />
+                    <col style="width: 12%" />
+                    <col style="width: 11%" />
+                    <col style="width: 11%" />
+                    <col style="width: 11%" />
+                    <col style="width: 8%" />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>KPI</th>
+                      <th class="kpi-cell-weight">Weight</th>
+                      <th>Agreed Output</th>
+                      <th>Measure</th>
+                      <th>Comments</th>
+                      <th class="kpi-cell-center">Manager Scoring</th>
+                      <th class="kpi-cell-center">Employee Scoring</th>
+                      <th class="kpi-cell-center">Overall Scoring</th>
+                      <th class="kpi-cell-center">Date of Review</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let entry of myKpiEntries(); trackBy: trackKpiEntryById">
+                      <td>{{ entry.kpi || 'Not provided' }}</td>
+                      <td class="kpi-cell-weight">{{ entry.weight }}%</td>
+                      <td>{{ entry.agreedOutput || 'Not provided' }}</td>
+                      <td>{{ entry.measure || 'Not provided' }}</td>
+                      <td>{{ entry.comments || 'Not provided' }}</td>
+                      <td class="kpi-cell-center"><span class="kpi-score-pill" [class.kpi-score-flag]="entry.managerScoring === 2" [class.kpi-score-empty]="entry.managerScoring === null">{{ kpiScoreLabel(entry.managerScoring) }}</span></td>
+                      <td class="kpi-cell-center kpi-employee-scoring-cell" [class.kpi-score-flag]="entry.employeeScoring === 2">
+                        <select [value]="entry.employeeScoring ?? ''" (change)="updateMyKpiEmployeeScoring(entry.id, $event)">
+                          <option value="">Not scored</option>
+                          <option *ngFor="let option of kpiScoreOptions" [value]="option.value">{{ option.label }}</option>
+                        </select>
+                        <span class="kpi-employee-scoring-saved" *ngIf="kpiScoringSavedEntryId() === entry.id">Saved</span>
+                        <span class="kpi-employee-scoring-error" *ngIf="kpiScoringErrorEntryId() === entry.id">Couldn't save — try again</span>
+                      </td>
+                      <td class="kpi-cell-center"><span class="kpi-score-pill" [class.kpi-score-flag]="entry.overallScoring === 2" [class.kpi-score-empty]="entry.overallScoring === null">{{ kpiScoreLabel(entry.overallScoring) }}</span></td>
+                      <td class="kpi-cell-center">{{ entry.dateOfReview || 'Not provided' }}</td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr class="kpi-totals-row">
+                      <td>Totals</td>
+                      <td class="kpi-cell-weight" [class.kpi-total-weight-off]="myKpiTotalWeight() !== 100">{{ myKpiTotalWeight() }}%</td>
+                      <td></td>
+                      <td></td>
+                      <td></td>
+                      <td class="kpi-cell-center"></td>
+                      <td class="kpi-cell-center"></td>
+                      <td class="kpi-cell-center"><span class="kpi-score-pill kpi-total-rating-pill">{{ formatKpiOverallRating(myKpiOverallWeightedRating()) }}</span></td>
+                      <td class="kpi-cell-center"></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+            <ng-template #noKpiEntries>
+              <article class="utility-card">
+                <p>Your manager hasn't set up any KPIs for you yet.</p>
+              </article>
+            </ng-template>
+          </section>
+
           <student-messages *ngIf="selectedPanel() === 'messages'" [initialSection]="messagesInitialSection()"></student-messages>
 
           <section *ngIf="selectedPanel() === 'external-training'" class="et-section">
@@ -981,7 +1095,7 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from 
                   <svg width="28" height="28" fill="none" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
                 </div>
                 <h3 class="et-action-title">Request Training</h3>
-                <p class="et-action-desc">Start a new external training request for review and approval. Fill out the training details, cost estimates, and justification for your learning path.</p>
+                <p class="et-action-desc">Start a new training request for review and approval. Fill out the training details, cost estimates, and justification for your learning path.</p>
                 <div class="et-action-footer">
                   <span class="et-action-time">
                     <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke="#94a3b8" stroke-width="2"/><path d="M12 7v5l3 3" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/></svg>
@@ -997,7 +1111,7 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from 
                   <svg width="28" height="28" fill="none" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </div>
                 <h3 class="et-action-title">Training Status</h3>
-                <p class="et-action-desc">Track the current status of your submitted external training requests. View approval stages, feedback, and estimated completion timelines.</p>
+                <p class="et-action-desc">Track the current status of your submitted training requests. View approval stages, feedback, and estimated completion timelines.</p>
                 <div class="et-action-footer">
                   <span class="et-action-time">
                     <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="12" x2="21" y2="12" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="18" x2="21" y2="18" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/><circle cx="3.5" cy="6" r="1" fill="#94a3b8"/><circle cx="3.5" cy="12" r="1" fill="#94a3b8"/><circle cx="3.5" cy="18" r="1" fill="#94a3b8"/></svg>
@@ -1032,7 +1146,7 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from 
           <div *ngIf="externalTrainingRequestDialogOpen()" class="mentorship-dialog-backdrop" (click)="closeExternalTrainingRequestDialog()" aria-hidden="true"></div>
 
           <section *ngIf="externalTrainingRequestDialogOpen()" class="mentorship-dialog external-training-request-dialog" role="dialog" aria-modal="true" aria-labelledby="external-training-request-title">
-            <button class="mentorship-dialog-close external-training-request-close" type="button" aria-label="Close external training request form" (click)="closeExternalTrainingRequestDialog()">Close</button>
+            <button class="mentorship-dialog-close external-training-request-close" type="button" aria-label="Close training request form" (click)="closeExternalTrainingRequestDialog()">Close</button>
 
             <div class="mentorship-content-box external-training-request-card">
               <header class="external-training-request-hero">
@@ -1154,7 +1268,7 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from 
             <div class="mentorship-content-box external-training-status-card">
               <div class="section-heading-row">
                 <div>
-                  <p class="form-section-eyebrow">External Training Request</p>
+                  <p class="form-section-eyebrow">Training Request</p>
                   <h3 id="external-training-status-title">Training Status</h3>
                   <p class="section-copy">Review your submitted requests and the latest feedback from the assigned training manager.</p>
                 </div>
@@ -1162,7 +1276,7 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from 
 
               @if (learnerExternalTrainingRequests().length) {
                 <div class="external-training-status-shell">
-                  <div class="external-training-status-list" role="list" aria-label="Submitted external training requests">
+                  <div class="external-training-status-list" role="list" aria-label="Submitted training requests">
                     @for (request of learnerExternalTrainingRequests(); track request.id) {
                       <button
                         type="button"
@@ -1278,7 +1392,7 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from 
               } @else {
                 <article class="utility-card">
                   <div class="utility-card-title">No submitted requests yet</div>
-                  <p class="utility-card-copy">Once you submit an external training request, its review status will appear here.</p>
+                  <p class="utility-card-copy">Once you submit a training request, its review status will appear here.</p>
                 </article>
               }
             </div>
@@ -1288,7 +1402,6 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from 
             <div class="section-heading-block">
               <p class="eyebrow">Individual Development Plan</p>
               <h1>My IDP</h1>
-              <p class="section-copy">Review the development entries your manager has saved for you.</p>
             </div>
 
             <div class="idp-program-card" *ngIf="managerIdpEntries().length > 0; else noIdpEntries">
@@ -1354,10 +1467,11 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from 
   `,
   styles: [`
     :host {
-      --ui-scale: 0.9;
+      --ui-scale: 0.86;
+      --sidebar-stack-offset: calc((4.1rem + 72px) * var(--ui-scale) + 4px);
       display: block;
       min-height: 100vh;
-      background: #eef3fb;
+      background: #eef2f7;
       font-family: 'Inter', 'Segoe UI', 'Roboto', Arial, sans-serif;
     }
 
@@ -1369,14 +1483,14 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from 
       box-sizing: border-box;
       background:
         radial-gradient(circle at top left, var(--brand-tint), transparent 20%),
-        linear-gradient(180deg, #f5f8ff 0%, var(--brand-surface) 100%);
+        linear-gradient(180deg, #f6f8fc 0%, var(--brand-surface) 100%);
     }
 
     .welcome-banner {
       position: fixed;
       top: calc(1rem * var(--ui-scale));
       left: 50%;
-      z-index: 60;
+      z-index: 150;
       width: min(calc(360px * var(--ui-scale)), calc(100vw - 2rem));
       padding: calc(0.95rem * var(--ui-scale)) calc(1.2rem * var(--ui-scale));
       border: 1px solid rgba(129, 140, 248, 0.18);
@@ -1491,8 +1605,9 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from 
     }
 
     .profile-topbar {
-      position: relative;
-      z-index: 20;
+      position: sticky;
+      top: calc(1rem * var(--ui-scale));
+      z-index: 70;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -1500,11 +1615,11 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from 
       min-height: calc(72px * var(--ui-scale));
       margin-bottom: calc(1rem * var(--ui-scale));
       padding: calc(0.9rem * var(--ui-scale)) calc(1.2rem * var(--ui-scale));
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), var(--brand-surface));
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), var(--brand-surface));
       border: 1px solid var(--brand-tint);
-      border-radius: calc(22px * var(--ui-scale));
-      box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
-      backdrop-filter: blur(10px);
+      border-bottom: 3px solid var(--brand-primary);
+      border-radius: calc(14px * var(--ui-scale));
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03), 0 4px 14px rgba(15, 23, 42, 0.045);
       box-sizing: border-box;
     }
 
@@ -1922,15 +2037,40 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from 
       gap: calc(0.65rem * var(--ui-scale));
       align-self: start;
       position: sticky;
-      top: calc(1rem * var(--ui-scale));
-      max-height: calc(100vh - calc(2rem * var(--ui-scale)));
+      top: var(--sidebar-stack-offset);
+      height: calc(100vh - var(--sidebar-stack-offset) - calc(1rem * var(--ui-scale)));
       overflow: auto;
-      padding: calc(1rem * var(--ui-scale));
-      background: var(--brand-surface);
+      padding: calc(0.85rem * var(--ui-scale));
+      background: #ffffff;
       border: 1px solid var(--brand-tint);
-      border-radius: calc(24px * var(--ui-scale));
-      box-shadow: 0 16px 36px rgba(15, 23, 42, 0.06);
-      backdrop-filter: blur(10px);
+      border-left: 4px solid var(--brand-primary);
+      border-radius: calc(14px * var(--ui-scale));
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03), 0 4px 14px rgba(15, 23, 42, 0.045);
+      scrollbar-width: none;
+      scrollbar-color: transparent transparent;
+    }
+
+    .side-panel.side-panel-scrolling {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(15, 23, 42, 0.28) transparent;
+    }
+
+    .side-panel::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .side-panel::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .side-panel::-webkit-scrollbar-thumb {
+      background-color: transparent;
+      border-radius: 999px;
+      transition: background-color 0.3s ease;
+    }
+
+    .side-panel.side-panel-scrolling::-webkit-scrollbar-thumb {
+      background-color: rgba(15, 23, 42, 0.28);
     }
 
     .side-panel-header {
@@ -2452,6 +2592,262 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from 
       line-height: 1.4;
     }
 
+    /* ── KPI Table ─────────────────────────────────────────────────── */
+    /* .main-panel is a column flexbox — without min-width: 0 here, a flex item won't shrink
+       below its content's natural width, so the wide KPI table (min-width: 60rem) was forcing
+       this whole section past its intended bounds instead of scrolling internally inside
+       .kpi-table-wrap where it belongs. */
+    .performance-section {
+      min-width: 0;
+    }
+    .idp-program-card {
+      min-width: 0;
+    }
+    .kpi-table-wrap {
+      overflow-x: auto;
+      min-width: 0;
+      padding: 0 1.25rem 1.25rem;
+    }
+
+    .kpi-table {
+      width: 100%;
+      min-width: 46rem;
+      table-layout: fixed;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 0.83rem;
+    }
+
+    .kpi-table th,
+    .kpi-table td {
+      padding: 0.75rem 0.85rem;
+      text-align: left;
+      vertical-align: middle;
+      border-bottom: 1px solid #eef1f6;
+      overflow-wrap: break-word;
+    }
+
+    .kpi-table thead th {
+      padding-top: 0.7rem;
+      padding-bottom: 0.7rem;
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: #64748b;
+      white-space: normal;
+      overflow-wrap: break-word;
+      background: linear-gradient(180deg, #f8fafc 0%, #f3f6fb 100%);
+      border-bottom: 1px solid #e7ecf3;
+    }
+
+    .kpi-table td {
+      color: #1e293b;
+      line-height: 1.45;
+    }
+
+    .kpi-table tbody tr:last-of-type td {
+      border-bottom: none;
+    }
+
+    .kpi-table tbody tr:nth-child(even) td {
+      background: #fbfcfe;
+    }
+
+    .kpi-table tbody tr:hover td {
+      background: var(--brand-tint);
+    }
+
+    .kpi-cell-weight {
+      text-align: right;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .kpi-cell-center {
+      text-align: center;
+    }
+
+    .kpi-score-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 0.3rem;
+      max-width: 100%;
+      padding: 0.28rem 0.6rem;
+      border-radius: 14px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-size: 0.72rem;
+      font-weight: 700;
+      line-height: 1.3;
+      white-space: normal;
+      overflow-wrap: break-word;
+    }
+
+    .kpi-score-pill.kpi-score-empty {
+      background: #f1f5f9;
+      color: #94a3b8;
+      font-weight: 600;
+    }
+
+    .kpi-score-pill.kpi-score-flag {
+      background: #fef2f2;
+      color: #b91c1c;
+    }
+
+    .kpi-employee-scoring-cell select {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      padding: 0.5rem 0.6rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font: inherit;
+      color: #0f172a;
+      background: #fff;
+      box-sizing: border-box;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .kpi-employee-scoring-cell select:hover {
+      border-color: #cbd5e1;
+    }
+
+    .kpi-employee-scoring-cell select:focus {
+      border-color: var(--brand-primary);
+      outline: none;
+      box-shadow: 0 0 0 3px var(--brand-tint);
+    }
+
+    .kpi-employee-scoring-saved {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #15803d;
+    }
+
+    .kpi-employee-scoring-error {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #b91c1c;
+    }
+
+    .kpi-total-weight {
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: #15803d;
+      white-space: nowrap;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      background: #f0fdf4;
+    }
+
+    .kpi-total-weight-off {
+      color: #b91c1c;
+      background: #fef2f2;
+    }
+
+    .kpi-employee-scoring-cell.kpi-score-flag select {
+      border-color: #ef4444;
+      background: #fef2f2;
+      color: #b91c1c;
+      font-weight: 700;
+    }
+
+    .kpi-totals-row td {
+      font-weight: 800;
+      color: #0f172a;
+      background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+      border-top: 2px solid #e2e8f0;
+      border-bottom: none;
+    }
+
+    .kpi-total-rating-pill {
+      background: #eef2ff;
+      color: #4338ca;
+      font-size: 0.78rem;
+    }
+
+    /* "Full screen" toggles the same card into a large centered overlay instead of duplicating
+       the table markup — a backdrop button appears alongside it to let the student click out. */
+    .kpi-overlay-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 79;
+      border: none;
+      cursor: pointer;
+      background: rgba(15, 23, 42, 0.5);
+      backdrop-filter: blur(3px);
+    }
+
+    .idp-program-card.kpi-overlay-active {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      margin: auto;
+      width: min(1500px, 96vw);
+      height: min(1000px, 92vh);
+      max-height: 92vh;
+      overflow: auto;
+      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+      animation: kpi-overlay-panel-enter 0.22s ease-out;
+    }
+
+    @keyframes kpi-overlay-panel-enter {
+      from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.98);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .kpi-fullscreen-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.45rem 0.9rem;
+      border: 1px solid var(--brand-tint);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--brand-primary);
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .kpi-fullscreen-toggle svg {
+      flex-shrink: 0;
+    }
+
+    .kpi-fullscreen-toggle:hover {
+      background: var(--brand-tint);
+      border-color: var(--brand-primary);
+    }
+
+    .kpi-fullscreen-toggle:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px var(--brand-tint);
+    }
+
+    .kpi-fullscreen-toggle-active {
+      background: var(--brand-primary);
+      border-color: var(--brand-primary);
+      color: #fff;
+    }
+
+    .kpi-fullscreen-toggle-active:hover {
+      background: var(--brand-secondary);
+      border-color: var(--brand-secondary);
+    }
+
     .idp-readonly-field-full {
       grid-column: 1 / -1;
     }
@@ -2678,9 +3074,9 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from 
 
     .utility-card {
       display: grid;
-      gap: calc(0.55rem * var(--ui-scale));
-      padding: calc(1rem * var(--ui-scale));
-      border-radius: calc(18px * var(--ui-scale));
+      gap: calc(0.5rem * var(--ui-scale));
+      padding: calc(0.85rem * var(--ui-scale));
+      border-radius: calc(12px * var(--ui-scale));
       background: #f8fafc;
       border: 1px solid #e6edf5;
     }
@@ -3737,9 +4133,9 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from 
       min-height: max-content;
       padding: 0;
       border: 1px solid #dbe5f3;
-      border-radius: calc(28px * var(--ui-scale));
+      border-radius: calc(16px * var(--ui-scale));
       background: #f5f7fb;
-      box-shadow: 0 32px 72px rgba(15, 23, 42, 0.24);
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
       overflow: clip;
     }
 
@@ -4091,7 +4487,7 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord } from 
         grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
         align-items: stretch;
         position: static;
-        max-height: none;
+        height: auto;
         overflow: visible;
       }
 
@@ -4327,6 +4723,118 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
 
     return this.managerData.idpEntriesByStudent()[matchedStudent.id] ?? [];
   });
+
+  // Manager-entered KPI table shown in the student view — every field is read-only except
+  // Employee scoring, which the student fills in themselves (see updateMyKpiEmployeeScoring).
+  // Mirrors the server's own isOwnStudentRecord resolution order exactly (see server.ts):
+  // prefer the session's studentId claim, since that's what the server checks the KPI-scoring
+  // write against. Falling back to an email match against the roster (as this used to do
+  // unconditionally) can silently resolve to a different id than the one the server expects —
+  // that mismatch is what made an employee's own scoring submission look like it saved locally
+  // (optimistic UI update) while the backend write was actually rejected, so the score reverted
+  // on the next refresh.
+  readonly matchedKpiStudentId = computed<string | null>(() => {
+    const sessionStudentId = readLmsSessionRecord()?.studentId?.trim();
+    if (sessionStudentId) {
+      return sessionStudentId;
+    }
+
+    const studentEmail = this.studentData.profile().email.trim().toLocaleLowerCase();
+    if (!studentEmail) {
+      return null;
+    }
+
+    const matchedStudent = this.managerData.students().find(
+      (student) => student.email.trim().toLocaleLowerCase() === studentEmail,
+    );
+    return matchedStudent?.id ?? null;
+  });
+
+  // Without this, *ngFor's default identity-based diffing sees a brand-new object on every
+  // update (every save creates fresh entry objects) and destroys+recreates the whole <tr>,
+  // including the Employee scoring <select> — which can lose the value it was just set to on
+  // re-render before Angular gets a chance to re-bind it. Tracking by the stable entry id keeps
+  // the DOM node in place and just updates its bound value instead.
+  trackKpiEntryById(_index: number, entry: StudentKpiEntry): string {
+    return entry.id;
+  }
+
+  readonly myKpiEntries = computed<StudentKpiEntry[]>(() => {
+    const id = this.matchedKpiStudentId();
+    return id ? (this.managerData.kpiEntriesByStudent()[id] ?? []) : [];
+  });
+
+  readonly myKpiTotalWeight = computed(() =>
+    this.myKpiEntries().reduce((total, entry) => total + (entry.weight || 0), 0),
+  );
+
+  readonly kpiFullScreen = signal(false);
+
+  // Weight-weighted average of Overall Scoring across every KPI that's actually been given an
+  // Overall score — unscored rows are excluded from both the numerator and denominator so a
+  // still-blank KPI doesn't silently drag the total down.
+  readonly myKpiOverallWeightedRating = computed(() => {
+    const scoredEntries = this.myKpiEntries().filter((entry) => entry.overallScoring !== null && entry.weight > 0);
+    const totalWeight = scoredEntries.reduce((total, entry) => total + entry.weight, 0);
+    if (!totalWeight) {
+      return null;
+    }
+
+    const weightedSum = scoredEntries.reduce((total, entry) => total + entry.weight * (entry.overallScoring ?? 0), 0);
+    return weightedSum / totalWeight;
+  });
+
+  formatKpiOverallRating(rating: number | null): string {
+    return rating === null ? 'Not yet scored' : `${rating.toFixed(1)} / 5`;
+  }
+
+  readonly kpiScoreOptions: ReadonlyArray<{ value: StudentKpiScore; label: string }> = [
+    { value: 1, label: '1 - Unacceptable' },
+    { value: 2, label: '2 - Not Fully Effective' },
+    { value: 3, label: '3 - Fully Effective' },
+    { value: 4, label: '4 - Highly Effective' },
+    { value: 5, label: '5 - Outstanding' },
+  ];
+
+  kpiScoreLabel(score: StudentKpiScore | null): string {
+    return this.kpiScoreOptions.find((option) => option.value === score)?.label ?? 'Not scored';
+  }
+
+  readonly kpiScoringSavedEntryId = signal<string | null>(null);
+  readonly kpiScoringErrorEntryId = signal<string | null>(null);
+
+  async updateMyKpiEmployeeScoring(entryId: string, event: Event) {
+    const studentId = this.matchedKpiStudentId();
+    if (!studentId) {
+      return;
+    }
+
+    const select = event.target as HTMLSelectElement | null;
+    const raw = select?.value ?? '';
+    const employeeScoring = raw ? (Number(raw) as StudentKpiScore) : null;
+    const success = await this.managerData.updateEmployeeKpiScoring(studentId, entryId, employeeScoring);
+
+    if (success) {
+      this.kpiScoringErrorEntryId.set(null);
+      this.kpiScoringSavedEntryId.set(entryId);
+      setTimeout(() => {
+        if (this.kpiScoringSavedEntryId() === entryId) {
+          this.kpiScoringSavedEntryId.set(null);
+        }
+      }, 2000);
+    } else {
+      // The optimistic update was already rolled back by updateEmployeeKpiScoring — surface
+      // that so it doesn't just look like nothing happened when a save silently fails.
+      this.kpiScoringSavedEntryId.set(null);
+      this.kpiScoringErrorEntryId.set(entryId);
+      setTimeout(() => {
+        if (this.kpiScoringErrorEntryId() === entryId) {
+          this.kpiScoringErrorEntryId.set(null);
+        }
+      }, 4000);
+    }
+  }
+
   readonly studentData = inject(StudentDataService);
   readonly managerData = inject(TrainingManagerDataService);
   readonly branding = inject(LmsBrandingService);
@@ -4504,9 +5012,11 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     approvingManagerId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
   });
 
-  private readonly _selectedPanel = signal<'dashboard' | 'courses' | 'mentorship' | 'calendar' | 'badges' | 'messages' | 'external-training' | 'idp' | 'profile'>('dashboard');
+  private readonly _selectedPanel = signal<'dashboard' | 'courses' | 'mentorship' | 'calendar' | 'badges' | 'performance' | 'messages' | 'external-training' | 'idp' | 'profile'>('dashboard');
   readonly selectedPanel = computed(() => this._selectedPanel());
   readonly sidePanelCollapsed = signal(false);
+  readonly sidebarScrolling = signal(false);
+  private sidebarScrollTimeout: ReturnType<typeof setTimeout> | null = null;
   readonly availableSwitchRoles = signal<LoginRole[]>([]);
   readonly switchingRole = signal(false);
   private welcomeBannerExitTimer: ReturnType<typeof setTimeout> | null = null;
@@ -4568,6 +5078,19 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.clearWelcomeBannerTimers();
     this.clearExternalTrainingSuccessPopupTimers();
+    if (this.sidebarScrollTimeout) {
+      clearTimeout(this.sidebarScrollTimeout);
+    }
+  }
+
+  /** Shows the side panel's scrollbar thumb only while actively scrolling, hiding it again
+   *  shortly after — keeps the panel looking clean instead of a permanent scroll track. */
+  onSidebarScroll() {
+    this.sidebarScrolling.set(true);
+    if (this.sidebarScrollTimeout) {
+      clearTimeout(this.sidebarScrollTimeout);
+    }
+    this.sidebarScrollTimeout = setTimeout(() => this.sidebarScrolling.set(false), 900);
   }
 
   private startWelcomeBannerSequence() {
@@ -4628,7 +5151,7 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     this.selectPanel(panel as Parameters<typeof this.selectPanel>[0]);
   }
 
-  selectPanel(panel: 'dashboard' | 'courses' | 'mentorship' | 'calendar' | 'badges' | 'messages' | 'external-training' | 'idp' | 'profile') {
+  selectPanel(panel: 'dashboard' | 'courses' | 'mentorship' | 'calendar' | 'badges' | 'performance' | 'messages' | 'external-training' | 'idp' | 'profile') {
     this._selectedPanel.set(panel);
     if (panel !== 'messages') {
       this._messagesInitialSection.set(null);

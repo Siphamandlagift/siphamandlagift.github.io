@@ -38,7 +38,12 @@ type ConsolidatedTrainingReportRow = {
   learnerName: string;
   learnerEmail: string;
   idNumber: string;
+  jobTitle: string;
   department: string;
+  ofoCode: string;
+  race: string;
+  gender: string;
+  municipality: string;
   trainingItem: string;
   source: 'LMS' | 'External';
   trainingType: string;
@@ -352,7 +357,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       }
 
       <div class="admin-layout" [class.admin-layout-sidebar-collapsed]="adminSidebarCollapsed()">
-        <aside class="admin-sidebar" [class.admin-sidebar-collapsed]="adminSidebarCollapsed()" aria-label="Admin navigation">
+        <aside class="admin-sidebar" [class.admin-sidebar-collapsed]="adminSidebarCollapsed()" [class.admin-sidebar-scrolling]="sidebarScrolling()" (scroll)="onSidebarScroll()" aria-label="Admin navigation">
           <div class="admin-sidebar-header">
             <button
               type="button"
@@ -1016,7 +1021,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
             <section class="admin-panel">
               <div class="admin-report-picker">
                 @if (!selectedReportView()) {
-                  <article class="admin-section-card admin-report-menu-card">
+                  <article class="admin-section-card admin-report-menu-card admin-report-menu-card-primary">
                     <div class="admin-section-card-header">
                       <h2>Report List</h2>
                       <span>4 available</span>
@@ -1200,7 +1205,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th>Name</th>
                                   <th>Email</th>
                                   <th>ID Number</th>
+                                  <th>Job Title</th>
                                   <th>Department</th>
+                                  <th>OFO Code</th>
+                                  <th>Race</th>
+                                  <th>Gender</th>
+                                  <th>Municipality</th>
                                   <th>Training Item</th>
                                   <th>Source</th>
                                   <th>Type</th>
@@ -1217,7 +1227,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                     <td>{{ row.learnerName }}</td>
                                     <td>{{ row.learnerEmail }}</td>
                                     <td>{{ row.idNumber }}</td>
+                                    <td>{{ row.jobTitle }}</td>
                                     <td>{{ row.department }}</td>
+                                    <td>{{ row.ofoCode }}</td>
+                                    <td>{{ row.race }}</td>
+                                    <td>{{ row.gender }}</td>
+                                    <td>{{ row.municipality }}</td>
                                     <td>{{ row.trainingItem }}</td>
                                     <td>{{ row.source }}</td>
                                     <td>{{ row.trainingType }}</td>
@@ -1482,6 +1497,17 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
                           <div class="admin-report-actions">
                             <button type="button" class="admin-secondary-btn" (click)="selectedAtrSubReport.set(null)">Back to ATR</button>
+                            <label class="admin-report-filter-field">
+                              <span>Date From</span>
+                              <input type="date" [value]="selectedAtrReportDateFrom()" (input)="updateAtrReportDateFrom($event)" />
+                            </label>
+                            <label class="admin-report-filter-field">
+                              <span>Date To</span>
+                              <input type="date" [value]="selectedAtrReportDateTo()" (input)="updateAtrReportDateTo($event)" />
+                            </label>
+                            @if (selectedAtrReportDateFrom() || selectedAtrReportDateTo()) {
+                              <button type="button" class="admin-secondary-btn" (click)="clearAtrReportDateFilters()">Clear dates</button>
+                            }
                             <label class="admin-report-filter-field admin-report-download-field">
                               <span>Download As</span>
                               <select [value]="selectedAtrSubReportDownloadFormat()" (change)="updateAtrSubReportDownloadFormat($event)">
@@ -1497,6 +1523,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                               <button type="button" class="admin-primary-btn" [disabled]="!canDownloadPivotalActualTrainingReport()" (click)="downloadPivotalActualTrainingReport()">Download report</button>
                             }
                           </div>
+                          <p class="admin-report-note admin-report-note-compact">Dates filter by training approval date (reviewed, falling back to submitted).</p>
                         </article>
 
                         @if (selectedAtrSubReport() === 'beneficiaries-completed') {
@@ -1684,6 +1711,19 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
                           <div class="admin-report-actions">
                             <button type="button" class="admin-secondary-btn" (click)="selectedWspSubReport.set(null)">Back to WSP</button>
+                            @if (selectedWspSubReport() !== 'employment-summary') {
+                              <label class="admin-report-filter-field">
+                                <span>Date From</span>
+                                <input type="date" [value]="selectedWspReportDateFrom()" (input)="updateWspReportDateFrom($event)" />
+                              </label>
+                              <label class="admin-report-filter-field">
+                                <span>Date To</span>
+                                <input type="date" [value]="selectedWspReportDateTo()" (input)="updateWspReportDateTo($event)" />
+                              </label>
+                              @if (selectedWspReportDateFrom() || selectedWspReportDateTo()) {
+                                <button type="button" class="admin-secondary-btn" (click)="clearWspReportDateFilters()">Clear dates</button>
+                              }
+                            }
                             <label class="admin-report-filter-field admin-report-download-field">
                               <span>Download As</span>
                               <select [value]="selectedWspSubReportDownloadFormat()" (change)="updateWspSubReportDownloadFormat($event)">
@@ -1699,6 +1739,11 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                               <button type="button" class="admin-primary-btn" [disabled]="!canDownloadWspPivotalPlannedReport()" (click)="downloadWspPivotalPlannedReport()">Download report</button>
                             }
                           </div>
+                          @if (selectedWspSubReport() !== 'employment-summary') {
+                            <p class="admin-report-note admin-report-note-compact">Dates filter by each planned item's target date — course completion deadline, or IDP target date.</p>
+                          } @else {
+                            <p class="admin-report-note admin-report-note-compact">Employment Summary profiles the whole current workforce and has no per-record date to filter by.</p>
+                          }
                         </article>
 
                         @if (selectedWspSubReport() === 'beneficiaries-planned') {
@@ -1923,6 +1968,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
   styles: [`
     :host {
       --ui-scale: 0.86;
+      --sidebar-stack-offset: calc((3.7rem + 64px) * var(--ui-scale) + 4px);
       display: block;
       min-height: 100vh;
       background: #eef2f7;
@@ -1954,7 +2000,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .admin-topbar {
-      position: relative;
+      position: sticky;
+      top: calc(1rem * var(--ui-scale));
       z-index: 70;
       display: flex;
       align-items: center;
@@ -1962,6 +2009,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       gap: calc(1rem * var(--ui-scale));
       min-height: calc(64px * var(--ui-scale));
       margin-bottom: calc(0.85rem * var(--ui-scale));
+      background: linear-gradient(180deg, var(--admin-tint) 0%, #ffffff 70%);
+      border-bottom: 3px solid var(--admin-primary);
       padding: calc(0.75rem * var(--ui-scale)) calc(1.1rem * var(--ui-scale));
       border-radius: calc(14px * var(--ui-scale));
       box-sizing: border-box;
@@ -2193,12 +2242,42 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-sidebar {
       position: sticky;
-      top: calc(1rem * var(--ui-scale));
+      top: var(--sidebar-stack-offset);
       display: flex;
       flex-direction: column;
       gap: calc(0.6rem * var(--ui-scale));
+      align-self: start;
+      height: calc(100vh - var(--sidebar-stack-offset) - calc(1rem * var(--ui-scale)));
+      overflow: auto;
       padding: calc(0.85rem * var(--ui-scale));
       border-radius: calc(14px * var(--ui-scale));
+      background: linear-gradient(180deg, var(--admin-tint) 0%, #ffffff 45%);
+      border-left: 4px solid var(--admin-primary);
+      scrollbar-width: none;
+      scrollbar-color: transparent transparent;
+    }
+
+    .admin-sidebar.admin-sidebar-scrolling {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(15, 23, 42, 0.28) transparent;
+    }
+
+    .admin-sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .admin-sidebar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .admin-sidebar::-webkit-scrollbar-thumb {
+      background-color: transparent;
+      border-radius: 999px;
+      transition: background-color 0.3s ease;
+    }
+
+    .admin-sidebar.admin-sidebar-scrolling::-webkit-scrollbar-thumb {
+      background-color: rgba(15, 23, 42, 0.28);
     }
 
     .admin-sidebar-header {
@@ -2404,8 +2483,11 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       grid-template-rows: auto 1fr;
       width: 100%;
       max-width: none;
-      min-height: calc(100vh - 8rem);
       overflow: hidden;
+    }
+
+    .admin-report-menu-card-primary {
+      min-height: calc(100vh - 8rem);
     }
 
     .admin-report-menu-card .admin-report-menu {
@@ -3252,6 +3334,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       line-height: 1.45;
     }
 
+    .admin-report-note-compact {
+      margin-top: 0.75rem;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.76rem;
+    }
+
     .admin-field-hint {
       display: block;
       margin-top: 0.3rem;
@@ -3510,6 +3598,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       .admin-sidebar {
         position: static;
         width: 100%;
+        height: auto;
       }
 
       .admin-sidebar-header {
@@ -3545,7 +3634,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
         justify-self: stretch;
       }
 
-      .admin-report-menu-card {
+      .admin-report-menu-card,
+      .admin-report-menu-card-primary {
         max-width: 100%;
       }
     }
@@ -3635,6 +3725,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   ];
   readonly selectedPanel = signal<AdminPanel>('dashboard');
   readonly adminSidebarCollapsed = signal(false);
+  readonly sidebarScrolling = signal(false);
+  private sidebarScrollTimeout: ReturnType<typeof setTimeout> | null = null;
   readonly userSearchTerm = signal('');
   readonly editingUserId = signal<string | null>(null);
   readonly editingAnnualReportRequestId = signal<string | null>(null);
@@ -3656,6 +3748,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly selectedAnnualReportSource = signal<TrainingReportSource>('All');
   readonly selectedAnnualReportDateFrom = signal('');
   readonly selectedAnnualReportDateTo = signal('');
+  readonly selectedAtrReportDateFrom = signal('');
+  readonly selectedAtrReportDateTo = signal('');
+  readonly selectedWspReportDateFrom = signal('');
+  readonly selectedWspReportDateTo = signal('');
   readonly showSingleUserModal = signal(false);
   readonly singleUserMessage = signal('');
   readonly singleUserTone = signal<'success' | 'error'>('success');
@@ -3821,7 +3917,12 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         learnerName: request.studentName,
         learnerEmail: request.studentEmail,
         idNumber: matchedStudent?.idNumber || 'Not provided',
+        jobTitle: matchedStudent?.jobTitle || 'Not provided',
         department: matchedStudent?.department || 'Unassigned',
+        ofoCode: matchedStudent?.ofoCode || 'Not provided',
+        race: matchedStudent?.race || 'Not provided',
+        gender: matchedStudent?.gender || 'Not provided',
+        municipality: matchedStudent?.municipality || 'Not provided',
         trainingItem: request.courseName,
         source: 'External',
         trainingType: request.trainingType || 'External training',
@@ -3871,7 +3972,12 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
           learnerName: `${student.name} ${student.surname}`.trim(),
           learnerEmail: student.email,
           idNumber: student.idNumber || 'Not provided',
+          jobTitle: student.jobTitle || 'Not provided',
           department: student.department || 'Unassigned',
+          ofoCode: student.ofoCode || 'Not provided',
+          race: student.race || 'Not provided',
+          gender: student.gender || 'Not provided',
+          municipality: student.municipality || 'Not provided',
           trainingItem: courseTitle,
           source: 'LMS',
           trainingType: marks ? 'Assignment' : 'Course',
@@ -3978,6 +4084,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
           row.learnerName,
           row.learnerEmail,
           row.idNumber,
+          row.jobTitle,
           row.department,
           row.trainingItem,
           row.provider,
@@ -4018,9 +4125,21 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   private readonly completedTrainingEvents = computed<CompletedTrainingEvent[]>(() => {
     const studentsById = new Map(this.users().map((student) => [student.id, student]));
     const studentsByEmail = new Map(this.users().map((student) => [student.email.toLowerCase(), student]));
+    const dateFrom = this.selectedAtrReportDateFrom();
+    const dateTo = this.selectedAtrReportDateTo();
 
     return this.managerData.externalTrainingRequests()
       .filter((request) => request.status === 'Approved')
+      .filter((request) => {
+        const dateValue = this.normalizeReportDateValue(request.reviewedAt ?? request.submittedAt);
+        if (dateFrom && (!dateValue || dateValue < dateFrom)) {
+          return false;
+        }
+        if (dateTo && (!dateValue || dateValue > dateTo)) {
+          return false;
+        }
+        return true;
+      })
       .map((request) => ({
         request,
         student: (request.studentId ? studentsById.get(request.studentId) : undefined)
@@ -4146,7 +4265,27 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   // silently dropping rows a real submission would need.
   private readonly plannedTrainingEvents = computed<PlannedTrainingEvent[]>(() => {
     const offeringsById = new Map(this.managerData.offerings().map((offering) => [offering.id, offering]));
+    const dateFrom = this.selectedWspReportDateFrom();
+    const dateTo = this.selectedWspReportDateTo();
     const events: PlannedTrainingEvent[] = [];
+
+    // Planned events have no single canonical "date" — course assignments carry a completion
+    // deadline, IDP entries carry a target date. Both stand in as "when this planned training is
+    // due" for the purposes of the date range filter below.
+    const withinDateRange = (rawDate: string | null | undefined) => {
+      if (!dateFrom && !dateTo) {
+        return true;
+      }
+
+      const dateValue = this.normalizeReportDateValue(rawDate);
+      if (dateFrom && (!dateValue || dateValue < dateFrom)) {
+        return false;
+      }
+      if (dateTo && (!dateValue || dateValue > dateTo)) {
+        return false;
+      }
+      return true;
+    };
 
     for (const student of this.users()) {
       for (const offeringId of student.assignedOfferingIds) {
@@ -4156,6 +4295,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         }
 
         if (this.resolveReportCompletionStatus(student, offeringId, offering.title) === 'Completed') {
+          continue;
+        }
+
+        if (!withinDateRange(offering.completionDeadline)) {
           continue;
         }
 
@@ -4171,6 +4314,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       for (const entry of this.managerData.idpEntriesForStudent(student.id)) {
         const developmentNeed = entry.developmentNeed?.trim();
         if (!developmentNeed || entry.status === 'Completed') {
+          continue;
+        }
+
+        if (!withinDateRange(entry.targetDate)) {
           continue;
         }
 
@@ -4311,8 +4458,20 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.clearWelcomeBannerTimers();
+    if (this.sidebarScrollTimeout) {
+      clearTimeout(this.sidebarScrollTimeout);
+    }
   }
 
+  /** Shows the sidebar's scrollbar thumb only while actively scrolling, hiding it again
+   *  shortly after — keeps the sidebar looking clean instead of a permanent scroll track. */
+  onSidebarScroll() {
+    this.sidebarScrolling.set(true);
+    if (this.sidebarScrollTimeout) {
+      clearTimeout(this.sidebarScrollTimeout);
+    }
+    this.sidebarScrollTimeout = setTimeout(() => this.sidebarScrolling.set(false), 900);
+  }
 
   selectReportView(view: AdminReportView) {
     this.selectedReportView.set(view);
@@ -4456,6 +4615,36 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.selectedAnnualReportSource.set('All');
     this.selectedAnnualReportDateFrom.set('');
     this.selectedAnnualReportDateTo.set('');
+  }
+
+  updateAtrReportDateFrom(event: Event) {
+    const input = event.target as HTMLInputElement | null;
+    this.selectedAtrReportDateFrom.set(input?.value ?? '');
+  }
+
+  updateAtrReportDateTo(event: Event) {
+    const input = event.target as HTMLInputElement | null;
+    this.selectedAtrReportDateTo.set(input?.value ?? '');
+  }
+
+  clearAtrReportDateFilters() {
+    this.selectedAtrReportDateFrom.set('');
+    this.selectedAtrReportDateTo.set('');
+  }
+
+  updateWspReportDateFrom(event: Event) {
+    const input = event.target as HTMLInputElement | null;
+    this.selectedWspReportDateFrom.set(input?.value ?? '');
+  }
+
+  updateWspReportDateTo(event: Event) {
+    const input = event.target as HTMLInputElement | null;
+    this.selectedWspReportDateTo.set(input?.value ?? '');
+  }
+
+  clearWspReportDateFilters() {
+    this.selectedWspReportDateFrom.set('');
+    this.selectedWspReportDateTo.set('');
   }
 
 
@@ -5639,7 +5828,12 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       'Name',
       'Email',
       'ID Number',
+      'Job Title',
       'Department',
+      'OFO Code',
+      'Race',
+      'Gender',
+      'Municipality',
       'Training Item',
       'Source',
       'Type',
@@ -5657,7 +5851,12 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         row.learnerName,
         row.learnerEmail,
         row.idNumber,
+        row.jobTitle,
         row.department,
+        row.ofoCode,
+        row.race,
+        row.gender,
+        row.municipality,
         row.trainingItem,
         row.source,
         row.trainingType,

@@ -22,7 +22,6 @@ type ProfileSection = 'profile' | 'appearance' | null;
       <div class="section-heading-row">
         <div>
           <h2>Profile & Settings</h2>
-          <p class="section-copy">Choose a section first, then manage your profile details or workspace appearance in a focused view.</p>
         </div>
       </div>
 
@@ -136,6 +135,7 @@ type ProfileSection = 'profile' | 'appearance' | null;
             <label class="settings-select-field">
               <span>Theme</span>
               <select formControlName="themePreference">
+                <option value="">Use company theme ({{ branding.currentTheme().label }})</option>
                 @for (theme of branding.themeOptions; track theme.id) {
                   <option [value]="theme.id">{{ theme.label }}</option>
                 }
@@ -628,7 +628,7 @@ export class StudentProfileSettingsComponent {
     newPassword: new FormControl('', { nonNullable: true, validators: [Validators.minLength(8)] }),
   });
   readonly appearanceSettingsForm = new FormGroup({
-    themePreference: new FormControl<LmsBrandThemeId>(this.studentData.settings().themePreference, { nonNullable: true }),
+    themePreference: new FormControl<LmsBrandThemeId | ''>(this.studentData.settings().themePreference ?? '', { nonNullable: true }),
   });
 
   private readonly selectedSectionSignal = signal<ProfileSection>(null);
@@ -652,9 +652,13 @@ export class StudentProfileSettingsComponent {
     const profile = this.studentData.profile();
     return profile.profileImageUrl || profile.profileImageDataUrl || null;
   });
-  readonly selectedThemeOption = computed(
-    () => this.branding.themeOptions.find((theme) => theme.id === this.appearanceSettingsForm.controls.themePreference.value) ?? this.branding.themeOptions[0],
-  );
+  readonly selectedThemeOption = computed(() => {
+    const value = this.appearanceSettingsForm.controls.themePreference.value;
+    if (!value) {
+      return this.branding.currentTheme();
+    }
+    return this.branding.themeOptions.find((theme) => theme.id === value) ?? this.branding.currentTheme();
+  });
   readonly profileInitials = computed(() => {
     const parts = this.studentData.profile().name.trim().split(/\s+/).filter(Boolean);
     return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('') || 'S';
@@ -677,7 +681,7 @@ export class StudentProfileSettingsComponent {
       }
 
       if (!this.appearanceSettingsForm.dirty || this.selectedSection() !== 'appearance') {
-        this.appearanceSettingsForm.patchValue({ themePreference: settings.themePreference }, { emitEvent: false });
+        this.appearanceSettingsForm.patchValue({ themePreference: settings.themePreference ?? '' }, { emitEvent: false });
       }
     });
   }
@@ -807,7 +811,8 @@ export class StudentProfileSettingsComponent {
     this.successMessageSignal.set(null);
     this.errorMessageSignal.set(null);
 
-    const result = await this.studentData.updateThemePreference(this.appearanceSettingsForm.controls.themePreference.value);
+    const selectedTheme = this.appearanceSettingsForm.controls.themePreference.value;
+    const result = await this.studentData.updateThemePreference(selectedTheme || null);
     this.savingSignal.set(false);
     this.appearanceSettingsForm.markAsPristine();
     this.submittedSignal.set(result.success);
