@@ -800,7 +800,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                 <p class="section-copy">A quick snapshot of your organisation's learning activity.</p>
               </div>
 
-                <div class="admin-metric-grid admin-metric-grid-four-up">
+              <div class="admin-dashboard-top-grid">
+                <div class="admin-metric-grid admin-metric-grid-2x2">
                   <article class="admin-metric-card admin-metric-card-users">
                     <span class="admin-metric-icon" aria-hidden="true">
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -903,6 +904,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                   </div>
                 </div>
               </article>
+              </div>
 
               <div class="admin-snapshot-grid">
                 <article class="admin-section-card">
@@ -3078,8 +3080,15 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       font-weight: 800;
     }
 
-    .admin-metric-grid-four-up {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+    .admin-dashboard-top-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+      gap: 1rem;
+      align-items: stretch;
+    }
+
+    .admin-metric-grid-2x2 {
+      grid-template-rows: repeat(2, 1fr);
     }
 
     .admin-dashboard-heading {
@@ -3845,9 +3854,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     @media (max-width: 1120px) {
       .admin-dashboard-grid,
+      .admin-dashboard-top-grid,
       .admin-snapshot-grid,
-      .admin-report-builder-grid,
-      .admin-metric-grid-four-up {
+      .admin-report-builder-grid {
         grid-template-columns: 1fr 1fr;
       }
 
@@ -3930,9 +3939,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       .admin-profile-meta-grid,
       .admin-metric-grid,
       .admin-dashboard-grid,
+      .admin-dashboard-top-grid,
       .admin-snapshot-grid,
       .admin-report-builder-grid,
-      .admin-metric-grid-four-up,
       .admin-edit-form,
       .admin-report-filter-grid {
         grid-template-columns: 1fr;
