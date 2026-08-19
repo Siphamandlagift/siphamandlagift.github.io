@@ -874,9 +874,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     <path d="M 87.75,35.98 A 90,90 0 0,1 152.25,35.98" class="admin-gauge-band admin-gauge-band-serious" [class.admin-gauge-band-ready]="dashboardGaugeReady()" />
                     <path d="M 156.60,37.78 A 90,90 0 0,1 210,120" class="admin-gauge-band admin-gauge-band-good" [class.admin-gauge-band-ready]="dashboardGaugeReady()" />
                     <g class="admin-gauge-needle" [attr.transform]="'rotate(' + performanceGaugeNeedleRotation() + ' 120 120)'" [class.admin-gauge-needle-idle]="performanceGaugeAverage() === null">
-                      <g class="admin-gauge-needle-swing">
-                        <polygon points="117,120 120,44 123,120" />
-                      </g>
+                      <polygon points="117,120 120,44 123,120" />
                     </g>
                     <circle cx="120" cy="120" r="7" class="admin-gauge-hub-ring" [class.admin-gauge-hub-ring-ready]="dashboardGaugeReady()" />
                     <circle cx="120" cy="120" r="7" class="admin-gauge-hub" />
@@ -3444,12 +3442,14 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       stroke-dashoffset: 0;
     }
 
-    /* The needle's actual position always comes straight from performanceGaugeNeedleRotation()
-       with no gating — it must never depend on an animation or timer firing to be correct. The
-       inner -swing group is purely decorative: a CSS animation (auto-plays on insertion, unlike a
-       transition, so it needs no JS trigger) that adds a settling overshoot on top of the real
-       angle. Worst case, if it doesn't run at all, the needle still lands exactly on the correct
-       value immediately — it just skips the flourish. */
+    /* The needle's rotation always comes straight from performanceGaugeNeedleRotation(), applied
+       via the SVG rotate(angle, cx, cy) transform function — its pivot is part of the transform
+       value itself, so it's exact regardless of any CSS transform-origin/transform-box ambiguity.
+       No entrance flourish on the needle specifically: an earlier attempt at a decorative
+       "settle-in wiggle" nested group relied on CSS transform-origin resolving against the right
+       reference box, which isn't reliable across browsers and could swing the needle off its
+       pivot before settling. The transition below still smooths any later change once the real
+       average updates during a session — it just doesn't animate the very first paint. */
     .admin-gauge-needle {
       transition: transform 0.6s ease;
       transform-origin: 120px 120px;
@@ -3462,16 +3462,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-gauge-needle-idle {
       opacity: 0.32;
-    }
-
-    @keyframes admin-gauge-needle-settle {
-      0% { transform: rotate(-46deg); }
-      100% { transform: rotate(0deg); }
-    }
-
-    .admin-gauge-needle-swing {
-      transform-origin: 120px 120px;
-      animation: admin-gauge-needle-settle 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both;
     }
 
     .admin-gauge-hub {
@@ -3591,8 +3581,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       .admin-gauge-card,
       .admin-gauge-legend-row,
       .admin-gauge-value-ready,
-      .admin-gauge-hub-ring-ready,
-      .admin-gauge-needle-swing {
+      .admin-gauge-hub-ring-ready {
         animation: none;
       }
 
