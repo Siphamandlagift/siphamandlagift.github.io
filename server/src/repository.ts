@@ -427,6 +427,30 @@ function normalizeStudentKpiEntries(entries: unknown): StudentKpiEntryRecord[] {
   });
 }
 
+// employeeScoring is the one field a student can write to their own KPI table (via
+// updateKpiEmployeeScoring), independently of the manager's full-table save. Without this, a
+// manager's Save on setKpiEntriesForStudent — built from whatever their edit form last loaded —
+// silently overwrites a student's self-score with a stale value the instant the manager saves
+// anything else on that row, even minutes or hours after the student scored themselves: the
+// manager's client has no way to know a newer self-score exists once their form is open. Forcing
+// every incoming row's employeeScoring back to whatever the CURRENT stored value actually is
+// (matched by row id; a genuinely new row simply has no existing value to preserve) makes that
+// field structurally impossible for this endpoint to touch, no matter how stale the caller's
+// payload is — this is what actually keeps a saved rating from ever "disappearing again".
+function preserveEmployeeScoringOnFullReplace(
+  existingEntries: StudentKpiEntryRecord[],
+  incomingEntries: StudentKpiEntryRecord[],
+): StudentKpiEntryRecord[] {
+  const existingEmployeeScoringById = new Map(existingEntries.map((entry) => [entry.id, entry.employeeScoring]));
+
+  return incomingEntries.map((entry) => ({
+    ...entry,
+    employeeScoring: existingEmployeeScoringById.has(entry.id)
+      ? existingEmployeeScoringById.get(entry.id) ?? null
+      : entry.employeeScoring,
+  }));
+}
+
 function createStudentRecordFromEnrollment(student: EnrollmentStudentRecord): StudentRecord {
   return {
     ...student,
@@ -783,9 +807,10 @@ export class LmsRepository {
       return null;
     }
 
+    const existingEntries = data.students[studentIndex].kpiEntries ?? [];
     data.students[studentIndex] = {
       ...data.students[studentIndex],
-      kpiEntries: normalizeStudentKpiEntries(entries),
+      kpiEntries: preserveEmployeeScoringOnFullReplace(existingEntries, normalizeStudentKpiEntries(entries)),
     };
 
     const next = await this.write(data);
@@ -2022,7 +2047,8 @@ class FirestoreLmsRepository extends LmsRepository {
         return null;
       }
 
-      const nextEntries = normalizeStudentKpiEntries(entries);
+      const existingEntries = (snapshot.data() as StudentRecord).kpiEntries ?? [];
+      const nextEntries = preserveEmployeeScoringOnFullReplace(existingEntries, normalizeStudentKpiEntries(entries));
       transaction.update(ref, { kpiEntries: this.sanitizeForFirestore(nextEntries) });
       return nextEntries;
     });
