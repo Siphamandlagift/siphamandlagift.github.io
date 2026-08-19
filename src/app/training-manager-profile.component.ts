@@ -8763,19 +8763,23 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.savedKpiEntries().reduce((total, entry) => total + (entry.weight || 0), 0),
   );
 
-  // Weight-weighted average of Overall Scoring across every KPI that's actually been given an
-  // Overall score — unscored rows are excluded from both the numerator and denominator so a
-  // still-blank KPI doesn't silently drag the total down.
+  // Weight-weighted average of Overall Scoring across every KPI that's actually been given a
+  // score — unscored rows are excluded from both the numerator and denominator so a still-blank
+  // KPI doesn't silently drag the total down. Falls back to the employee's own self-score until
+  // the manager finalizes an Overall score, so a student who rates themselves actually sees that
+  // reflected here instead of the total staying "Not yet scored".
   readonly savedKpiOverallWeightedRating = computed(() => this.computeKpiOverallWeightedRating(this.savedKpiEntries()));
 
-  private computeKpiOverallWeightedRating(entries: ReadonlyArray<{ weight: number; overallScoring: StudentKpiScore | null }>): number | null {
-    const scoredEntries = entries.filter((entry) => entry.overallScoring !== null && entry.weight > 0);
+  private computeKpiOverallWeightedRating(entries: ReadonlyArray<{ weight: number; overallScoring: StudentKpiScore | null; employeeScoring: StudentKpiScore | null }>): number | null {
+    const scoredEntries = entries
+      .map((entry) => ({ weight: entry.weight, score: entry.overallScoring ?? entry.employeeScoring }))
+      .filter((entry) => entry.score !== null && entry.weight > 0);
     const totalWeight = scoredEntries.reduce((total, entry) => total + entry.weight, 0);
     if (!totalWeight) {
       return null;
     }
 
-    const weightedSum = scoredEntries.reduce((total, entry) => total + entry.weight * (entry.overallScoring ?? 0), 0);
+    const weightedSum = scoredEntries.reduce((total, entry) => total + entry.weight * (entry.score ?? 0), 0);
     return weightedSum / totalWeight;
   }
 
@@ -8795,6 +8799,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     const entries = this.kpiEntriesControls().map((control) => ({
       weight: control.controls.weight.value ?? 0,
       overallScoring: control.controls.overallScoring.value,
+      employeeScoring: control.controls.employeeScoring.value,
     }));
     return this.computeKpiOverallWeightedRating(entries);
   }
