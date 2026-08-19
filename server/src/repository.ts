@@ -2073,6 +2073,136 @@ class FirestoreLmsRepository extends LmsRepository {
       return nextEntries;
     });
   }
+
+  // Scoped override of the same shape as the two KPI methods above, for the same reason: the
+  // inherited read()+write() path round-trips and rewrites the ENTIRE store for a single
+  // student's routine snapshot save (autosaved on practically every student-side interaction —
+  // browsing a course, marking a notification read, etc.), so it's the highest-frequency
+  // opportunity for the full-dataset lost-update race described on write() above. Concretely: the
+  // inherited path spreads the existing student record forward (`...data.students[studentIndex]`)
+  // to preserve fields this endpoint doesn't touch, including kpiEntries — but if that read
+  // happened before a concurrent KPI save landed, this save's own (unrelated) write silently
+  // carries the stale kpiEntries back over the top of it once it completes. That's what made a
+  // student's KPI self-score appear saved and then vanish shortly after, independent of the two
+  // dedicated KPI endpoints already being scoped/transactional — this endpoint fires far more
+  // often than either of those, so it's the more likely collision partner in practice.
+  override async updateStudentSnapshot(studentId: string, snapshot: StudentSnapshotUpdate) {
+    const ref = this.collection('students').doc(studentId);
+    const updatedStudent = await this.firestore.runTransaction(async (transaction) => {
+      const documentSnapshot = await transaction.get(ref);
+      if (!documentSnapshot.exists) {
+        return null;
+      }
+
+      const existing = documentSnapshot.data() as StudentRecord;
+      const profileNameParts = snapshot.profile.name.trim().split(/\s+/).filter(Boolean);
+      const nextFirstName = profileNameParts[0] ?? existing.name;
+      const nextSurname = profileNameParts.slice(1).join(' ') || existing.surname;
+
+      // Derive learning status from actual course completion data so it stays accurate as
+      // students progress through their assigned offerings — mirrors the inherited path exactly.
+      const assignedIds = new Set(existing.assignedOfferingIds ?? []);
+      let derivedStatus: 'Completed' | 'In Progress' | 'Not Yet Started' | undefined;
+      if (assignedIds.size > 0) {
+        const assignedCourseRecords = (snapshot.courses ?? []).filter(
+          (courseRecord) => courseRecord.offeringId && assignedIds.has(courseRecord.offeringId),
+        );
+        if (assignedCourseRecords.length > 0) {
+          if (assignedCourseRecords.every((courseRecord) => courseRecord.completed)) {
+            derivedStatus = 'Completed';
+          } else if (assignedCourseRecords.some((courseRecord) => courseRecord.completed || (courseRecord.progress ?? 0) > 0)) {
+            derivedStatus = 'In Progress';
+          } else {
+            derivedStatus = 'Not Yet Started';
+          }
+        }
+      }
+
+      const nextStudent: StudentRecord = {
+        ...existing,
+        name: nextFirstName,
+        surname: nextSurname,
+        email: snapshot.profile.email,
+        idNumber: snapshot.profile.idNumber,
+        ...(derivedStatus !== undefined ? { status: derivedStatus } : {}),
+        profile: snapshot.profile,
+        badgeState: snapshot.badgeState,
+        certificatesAndLicences: snapshot.certificatesAndLicences ?? existing.certificatesAndLicences ?? [],
+        settings: snapshot.settings,
+        mentorshipProfile: snapshot.mentorshipProfile,
+        mentorshipObjectives: snapshot.mentorshipObjectives,
+        mentorshipProgressReport: snapshot.mentorshipProgressReport,
+        courses: snapshot.courses,
+        notifications: snapshot.notifications,
+        messages: snapshot.messages,
+        notifiedOfferingIds: snapshot.notifiedOfferingIds,
+        assessmentAttempts: snapshot.assessmentAttempts,
+        idpEntries: normalizeStudentIdpEntries(snapshot.idpEntries ?? existing.idpEntries ?? []),
+      };
+
+      transaction.update(ref, this.sanitizeForFirestore(nextStudent));
+      return nextStudent;
+    });
+
+    if (!updatedStudent) {
+      return null;
+    }
+
+    // Best-effort and outside the transaction, since it only matters on the rare save where a
+    // student's own email actually changes — keeps their explicitly-linked auth account (if any)
+    // in step, without paying the full authAccounts-collection scan syncLinkedAuthAccounts does
+    // on every save via the inherited path. An auth account that's only matched by email (no
+    // linkedStudentId set) isn't covered here; that fallback-matching case is rare enough for a
+    // self-service email change that it's an acceptable gap against fixing the much more common
+    // KPI data-loss race above.
+    await this.syncLinkedAuthAccountForStudent(updatedStudent);
+
+    return {
+      studentId,
+      profile: updatedStudent.profile,
+      badgeState: updatedStudent.badgeState,
+      certificatesAndLicences: updatedStudent.certificatesAndLicences ?? [],
+      settings: updatedStudent.settings,
+      mentorshipProfile: updatedStudent.mentorshipProfile,
+      mentorshipObjectives: updatedStudent.mentorshipObjectives,
+      mentorshipProgressReport: updatedStudent.mentorshipProgressReport,
+      courses: updatedStudent.courses,
+      notifications: updatedStudent.notifications,
+      messages: updatedStudent.messages,
+      notifiedOfferingIds: updatedStudent.notifiedOfferingIds,
+      assessmentAttempts: updatedStudent.assessmentAttempts ?? {},
+      idpEntries: updatedStudent.idpEntries ?? [],
+    };
+  }
+
+  private async syncLinkedAuthAccountForStudent(student: StudentRecord) {
+    const linkedAccountsSnapshot = await this.collection('authAccounts')
+      .where('linkedStudentId', '==', student.id)
+      .get();
+
+    if (linkedAccountsSnapshot.empty) {
+      return;
+    }
+
+    const role = normalizeLoginRole(student.role);
+    const route = routeForLoginRole(role);
+    const batch = this.firestore.batch();
+    let hasUpdates = false;
+
+    for (const accountDocument of linkedAccountsSnapshot.docs) {
+      const account = accountDocument.data() as FirestoreCollectionRecord<'authAccounts'>;
+      if (account.email === student.email && account.role === role && account.route === route) {
+        continue;
+      }
+
+      hasUpdates = true;
+      batch.update(accountDocument.ref, { email: student.email, role, route });
+    }
+
+    if (hasUpdates) {
+      await batch.commit();
+    }
+  }
 }
 
 export function createLmsRepository() {
