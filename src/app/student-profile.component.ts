@@ -2062,13 +2062,13 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
     .side-panel {
       display: flex;
       flex-direction: column;
-      gap: calc(0.65rem * var(--ui-scale));
+      gap: calc(0.25rem * var(--ui-scale));
       align-self: start;
       position: sticky;
       top: var(--sidebar-stack-offset);
       height: calc(100vh - var(--sidebar-stack-offset) - calc(1rem * var(--ui-scale)));
       overflow: auto;
-      padding: calc(0.85rem * var(--ui-scale));
+      padding: calc(0.6rem * var(--ui-scale));
       background: #ffffff;
       border: 1px solid var(--brand-tint);
       border-left: 4px solid var(--brand-primary);
@@ -2110,10 +2110,10 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: calc(2.5rem * var(--ui-scale));
-      height: calc(2.5rem * var(--ui-scale));
+      width: calc(2.1rem * var(--ui-scale));
+      height: calc(2.1rem * var(--ui-scale));
       border: 1px solid var(--brand-tint);
-      border-radius: calc(14px * var(--ui-scale));
+      border-radius: calc(10px * var(--ui-scale));
       background: var(--brand-surface);
       color: var(--brand-primary);
       cursor: pointer;
@@ -2129,8 +2129,8 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
     }
 
     .side-panel-toggle svg {
-      width: calc(1.1rem * var(--ui-scale));
-      height: calc(1.1rem * var(--ui-scale));
+      width: calc(1rem * var(--ui-scale));
+      height: calc(1rem * var(--ui-scale));
       stroke: currentColor;
     }
 
@@ -2149,15 +2149,15 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
     .side-panel button {
       display: flex;
       align-items: center;
-      gap: calc(0.85rem * var(--ui-scale));
+      gap: calc(0.6rem * var(--ui-scale));
       width: 100%;
       border: 1px solid transparent;
-      border-radius: calc(14px * var(--ui-scale));
+      border-radius: calc(10px * var(--ui-scale));
       background: transparent;
-      padding: calc(0.85rem * var(--ui-scale)) calc(1rem * var(--ui-scale));
+      padding: calc(0.5rem * var(--ui-scale)) calc(0.7rem * var(--ui-scale));
       color: #334155;
       text-align: left;
-      font-size: calc(0.98rem * var(--ui-scale));
+      font-size: calc(0.88rem * var(--ui-scale));
       font-weight: 600;
       cursor: pointer;
       transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
@@ -2174,17 +2174,17 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
     .side-panel button.active {
       background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
       color: #fff;
-      box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+      box-shadow: 0 6px 14px rgba(15, 23, 42, 0.12);
     }
 
     .side-panel-icon {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      flex: 0 0 calc(2.35rem * var(--ui-scale));
-      width: calc(2.35rem * var(--ui-scale));
-      height: calc(2.35rem * var(--ui-scale));
-      border-radius: calc(14px * var(--ui-scale));
+      flex: 0 0 calc(1.9rem * var(--ui-scale));
+      width: calc(1.9rem * var(--ui-scale));
+      height: calc(1.9rem * var(--ui-scale));
+      border-radius: calc(9px * var(--ui-scale));
       border: 1px solid var(--brand-tint);
       background: var(--brand-surface);
       color: #475569;
@@ -2192,8 +2192,8 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
     }
 
     .side-panel-icon svg {
-      width: calc(1.15rem * var(--ui-scale));
-      height: calc(1.15rem * var(--ui-scale));
+      width: calc(1rem * var(--ui-scale));
+      height: calc(1rem * var(--ui-scale));
       stroke: currentColor;
       stroke-width: 1.8;
       stroke-linecap: round;
@@ -2206,8 +2206,8 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
     }
 
     .side-panel-collapsed {
-      gap: calc(0.55rem * var(--ui-scale));
-      padding-inline: calc(0.7rem * var(--ui-scale));
+      gap: calc(0.35rem * var(--ui-scale));
+      padding-inline: calc(0.5rem * var(--ui-scale));
     }
 
     .side-panel-collapsed .side-panel-header {
@@ -2215,12 +2215,12 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
     }
 
     .side-panel-collapsed .side-panel-toggle {
-      width: calc(2.5rem * var(--ui-scale));
+      width: calc(2.1rem * var(--ui-scale));
     }
 
     .side-panel-collapsed button {
       justify-content: center;
-      padding-inline: calc(0.7rem * var(--ui-scale));
+      padding-inline: calc(0.5rem * var(--ui-scale));
     }
 
     .side-panel-collapsed .side-panel-label {
@@ -2228,8 +2228,8 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
     }
 
     .side-panel-collapsed .side-panel-icon {
-      flex-basis: calc(2.6rem * var(--ui-scale));
-      width: calc(2.6rem * var(--ui-scale));
+      flex-basis: calc(2.1rem * var(--ui-scale));
+      width: calc(2.1rem * var(--ui-scale));
     }
 
     .side-panel button.logout {
