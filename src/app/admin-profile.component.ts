@@ -2392,13 +2392,13 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-layout {
       display: grid;
-      grid-template-columns: calc(260px * var(--ui-scale)) minmax(0, 1fr);
+      grid-template-columns: calc(296px * var(--ui-scale)) minmax(0, 1fr);
       gap: calc(1rem * var(--ui-scale));
       align-items: start;
     }
 
     .admin-layout.admin-layout-sidebar-collapsed {
-      grid-template-columns: calc(92px * var(--ui-scale)) minmax(0, 1fr);
+      grid-template-columns: calc(96px * var(--ui-scale)) minmax(0, 1fr);
     }
 
     .admin-sidebar {
@@ -2412,15 +2412,16 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       overflow: auto;
       padding: calc(0.85rem * var(--ui-scale));
       border-radius: calc(14px * var(--ui-scale));
-      background: linear-gradient(180deg, var(--admin-tint) 0%, #ffffff 45%);
-      border-left: 4px solid var(--admin-primary);
+      background: linear-gradient(180deg, #181d40 0%, #12152f 100%);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      box-shadow: 0 20px 45px rgba(8, 10, 26, 0.35);
       scrollbar-width: none;
       scrollbar-color: transparent transparent;
     }
 
     .admin-sidebar.admin-sidebar-scrolling {
       scrollbar-width: thin;
-      scrollbar-color: rgba(15, 23, 42, 0.28) transparent;
+      scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
     }
 
     .admin-sidebar::-webkit-scrollbar {
@@ -2438,7 +2439,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .admin-sidebar.admin-sidebar-scrolling::-webkit-scrollbar-thumb {
-      background-color: rgba(15, 23, 42, 0.28);
+      background-color: rgba(255, 255, 255, 0.25);
     }
 
     .admin-sidebar-header {
@@ -2452,18 +2453,18 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       justify-content: center;
       width: calc(2.5rem * var(--ui-scale));
       height: calc(2.5rem * var(--ui-scale));
-      border: 1px solid var(--admin-tint);
+      border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: calc(10px * var(--ui-scale));
-      background: var(--admin-surface);
-      color: var(--admin-primary);
+      background: rgba(255, 255, 255, 0.06);
+      color: rgba(255, 255, 255, 0.85);
       cursor: pointer;
       transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease, color 0.15s ease;
     }
 
     .admin-sidebar-toggle:hover,
     .admin-sidebar-toggle:focus-visible {
-      background: var(--admin-tint);
-      border-color: var(--admin-primary);
+      background: rgba(255, 255, 255, 0.14);
+      border-color: rgba(255, 255, 255, 0.3);
       outline: none;
       transform: translateY(-1px);
     }
@@ -2492,7 +2493,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       border-radius: calc(10px * var(--ui-scale));
       padding: calc(0.65rem * var(--ui-scale)) calc(0.85rem * var(--ui-scale));
       background: transparent;
-      color: #334155;
+      color: rgba(255, 255, 255, 0.68);
       text-align: left;
       font-weight: 700;
       transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease;
@@ -2506,7 +2507,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       width: calc(2.2rem * var(--ui-scale));
       height: calc(2.2rem * var(--ui-scale));
       border-radius: calc(10px * var(--ui-scale));
-      background: rgba(148, 163, 184, 0.12);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       color: currentColor;
       flex-shrink: 0;
       transition: background 0.18s ease, color 0.18s ease;
@@ -2523,8 +2525,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-sidebar button:not(.admin-sidebar-toggle):hover,
     .admin-sidebar button:not(.admin-sidebar-toggle):focus-visible {
-      background: #f8fafc;
-      color: #334155;
+      background: rgba(255, 255, 255, 0.07);
+      color: #fff;
       outline: none;
       transform: translateX(2px);
     }
@@ -2532,22 +2534,30 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-sidebar button:not(.admin-sidebar-toggle).active {
       background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
       color: #fff;
-      box-shadow: 0 3px 10px rgba(79, 70, 229, 0.16);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
     }
 
     .admin-sidebar button:not(.admin-sidebar-toggle):hover .admin-nav-icon,
     .admin-sidebar button:not(.admin-sidebar-toggle):focus-visible .admin-nav-icon {
-      background: rgba(148, 163, 184, 0.18);
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.3);
     }
 
     .admin-sidebar button:not(.admin-sidebar-toggle).active .admin-nav-icon {
       background: rgba(255, 255, 255, 0.18);
+      border-color: rgba(255, 255, 255, 0.24);
     }
 
     .admin-sidebar button:not(.admin-sidebar-toggle).logout {
       margin-top: auto;
-      background: #fee2e2;
-      color: #b91c1c;
+      background: rgba(248, 113, 113, 0.14);
+      color: #fca5a5;
+    }
+
+    .admin-sidebar button:not(.admin-sidebar-toggle).logout .admin-nav-icon {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(248, 113, 113, 0.3);
+      color: #fca5a5;
     }
 
     .admin-sidebar-collapsed {
@@ -2575,8 +2585,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-sidebar button:not(.admin-sidebar-toggle).logout:hover,
     .admin-sidebar button:not(.admin-sidebar-toggle).logout:focus-visible {
-      background: #fecaca;
-      color: #991b1b;
+      background: rgba(248, 113, 113, 0.24);
+      color: #fecaca;
     }
 
     .admin-main-panel {

@@ -3116,13 +3116,13 @@ type KpiEntryFormGroup = FormGroup<{
 
     .manager-layout {
       display: grid;
-      grid-template-columns: calc(260px * var(--ui-scale)) minmax(0, 1fr);
+      grid-template-columns: calc(296px * var(--ui-scale)) minmax(0, 1fr);
       gap: calc(1rem * var(--ui-scale));
       align-items: start;
     }
 
     .manager-layout.manager-layout-sidebar-collapsed {
-      grid-template-columns: calc(92px * var(--ui-scale)) minmax(0, 1fr);
+      grid-template-columns: calc(96px * var(--ui-scale)) minmax(0, 1fr);
     }
 
     .manager-sidebar {
@@ -3136,15 +3136,16 @@ type KpiEntryFormGroup = FormGroup<{
       overflow: auto;
       padding: calc(0.85rem * var(--ui-scale));
       border-radius: calc(14px * var(--ui-scale));
-      background: linear-gradient(180deg, var(--brand-tint) 0%, rgba(255, 255, 255, 0.92) 45%);
-      border-left: 4px solid var(--brand-primary);
+      background: linear-gradient(180deg, #181d40 0%, #12152f 100%);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      box-shadow: 0 20px 45px rgba(8, 10, 26, 0.35);
       scrollbar-width: none;
       scrollbar-color: transparent transparent;
     }
 
     .manager-sidebar.manager-sidebar-scrolling {
       scrollbar-width: thin;
-      scrollbar-color: rgba(15, 23, 42, 0.28) transparent;
+      scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
     }
 
     .manager-sidebar::-webkit-scrollbar {
@@ -3162,7 +3163,7 @@ type KpiEntryFormGroup = FormGroup<{
     }
 
     .manager-sidebar.manager-sidebar-scrolling::-webkit-scrollbar-thumb {
-      background-color: rgba(15, 23, 42, 0.28);
+      background-color: rgba(255, 255, 255, 0.25);
     }
 
     .manager-sidebar-header {
@@ -3176,18 +3177,18 @@ type KpiEntryFormGroup = FormGroup<{
       justify-content: center;
       width: calc(2.5rem * var(--ui-scale));
       height: calc(2.5rem * var(--ui-scale));
-      border: 1px solid var(--brand-tint);
+      border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: calc(14px * var(--ui-scale));
-      background: var(--brand-surface);
-      color: var(--brand-primary);
+      background: rgba(255, 255, 255, 0.06);
+      color: rgba(255, 255, 255, 0.85);
       cursor: pointer;
       transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease, color 0.15s ease;
     }
 
     .manager-sidebar-toggle:hover,
     .manager-sidebar-toggle:focus-visible {
-      background: var(--brand-tint);
-      border-color: var(--brand-primary);
+      background: rgba(255, 255, 255, 0.14);
+      border-color: rgba(255, 255, 255, 0.3);
       outline: none;
       transform: translateY(-1px);
     }
@@ -3213,7 +3214,7 @@ type KpiEntryFormGroup = FormGroup<{
       border-radius: calc(14px * var(--ui-scale));
       padding: calc(0.85rem * var(--ui-scale)) calc(1rem * var(--ui-scale));
       background: transparent;
-      color: #334155;
+      color: rgba(255, 255, 255, 0.68);
       text-align: left;
       font-weight: 700;
       transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease;
@@ -3227,7 +3228,8 @@ type KpiEntryFormGroup = FormGroup<{
       width: calc(2.35rem * var(--ui-scale));
       height: calc(2.35rem * var(--ui-scale));
       border-radius: calc(14px * var(--ui-scale));
-      background: rgba(148, 163, 184, 0.12);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       color: currentColor;
       flex-shrink: 0;
       transition: background 0.18s ease, color 0.18s ease;
@@ -3268,8 +3270,8 @@ type KpiEntryFormGroup = FormGroup<{
 
     .manager-sidebar button:not(.manager-sidebar-toggle):hover,
     .manager-sidebar button:not(.manager-sidebar-toggle):focus-visible {
-      background: #f8fafc;
-      color: #334155;
+      background: rgba(255, 255, 255, 0.07);
+      color: #fff;
       outline: none;
       transform: translateX(2px);
     }
@@ -3277,29 +3279,37 @@ type KpiEntryFormGroup = FormGroup<{
     .manager-sidebar button:not(.manager-sidebar-toggle).active {
       background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
       color: #fff;
-      box-shadow: 0 12px 24px rgba(79, 70, 229, 0.18);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
     }
 
     .manager-sidebar button:not(.manager-sidebar-toggle):hover .manager-nav-icon,
     .manager-sidebar button:not(.manager-sidebar-toggle):focus-visible .manager-nav-icon {
-      background: rgba(148, 163, 184, 0.18);
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.3);
     }
 
     .manager-sidebar button:not(.manager-sidebar-toggle).active .manager-nav-icon {
       background: rgba(255, 255, 255, 0.18);
+      border-color: rgba(255, 255, 255, 0.24);
     }
 
     .manager-sidebar button:not(.manager-sidebar-toggle).logout {
       margin-top: auto;
-      background: #fee2e2;
-      color: #b91c1c;
-      border-color: #fecaca;
+      background: rgba(248, 113, 113, 0.14);
+      color: #fca5a5;
+      border-color: rgba(248, 113, 113, 0.22);
     }
 
     .manager-sidebar button:not(.manager-sidebar-toggle).logout:hover,
     .manager-sidebar button:not(.manager-sidebar-toggle).logout:focus-visible {
-      background: #fecaca;
-      color: #991b1b;
+      background: rgba(248, 113, 113, 0.24);
+      color: #fecaca;
+    }
+
+    .manager-sidebar button:not(.manager-sidebar-toggle).logout .manager-nav-icon {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(248, 113, 113, 0.3);
+      color: #fca5a5;
     }
 
     .manager-main-panel {
