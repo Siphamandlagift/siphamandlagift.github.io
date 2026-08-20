@@ -4779,31 +4779,37 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
 
   // Manager-entered KPI table shown in the student view — every field is read-only except
   // Employee scoring, which the student fills in themselves (see stageMyKpiEmployeeScoring /
-  // submitMyKpiRatings). Prefers the session's studentId claim (that's what the server checks
-  // the KPI-scoring write against), but only once it's cross-checked against the *live* roster:
-  // a session claim can go stale — e.g. an admin recreated this student's roster entry (a new
-  // id) sometime after the session was already issued — and a stale id still writes and reads
-  // "successfully" on its own, it's just no longer the same record the current roster (and
-  // everyone else, including the manager) is looking at. That's exactly what made a submitted
-  // rating look saved right away and then read back as "Not scored" on the next visit, while the
-  // manager's own view of the (correct, current) record showed it fine the whole time. A claim
-  // that doesn't match any current student falls back to a live email match instead of being
-  // trusted blindly; if the roster genuinely hasn't loaded yet, fall back to the raw claim rather
-  // than going blank while data is still loading.
+  // submitMyKpiRatings).
+  //
+  // Resolves by live email match against the roster FIRST, with the session's studentId claim
+  // only as a fallback. This is the opposite of an earlier version of this logic, which preferred
+  // the session claim — that was itself a fix for a real bug (an unvalidated email fallback used
+  // to occasionally pick the wrong roster row), but it assumed the session's claim always points
+  // at the one true record for this person. In practice a person can end up with two roster rows
+  // (e.g. a duplicate created during re-enrollment, or a profile recreated by an admin) — the
+  // session's studentId claim, set once at login and never refreshed, can end up pinned to one of
+  // them while the *current* roster the training manager actually looks at is the other. A stale
+  // claim doesn't error, it just quietly reads and writes a different record than everyone else:
+  // exactly what made a submitted rating "Saved" successfully and then read back as "Not scored"
+  // on the next visit, while the manager's own view of the (different, current) record showed it
+  // correctly the whole time. Email is what the roster is actually keyed on from a human's
+  // perspective, so preferring a live match there is the more reliable signal; the session claim
+  // is kept only for the window before the roster has loaded (or the rare case of no email on
+  // file), where it's better than showing nothing. The server accepts writes resolved either way
+  // (see isOwnStudentRecord in server.ts), so this can't cause the "saved locally, rejected on
+  // the backend" failure mode the original session-first fix was written to avoid.
   readonly matchedKpiStudentId = computed<string | null>(() => {
     const students = this.managerData.students();
-    const sessionStudentId = readLmsSessionRecord()?.studentId?.trim() || null;
-
-    if (sessionStudentId && students.some((student) => student.id === sessionStudentId)) {
-      return sessionStudentId;
-    }
-
     const studentEmail = this.studentData.profile().email.trim().toLocaleLowerCase();
     const matchedStudent = studentEmail
       ? students.find((student) => student.email.trim().toLocaleLowerCase() === studentEmail)
       : undefined;
 
-    return matchedStudent?.id ?? sessionStudentId;
+    if (matchedStudent) {
+      return matchedStudent.id;
+    }
+
+    return readLmsSessionRecord()?.studentId?.trim() || null;
   });
 
   // Without this, *ngFor's default identity-based diffing sees a brand-new object on every
