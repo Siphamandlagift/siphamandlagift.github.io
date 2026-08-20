@@ -1026,13 +1026,12 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
                       <td>{{ entry.measure || 'Not provided' }}</td>
                       <td>{{ entry.comments || 'Not provided' }}</td>
                       <td class="kpi-cell-center"><span class="kpi-score-pill" [class.kpi-score-flag]="entry.managerScoring === 2" [class.kpi-score-empty]="entry.managerScoring === null">{{ kpiScoreLabel(entry.managerScoring) }}</span></td>
-                      <td class="kpi-cell-center kpi-employee-scoring-cell" [class.kpi-score-flag]="entry.employeeScoring === 2">
-                        <select [value]="entry.employeeScoring ?? ''" (change)="updateMyKpiEmployeeScoring(entry.id, $event)">
+                      <td class="kpi-cell-center kpi-employee-scoring-cell" [class.kpi-score-flag]="resolveEmployeeScoringDisplay(entry) === 2">
+                        <select [value]="resolveEmployeeScoringDisplay(entry) ?? ''" (change)="stageMyKpiEmployeeScoring(entry.id, $event)">
                           <option value="">Not scored</option>
                           <option *ngFor="let option of kpiScoreOptions" [value]="option.value">{{ option.label }}</option>
                         </select>
-                        <span class="kpi-employee-scoring-saved" *ngIf="kpiScoringSavedEntryId() === entry.id">Saved</span>
-                        <span class="kpi-employee-scoring-error" *ngIf="kpiScoringErrorEntryId() === entry.id">Couldn't save — try again</span>
+                        <span class="kpi-employee-scoring-pending" *ngIf="isEmployeeScoringPending(entry.id)">Not submitted yet</span>
                       </td>
                       <td class="kpi-cell-center"><span class="kpi-score-pill" [class.kpi-score-flag]="entry.overallScoring === 2" [class.kpi-score-empty]="entry.overallScoring === null">{{ kpiScoreLabel(entry.overallScoring) }}</span></td>
                       <td class="kpi-cell-center">{{ entry.dateOfReview || 'Not provided' }}</td>
@@ -1052,6 +1051,22 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
                     </tr>
                   </tfoot>
                 </table>
+              </div>
+
+              <div class="kpi-submit-actions">
+                @if (kpiSubmitSaved()) {
+                  <p class="kpi-submit-status kpi-submit-status-saved" role="status" aria-live="polite">Ratings submitted.</p>
+                }
+                @if (kpiSubmitError()) {
+                  <p class="kpi-submit-status kpi-submit-status-error" role="alert">Couldn't save — try again.</p>
+                }
+                <button
+                  type="button"
+                  class="kpi-submit-button"
+                  [disabled]="!hasPendingKpiChanges() || kpiSubmitting()"
+                  (click)="submitMyKpiRatings()">
+                  {{ kpiSubmitting() ? 'Submitting…' : 'Submit Ratings' }}
+                </button>
               </div>
             </div>
             <ng-template #noKpiEntries>
@@ -2722,17 +2737,55 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
       box-shadow: 0 0 0 3px var(--brand-tint);
     }
 
-    .kpi-employee-scoring-saved {
-      font-size: 0.72rem;
-      font-weight: 700;
-      color: #15803d;
-    }
-
-    .kpi-employee-scoring-error {
+    .kpi-employee-scoring-pending {
       display: block;
       font-size: 0.72rem;
       font-weight: 700;
+      color: #b45309;
+    }
+
+    .kpi-submit-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.8rem;
+      padding: 0.9rem 1rem 0;
+      flex-wrap: wrap;
+    }
+
+    .kpi-submit-status {
+      margin: 0;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .kpi-submit-status-saved {
+      color: #15803d;
+    }
+
+    .kpi-submit-status-error {
       color: #b91c1c;
+    }
+
+    .kpi-submit-button {
+      padding: 0.6rem 1.3rem;
+      border: none;
+      border-radius: 999px;
+      background: var(--brand-primary);
+      color: #fff;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background-color 0.15s ease, opacity 0.15s ease;
+    }
+
+    .kpi-submit-button:hover:not(:disabled) {
+      background: var(--brand-secondary);
+    }
+
+    .kpi-submit-button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
 
     .kpi-total-weight {
@@ -4725,8 +4778,9 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
   });
 
   // Manager-entered KPI table shown in the student view — every field is read-only except
-  // Employee scoring, which the student fills in themselves (see updateMyKpiEmployeeScoring).
-  // Mirrors the server's own isOwnStudentRecord resolution order exactly (see server.ts):
+  // Employee scoring, which the student fills in themselves (see stageMyKpiEmployeeScoring /
+  // submitMyKpiRatings). Mirrors the server's own isOwnStudentRecord resolution order exactly
+  // (see server.ts):
   // prefer the session's studentId claim, since that's what the server checks the KPI-scoring
   // write against. Falling back to an email match against the roster (as this used to do
   // unconditionally) can silently resolve to a different id than the one the server expects —
@@ -4804,38 +4858,57 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     return this.kpiScoreOptions.find((option) => option.value === score)?.label ?? 'Not scored';
   }
 
-  readonly kpiScoringSavedEntryId = signal<string | null>(null);
-  readonly kpiScoringErrorEntryId = signal<string | null>(null);
+  // The student stages every Employee Scoring pick locally and only sends them to the backend
+  // when they click Submit — one confirmed batch write per session at the table instead of a
+  // save-on-every-change network call per row, matching the same "review, then confirm" pattern
+  // the manager's own KPI form already uses (see saveKpiEntries in training-manager-profile.
+  // component.ts). pendingEmployeeScoring holds entryId -> staged value; an entry with no staged
+  // pick yet simply isn't a key in it.
+  readonly pendingEmployeeScoring = signal<Record<string, StudentKpiScore | null>>({});
+  readonly hasPendingKpiChanges = computed(() => Object.keys(this.pendingEmployeeScoring()).length > 0);
+  readonly kpiSubmitting = signal(false);
+  readonly kpiSubmitSaved = signal(false);
+  readonly kpiSubmitError = signal(false);
 
-  async updateMyKpiEmployeeScoring(entryId: string, event: Event) {
-    const studentId = this.matchedKpiStudentId();
-    if (!studentId) {
-      return;
-    }
+  resolveEmployeeScoringDisplay(entry: StudentKpiEntry): StudentKpiScore | null {
+    const pending = this.pendingEmployeeScoring();
+    return entry.id in pending ? pending[entry.id] : entry.employeeScoring;
+  }
 
+  isEmployeeScoringPending(entryId: string): boolean {
+    return entryId in this.pendingEmployeeScoring();
+  }
+
+  stageMyKpiEmployeeScoring(entryId: string, event: Event) {
     const select = event.target as HTMLSelectElement | null;
     const raw = select?.value ?? '';
     const employeeScoring = raw ? (Number(raw) as StudentKpiScore) : null;
-    const success = await this.managerData.updateEmployeeKpiScoring(studentId, entryId, employeeScoring);
+    this.pendingEmployeeScoring.update((current) => ({ ...current, [entryId]: employeeScoring }));
+    this.kpiSubmitSaved.set(false);
+    this.kpiSubmitError.set(false);
+  }
+
+  async submitMyKpiRatings() {
+    const studentId = this.matchedKpiStudentId();
+    const updates = Object.entries(this.pendingEmployeeScoring()).map(([id, employeeScoring]) => ({ id, employeeScoring }));
+    if (!studentId || !updates.length || this.kpiSubmitting()) {
+      return;
+    }
+
+    this.kpiSubmitting.set(true);
+    this.kpiSubmitError.set(false);
+    const success = await this.managerData.updateEmployeeKpiScoring(studentId, updates);
+    this.kpiSubmitting.set(false);
 
     if (success) {
-      this.kpiScoringErrorEntryId.set(null);
-      this.kpiScoringSavedEntryId.set(entryId);
-      setTimeout(() => {
-        if (this.kpiScoringSavedEntryId() === entryId) {
-          this.kpiScoringSavedEntryId.set(null);
-        }
-      }, 2000);
+      this.pendingEmployeeScoring.set({});
+      this.kpiSubmitSaved.set(true);
+      setTimeout(() => this.kpiSubmitSaved.set(false), 3000);
     } else {
-      // The optimistic update was already rolled back by updateEmployeeKpiScoring — surface
-      // that so it doesn't just look like nothing happened when a save silently fails.
-      this.kpiScoringSavedEntryId.set(null);
-      this.kpiScoringErrorEntryId.set(entryId);
-      setTimeout(() => {
-        if (this.kpiScoringErrorEntryId() === entryId) {
-          this.kpiScoringErrorEntryId.set(null);
-        }
-      }, 4000);
+      // Keep the staged picks in place on failure — the optimistic update was already rolled
+      // back by updateEmployeeKpiScoring, but the student's in-progress selections shouldn't be
+      // silently discarded just because the save didn't go through; let them retry with one click.
+      this.kpiSubmitError.set(true);
     }
   }
 

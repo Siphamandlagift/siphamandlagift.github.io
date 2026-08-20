@@ -582,30 +582,36 @@ export class TrainingManagerDataService {
     return this.kpiEntriesByStudentSignal()[studentId] ?? [];
   }
 
-  // Student-facing: merges only the Employee scoring field into an existing KPI row — can't
-  // add/remove rows or touch any other field. The backend enforces that same restriction
+  // Student-facing: merges only the Employee scoring field into existing KPI rows — can't add/
+  // remove rows or touch any other field. The backend enforces that same restriction
   // independently (see /kpi-entries/employee-scoring in server.ts); this just keeps the local
-  // cache in sync with what the backend actually accepted.
-  updateEmployeeKpiScoring(studentId: string, entryId: string, employeeScoring: StudentKpiScore | null): Promise<boolean> {
+  // cache in sync with what the backend actually accepted. Takes a batch of updates rather than
+  // one at a time — the student stages every row they want to score locally (see
+  // stageMyKpiEmployeeScoring in student-profile.component.ts) and submits them together as one
+  // confirmed write, instead of firing a save on every single dropdown change.
+  updateEmployeeKpiScoring(studentId: string, updates: { id: string; employeeScoring: StudentKpiScore | null }[]): Promise<boolean> {
     const normalizedStudentId = studentId.trim();
-    if (!normalizedStudentId) {
+    if (!normalizedStudentId || !updates.length) {
       return Promise.resolve(false);
     }
 
     const previousEntries = this.kpiEntriesByStudentSignal()[normalizedStudentId] ?? [];
+    const scoringById = new Map(updates.map((update) => [update.id, update.employeeScoring]));
 
     this.kpiEntriesDirtyAt[normalizedStudentId] = Date.now();
     this.kpiEntriesByStudentSignal.update((current) => {
       const next = {
         ...current,
-        [normalizedStudentId]: previousEntries.map((entry) => (entry.id === entryId ? { ...entry, employeeScoring } : entry)),
+        [normalizedStudentId]: previousEntries.map((entry) =>
+          scoringById.has(entry.id) ? { ...entry, employeeScoring: scoringById.get(entry.id) ?? null } : entry,
+        ),
       };
       this.saveKpiEntriesByStudent(next);
       return next;
     });
 
     return new Promise<boolean>((resolve) => {
-      this.backend.updateKpiEmployeeScoring(normalizedStudentId, [{ id: entryId, employeeScoring }]).subscribe({
+      this.backend.updateKpiEmployeeScoring(normalizedStudentId, updates).subscribe({
         next: (entries) => {
           this.kpiEntriesDirtyAt[normalizedStudentId] = Date.now();
           this.kpiEntriesByStudentSignal.update((current) => {
