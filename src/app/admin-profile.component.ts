@@ -2406,11 +2406,11 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       top: var(--sidebar-stack-offset);
       display: flex;
       flex-direction: column;
-      gap: calc(0.6rem * var(--ui-scale));
+      gap: calc(0.25rem * var(--ui-scale));
       align-self: start;
       height: calc(100vh - var(--sidebar-stack-offset) - calc(1rem * var(--ui-scale)));
       overflow: auto;
-      padding: calc(0.85rem * var(--ui-scale));
+      padding: calc(0.6rem * var(--ui-scale));
       border-radius: calc(14px * var(--ui-scale));
       background: linear-gradient(180deg, #181d40 0%, #12152f 100%);
       border: 1px solid rgba(255, 255, 255, 0.06);
@@ -2451,8 +2451,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: calc(2.5rem * var(--ui-scale));
-      height: calc(2.5rem * var(--ui-scale));
+      width: calc(2.1rem * var(--ui-scale));
+      height: calc(2.1rem * var(--ui-scale));
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: calc(10px * var(--ui-scale));
       background: rgba(255, 255, 255, 0.06);
@@ -2470,8 +2470,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .admin-sidebar-toggle svg {
-      width: calc(1.1rem * var(--ui-scale));
-      height: calc(1.1rem * var(--ui-scale));
+      width: calc(1rem * var(--ui-scale));
+      height: calc(1rem * var(--ui-scale));
       stroke: currentColor;
     }
 
@@ -2489,12 +2489,13 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-sidebar button:not(.admin-sidebar-toggle) {
       display: flex;
       align-items: center;
-      gap: calc(0.7rem * var(--ui-scale));
+      gap: calc(0.6rem * var(--ui-scale));
       border-radius: calc(10px * var(--ui-scale));
-      padding: calc(0.65rem * var(--ui-scale)) calc(0.85rem * var(--ui-scale));
+      padding: calc(0.5rem * var(--ui-scale)) calc(0.7rem * var(--ui-scale));
       background: transparent;
       color: rgba(255, 255, 255, 0.68);
       text-align: left;
+      font-size: calc(0.88rem * var(--ui-scale));
       font-weight: 700;
       transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease;
     }
@@ -2503,10 +2504,10 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      flex: 0 0 calc(2.2rem * var(--ui-scale));
-      width: calc(2.2rem * var(--ui-scale));
-      height: calc(2.2rem * var(--ui-scale));
-      border-radius: calc(10px * var(--ui-scale));
+      flex: 0 0 calc(1.9rem * var(--ui-scale));
+      width: calc(1.9rem * var(--ui-scale));
+      height: calc(1.9rem * var(--ui-scale));
+      border-radius: calc(9px * var(--ui-scale));
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.1);
       color: currentColor;
@@ -2515,8 +2516,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .admin-nav-icon svg {
-      width: calc(1.15rem * var(--ui-scale));
-      height: calc(1.15rem * var(--ui-scale));
+      width: calc(1rem * var(--ui-scale));
+      height: calc(1rem * var(--ui-scale));
     }
 
     .admin-nav-label {
@@ -2561,8 +2562,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .admin-sidebar-collapsed {
-      gap: calc(0.55rem * var(--ui-scale));
-      padding-inline: calc(0.7rem * var(--ui-scale));
+      gap: calc(0.35rem * var(--ui-scale));
+      padding-inline: calc(0.5rem * var(--ui-scale));
     }
 
     .admin-sidebar-collapsed .admin-sidebar-header {
@@ -2571,7 +2572,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-sidebar-collapsed button {
       justify-content: center;
-      padding-inline: calc(0.7rem * var(--ui-scale));
+      padding-inline: calc(0.5rem * var(--ui-scale));
     }
 
     .admin-sidebar-collapsed .admin-nav-label {
@@ -2579,8 +2580,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .admin-sidebar-collapsed .admin-nav-icon {
-      flex-basis: calc(2.6rem * var(--ui-scale));
-      width: calc(2.6rem * var(--ui-scale));
+      flex-basis: calc(2.1rem * var(--ui-scale));
+      width: calc(2.1rem * var(--ui-scale));
     }
 
     .admin-sidebar button:not(.admin-sidebar-toggle).logout:hover,

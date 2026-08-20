@@ -3130,11 +3130,11 @@ type KpiEntryFormGroup = FormGroup<{
       top: var(--sidebar-stack-offset);
       display: flex;
       flex-direction: column;
-      gap: calc(0.65rem * var(--ui-scale));
+      gap: calc(0.25rem * var(--ui-scale));
       align-self: start;
       height: calc(100vh - var(--sidebar-stack-offset) - calc(1rem * var(--ui-scale)));
       overflow: auto;
-      padding: calc(0.85rem * var(--ui-scale));
+      padding: calc(0.6rem * var(--ui-scale));
       border-radius: calc(14px * var(--ui-scale));
       background: linear-gradient(180deg, #181d40 0%, #12152f 100%);
       border: 1px solid rgba(255, 255, 255, 0.06);
@@ -3175,10 +3175,10 @@ type KpiEntryFormGroup = FormGroup<{
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: calc(2.5rem * var(--ui-scale));
-      height: calc(2.5rem * var(--ui-scale));
+      width: calc(2.1rem * var(--ui-scale));
+      height: calc(2.1rem * var(--ui-scale));
       border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: calc(14px * var(--ui-scale));
+      border-radius: calc(10px * var(--ui-scale));
       background: rgba(255, 255, 255, 0.06);
       color: rgba(255, 255, 255, 0.85);
       cursor: pointer;
@@ -3194,8 +3194,8 @@ type KpiEntryFormGroup = FormGroup<{
     }
 
     .manager-sidebar-toggle svg {
-      width: calc(1.1rem * var(--ui-scale));
-      height: calc(1.1rem * var(--ui-scale));
+      width: calc(1rem * var(--ui-scale));
+      height: calc(1rem * var(--ui-scale));
       stroke: currentColor;
     }
 
@@ -3210,12 +3210,13 @@ type KpiEntryFormGroup = FormGroup<{
     .manager-sidebar button:not(.manager-sidebar-toggle) {
       display: flex;
       align-items: center;
-      gap: calc(0.75rem * var(--ui-scale));
-      border-radius: calc(14px * var(--ui-scale));
-      padding: calc(0.85rem * var(--ui-scale)) calc(1rem * var(--ui-scale));
+      gap: calc(0.6rem * var(--ui-scale));
+      border-radius: calc(10px * var(--ui-scale));
+      padding: calc(0.5rem * var(--ui-scale)) calc(0.7rem * var(--ui-scale));
       background: transparent;
       color: rgba(255, 255, 255, 0.68);
       text-align: left;
+      font-size: calc(0.88rem * var(--ui-scale));
       font-weight: 700;
       transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease;
     }
@@ -3224,10 +3225,10 @@ type KpiEntryFormGroup = FormGroup<{
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      flex: 0 0 calc(2.35rem * var(--ui-scale));
-      width: calc(2.35rem * var(--ui-scale));
-      height: calc(2.35rem * var(--ui-scale));
-      border-radius: calc(14px * var(--ui-scale));
+      flex: 0 0 calc(1.9rem * var(--ui-scale));
+      width: calc(1.9rem * var(--ui-scale));
+      height: calc(1.9rem * var(--ui-scale));
+      border-radius: calc(9px * var(--ui-scale));
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.1);
       color: currentColor;
@@ -3237,8 +3238,8 @@ type KpiEntryFormGroup = FormGroup<{
 
     .manager-nav-icon svg {
       display: block;
-      width: calc(1.15rem * var(--ui-scale));
-      height: calc(1.15rem * var(--ui-scale));
+      width: calc(1rem * var(--ui-scale));
+      height: calc(1rem * var(--ui-scale));
     }
 
     .manager-nav-label {
@@ -3246,8 +3247,8 @@ type KpiEntryFormGroup = FormGroup<{
     }
 
     .manager-sidebar-collapsed {
-      gap: calc(0.55rem * var(--ui-scale));
-      padding-inline: calc(0.7rem * var(--ui-scale));
+      gap: calc(0.35rem * var(--ui-scale));
+      padding-inline: calc(0.5rem * var(--ui-scale));
     }
 
     .manager-sidebar-collapsed .manager-sidebar-header {
@@ -3256,7 +3257,7 @@ type KpiEntryFormGroup = FormGroup<{
 
     .manager-sidebar-collapsed button {
       justify-content: center;
-      padding-inline: calc(0.7rem * var(--ui-scale));
+      padding-inline: calc(0.5rem * var(--ui-scale));
     }
 
     .manager-sidebar-collapsed .manager-nav-label {
@@ -3264,8 +3265,8 @@ type KpiEntryFormGroup = FormGroup<{
     }
 
     .manager-sidebar-collapsed .manager-nav-icon {
-      flex-basis: calc(2.6rem * var(--ui-scale));
-      width: calc(2.6rem * var(--ui-scale));
+      flex-basis: calc(2.1rem * var(--ui-scale));
+      width: calc(2.1rem * var(--ui-scale));
     }
 
     .manager-sidebar button:not(.manager-sidebar-toggle):hover,
