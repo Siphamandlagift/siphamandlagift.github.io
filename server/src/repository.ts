@@ -2027,6 +2027,17 @@ class FirestoreLmsRepository extends LmsRepository {
     return nextData;
   }
 
+  // Temporary diagnostic instrumentation: a student's KPI employeeScoring has been reported
+  // reverting after being confirmed saved (persisting past a hard reload, so it's a genuine
+  // server-side loss) despite every write-race we could find through code review already being
+  // fixed below. Logs studentId plus each affected entry's employeeScoring immediately before and
+  // after every write that touches kpiEntries, so the next occurrence can be traced from Cloud
+  // Logging (`[kpi-diag]`) to its actual cause instead of guessed at again. Remove once the real
+  // cause is found and fixed.
+  private logKpiDiagnostic(operation: string, studentId: string, detail: Record<string, unknown>) {
+    console.log(`[kpi-diag] ${new Date().toISOString()} ${operation} student=${studentId} ${JSON.stringify(detail)}`);
+  }
+
   // Scoped, transactional overrides for the two high-frequency single-student KPI writes.
   // The inherited read()+write() path round-trips and rewrites *every* collection in the whole
   // store for any change, serialized only by an in-memory queue that's local to one warm Cloud
@@ -2044,11 +2055,16 @@ class FirestoreLmsRepository extends LmsRepository {
     return this.firestore.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(ref);
       if (!snapshot.exists) {
+        this.logKpiDiagnostic('setKpiEntriesForStudent:missing-doc', studentId, {});
         return null;
       }
 
       const existingEntries = (snapshot.data() as StudentRecord).kpiEntries ?? [];
       const nextEntries = preserveEmployeeScoringOnFullReplace(existingEntries, normalizeStudentKpiEntries(entries));
+      this.logKpiDiagnostic('setKpiEntriesForStudent', studentId, {
+        before: existingEntries.map((entry) => ({ id: entry.id, employeeScoring: entry.employeeScoring })),
+        after: nextEntries.map((entry) => ({ id: entry.id, employeeScoring: entry.employeeScoring })),
+      });
       transaction.update(ref, { kpiEntries: this.sanitizeForFirestore(nextEntries) });
       return nextEntries;
     });
@@ -2059,6 +2075,7 @@ class FirestoreLmsRepository extends LmsRepository {
     return this.firestore.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(ref);
       if (!snapshot.exists) {
+        this.logKpiDiagnostic('updateKpiEmployeeScoring:missing-doc', studentId, { updates });
         return null;
       }
 
@@ -2068,6 +2085,12 @@ class FirestoreLmsRepository extends LmsRepository {
       const nextEntries = existingEntries.map((entry) =>
         scoringById.has(entry.id) ? { ...entry, employeeScoring: scoringById.get(entry.id) ?? null } : entry,
       );
+
+      this.logKpiDiagnostic('updateKpiEmployeeScoring', studentId, {
+        updates,
+        before: existingEntries.map((entry) => ({ id: entry.id, employeeScoring: entry.employeeScoring })),
+        after: nextEntries.map((entry) => ({ id: entry.id, employeeScoring: entry.employeeScoring })),
+      });
 
       transaction.update(ref, { kpiEntries: this.sanitizeForFirestore(nextEntries) });
       return nextEntries;
@@ -2091,6 +2114,7 @@ class FirestoreLmsRepository extends LmsRepository {
     const updatedStudent = await this.firestore.runTransaction(async (transaction) => {
       const documentSnapshot = await transaction.get(ref);
       if (!documentSnapshot.exists) {
+        this.logKpiDiagnostic('updateStudentSnapshot:missing-doc', studentId, {});
         return null;
       }
 
@@ -2139,6 +2163,11 @@ class FirestoreLmsRepository extends LmsRepository {
         assessmentAttempts: snapshot.assessmentAttempts,
         idpEntries: normalizeStudentIdpEntries(snapshot.idpEntries ?? existing.idpEntries ?? []),
       };
+
+      this.logKpiDiagnostic('updateStudentSnapshot', studentId, {
+        kpiEntriesBefore: (existing.kpiEntries ?? []).map((entry) => ({ id: entry.id, employeeScoring: entry.employeeScoring })),
+        kpiEntriesAfter: (nextStudent.kpiEntries ?? []).map((entry) => ({ id: entry.id, employeeScoring: entry.employeeScoring })),
+      });
 
       transaction.update(ref, this.sanitizeForFirestore(nextStudent));
       return nextStudent;
