@@ -967,6 +967,14 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
 
             <button type="button" class="kpi-overlay-backdrop" aria-label="Exit full screen" *ngIf="kpiFullScreen()" (click)="kpiFullScreen.set(false)"></button>
 
+            <div class="kpi-year-selector-row" *ngIf="managerData.kpiYearsOpened().length > 1">
+              <span class="kpi-year-selector-label">KPI year</span>
+              <select class="kpi-year-selector" [value]="selectedKpiYear()" (change)="selectKpiYear(+$any($event.target).value)">
+                <option *ngFor="let year of managerData.kpiYearsOpened()" [value]="year">{{ year }}{{ year === managerData.currentKpiYear() ? ' (current)' : '' }}</option>
+              </select>
+              <span class="kpi-year-readonly-badge" *ngIf="!isViewingCurrentKpiYear()">Read-only — past year</span>
+            </div>
+
             <div class="idp-program-card" [class.kpi-overlay-active]="kpiFullScreen()" *ngIf="myKpiEntries().length > 0; else noKpiEntries">
               <div class="idp-program-card-header">
                 <div class="idp-program-card-title-shell">
@@ -1026,13 +1034,16 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
                       <td>{{ entry.measure || 'Not provided' }}</td>
                       <td>{{ entry.comments || 'Not provided' }}</td>
                       <td class="kpi-cell-center"><span class="kpi-score-pill" [class.kpi-score-flag]="entry.managerScoring === 2" [class.kpi-score-empty]="entry.managerScoring === null">{{ kpiScoreLabel(entry.managerScoring) }}</span></td>
-                      <td class="kpi-cell-center kpi-employee-scoring-cell" [class.kpi-score-flag]="resolveEmployeeScoringDisplay(entry) === 2">
+                      <td class="kpi-cell-center kpi-employee-scoring-cell" [class.kpi-score-flag]="resolveEmployeeScoringDisplay(entry) === 2" *ngIf="isViewingCurrentKpiYear(); else employeeScoringReadOnly">
                         <select [value]="resolveEmployeeScoringDisplay(entry) ?? ''" (change)="stageMyKpiEmployeeScoring(entry.id, $event)">
                           <option value="">Not scored</option>
                           <option *ngFor="let option of kpiScoreOptions" [value]="option.value">{{ option.label }}</option>
                         </select>
                         <span class="kpi-employee-scoring-pending" *ngIf="isEmployeeScoringPending(entry.id)">Not submitted yet</span>
                       </td>
+                      <ng-template #employeeScoringReadOnly>
+                        <td class="kpi-cell-center"><span class="kpi-score-pill" [class.kpi-score-flag]="entry.employeeScoring === 2" [class.kpi-score-empty]="entry.employeeScoring === null">{{ kpiScoreLabel(entry.employeeScoring) }}</span></td>
+                      </ng-template>
                       <td class="kpi-cell-center"><span class="kpi-score-pill" [class.kpi-score-flag]="entry.overallScoring === 2" [class.kpi-score-empty]="entry.overallScoring === null">{{ kpiScoreLabel(entry.overallScoring) }}</span></td>
                       <td class="kpi-cell-center">{{ entry.dateOfReview || 'Not provided' }}</td>
                     </tr>
@@ -1053,7 +1064,7 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
                 </table>
               </div>
 
-              <div class="kpi-submit-actions">
+              <div class="kpi-submit-actions" *ngIf="isViewingCurrentKpiYear()">
                 @if (kpiSubmitSaved()) {
                   <p class="kpi-submit-status kpi-submit-status-saved" role="status" aria-live="polite">Ratings submitted.</p>
                 }
@@ -1068,10 +1079,12 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
                   {{ kpiSubmitting() ? 'Submitting…' : 'Submit Ratings' }}
                 </button>
               </div>
+              <p class="kpi-year-empty-note" *ngIf="!isViewingCurrentKpiYear()">This is a closed, read-only record of {{ selectedKpiYear() }} — only the current year can be scored.</p>
             </div>
             <ng-template #noKpiEntries>
               <article class="utility-card">
-                <p>Your manager hasn't set up any KPIs for you yet.</p>
+                <p *ngIf="isViewingCurrentKpiYear()">Your manager hasn't set up any KPIs for you yet.</p>
+                <p *ngIf="!isViewingCurrentKpiYear()">No KPIs were recorded for {{ selectedKpiYear() }}.</p>
               </article>
             </ng-template>
           </section>
@@ -2801,6 +2814,45 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
     .kpi-total-weight-off {
       color: #b91c1c;
       background: #fef2f2;
+    }
+
+    .kpi-year-selector-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.85rem;
+    }
+
+    .kpi-year-selector-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+    }
+
+    .kpi-year-selector {
+      padding: 0.4rem 0.7rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font: inherit;
+      color: #0f172a;
+      background: #fff;
+    }
+
+    .kpi-year-readonly-badge {
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: #b45309;
+      background: #fffbeb;
+      border-radius: 999px;
+      padding: 0.2rem 0.65rem;
+    }
+
+    .kpi-year-empty-note {
+      margin: 0.75rem 0 0;
+      font-size: 0.85rem;
+      color: #64748b;
     }
 
     .kpi-employee-scoring-cell.kpi-score-flag select {
@@ -4821,10 +4873,43 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     return entry.id;
   }
 
+  // Which year's table is on screen — defaults to, and keeps following, the current (editable,
+  // self-scoreable) year until the student deliberately picks a different one via selectKpiYear.
+  // Kept as a follow, not a one-time init: the service's currentKpiYear signal starts out as a
+  // same-calendar-year guess before bootstrap resolves, and a manager may open a new year at any
+  // point during the session — either could otherwise leave this permanently pinned to a stale year.
+  readonly selectedKpiYear = signal<number | null>(null);
+  private hasManuallySelectedKpiYear = false;
+  private readonly kpiYearFollowEffect = effect(() => {
+    const currentYear = this.managerData.currentKpiYear();
+    if (!this.hasManuallySelectedKpiYear) {
+      this.selectedKpiYear.set(currentYear);
+    }
+  });
+  readonly isViewingCurrentKpiYear = computed(() => this.selectedKpiYear() === this.managerData.currentKpiYear());
+
   readonly myKpiEntries = computed<StudentKpiEntry[]>(() => {
     const id = this.matchedKpiStudentId();
-    return id ? (this.managerData.kpiEntriesByStudent()[id] ?? []) : [];
+    const year = this.selectedKpiYear();
+    if (!id || year === null) {
+      return [];
+    }
+
+    return this.managerData.kpiEntriesForStudentYear(id, year);
   });
+
+  selectKpiYear(year: number) {
+    this.hasManuallySelectedKpiYear = true;
+    this.selectedKpiYear.set(year);
+    this.pendingEmployeeScoring.set({});
+    this.kpiSubmitSaved.set(false);
+    this.kpiSubmitError.set(false);
+
+    const id = this.matchedKpiStudentId();
+    if (id) {
+      void this.managerData.fetchKpiEntriesForStudentYear(id, year);
+    }
+  }
 
   readonly myKpiTotalWeight = computed(() =>
     this.myKpiEntries().reduce((total, entry) => total + (entry.weight || 0), 0),

@@ -741,6 +741,10 @@ const kpiEmployeeScoringUpdateSchema = z.object({
   })),
 });
 
+const openKpiYearSchema = z.object({
+  year: z.number().int(),
+});
+
 const studentNotificationPreferencesSchema = z.object({
   emailUpdates: z.boolean(),
   smsAlerts: z.boolean(),
@@ -2393,6 +2397,68 @@ app.put('/api/students/:studentId/kpi-entries/employee-scoring', async (request,
     }
 
     response.json({ entries });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Bootstrap only carries the current year's KPI entries (see getBootstrap) to keep its payload
+// from growing with every year opened; a year selector fetches a past (or current) year here on
+// demand instead. Same access rule as scoring a student's table: a student may only see their
+// own KPI history, managers/admins may see any student's.
+app.get('/api/students/:studentId/kpi-entries/:year', async (request, response, next) => {
+  try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
+    const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
+    if (!isPrivileged && !(await isOwnStudentRecord(request.params.studentId, identity))) {
+      response.status(403).json({ message: 'You do not have permission to view this student.' });
+      return;
+    }
+
+    const year = Number(request.params.year);
+    if (!Number.isInteger(year)) {
+      response.status(400).json({ message: 'Year must be a whole number.' });
+      return;
+    }
+
+    const entries = await repository.getKpiEntriesForStudentYear(request.params.studentId, year);
+    if (entries === null) {
+      response.status(404).json({ message: 'Student not found.' });
+      return;
+    }
+
+    response.json({ entries });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// The manager-facing "open a new KPI year" action — org-wide, so only a training manager or
+// administrator may call it. See repository.openKpiYear for what actually happens: every
+// student's current-year KPI definitions are copied forward into a brand-new year with every
+// score cleared, the year being closed is left exactly as it was, and currentKpiYear moves
+// forward to the new year.
+app.post('/api/kpi-years/open', async (request, response, next) => {
+  try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
+    if (identity.role !== 'administrator' && identity.role !== 'training-manager') {
+      response.status(403).json({ message: 'Only a training manager or administrator can open a new KPI year.' });
+      return;
+    }
+
+    const body = openKpiYearSchema.parse(request.body);
+    const result = await repository.openKpiYear(body.year);
+    response.json(result);
   } catch (error) {
     next(error);
   }

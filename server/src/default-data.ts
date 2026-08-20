@@ -141,5 +141,7 @@ export function createDefaultData(): LmsDataStore {
     authAccounts: createAuthAccounts(),
     passwordResetTokens: [],
     updatedAt: new Date().toISOString(),
+    currentKpiYear: new Date().getFullYear(),
+    kpiYearsOpened: [new Date().getFullYear()],
   };
 }

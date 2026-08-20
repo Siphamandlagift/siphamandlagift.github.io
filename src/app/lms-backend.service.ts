@@ -43,7 +43,10 @@ export type LmsBootstrapResponse = {
   branding: BrandingSettings;
   students: EnrollmentStudent[];
   idpEntriesByStudent?: Record<string, StudentIdpEntry[]>;
+  // Current year's entries only — a past year is fetched on demand via getKpiEntriesForYear.
   kpiEntriesByStudent?: Record<string, StudentKpiEntry[]>;
+  currentKpiYear?: number;
+  kpiYearsOpened?: number[];
   trainingManagers: SystemTrainingManager[];
   managerMessages: ManagerMessage[];
   mentorshipAssignments: MentorshipAssignmentRecord[];
@@ -390,6 +393,17 @@ export class LmsBackendService {
   updateKpiEmployeeScoring(studentId: string, updates: { id: string; employeeScoring: StudentKpiScore | null }[]): Observable<StudentKpiEntry[]> {
     return this.http.put<{ entries: StudentKpiEntry[] }>(`${this.config.baseUrl}/students/${studentId}/kpi-entries/employee-scoring`, { entries: updates })
       .pipe(map((response) => response.entries));
+  }
+
+  // Bootstrap only carries the current year's entries — this fetches any other (or the current)
+  // year on demand, e.g. when a year selector picks a past year to browse.
+  getKpiEntriesForYear(studentId: string, year: number): Observable<StudentKpiEntry[]> {
+    return this.http.get<{ entries: StudentKpiEntry[] }>(`${this.config.baseUrl}/students/${studentId}/kpi-entries/${year}`)
+      .pipe(map((response) => response.entries));
+  }
+
+  openKpiYear(year: number): Observable<{ currentKpiYear: number; kpiYearsOpened: number[] }> {
+    return this.http.post<{ currentKpiYear: number; kpiYearsOpened: number[] }>(`${this.config.baseUrl}/kpi-years/open`, { year });
   }
 
   patchManagerState(patch: ManagerStatePatch): Observable<unknown> {

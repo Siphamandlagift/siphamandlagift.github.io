@@ -2158,6 +2158,28 @@ type KpiEntryFormGroup = FormGroup<{
                 <h1>KPI Management</h1>
               </div>
 
+              <div class="kpi-year-banner">
+                <span class="kpi-year-banner-label">Current KPI year: <strong>{{ managerData.currentKpiYear() }}</strong></span>
+                @if (!kpiYearPromptOpen()) {
+                  <button type="button" class="idp-program-add" (click)="openKpiYearPromptDialog()">Open new KPI year</button>
+                } @else {
+                  <div class="kpi-year-prompt">
+                    <label class="kpi-year-prompt-field">
+                      <span>New year</span>
+                      <input type="number" [value]="kpiYearPromptValue()" (input)="kpiYearPromptValue.set(+$any($event.target).value)" />
+                    </label>
+                    <button type="button" class="idp-program-add" [disabled]="kpiYearOpening()" (click)="confirmOpenKpiYear()">{{ kpiYearOpening() ? 'Opening…' : 'Confirm' }}</button>
+                    <button type="button" class="idp-cancel-btn" [disabled]="kpiYearOpening()" (click)="closeKpiYearPromptDialog()">Cancel</button>
+                  </div>
+                }
+                @if (kpiYearOpenError()) {
+                  <p class="kpi-year-prompt-error" role="alert">{{ kpiYearOpenError() }}</p>
+                }
+              </div>
+              <p class="kpi-year-banner-hint">
+                Opening a new year carries every team member's current KPI definitions forward with all scores cleared, and permanently closes {{ managerData.currentKpiYear() }} as a read-only record.
+              </p>
+
               @if (!selectedKpiStudentId()) {
                 <!-- Team member list -->
                 <div class="student-search-row">
@@ -2213,19 +2235,36 @@ type KpiEntryFormGroup = FormGroup<{
                       </div>
                     </div>
 
+                    <div class="kpi-year-selector-row">
+                      <span class="kpi-year-selector-label">KPI year</span>
+                      <select
+                        class="kpi-year-selector"
+                        [value]="selectedKpiYear()"
+                        (change)="selectKpiYear(+$any($event.target).value)">
+                        @for (year of managerData.kpiYearsOpened(); track year) {
+                          <option [value]="year">{{ year }}{{ year === managerData.currentKpiYear() ? ' (current)' : '' }}</option>
+                        }
+                      </select>
+                      @if (!isViewingCurrentKpiYear()) {
+                        <span class="kpi-year-readonly-badge">Read-only — past year</span>
+                      }
+                    </div>
+
                     <div class="activity-card mentorship-review-card">
-                      @if (kpiHasSavedEntries() && !kpiEditMode()) {
+                      @if (!isViewingCurrentKpiYear() || (kpiHasSavedEntries() && !kpiEditMode())) {
                     <!-- Read-only view -->
                     <div class="idp-program-card">
                       <div class="idp-program-card-header">
                         <div class="idp-program-card-title-shell">
-                          <span class="idp-program-card-title">Saved KPIs</span>
+                          <span class="idp-program-card-title">{{ isViewingCurrentKpiYear() ? 'Saved KPIs' : selectedKpiYear() + ' KPIs' }}</span>
                           <span class="idp-program-count" aria-hidden="true">{{ savedKpiEntries().length }} {{ savedKpiEntries().length === 1 ? 'KPI' : 'KPIs' }}</span>
                           <span class="kpi-total-weight" [class.kpi-total-weight-off]="savedKpiTotalWeight() !== 100">
                             Total weight: {{ savedKpiTotalWeight() }}%
                           </span>
                         </div>
-                        <button type="button" class="idp-program-add" (click)="openKpiEdit()">Edit table</button>
+                        @if (isViewingCurrentKpiYear()) {
+                          <button type="button" class="idp-program-add" (click)="openKpiEdit()">Edit table</button>
+                        }
                       </div>
 
                       <div class="kpi-table-wrap">
@@ -2284,6 +2323,9 @@ type KpiEntryFormGroup = FormGroup<{
                           </tfoot>
                         </table>
                       </div>
+                      @if (!savedKpiEntries().length) {
+                        <p class="kpi-year-empty-note">No KPIs were recorded for {{ selectedKpiYear() }}.</p>
+                      }
                     </div>
                   } @else {
                     <!-- Editable form -->
@@ -5791,6 +5833,103 @@ type KpiEntryFormGroup = FormGroup<{
         background: #fef2f2;
       }
 
+      .kpi-year-banner {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        background: #f8fafc;
+      }
+
+      .kpi-year-banner-label {
+        font-size: 0.9rem;
+        color: #334155;
+      }
+
+      .kpi-year-banner-label strong {
+        color: #0f172a;
+      }
+
+      .kpi-year-banner-hint {
+        margin: 0.5rem 0 0;
+        font-size: 0.8rem;
+        color: #64748b;
+      }
+
+      .kpi-year-prompt {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+      }
+
+      .kpi-year-prompt-field {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: #334155;
+      }
+
+      .kpi-year-prompt-field input {
+        width: 6rem;
+        padding: 0.4rem 0.6rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font: inherit;
+      }
+
+      .kpi-year-prompt-error {
+        margin: 0;
+        flex-basis: 100%;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #b91c1c;
+      }
+
+      .kpi-year-selector-row {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin: 0.85rem 0;
+      }
+
+      .kpi-year-selector-label {
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+      }
+
+      .kpi-year-selector {
+        padding: 0.4rem 0.7rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font: inherit;
+        color: #0f172a;
+        background: #fff;
+      }
+
+      .kpi-year-readonly-badge {
+        font-size: 0.76rem;
+        font-weight: 700;
+        color: #b45309;
+        background: #fffbeb;
+        border-radius: 999px;
+        padding: 0.2rem 0.65rem;
+      }
+
+      .kpi-year-empty-note {
+        margin: 0.75rem 0 0;
+        font-size: 0.85rem;
+        color: #64748b;
+      }
+
       .kpi-table-editable select.kpi-score-flag {
         border-color: #ef4444;
         background: #fef2f2;
@@ -8733,6 +8872,17 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   readonly kpiMemberSearchTerm = signal('');
   private readonly kpiEntriesByStudent = this.managerData.kpiEntriesByStudent;
 
+  // Which year's table is currently on screen for the selected student — defaults to the current
+  // (editable) year whenever a student is (re)selected; the year selector switches this to browse
+  // a past, permanently read-only year without touching the current year's live data at all.
+  readonly selectedKpiYear = signal<number | null>(null);
+  readonly isViewingCurrentKpiYear = computed(() => this.selectedKpiYear() === this.managerData.currentKpiYear());
+
+  readonly kpiYearPromptOpen = signal(false);
+  readonly kpiYearPromptValue = signal(new Date().getFullYear() + 1);
+  readonly kpiYearOpening = signal(false);
+  readonly kpiYearOpenError = signal<string | null>(null);
+
   readonly filteredKpiMembers = computed(() => {
     const query = this.kpiMemberSearchTerm().trim().toLowerCase();
     const students = this.managerData.students();
@@ -8754,7 +8904,12 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
   readonly savedKpiEntries = computed(() => {
     const id = this.selectedKpiStudentId();
-    return id ? (this.kpiEntriesByStudent()[id] ?? []) : [];
+    const year = this.selectedKpiYear();
+    if (!id || year === null) {
+      return [];
+    }
+
+    return this.managerData.kpiEntriesForStudentYear(id, year);
   });
 
   readonly kpiHasSavedEntries = computed(() => this.savedKpiEntries().length > 0);
@@ -8848,6 +9003,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
   selectKpiStudent(studentId: string) {
     this.selectedKpiStudentId.set(studentId);
+    this.selectedKpiYear.set(this.managerData.currentKpiYear());
     this.loadKpiFormForStudent(studentId);
     // start in read-only if entries already saved, else jump straight to form
     const hasSaved = (this.kpiEntriesByStudent()[studentId]?.length ?? 0) > 0;
@@ -8857,14 +9013,68 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
   clearKpiStudent() {
     this.selectedKpiStudentId.set(null);
+    this.selectedKpiYear.set(null);
     this.kpiEditMode.set(false);
     this.kpiSaved.set(false);
   }
 
+  // Switches which year's table is on screen for the selected student. Always drops out of edit
+  // mode — editing only ever applies to the current year, and re-entering it after landing back
+  // on the current year should be a deliberate "Edit table" click, not implicit from browsing.
+  selectKpiYear(year: number) {
+    this.selectedKpiYear.set(year);
+    this.kpiEditMode.set(false);
+    this.kpiSaved.set(false);
+
+    const studentId = this.selectedKpiStudentId();
+    if (studentId) {
+      void this.managerData.fetchKpiEntriesForStudentYear(studentId, year);
+    }
+  }
+
   openKpiEdit() {
+    if (!this.isViewingCurrentKpiYear()) {
+      return;
+    }
+
     const id = this.selectedKpiStudentId();
     if (id) this.loadKpiFormForStudent(id);
     this.kpiEditMode.set(true);
+  }
+
+  openKpiYearPromptDialog() {
+    this.kpiYearPromptValue.set(this.managerData.currentKpiYear() + 1);
+    this.kpiYearOpenError.set(null);
+    this.kpiYearPromptOpen.set(true);
+  }
+
+  closeKpiYearPromptDialog() {
+    this.kpiYearPromptOpen.set(false);
+  }
+
+  async confirmOpenKpiYear() {
+    const year = this.kpiYearPromptValue();
+    const currentYear = this.managerData.currentKpiYear();
+    if (!Number.isInteger(year) || year <= currentYear) {
+      this.kpiYearOpenError.set(`Year must be a whole number after ${currentYear}.`);
+      return;
+    }
+
+    this.kpiYearOpening.set(true);
+    const result = await this.managerData.openKpiYear(year);
+    this.kpiYearOpening.set(false);
+
+    if (result.success) {
+      this.kpiYearPromptOpen.set(false);
+      // The selected student's table just moved to a new (empty-scored, copied-forward) current
+      // year — reload it so the on-screen table reflects that instead of stale pre-open data.
+      if (this.selectedKpiStudentId()) {
+        this.selectedKpiYear.set(year);
+        this.kpiEditMode.set(false);
+      }
+    } else {
+      this.kpiYearOpenError.set(result.message);
+    }
   }
 
   cancelKpiEdit() {

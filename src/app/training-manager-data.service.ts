@@ -1,5 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { interval } from 'rxjs';
+import { firstValueFrom, interval } from 'rxjs';
 import { LmsBackendService } from './lms-backend.service';
 import { combineDisplayName, readLmsSessionRecord } from './session-auth';
 import type { StudentMessage } from './student-data.service';
@@ -370,6 +370,17 @@ export class TrainingManagerDataService {
   private readonly idpEntriesByStudentSignal = signal<Record<string, StudentIdpEntry[]>>({});
   private readonly kpiEntriesByStudentSignal = signal<Record<string, StudentKpiEntry[]>>({});
 
+  // The org-wide KPI review cycle: currentKpiYear is the only year anyone can edit; every year a
+  // manager has ever opened (including the current one) is listed in kpiYearsOpened for building
+  // a year selector. kpiEntriesByStudent above only ever holds the current year's entries — a
+  // past year's entries are fetched on demand into kpiYearEntriesCacheSignal (see
+  // kpiEntriesForStudentYear / fetchKpiEntriesForStudentYear) rather than loaded eagerly for
+  // everyone, since that cache only ever grows as more years get opened.
+  private readonly currentKpiYearSignal = signal<number>(new Date().getFullYear());
+  private readonly kpiYearsOpenedSignal = signal<number[]>([new Date().getFullYear()]);
+  private readonly kpiYearEntriesCacheSignal = signal<Record<string, Record<number, StudentKpiEntry[]>>>({});
+  private readonly kpiYearFetchesInFlight = new Set<string>();
+
   // Timestamp of the last local write per student id, so a periodic bootstrap poll that was
   // already in flight when that write happened doesn't clobber it with stale data once the poll
   // resolves (see mergeServerAuthoritativeRecord) — this is what made a student's KPI self-score
@@ -468,6 +479,8 @@ export class TrainingManagerDataService {
   );
   readonly idpEntriesByStudent = this.idpEntriesByStudentSignal.asReadonly();
   readonly kpiEntriesByStudent = this.kpiEntriesByStudentSignal.asReadonly();
+  readonly currentKpiYear = this.currentKpiYearSignal.asReadonly();
+  readonly kpiYearsOpened = this.kpiYearsOpenedSignal.asReadonly();
   readonly externalTrainingRequests = computed(() =>
     [...this.externalTrainingRequestsSignal()].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt)),
   );
@@ -582,6 +595,69 @@ export class TrainingManagerDataService {
     return this.kpiEntriesByStudentSignal()[studentId] ?? [];
   }
 
+  // The current year is always live (kpiEntriesByStudent, kept fresh by the periodic bootstrap
+  // refresh); a past year is read-only and, once fetched, never changes again — so it's cached
+  // indefinitely here rather than re-fetched every time a year selector lands back on it.
+  kpiEntriesForStudentYear(studentId: string, year: number): StudentKpiEntry[] {
+    if (year === this.currentKpiYearSignal()) {
+      return this.kpiEntriesForStudent(studentId);
+    }
+
+    return this.kpiYearEntriesCacheSignal()[studentId]?.[year] ?? [];
+  }
+
+  // Populates the cache kpiEntriesForStudentYear reads from for a past year. Safe to call
+  // whenever a year selector lands on a non-current year — no-ops if already cached or already
+  // in flight, so a component doesn't need to track that itself.
+  async fetchKpiEntriesForStudentYear(studentId: string, year: number): Promise<void> {
+    if (year === this.currentKpiYearSignal()) {
+      return;
+    }
+
+    if (this.kpiYearEntriesCacheSignal()[studentId]?.[year] !== undefined) {
+      return;
+    }
+
+    const key = `${studentId}::${year}`;
+    if (this.kpiYearFetchesInFlight.has(key)) {
+      return;
+    }
+
+    this.kpiYearFetchesInFlight.add(key);
+    try {
+      const entries = await firstValueFrom(this.backend.getKpiEntriesForYear(studentId, year));
+      this.kpiYearEntriesCacheSignal.update((current) => ({
+        ...current,
+        [studentId]: { ...(current[studentId] ?? {}), [year]: entries },
+      }));
+    } catch {
+      // Leave uncached — the component can just re-select the year to retry.
+    } finally {
+      this.kpiYearFetchesInFlight.delete(key);
+    }
+  }
+
+  // The manager-facing "open a new KPI year" action — org-wide, so this affects every student at
+  // once. The server does all the real work (copies every student's current-year KPI definitions
+  // forward with scores cleared; see repository.openKpiYear); this just adopts the new
+  // currentKpiYear/kpiYearsOpened it returns and re-pulls bootstrap so kpiEntriesByStudent
+  // reflects the new year for everyone, rather than trying to reconstruct that copy-forward
+  // locally.
+  async openKpiYear(year: number): Promise<{ success: true } | { success: false; message: string }> {
+    try {
+      const result = await firstValueFrom(this.backend.openKpiYear(year));
+      this.currentKpiYearSignal.set(result.currentKpiYear);
+      this.kpiYearsOpenedSignal.set(result.kpiYearsOpened);
+      this.refreshBootstrapState();
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Object && 'error' in error && (error as { error?: { message?: string } }).error?.message
+        ? (error as { error: { message: string } }).error.message
+        : 'Failed to open the new KPI year.';
+      return { success: false, message };
+    }
+  }
+
   // Student-facing: merges only the Employee scoring field into existing KPI rows — can't add/
   // remove rows or touch any other field. The backend enforces that same restriction
   // independently (see /kpi-entries/employee-scoring in server.ts); this just keeps the local
@@ -678,6 +754,12 @@ export class TrainingManagerDataService {
         };
         this.kpiEntriesByStudentSignal.set(mergedKpiEntriesByStudent);
         this.saveKpiEntriesByStudent(mergedKpiEntriesByStudent);
+        if (typeof bootstrap.currentKpiYear === 'number') {
+          this.currentKpiYearSignal.set(bootstrap.currentKpiYear);
+        }
+        if (bootstrap.kpiYearsOpened?.length) {
+          this.kpiYearsOpenedSignal.set(bootstrap.kpiYearsOpened);
+        }
         this.backendHydrated = true;
         this.offeringsHydratedSignal.set(true);
 
@@ -2435,14 +2517,32 @@ export class TrainingManagerDataService {
             requestStartedAt,
           ),
         );
-        this.kpiEntriesByStudentSignal.set(
-          this.mergeServerAuthoritativeRecord(
-            this.normalizeKpiEntriesByStudent(bootstrap.kpiEntriesByStudent),
-            this.kpiEntriesByStudentSignal(),
-            this.kpiEntriesDirtyAt,
-            requestStartedAt,
-          ),
-        );
+        // A year the local cache's dirty timestamps were recorded against isn't comparable to a
+        // *different* year's server data once someone opens a new KPI year mid-session — the
+        // dirty-merge logic assumes "local" and "server" are the same logical table, which is no
+        // longer true across a year boundary. Just take the server's fresh (new-year) data
+        // outright in that case, and drop the now-irrelevant dirty timestamps from the old year.
+        if (typeof bootstrap.currentKpiYear === 'number' && bootstrap.currentKpiYear !== this.currentKpiYearSignal()) {
+          this.kpiEntriesByStudentSignal.set(this.normalizeKpiEntriesByStudent(bootstrap.kpiEntriesByStudent));
+          for (const key of Object.keys(this.kpiEntriesDirtyAt)) {
+            delete this.kpiEntriesDirtyAt[key];
+          }
+        } else {
+          this.kpiEntriesByStudentSignal.set(
+            this.mergeServerAuthoritativeRecord(
+              this.normalizeKpiEntriesByStudent(bootstrap.kpiEntriesByStudent),
+              this.kpiEntriesByStudentSignal(),
+              this.kpiEntriesDirtyAt,
+              requestStartedAt,
+            ),
+          );
+        }
+        if (typeof bootstrap.currentKpiYear === 'number') {
+          this.currentKpiYearSignal.set(bootstrap.currentKpiYear);
+        }
+        if (bootstrap.kpiYearsOpened?.length) {
+          this.kpiYearsOpenedSignal.set(bootstrap.kpiYearsOpened);
+        }
       },
       error: () => { /* Silently skip failed polls */ },
     });

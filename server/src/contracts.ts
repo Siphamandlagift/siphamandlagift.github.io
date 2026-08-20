@@ -363,6 +363,18 @@ export type StudentKpiEmployeeScoringUpdateInput = {
   entries: { id: string; employeeScoring: StudentKpiScoreRecord | null }[];
 };
 
+// One KPI table per opened year. Only the org-wide current year (LmsDataStore.currentKpiYear) is
+// ever editable; every other year in this array is a closed, read-only historical record — see
+// openKpiYear in repository.ts, which is the only thing that ever adds a new entry here.
+export type StudentKpiYearRecord = {
+  year: number;
+  entries: StudentKpiEntryRecord[];
+};
+
+export type OpenKpiYearInput = {
+  year: number;
+};
+
 export type MentorshipAssignmentRecord = {
   id: string;
   menteeId: string;
@@ -388,7 +400,7 @@ export type StudentRecord = EnrollmentStudentRecord & {
   notifiedOfferingIds: string[];
   assessmentAttempts?: Record<string, StudentAssessmentAttemptRecord>;
   idpEntries?: StudentIdpEntryRecord[];
-  kpiEntries?: StudentKpiEntryRecord[];
+  kpiYears?: StudentKpiYearRecord[];
 };
 
 export type BrandingSettingsRecord = {
@@ -517,6 +529,12 @@ export type LmsDataStore = {
   authAccounts: AuthAccountRecord[];
   passwordResetTokens: PasswordResetTokenRecord[];
   updatedAt: string;
+  // Org-wide KPI review cycle: currentKpiYear is the one year anyone can still edit; every year a
+  // manager has ever opened (including the current one) is recorded in kpiYearsOpened so a year
+  // selector can be built without scanning every student's kpiYears. Defaults are seeded in
+  // default-data.ts; migrated in from legacy per-student kpiEntries in normalizeData if missing.
+  currentKpiYear: number;
+  kpiYearsOpened: number[];
 };
 
 export type LmsBootstrapResponse = {
@@ -524,7 +542,12 @@ export type LmsBootstrapResponse = {
   branding: BrandingSettingsRecord;
   students: EnrollmentStudentRecord[];
   idpEntriesByStudent: Record<string, StudentIdpEntryRecord[]>;
+  // Only the current year's entries — enough for the table everyone actually edits without
+  // bloating bootstrap with every student's full KPI history. A past year's entries are fetched
+  // on demand (GET /students/:studentId/kpi-entries/:year) only when a year selector picks one.
   kpiEntriesByStudent: Record<string, StudentKpiEntryRecord[]>;
+  currentKpiYear: number;
+  kpiYearsOpened: number[];
   trainingManagers: SystemTrainingManagerRecord[];
   managerMessages: ManagerMessageRecord[];
   mentorshipAssignments: MentorshipAssignmentRecord[];

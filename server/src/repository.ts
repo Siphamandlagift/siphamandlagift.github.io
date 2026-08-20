@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { getApp, getApps, initializeApp } from 'firebase-admin/app';
-import { getFirestore, type Firestore, type WriteBatch } from 'firebase-admin/firestore';
+import { getFirestore, type DocumentSnapshot, type Firestore, type WriteBatch } from 'firebase-admin/firestore';
 import { createDefaultData, createDefaultStudentTemplate } from './default-data.js';
 import {
   createPasswordCredentials,
@@ -33,6 +33,7 @@ import {
   StudentIdpEntryRecord,
   StudentKpiEntryRecord,
   StudentKpiScoreRecord,
+  StudentKpiYearRecord,
   StudentNotificationRecord,
   StudentSnapshotUpdate,
   StudentRecord,
@@ -65,7 +66,7 @@ const firestoreCollectionNames = [
   'passwordResetTokens',
 ] as const satisfies readonly FirestoreCollectionName[];
 
-type FirestoreCollectionName = Exclude<keyof LmsDataStore, 'branding' | 'updatedAt'>;
+type FirestoreCollectionName = Exclude<keyof LmsDataStore, 'branding' | 'updatedAt' | 'currentKpiYear' | 'kpiYearsOpened'>;
 type FirestoreCollectionRecord<Name extends FirestoreCollectionName> = LmsDataStore[Name] extends Array<infer Item>
   ? Item & { id: string }
   : never;
@@ -451,6 +452,42 @@ function preserveEmployeeScoringOnFullReplace(
   }));
 }
 
+// Migrates the legacy flat kpiEntries array (no year concept — every student had exactly one KPI
+// table) into the current year's bucket the first time a record is normalized after the year
+// feature shipped. Once a record has kpiYears, that's authoritative and kpiEntries is ignored.
+function normalizeStudentKpiYears(
+  student: { kpiYears?: unknown; kpiEntries?: unknown },
+  currentKpiYear: number,
+): StudentKpiYearRecord[] {
+  if (Array.isArray(student.kpiYears)) {
+    return student.kpiYears.map((candidate) => {
+      const yearRecord = candidate as Partial<StudentKpiYearRecord>;
+      const year = typeof yearRecord.year === 'number' && Number.isFinite(yearRecord.year) ? yearRecord.year : currentKpiYear;
+      return { year, entries: normalizeStudentKpiEntries(yearRecord.entries) };
+    });
+  }
+
+  if (Array.isArray(student.kpiEntries) && student.kpiEntries.length > 0) {
+    return [{ year: currentKpiYear, entries: normalizeStudentKpiEntries(student.kpiEntries) }];
+  }
+
+  return [];
+}
+
+function findKpiYearEntries(kpiYears: StudentKpiYearRecord[], year: number): StudentKpiEntryRecord[] {
+  return kpiYears.find((yearRecord) => yearRecord.year === year)?.entries ?? [];
+}
+
+function withKpiYearEntries(
+  kpiYears: StudentKpiYearRecord[],
+  year: number,
+  entries: StudentKpiEntryRecord[],
+): StudentKpiYearRecord[] {
+  const next = kpiYears.filter((yearRecord) => yearRecord.year !== year);
+  next.push({ year, entries });
+  return next.sort((left, right) => left.year - right.year);
+}
+
 function createStudentRecordFromEnrollment(student: EnrollmentStudentRecord): StudentRecord {
   return {
     ...student,
@@ -475,7 +512,7 @@ function createStudentRecordFromEnrollment(student: EnrollmentStudentRecord): St
     notifiedOfferingIds: [],
     assessmentAttempts: {},
     idpEntries: [],
-    kpiEntries: [],
+    kpiYears: [],
   };
 }
 
@@ -503,6 +540,12 @@ function mergeEnrollmentStudentRecord(existing: StudentRecord | undefined, stude
 function normalizeData(data: LmsDataStore): LmsDataStore {
   const defaults = createDefaultData();
   const offerings = data.offerings ?? defaults.offerings;
+  const currentKpiYear = typeof data.currentKpiYear === 'number' && Number.isFinite(data.currentKpiYear)
+    ? data.currentKpiYear
+    : defaults.currentKpiYear;
+  const kpiYearsOpened = Array.isArray(data.kpiYearsOpened) && data.kpiYearsOpened.length > 0
+    ? Array.from(new Set(data.kpiYearsOpened.filter((year) => typeof year === 'number' && Number.isFinite(year)))).sort((left, right) => left - right)
+    : [currentKpiYear];
   const students = data.students.map((student) => {
     const rawRole = (student.role ?? defaultStudentTemplate.role ?? 'student') as EnrollmentStudentRecord['role'] | LoginRole | 'admin';
     // Legacy migration: 'admin'/'administrator' used to be a base role. It's now the isAdmin flag
@@ -520,11 +563,16 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
     const notifications = student.notifications ?? defaultStudentTemplate.notifications ?? [];
     const messages = student.messages ?? defaultStudentTemplate.messages ?? [];
     const idpEntries = normalizeStudentIdpEntries(student.idpEntries ?? defaultStudentTemplate.idpEntries ?? []);
-    const kpiEntries = normalizeStudentKpiEntries(student.kpiEntries ?? defaultStudentTemplate.kpiEntries ?? []);
+    const kpiYears = normalizeStudentKpiYears(student, currentKpiYear);
+
+    // Drops the legacy flat kpiEntries field once and for all now that it's been folded into
+    // kpiYears above — otherwise it lingers forever in storage (and every future write) as dead
+    // weight nothing reads anymore.
+    const { kpiEntries: _legacyKpiEntries, ...studentWithoutLegacyKpiEntries } = student as StudentRecord & { kpiEntries?: unknown };
 
     return {
       ...defaultStudentTemplate,
-      ...student,
+      ...studentWithoutLegacyKpiEntries,
       role,
       isAdmin,
       settings,
@@ -534,7 +582,7 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
       notifications,
       messages,
       idpEntries,
-      kpiEntries,
+      kpiYears,
       notifiedOfferingIds,
     } satisfies StudentRecord;
   });
@@ -554,6 +602,8 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
     authAccounts: data.authAccounts ?? defaults.authAccounts,
     passwordResetTokens: (data.passwordResetTokens ?? defaults.passwordResetTokens).filter((token) => !token.consumedAt || new Date(token.consumedAt).getTime() > 0),
     updatedAt: data.updatedAt || new Date().toISOString(),
+    currentKpiYear,
+    kpiYearsOpened,
   });
 
   syncLinkedAuthAccounts(normalized);
@@ -671,16 +721,21 @@ export class LmsRepository {
     const idpEntriesByStudent = Object.fromEntries(
       data.students.map((student) => [student.id, student.idpEntries ?? []]),
     );
+    // Only the current year's entries ride along in bootstrap — a past year is fetched on demand
+    // (getKpiEntriesForStudentYear) once a year selector actually picks one, so bootstrap doesn't
+    // grow with every student's full KPI history as more years get opened.
     const kpiEntriesByStudent = Object.fromEntries(
-      data.students.map((student) => [student.id, student.kpiEntries ?? []]),
+      data.students.map((student) => [student.id, findKpiYearEntries(student.kpiYears ?? [], data.currentKpiYear)]),
     );
 
     return {
       offerings: data.offerings,
       branding: data.branding,
-      students: data.students.map(({ courses, notifications, messages, notifiedOfferingIds, idpEntries, kpiEntries, ...student }) => student),
+      students: data.students.map(({ courses, notifications, messages, notifiedOfferingIds, idpEntries, kpiYears, ...student }) => student),
       idpEntriesByStudent,
       kpiEntriesByStudent,
+      currentKpiYear: data.currentKpiYear,
+      kpiYearsOpened: data.kpiYearsOpened,
       trainingManagers: data.trainingManagers,
       managerMessages: data.managerMessages,
       mentorshipAssignments: data.mentorshipAssignments,
@@ -689,6 +744,70 @@ export class LmsRepository {
       quizSubmissions: data.quizSubmissions,
       externalTrainingRequests: data.externalTrainingRequests,
     };
+  }
+
+  // Lazily fetches one past (or current) year's KPI table for a single student — used when a
+  // year selector picks something other than the current year, which bootstrap doesn't include.
+  async getKpiEntriesForStudentYear(studentId: string, year: number) {
+    const data = await this.read();
+    const student = data.students.find((entry) => entry.id === studentId);
+    if (!student) {
+      return null;
+    }
+
+    return findKpiYearEntries(student.kpiYears ?? [], year);
+  }
+
+  // The manager-facing "open a new KPI year" action: every student's current-year KPI rows are
+  // copied forward into a brand-new year bucket with every score cleared (Manager/Employee/
+  // Overall scoring and Date of Review all reset — only the KPI text/weight/agreed output/measure
+  // carry over, since those rarely change review to review but scores obviously should start
+  // fresh). The year being closed stays exactly as it was — kpiYears only ever gains entries here,
+  // never loses or edits an existing one, which is what makes every past year a permanent,
+  // read-only record once it's no longer current. Rejects reopening/duplicating a year that's
+  // already been opened, and requires the new year to move the review cycle forward, not sideways
+  // or backward.
+  async openKpiYear(year: number) {
+    const data = await this.read();
+    if (!Number.isInteger(year)) {
+      throw new Error('Year must be a whole number.');
+    }
+
+    if (data.kpiYearsOpened.includes(year)) {
+      throw new Error(`KPI year ${year} has already been opened.`);
+    }
+
+    if (year <= data.currentKpiYear) {
+      throw new Error(`New KPI year must be after the current year (${data.currentKpiYear}).`);
+    }
+
+    data.students = data.students.map((student) => {
+      const kpiYears = student.kpiYears ?? [];
+      const currentYearEntries = findKpiYearEntries(kpiYears, data.currentKpiYear);
+      const carriedForwardEntries: StudentKpiEntryRecord[] = currentYearEntries.map((entry) => ({
+        id: `kpi-${year}-${entry.id}`,
+        kpi: entry.kpi,
+        weight: entry.weight,
+        agreedOutput: entry.agreedOutput,
+        measure: entry.measure,
+        comments: entry.comments,
+        managerScoring: null,
+        employeeScoring: null,
+        overallScoring: null,
+        dateOfReview: '',
+      }));
+
+      return {
+        ...student,
+        kpiYears: withKpiYearEntries(kpiYears, year, carriedForwardEntries),
+      };
+    });
+
+    data.currentKpiYear = year;
+    data.kpiYearsOpened = [...data.kpiYearsOpened, year].sort((left, right) => left - right);
+
+    const next = await this.write(data);
+    return { currentKpiYear: next.currentKpiYear, kpiYearsOpened: next.kpiYearsOpened };
   }
 
   async getStudentSnapshot(studentId: string) {
@@ -796,9 +915,10 @@ export class LmsRepository {
       : null;
   }
 
-  // Full replace of a student's KPI table — only a training manager or administrator may call
-  // this (enforced in server.ts), since it can add/remove rows and edit every field including
-  // Manager scoring.
+  // Full replace of a student's KPI table for the CURRENT year — only a training manager or
+  // administrator may call this (enforced in server.ts), since it can add/remove rows and edit
+  // every field including Manager scoring. Every other year in kpiYears is a closed, read-only
+  // record this never touches.
   async setKpiEntriesForStudent(studentId: string, entries: StudentKpiEntryRecord[]) {
     const data = await this.read();
     const studentIndex = data.students.findIndex((entry) => entry.id === studentId);
@@ -807,20 +927,23 @@ export class LmsRepository {
       return null;
     }
 
-    const existingEntries = data.students[studentIndex].kpiEntries ?? [];
+    const kpiYears = data.students[studentIndex].kpiYears ?? [];
+    const existingEntries = findKpiYearEntries(kpiYears, data.currentKpiYear);
+    const nextEntries = preserveEmployeeScoringOnFullReplace(existingEntries, normalizeStudentKpiEntries(entries));
     data.students[studentIndex] = {
       ...data.students[studentIndex],
-      kpiEntries: preserveEmployeeScoringOnFullReplace(existingEntries, normalizeStudentKpiEntries(entries)),
+      kpiYears: withKpiYearEntries(kpiYears, data.currentKpiYear, nextEntries),
     };
 
     const next = await this.write(data);
-    return next.students.find((entry) => entry.id === studentId)?.kpiEntries ?? [];
+    return findKpiYearEntries(next.students.find((entry) => entry.id === studentId)?.kpiYears ?? [], next.currentKpiYear);
   }
 
-  // Merges only the Employee scoring field into existing KPI rows, matched by id. Unlike
-  // setKpiEntriesForStudent, this can't add, remove, or otherwise edit a row — that's what lets
-  // server.ts safely allow a student to call this for their own KPI table without also handing
-  // them the ability to rewrite their Manager scoring or the KPI text itself.
+  // Merges only the Employee scoring field into the CURRENT year's KPI rows, matched by id.
+  // Unlike setKpiEntriesForStudent, this can't add, remove, or otherwise edit a row, or touch any
+  // year but the current one — that's what lets server.ts safely allow a student to call this for
+  // their own KPI table without also handing them the ability to rewrite their Manager scoring,
+  // the KPI text itself, or a closed past year.
   async updateKpiEmployeeScoring(studentId: string, updates: { id: string; employeeScoring: StudentKpiScoreRecord | null }[]) {
     const data = await this.read();
     const studentIndex = data.students.findIndex((entry) => entry.id === studentId);
@@ -830,18 +953,19 @@ export class LmsRepository {
     }
 
     const scoringById = new Map(updates.map((update) => [update.id, update.employeeScoring]));
-    const existingEntries = data.students[studentIndex].kpiEntries ?? [];
+    const kpiYears = data.students[studentIndex].kpiYears ?? [];
+    const existingEntries = findKpiYearEntries(kpiYears, data.currentKpiYear);
     const nextEntries = existingEntries.map((entry) =>
       scoringById.has(entry.id) ? { ...entry, employeeScoring: scoringById.get(entry.id) ?? null } : entry,
     );
 
     data.students[studentIndex] = {
       ...data.students[studentIndex],
-      kpiEntries: nextEntries,
+      kpiYears: withKpiYearEntries(kpiYears, data.currentKpiYear, nextEntries),
     };
 
     const next = await this.write(data);
-    return next.students.find((entry) => entry.id === studentId)?.kpiEntries ?? [];
+    return findKpiYearEntries(next.students.find((entry) => entry.id === studentId)?.kpiYears ?? [], next.currentKpiYear);
   }
 
   async listOfferings() {
@@ -1968,7 +2092,7 @@ class FirestoreLmsRepository extends LmsRepository {
 
     const defaults = normalizeData(createDefaultData());
     const storeData = storeSnapshot.exists
-      ? (storeSnapshot.data() as Partial<Pick<LmsDataStore, 'branding' | 'updatedAt'>>)
+      ? (storeSnapshot.data() as Partial<Pick<LmsDataStore, 'branding' | 'updatedAt' | 'currentKpiYear' | 'kpiYearsOpened'>>)
       : undefined;
 
     return normalizeData({
@@ -1985,6 +2109,8 @@ class FirestoreLmsRepository extends LmsRepository {
       authAccounts,
       passwordResetTokens,
       updatedAt: storeData?.updatedAt ?? defaults.updatedAt,
+      currentKpiYear: storeData?.currentKpiYear ?? defaults.currentKpiYear,
+      kpiYearsOpened: storeData?.kpiYearsOpened ?? defaults.kpiYearsOpened,
     });
   }
 
@@ -2008,6 +2134,8 @@ class FirestoreLmsRepository extends LmsRepository {
           batch.set(this.storeDocument, this.sanitizeForFirestore({
             branding: nextData.branding,
             updatedAt: nextData.updatedAt,
+            currentKpiYear: nextData.currentKpiYear,
+            kpiYearsOpened: nextData.kpiYearsOpened,
           }));
         },
       ];
@@ -2027,17 +2155,6 @@ class FirestoreLmsRepository extends LmsRepository {
     return nextData;
   }
 
-  // Temporary diagnostic instrumentation: a student's KPI employeeScoring has been reported
-  // reverting after being confirmed saved (persisting past a hard reload, so it's a genuine
-  // server-side loss) despite every write-race we could find through code review already being
-  // fixed below. Logs studentId plus each affected entry's employeeScoring immediately before and
-  // after every write that touches kpiEntries, so the next occurrence can be traced from Cloud
-  // Logging (`[kpi-diag]`) to its actual cause instead of guessed at again. Remove once the real
-  // cause is found and fixed.
-  private logKpiDiagnostic(operation: string, studentId: string, detail: Record<string, unknown>) {
-    console.log(`[kpi-diag] ${new Date().toISOString()} ${operation} student=${studentId} ${JSON.stringify(detail)}`);
-  }
-
   // Scoped, transactional overrides for the two high-frequency single-student KPI writes.
   // The inherited read()+write() path round-trips and rewrites *every* collection in the whole
   // store for any change, serialized only by an in-memory queue that's local to one warm Cloud
@@ -2053,19 +2170,22 @@ class FirestoreLmsRepository extends LmsRepository {
   override async setKpiEntriesForStudent(studentId: string, entries: StudentKpiEntryRecord[]) {
     const ref = this.collection('students').doc(studentId);
     return this.firestore.runTransaction(async (transaction) => {
-      const snapshot = await transaction.get(ref);
+      // Both reads have to happen before any write in a Firestore transaction — currentKpiYear
+      // lives on the root store document (shared org-wide), the KPI rows on the student's own.
+      const [snapshot, storeSnapshot] = await Promise.all([transaction.get(ref), transaction.get(this.storeDocument)]);
       if (!snapshot.exists) {
-        this.logKpiDiagnostic('setKpiEntriesForStudent:missing-doc', studentId, {});
         return null;
       }
 
-      const existingEntries = (snapshot.data() as StudentRecord).kpiEntries ?? [];
+      const currentKpiYear = this.readCurrentKpiYear(storeSnapshot);
+      // A raw transaction snapshot never goes through normalizeData, so a document a student
+      // still has under the pre-year-feature shape (kpiEntries, no kpiYears yet) has to be
+      // migrated right here too — otherwise this write would treat their KPI history as empty
+      // and silently orphan it the instant this transaction actually commits a kpiYears field.
+      const kpiYears = normalizeStudentKpiYears(snapshot.data() as { kpiYears?: unknown; kpiEntries?: unknown }, currentKpiYear);
+      const existingEntries = findKpiYearEntries(kpiYears, currentKpiYear);
       const nextEntries = preserveEmployeeScoringOnFullReplace(existingEntries, normalizeStudentKpiEntries(entries));
-      this.logKpiDiagnostic('setKpiEntriesForStudent', studentId, {
-        before: existingEntries.map((entry) => ({ id: entry.id, employeeScoring: entry.employeeScoring })),
-        after: nextEntries.map((entry) => ({ id: entry.id, employeeScoring: entry.employeeScoring })),
-      });
-      transaction.update(ref, { kpiEntries: this.sanitizeForFirestore(nextEntries) });
+      transaction.update(ref, { kpiYears: this.sanitizeForFirestore(withKpiYearEntries(kpiYears, currentKpiYear, nextEntries)) });
       return nextEntries;
     });
   }
@@ -2073,28 +2193,30 @@ class FirestoreLmsRepository extends LmsRepository {
   override async updateKpiEmployeeScoring(studentId: string, updates: { id: string; employeeScoring: StudentKpiScoreRecord | null }[]) {
     const ref = this.collection('students').doc(studentId);
     return this.firestore.runTransaction(async (transaction) => {
-      const snapshot = await transaction.get(ref);
+      const [snapshot, storeSnapshot] = await Promise.all([transaction.get(ref), transaction.get(this.storeDocument)]);
       if (!snapshot.exists) {
-        this.logKpiDiagnostic('updateKpiEmployeeScoring:missing-doc', studentId, { updates });
         return null;
       }
 
-      const student = snapshot.data() as StudentRecord;
+      const currentKpiYear = this.readCurrentKpiYear(storeSnapshot);
       const scoringById = new Map(updates.map((update) => [update.id, update.employeeScoring]));
-      const existingEntries = student.kpiEntries ?? [];
+      // Same migrate-on-read as setKpiEntriesForStudent above — see that comment.
+      const kpiYears = normalizeStudentKpiYears(snapshot.data() as { kpiYears?: unknown; kpiEntries?: unknown }, currentKpiYear);
+      const existingEntries = findKpiYearEntries(kpiYears, currentKpiYear);
       const nextEntries = existingEntries.map((entry) =>
         scoringById.has(entry.id) ? { ...entry, employeeScoring: scoringById.get(entry.id) ?? null } : entry,
       );
 
-      this.logKpiDiagnostic('updateKpiEmployeeScoring', studentId, {
-        updates,
-        before: existingEntries.map((entry) => ({ id: entry.id, employeeScoring: entry.employeeScoring })),
-        after: nextEntries.map((entry) => ({ id: entry.id, employeeScoring: entry.employeeScoring })),
-      });
-
-      transaction.update(ref, { kpiEntries: this.sanitizeForFirestore(nextEntries) });
+      transaction.update(ref, { kpiYears: this.sanitizeForFirestore(withKpiYearEntries(kpiYears, currentKpiYear, nextEntries)) });
       return nextEntries;
     });
+  }
+
+  // currentKpiYear lives on the root store document; falls back to the same default the rest of
+  // normalizeData uses if the store document hasn't been created yet or predates the year feature.
+  private readCurrentKpiYear(storeSnapshot: DocumentSnapshot): number {
+    const stored = storeSnapshot.exists ? (storeSnapshot.data() as Partial<LmsDataStore>)?.currentKpiYear : undefined;
+    return typeof stored === 'number' && Number.isFinite(stored) ? stored : new Date().getFullYear();
   }
 
   // Scoped override of the same shape as the two KPI methods above, for the same reason: the
@@ -2103,9 +2225,9 @@ class FirestoreLmsRepository extends LmsRepository {
   // browsing a course, marking a notification read, etc.), so it's the highest-frequency
   // opportunity for the full-dataset lost-update race described on write() above. Concretely: the
   // inherited path spreads the existing student record forward (`...data.students[studentIndex]`)
-  // to preserve fields this endpoint doesn't touch, including kpiEntries — but if that read
+  // to preserve fields this endpoint doesn't touch, including kpiYears — but if that read
   // happened before a concurrent KPI save landed, this save's own (unrelated) write silently
-  // carries the stale kpiEntries back over the top of it once it completes. That's what made a
+  // carries the stale kpiYears back over the top of it once it completes. That's what made a
   // student's KPI self-score appear saved and then vanish shortly after, independent of the two
   // dedicated KPI endpoints already being scoped/transactional — this endpoint fires far more
   // often than either of those, so it's the more likely collision partner in practice.
@@ -2114,7 +2236,6 @@ class FirestoreLmsRepository extends LmsRepository {
     const updatedStudent = await this.firestore.runTransaction(async (transaction) => {
       const documentSnapshot = await transaction.get(ref);
       if (!documentSnapshot.exists) {
-        this.logKpiDiagnostic('updateStudentSnapshot:missing-doc', studentId, {});
         return null;
       }
 
@@ -2163,11 +2284,6 @@ class FirestoreLmsRepository extends LmsRepository {
         assessmentAttempts: snapshot.assessmentAttempts,
         idpEntries: normalizeStudentIdpEntries(snapshot.idpEntries ?? existing.idpEntries ?? []),
       };
-
-      this.logKpiDiagnostic('updateStudentSnapshot', studentId, {
-        kpiEntriesBefore: (existing.kpiEntries ?? []).map((entry) => ({ id: entry.id, employeeScoring: entry.employeeScoring })),
-        kpiEntriesAfter: (nextStudent.kpiEntries ?? []).map((entry) => ({ id: entry.id, employeeScoring: entry.employeeScoring })),
-      });
 
       transaction.update(ref, this.sanitizeForFirestore(nextStudent));
       return nextStudent;
