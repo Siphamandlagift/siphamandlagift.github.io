@@ -4779,29 +4779,31 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
 
   // Manager-entered KPI table shown in the student view — every field is read-only except
   // Employee scoring, which the student fills in themselves (see stageMyKpiEmployeeScoring /
-  // submitMyKpiRatings). Mirrors the server's own isOwnStudentRecord resolution order exactly
-  // (see server.ts):
-  // prefer the session's studentId claim, since that's what the server checks the KPI-scoring
-  // write against. Falling back to an email match against the roster (as this used to do
-  // unconditionally) can silently resolve to a different id than the one the server expects —
-  // that mismatch is what made an employee's own scoring submission look like it saved locally
-  // (optimistic UI update) while the backend write was actually rejected, so the score reverted
-  // on the next refresh.
+  // submitMyKpiRatings). Prefers the session's studentId claim (that's what the server checks
+  // the KPI-scoring write against), but only once it's cross-checked against the *live* roster:
+  // a session claim can go stale — e.g. an admin recreated this student's roster entry (a new
+  // id) sometime after the session was already issued — and a stale id still writes and reads
+  // "successfully" on its own, it's just no longer the same record the current roster (and
+  // everyone else, including the manager) is looking at. That's exactly what made a submitted
+  // rating look saved right away and then read back as "Not scored" on the next visit, while the
+  // manager's own view of the (correct, current) record showed it fine the whole time. A claim
+  // that doesn't match any current student falls back to a live email match instead of being
+  // trusted blindly; if the roster genuinely hasn't loaded yet, fall back to the raw claim rather
+  // than going blank while data is still loading.
   readonly matchedKpiStudentId = computed<string | null>(() => {
-    const sessionStudentId = readLmsSessionRecord()?.studentId?.trim();
-    if (sessionStudentId) {
+    const students = this.managerData.students();
+    const sessionStudentId = readLmsSessionRecord()?.studentId?.trim() || null;
+
+    if (sessionStudentId && students.some((student) => student.id === sessionStudentId)) {
       return sessionStudentId;
     }
 
     const studentEmail = this.studentData.profile().email.trim().toLocaleLowerCase();
-    if (!studentEmail) {
-      return null;
-    }
+    const matchedStudent = studentEmail
+      ? students.find((student) => student.email.trim().toLocaleLowerCase() === studentEmail)
+      : undefined;
 
-    const matchedStudent = this.managerData.students().find(
-      (student) => student.email.trim().toLocaleLowerCase() === studentEmail,
-    );
-    return matchedStudent?.id ?? null;
+    return matchedStudent?.id ?? sessionStudentId;
   });
 
   // Without this, *ngFor's default identity-based diffing sees a brand-new object on every

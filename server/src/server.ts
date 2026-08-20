@@ -187,14 +187,20 @@ const requireManagerOrAdministrator = requireRole('administrator', 'training-man
 
 async function isOwnStudentRecord(studentId: string, identity: AuthenticatedIdentity): Promise<boolean> {
   // Prefer the studentId claim: it's the session's actual linked student record, set at login.
-  // Matching by email is a fallback for tokens issued before this claim existed — the auth
-  // account's email and the student roster record's email are separate fields that can
-  // legitimately differ (e.g. a manager/admin logging in as their linked student profile), so
-  // an email-only check can wrongly reject a student's own, legitimate writes.
-  if (identity.studentId) {
-    return identity.studentId === studentId;
+  if (identity.studentId === studentId) {
+    return true;
   }
 
+  // Falls back to an email match against the roster whenever the claim doesn't directly match —
+  // both when there's no claim at all (tokens issued before this claim existed), and when the
+  // claim itself has simply gone stale (e.g. an admin recreated this student's roster entry,
+  // under a new id, sometime after the session was issued). Without this fallback, a stale claim
+  // would make the server reject a student's own legitimate write to their current, correct
+  // record purely because it doesn't match an outdated id still sitting in their token — the
+  // client resolves the same way (see matchedKpiStudentId in student-profile.component.ts), so
+  // this keeps the two in agreement instead of one trusting the claim and the other not. Safe the
+  // same way the old "claim absent" fallback already was: identity.email comes from the verified
+  // JWT, not from caller input, so this can't be used to write to an unrelated student's record.
   const data = await repository.read();
   const student = data.students.find((entry) => entry.id === studentId);
   return Boolean(student && student.email.trim().toLowerCase() === identity.email.trim().toLowerCase());
