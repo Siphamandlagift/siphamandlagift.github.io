@@ -2050,13 +2050,13 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
 
     .profile-layout {
       display: grid;
-      grid-template-columns: calc(260px * var(--ui-scale)) minmax(0, 1fr);
+      grid-template-columns: calc(296px * var(--ui-scale)) minmax(0, 1fr);
       gap: calc(1rem * var(--ui-scale));
       min-height: calc(100vh - 6.5rem);
     }
 
     .profile-layout.profile-layout-side-panel-collapsed {
-      grid-template-columns: calc(92px * var(--ui-scale)) minmax(0, 1fr);
+      grid-template-columns: calc(96px * var(--ui-scale)) minmax(0, 1fr);
     }
 
     .side-panel {
@@ -2069,18 +2069,17 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
       height: calc(100vh - var(--sidebar-stack-offset) - calc(1rem * var(--ui-scale)));
       overflow: auto;
       padding: calc(0.6rem * var(--ui-scale));
-      background: #ffffff;
-      border: 1px solid var(--brand-tint);
-      border-left: 4px solid var(--brand-primary);
+      background: linear-gradient(180deg, #181d40 0%, #12152f 100%);
+      border: 1px solid rgba(255, 255, 255, 0.06);
       border-radius: calc(14px * var(--ui-scale));
-      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03), 0 4px 14px rgba(15, 23, 42, 0.045);
+      box-shadow: 0 20px 45px rgba(8, 10, 26, 0.35);
       scrollbar-width: none;
       scrollbar-color: transparent transparent;
     }
 
     .side-panel.side-panel-scrolling {
       scrollbar-width: thin;
-      scrollbar-color: rgba(15, 23, 42, 0.28) transparent;
+      scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
     }
 
     .side-panel::-webkit-scrollbar {
@@ -2098,7 +2097,7 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
     }
 
     .side-panel.side-panel-scrolling::-webkit-scrollbar-thumb {
-      background-color: rgba(15, 23, 42, 0.28);
+      background-color: rgba(255, 255, 255, 0.25);
     }
 
     .side-panel-header {
@@ -2112,18 +2111,18 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
       justify-content: center;
       width: calc(2.1rem * var(--ui-scale));
       height: calc(2.1rem * var(--ui-scale));
-      border: 1px solid var(--brand-tint);
+      border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: calc(10px * var(--ui-scale));
-      background: var(--brand-surface);
-      color: var(--brand-primary);
+      background: rgba(255, 255, 255, 0.06);
+      color: rgba(255, 255, 255, 0.85);
       cursor: pointer;
       transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease, color 0.15s ease;
     }
 
     .side-panel-toggle:hover,
     .side-panel-toggle:focus-visible {
-      background: var(--brand-tint);
-      border-color: var(--brand-primary);
+      background: rgba(255, 255, 255, 0.14);
+      border-color: rgba(255, 255, 255, 0.3);
       outline: none;
       transform: translateY(-1px);
     }
@@ -2135,13 +2134,13 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
     }
 
     .side-panel-title {
-      color: var(--brand-primary);
+      color: #ffffff;
       font-size: 1rem;
       font-weight: 700;
     }
 
     .side-panel-copy {
-      color: #64748b;
+      color: rgba(255, 255, 255, 0.6);
       font-size: 0.92rem;
       margin-top: 0.2rem;
     }
@@ -2155,7 +2154,7 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
       border-radius: calc(10px * var(--ui-scale));
       background: transparent;
       padding: calc(0.5rem * var(--ui-scale)) calc(0.7rem * var(--ui-scale));
-      color: #334155;
+      color: rgba(255, 255, 255, 0.68);
       text-align: left;
       font-size: calc(0.88rem * var(--ui-scale));
       font-weight: 600;
@@ -2165,8 +2164,9 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
 
     .side-panel button:hover,
     .side-panel button:focus-visible {
-      background: var(--brand-tint);
-      border-color: var(--brand-tint);
+      background: rgba(255, 255, 255, 0.07);
+      border-color: rgba(255, 255, 255, 0.07);
+      color: #fff;
       transform: translateX(2px);
       outline: none;
     }
@@ -2174,7 +2174,7 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
     .side-panel button.active {
       background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
       color: #fff;
-      box-shadow: 0 6px 14px rgba(15, 23, 42, 0.12);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
     }
 
     .side-panel-icon {
@@ -2185,9 +2185,9 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
       width: calc(1.9rem * var(--ui-scale));
       height: calc(1.9rem * var(--ui-scale));
       border-radius: calc(9px * var(--ui-scale));
-      border: 1px solid var(--brand-tint);
-      background: var(--brand-surface);
-      color: #475569;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.05);
+      color: rgba(255, 255, 255, 0.72);
       transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     }
 
@@ -2234,21 +2234,22 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
 
     .side-panel button.logout {
       margin-top: auto;
-      background: #fee2e2;
-      color: #b91c1c;
-      border-color: #fecaca;
+      background: rgba(248, 113, 113, 0.14);
+      color: #fca5a5;
+      border-color: rgba(248, 113, 113, 0.22);
     }
 
     .side-panel button.logout:hover,
     .side-panel button.logout:focus-visible {
-      background: #fecaca;
+      background: rgba(248, 113, 113, 0.24);
+      color: #fecaca;
     }
 
     .side-panel button:hover .side-panel-icon,
     .side-panel button:focus-visible .side-panel-icon {
       transform: translateY(-1px) scale(1.02);
-      border-color: var(--brand-primary);
-      color: var(--brand-primary);
+      border-color: rgba(255, 255, 255, 0.4);
+      color: #fff;
     }
 
     .side-panel button.active .side-panel-icon {
@@ -2258,9 +2259,9 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
     }
 
     .side-panel button.logout .side-panel-icon {
-      background: rgba(255, 255, 255, 0.5);
-      border-color: rgba(185, 28, 28, 0.12);
-      color: #b91c1c;
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(248, 113, 113, 0.3);
+      color: #fca5a5;
     }
 
     .main-panel {
