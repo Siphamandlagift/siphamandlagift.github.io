@@ -51,6 +51,12 @@ export type StudentKpiEntry = {
   employeeScoring: StudentKpiScore | null;
   overallScoring: StudentKpiScore | null;
   dateOfReview: string;
+  // Performance Gap Analysis — only meaningful once overallScoring lands at 1 or 2; captured here
+  // rather than in a separate structure so it travels with the KPI row through the same save,
+  // year-carry-forward, and read-only-past-year rules everything else on the row already follows.
+  gapInitiative: string;
+  gapComments: string;
+  gapTargetDate: string;
 };
 
 export type TrainingAssessment = {
@@ -700,6 +706,60 @@ export class TrainingManagerDataService {
         // Roll back the optimistic update the backend didn't actually accept — otherwise the
         // score looks saved (still shown selected) until the next bootstrap poll silently
         // reverts it, which is exactly the "input isn't seen" symptom this was reported as.
+        error: () => {
+          this.kpiEntriesByStudentSignal.update((current) => {
+            const next = { ...current, [normalizedStudentId]: previousEntries };
+            this.saveKpiEntriesByStudent(next);
+            return next;
+          });
+          resolve(false);
+        },
+      });
+    });
+  }
+
+  // Manager-facing: merges only the three Performance Gap Analysis fields into existing KPI
+  // rows — same shape as updateEmployeeKpiScoring above, just for the initiative/comments/target
+  // date a manager records against a KPI rated 1 or 2. Staged and submitted as one batch by the
+  // Performance Gap Analysis card in training-manager-profile.component.ts.
+  updateKpiGapAnalysis(
+    studentId: string,
+    updates: { id: string; gapInitiative: string; gapComments: string; gapTargetDate: string }[],
+  ): Promise<boolean> {
+    const normalizedStudentId = studentId.trim();
+    if (!normalizedStudentId || !updates.length) {
+      return Promise.resolve(false);
+    }
+
+    const previousEntries = this.kpiEntriesByStudentSignal()[normalizedStudentId] ?? [];
+    const updatesById = new Map(updates.map((update) => [update.id, update]));
+
+    this.kpiEntriesDirtyAt[normalizedStudentId] = Date.now();
+    this.kpiEntriesByStudentSignal.update((current) => {
+      const next = {
+        ...current,
+        [normalizedStudentId]: previousEntries.map((entry) => {
+          const update = updatesById.get(entry.id);
+          return update
+            ? { ...entry, gapInitiative: update.gapInitiative, gapComments: update.gapComments, gapTargetDate: update.gapTargetDate }
+            : entry;
+        }),
+      };
+      this.saveKpiEntriesByStudent(next);
+      return next;
+    });
+
+    return new Promise<boolean>((resolve) => {
+      this.backend.updateKpiGapAnalysis(normalizedStudentId, updates).subscribe({
+        next: (entries) => {
+          this.kpiEntriesDirtyAt[normalizedStudentId] = Date.now();
+          this.kpiEntriesByStudentSignal.update((current) => {
+            const next = { ...current, [normalizedStudentId]: entries };
+            this.saveKpiEntriesByStudent(next);
+            return next;
+          });
+          resolve(true);
+        },
         error: () => {
           this.kpiEntriesByStudentSignal.update((current) => {
             const next = { ...current, [normalizedStudentId]: previousEntries };
@@ -3133,6 +3193,9 @@ export class TrainingManagerDataService {
       employeeScoring: this.normalizeKpiScoreValue(candidate.employeeScoring),
       overallScoring: this.normalizeKpiScoreValue(candidate.overallScoring),
       dateOfReview: typeof candidate.dateOfReview === 'string' ? candidate.dateOfReview : '',
+      gapInitiative: typeof candidate.gapInitiative === 'string' ? candidate.gapInitiative : '',
+      gapComments: typeof candidate.gapComments === 'string' ? candidate.gapComments : '',
+      gapTargetDate: typeof candidate.gapTargetDate === 'string' ? candidate.gapTargetDate : '',
     };
   }
 

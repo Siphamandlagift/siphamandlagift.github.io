@@ -424,32 +424,41 @@ function normalizeStudentKpiEntries(entries: unknown): StudentKpiEntryRecord[] {
       employeeScoring: normalizeStudentKpiScore(candidate.employeeScoring),
       overallScoring: normalizeStudentKpiScore(candidate.overallScoring),
       dateOfReview: typeof candidate.dateOfReview === 'string' ? candidate.dateOfReview : '',
+      gapInitiative: typeof candidate.gapInitiative === 'string' ? candidate.gapInitiative : '',
+      gapComments: typeof candidate.gapComments === 'string' ? candidate.gapComments : '',
+      gapTargetDate: typeof candidate.gapTargetDate === 'string' ? candidate.gapTargetDate : '',
     };
   });
 }
 
-// employeeScoring is the one field a student can write to their own KPI table (via
-// updateKpiEmployeeScoring), independently of the manager's full-table save. Without this, a
-// manager's Save on setKpiEntriesForStudent — built from whatever their edit form last loaded —
-// silently overwrites a student's self-score with a stale value the instant the manager saves
-// anything else on that row, even minutes or hours after the student scored themselves: the
-// manager's client has no way to know a newer self-score exists once their form is open. Forcing
-// every incoming row's employeeScoring back to whatever the CURRENT stored value actually is
-// (matched by row id; a genuinely new row simply has no existing value to preserve) makes that
-// field structurally impossible for this endpoint to touch, no matter how stale the caller's
-// payload is — this is what actually keeps a saved rating from ever "disappearing again".
+// employeeScoring and the three Performance Gap Analysis fields are each written through their
+// own dedicated, more narrowly-scoped endpoint (updateKpiEmployeeScoring, updateKpiGapAnalysis),
+// independently of the manager's full-table save. Without this, a manager's Save on
+// setKpiEntriesForStudent — built from whatever their edit form last loaded, which doesn't carry
+// any of these fields — would silently overwrite a student's self-score or a manager's own
+// gap-analysis notes the instant anything else on that row gets saved, even minutes or hours
+// later: the manager's client has no way to know a newer value exists once their form is open.
+// Forcing every incoming row's protected fields back to whatever the CURRENT stored values
+// actually are (matched by row id; a genuinely new row simply has no existing value to preserve)
+// makes those fields structurally impossible for this endpoint to touch, no matter how stale the
+// caller's payload is — this is what actually keeps a saved rating (or gap plan) from ever
+// "disappearing again".
 function preserveEmployeeScoringOnFullReplace(
   existingEntries: StudentKpiEntryRecord[],
   incomingEntries: StudentKpiEntryRecord[],
 ): StudentKpiEntryRecord[] {
-  const existingEmployeeScoringById = new Map(existingEntries.map((entry) => [entry.id, entry.employeeScoring]));
+  const existingById = new Map(existingEntries.map((entry) => [entry.id, entry]));
 
-  return incomingEntries.map((entry) => ({
-    ...entry,
-    employeeScoring: existingEmployeeScoringById.has(entry.id)
-      ? existingEmployeeScoringById.get(entry.id) ?? null
-      : entry.employeeScoring,
-  }));
+  return incomingEntries.map((entry) => {
+    const existing = existingById.get(entry.id);
+    return {
+      ...entry,
+      employeeScoring: existing ? existing.employeeScoring : entry.employeeScoring,
+      gapInitiative: existing ? existing.gapInitiative : entry.gapInitiative,
+      gapComments: existing ? existing.gapComments : entry.gapComments,
+      gapTargetDate: existing ? existing.gapTargetDate : entry.gapTargetDate,
+    };
+  });
 }
 
 // Migrates the legacy flat kpiEntries array (no year concept — every student had exactly one KPI
@@ -795,6 +804,11 @@ export class LmsRepository {
         employeeScoring: null,
         overallScoring: null,
         dateOfReview: '',
+        // A gap plan is written against a specific low score; once the score resets for the new
+        // year, last year's plan belongs to last year's (closed, read-only) record, not this one.
+        gapInitiative: '',
+        gapComments: '',
+        gapTargetDate: '',
       }));
 
       return {
@@ -958,6 +972,40 @@ export class LmsRepository {
     const nextEntries = existingEntries.map((entry) =>
       scoringById.has(entry.id) ? { ...entry, employeeScoring: scoringById.get(entry.id) ?? null } : entry,
     );
+
+    data.students[studentIndex] = {
+      ...data.students[studentIndex],
+      kpiYears: withKpiYearEntries(kpiYears, data.currentKpiYear, nextEntries),
+    };
+
+    const next = await this.write(data);
+    return findKpiYearEntries(next.students.find((entry) => entry.id === studentId)?.kpiYears ?? [], next.currentKpiYear);
+  }
+
+  // Merges only the three Performance Gap Analysis fields into the CURRENT year's KPI rows,
+  // matched by id — same shape and same reasoning as updateKpiEmployeeScoring above, just
+  // manager/admin-only instead of student-writable (see server.ts). Can't add, remove, or
+  // otherwise edit a row, touch any scoring field, or reach a closed past year.
+  async updateKpiGapAnalysis(
+    studentId: string,
+    updates: { id: string; gapInitiative: string; gapComments: string; gapTargetDate: string }[],
+  ) {
+    const data = await this.read();
+    const studentIndex = data.students.findIndex((entry) => entry.id === studentId);
+
+    if (studentIndex === -1) {
+      return null;
+    }
+
+    const updatesById = new Map(updates.map((update) => [update.id, update]));
+    const kpiYears = data.students[studentIndex].kpiYears ?? [];
+    const existingEntries = findKpiYearEntries(kpiYears, data.currentKpiYear);
+    const nextEntries = existingEntries.map((entry) => {
+      const update = updatesById.get(entry.id);
+      return update
+        ? { ...entry, gapInitiative: update.gapInitiative, gapComments: update.gapComments, gapTargetDate: update.gapTargetDate }
+        : entry;
+    });
 
     data.students[studentIndex] = {
       ...data.students[studentIndex],
@@ -2225,6 +2273,38 @@ class FirestoreLmsRepository extends LmsRepository {
     });
   }
 
+  override async updateKpiGapAnalysis(
+    studentId: string,
+    updates: { id: string; gapInitiative: string; gapComments: string; gapTargetDate: string }[],
+  ) {
+    const ref = this.collection('students').doc(studentId);
+    return this.firestore.runTransaction(async (transaction) => {
+      const [snapshot, storeSnapshot] = await Promise.all([transaction.get(ref), transaction.get(this.storeDocument)]);
+      if (!snapshot.exists) {
+        return null;
+      }
+
+      const currentKpiYear = this.readCurrentKpiYear(storeSnapshot);
+      const updatesById = new Map(updates.map((update) => [update.id, update]));
+      // Same migrate-on-read as setKpiEntriesForStudent above — see that comment.
+      const rawData = snapshot.data() as { kpiYears?: unknown; kpiEntries?: unknown };
+      const kpiYears = normalizeStudentKpiYears(rawData, currentKpiYear);
+      const existingEntries = findKpiYearEntries(kpiYears, currentKpiYear);
+      const nextEntries = existingEntries.map((entry) => {
+        const update = updatesById.get(entry.id);
+        return update
+          ? { ...entry, gapInitiative: update.gapInitiative, gapComments: update.gapComments, gapTargetDate: update.gapTargetDate }
+          : entry;
+      });
+
+      transaction.update(ref, {
+        kpiYears: this.sanitizeForFirestore(withKpiYearEntries(kpiYears, currentKpiYear, nextEntries)),
+        ...('kpiEntries' in rawData ? { kpiEntries: FieldValue.delete() } : {}),
+      });
+      return nextEntries;
+    });
+  }
+
   // currentKpiYear lives on the root store document; falls back to the same default the rest of
   // normalizeData uses if the store document hasn't been created yet or predates the year feature.
   private readCurrentKpiYear(storeSnapshot: DocumentSnapshot): number {
@@ -2281,6 +2361,9 @@ class FirestoreLmsRepository extends LmsRepository {
           employeeScoring: null,
           overallScoring: null,
           dateOfReview: '',
+          gapInitiative: '',
+          gapComments: '',
+          gapTargetDate: '',
         }));
 
         const nextKpiYears = this.sanitizeForFirestore(withKpiYearEntries(kpiYears, year, carriedForwardEntries));

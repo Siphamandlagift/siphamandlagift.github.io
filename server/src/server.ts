@@ -728,6 +728,14 @@ const studentKpiEntrySchema = z.object({
   employeeScoring: studentKpiScoreSchema,
   overallScoring: studentKpiScoreSchema,
   dateOfReview: z.string(),
+  // The manager's full-table save form never carries these — they're written independently
+  // through the gap-analysis endpoint below and forced back to whatever's already stored by
+  // preserveEmployeeScoringOnFullReplace regardless of what's sent here (see repository.ts), the
+  // same way employeeScoring is. .default('') just keeps a client that omits them entirely (as
+  // this one does) from failing schema validation.
+  gapInitiative: z.string().default(''),
+  gapComments: z.string().default(''),
+  gapTargetDate: z.string().default(''),
 });
 
 const kpiEntriesReplaceSchema = z.object({
@@ -738,6 +746,15 @@ const kpiEmployeeScoringUpdateSchema = z.object({
   entries: z.array(z.object({
     id: z.string().min(1),
     employeeScoring: studentKpiScoreSchema,
+  })),
+});
+
+const kpiGapAnalysisUpdateSchema = z.object({
+  entries: z.array(z.object({
+    id: z.string().min(1),
+    gapInitiative: z.string(),
+    gapComments: z.string(),
+    gapTargetDate: z.string(),
   })),
 });
 
@@ -2409,6 +2426,48 @@ app.put('/api/students/:studentId/kpi-entries/employee-scoring', async (request,
     if (body.entries.length > 0 && matchedCount === 0) {
       response.status(409).json({
         message: 'These KPI ratings could not be saved because the KPI table has changed — for example, a new review year may have opened. Please refresh and try again.',
+      });
+      return;
+    }
+
+    response.json({ entries });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Performance Gap Analysis: only a training manager or administrator may write it (a low rating
+// is theirs to plan a response to, not the employee's to self-report), and — like employee
+// scoring — it merges only these three fields onto rows that already exist in the CURRENT year's
+// table, matched by id, so it can't be used to sneak an edit to the KPI text, weight, or any
+// scoring field through this endpoint.
+app.put('/api/students/:studentId/kpi-entries/gap-analysis', async (request, response, next) => {
+  try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
+    if (identity.role !== 'administrator' && identity.role !== 'training-manager') {
+      response.status(403).json({ message: 'Only a training manager or administrator can update a performance gap analysis.' });
+      return;
+    }
+
+    const body = kpiGapAnalysisUpdateSchema.parse(request.body);
+    const entries = await repository.updateKpiGapAnalysis(request.params.studentId, body.entries);
+
+    if (entries === null) {
+      response.status(404).json({ message: 'Student not found.' });
+      return;
+    }
+
+    // Same stale-table guard as employee-scoring above — see that route for why.
+    const entryIds = new Set(entries.map((entry) => entry.id));
+    const matchedCount = body.entries.filter((update) => entryIds.has(update.id)).length;
+    if (body.entries.length > 0 && matchedCount === 0) {
+      response.status(409).json({
+        message: 'This performance gap analysis could not be saved because the KPI table has changed — for example, a new review year may have opened. Please refresh and try again.',
       });
       return;
     }

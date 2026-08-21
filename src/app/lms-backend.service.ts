@@ -395,6 +395,14 @@ export class LmsBackendService {
       .pipe(map((response) => response.entries));
   }
 
+  updateKpiGapAnalysis(
+    studentId: string,
+    updates: { id: string; gapInitiative: string; gapComments: string; gapTargetDate: string }[],
+  ): Observable<StudentKpiEntry[]> {
+    return this.http.put<{ entries: StudentKpiEntry[] }>(`${this.config.baseUrl}/students/${studentId}/kpi-entries/gap-analysis`, { entries: updates })
+      .pipe(map((response) => response.entries));
+  }
+
   // Bootstrap only carries the current year's entries — this fetches any other (or the current)
   // year on demand, e.g. when a year selector picks a past year to browse.
   getKpiEntriesForYear(studentId: string, year: number): Observable<StudentKpiEntry[]> {

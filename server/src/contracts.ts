@@ -357,10 +357,20 @@ export type StudentKpiEntryRecord = {
   employeeScoring: StudentKpiScoreRecord | null;
   overallScoring: StudentKpiScoreRecord | null;
   dateOfReview: string;
+  // Performance Gap Analysis — only meaningful once overallScoring lands at 1 or 2. Written
+  // through its own dedicated endpoint (see updateKpiGapAnalysis), the same way employeeScoring
+  // is, so a manager's full-table save can't silently wipe it out.
+  gapInitiative: string;
+  gapComments: string;
+  gapTargetDate: string;
 };
 
 export type StudentKpiEmployeeScoringUpdateInput = {
   entries: { id: string; employeeScoring: StudentKpiScoreRecord | null }[];
+};
+
+export type StudentKpiGapAnalysisUpdateInput = {
+  entries: { id: string; gapInitiative: string; gapComments: string; gapTargetDate: string }[];
 };
 
 // One KPI table per opened year. Only the org-wide current year (LmsDataStore.currentKpiYear) is

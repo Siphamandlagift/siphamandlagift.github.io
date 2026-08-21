@@ -117,6 +117,14 @@ type KpiEntryFormGroup = FormGroup<{
   employeeScoring: FormControl<StudentKpiScore | null>;
   overallScoring: FormControl<StudentKpiScore | null>;
   dateOfReview: FormControl<string | null>;
+  // Not shown or edited in the main table (see the Performance Gap Analysis card instead) — held
+  // here purely so this form round-trips the values it loaded rather than blanking them out on
+  // save. Same reasoning as employeeScoring above: the server independently guards against a
+  // full-table save overwriting these regardless, but shipping accurate values is still better
+  // than relying solely on that backstop.
+  gapInitiative: FormControl<string | null>;
+  gapComments: FormControl<string | null>;
+  gapTargetDate: FormControl<string | null>;
 }>;
 
 @Component({
@@ -2437,6 +2445,98 @@ type KpiEntryFormGroup = FormGroup<{
                       </div>
                     </form>
                   }
+                    </div>
+
+                    <div class="activity-card kpi-gap-card">
+                      <div class="idp-program-card-header kpi-gap-card-header">
+                        <div class="idp-program-card-title-shell">
+                          <span class="kpi-gap-icon" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                              <path d="M12 3.5 21.5 20h-19L12 3.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                              <path d="M12 9.75v4.25" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                              <circle cx="12" cy="17.1" r="0.95" fill="currentColor"/>
+                            </svg>
+                          </span>
+                          <span class="idp-program-card-title">Performance Gap Analysis</span>
+                          <span class="idp-program-count kpi-gap-count" aria-hidden="true">{{ kpiGapEntries().length }} {{ kpiGapEntries().length === 1 ? 'gap' : 'gaps' }}</span>
+                        </div>
+                      </div>
+                      <p class="kpi-gap-subtitle">
+                        Every KPI rated 1 or 2 on Overall Scoring {{ isViewingCurrentKpiYear() ? 'needs' : 'needed' }} a documented plan to close the gap.
+                      </p>
+
+                      @if (!kpiGapEntries().length) {
+                        <div class="kpi-gap-empty">
+                          <span class="kpi-gap-empty-icon" aria-hidden="true">✓</span>
+                          <span>No performance gaps for {{ selectedKpiYear() }} — every scored KPI is rated 3 or above.</span>
+                        </div>
+                      } @else {
+                        <div class="kpi-gap-list">
+                          @for (entry of kpiGapEntries(); track entry.id) {
+                            <div class="kpi-gap-item" [class.kpi-gap-item-critical]="entry.overallScoring === 1" [class.kpi-gap-item-warning]="entry.overallScoring === 2">
+                              <div class="kpi-gap-item-header">
+                                <strong class="kpi-gap-item-title">{{ entry.kpi || 'Untitled KPI' }}</strong>
+                                <span class="kpi-score-pill kpi-score-flag">{{ kpiScoreLabel(entry.overallScoring) }}</span>
+                              </div>
+
+                              @if (isViewingCurrentKpiYear()) {
+                                <div class="kpi-gap-fields">
+                                  <label class="kpi-gap-field">
+                                    <span>Initiative to address the gap</span>
+                                    <textarea
+                                      rows="2"
+                                      [value]="gapAnalysisDraft()[entry.id]?.initiative ?? entry.gapInitiative"
+                                      (input)="updateGapDraftField(entry.id, 'initiative', $any($event.target).value)"
+                                      placeholder="e.g. Enrol in a targeted coaching programme"></textarea>
+                                  </label>
+                                  <label class="kpi-gap-field">
+                                    <span>Comments</span>
+                                    <textarea
+                                      rows="2"
+                                      [value]="gapAnalysisDraft()[entry.id]?.comments ?? entry.gapComments"
+                                      (input)="updateGapDraftField(entry.id, 'comments', $any($event.target).value)"
+                                      placeholder="Additional context..."></textarea>
+                                  </label>
+                                  <label class="kpi-gap-field kpi-gap-field-date">
+                                    <span>Target date</span>
+                                    <input
+                                      type="date"
+                                      [value]="gapAnalysisDraft()[entry.id]?.targetDate ?? entry.gapTargetDate"
+                                      (input)="updateGapDraftField(entry.id, 'targetDate', $any($event.target).value)" />
+                                  </label>
+                                </div>
+                              } @else {
+                                <div class="kpi-gap-fields kpi-gap-fields-readonly">
+                                  <div class="kpi-gap-field">
+                                    <span>Initiative to address the gap</span>
+                                    <p>{{ entry.gapInitiative || 'Not provided' }}</p>
+                                  </div>
+                                  <div class="kpi-gap-field">
+                                    <span>Comments</span>
+                                    <p>{{ entry.gapComments || 'Not provided' }}</p>
+                                  </div>
+                                  <div class="kpi-gap-field kpi-gap-field-date">
+                                    <span>Target date</span>
+                                    <p>{{ entry.gapTargetDate || 'Not provided' }}</p>
+                                  </div>
+                                </div>
+                              }
+                            </div>
+                          }
+                        </div>
+
+                        @if (isViewingCurrentKpiYear()) {
+                          <div class="idp-program-actions kpi-gap-actions">
+                            @if (gapAnalysisSaved()) {
+                              <p class="idp-form-status" role="status" aria-live="polite">Performance gap analysis saved.</p>
+                            }
+                            @if (gapAnalysisError()) {
+                              <p class="kpi-year-prompt-error" role="alert">{{ gapAnalysisError() }}</p>
+                            }
+                            <button type="button" class="idp-save-button" [disabled]="gapAnalysisSaving()" (click)="saveGapAnalysis()">{{ gapAnalysisSaving() ? 'Saving…' : 'Save gap analysis' }}</button>
+                          </div>
+                        }
+                      }
                     </div>
                   </div>
                 </div>
@@ -5961,6 +6061,172 @@ type KpiEntryFormGroup = FormGroup<{
         color: #4338ca;
         font-size: 0.78rem;
       }
+
+      /* Performance Gap Analysis — a distinct, slightly "alert" card (warm-tinted background,
+         red-toned border) so it visually stands apart from the neutral KPI table above it rather
+         than reading as just another data table. Each gap gets its own left-accented item card,
+         colour-graded by severity (rating 1 vs 2), matching the red-for-low-score convention the
+         KPI table itself already uses via kpi-score-flag. */
+      .kpi-gap-card {
+        background: linear-gradient(165deg, rgba(254, 242, 242, 0.65) 0%, rgba(255, 255, 255, 0.98) 60%);
+        border: 1px solid #fecdd3;
+      }
+
+      .kpi-gap-card-header {
+        border-bottom-color: #fecdd3;
+      }
+
+      .kpi-gap-icon {
+        display: inline-flex;
+        color: #dc2626;
+      }
+
+      .kpi-gap-count {
+        background: #fee2e2;
+        color: #b91c1c;
+      }
+
+      .kpi-gap-subtitle {
+        margin: 0;
+        padding: 0 1.25rem 0.9rem;
+        font-size: 0.82rem;
+        color: #7f1d1d;
+      }
+
+      .kpi-gap-empty {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin: 0 1.25rem 1.25rem;
+        padding: 0.9rem 1rem;
+        border: 1px dashed #bbf7d0;
+        border-radius: 10px;
+        background: #f0fdf4;
+        color: #166534;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+
+      .kpi-gap-empty-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.35rem;
+        height: 1.35rem;
+        border-radius: 999px;
+        background: #16a34a;
+        color: #fff;
+        font-size: 0.78rem;
+        font-weight: 800;
+        flex: 0 0 auto;
+      }
+
+      .kpi-gap-list {
+        display: grid;
+        gap: 0.9rem;
+        padding: 0 1.25rem 1.25rem;
+      }
+
+      .kpi-gap-item {
+        background: #fff;
+        border: 1px solid #fecaca;
+        border-left: 4px solid #f59e0b;
+        border-radius: 10px;
+        padding: 0.95rem 1.1rem;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      }
+
+      .kpi-gap-item-critical {
+        border-left-color: #dc2626;
+        background: linear-gradient(180deg, rgba(254, 226, 226, 0.5) 0%, #fff 45%);
+      }
+
+      .kpi-gap-item-warning {
+        border-left-color: #f59e0b;
+        background: linear-gradient(180deg, rgba(255, 247, 237, 0.6) 0%, #fff 45%);
+      }
+
+      .kpi-gap-item-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .kpi-gap-item-title {
+        font-size: 0.92rem;
+        color: #0f172a;
+      }
+
+      .kpi-gap-fields {
+        display: grid;
+        grid-template-columns: 1fr 1fr 11rem;
+        gap: 0.85rem;
+        margin-top: 0.85rem;
+      }
+
+      .kpi-gap-field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        min-width: 0;
+      }
+
+      .kpi-gap-field > span {
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: #78716c;
+      }
+
+      .kpi-gap-field textarea,
+      .kpi-gap-field input[type='date'] {
+        width: 100%;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.5rem 0.6rem;
+        font: inherit;
+        font-size: 0.85rem;
+        color: #1f2937;
+        resize: vertical;
+        background: #fff;
+      }
+
+      .kpi-gap-field textarea:focus,
+      .kpi-gap-field input[type='date']:focus {
+        outline: none;
+        border-color: #f59e0b;
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+      }
+
+      .kpi-gap-field-date input[type='date'] {
+        min-height: 2.35rem;
+      }
+
+      .kpi-gap-fields-readonly .kpi-gap-field p {
+        margin: 0;
+        padding: 0.5rem 0.6rem;
+        min-height: 1.35rem;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        color: #334155;
+        word-break: break-word;
+      }
+
+      .kpi-gap-actions {
+        margin-inline: 1.25rem;
+        padding-bottom: 1.25rem;
+      }
+
+      @media (max-width: 720px) {
+        .kpi-gap-fields {
+          grid-template-columns: 1fr;
+        }
+      }
   `],
 })
 export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
@@ -8929,6 +9195,81 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.savedKpiEntries().reduce((total, entry) => total + (entry.weight || 0), 0),
   );
 
+  // ── Performance Gap Analysis ────────────────────────────────────────────
+  // Every saved KPI rated 1 or 2 (on Overall Scoring, the authoritative final rating) needs a
+  // documented plan to close the gap. Reads from savedKpiEntries — the server-confirmed table —
+  // rather than the "Edit table" form's live draft, since the two are independent: a manager can
+  // record a gap plan without opening the main table for editing at all.
+  readonly kpiGapEntries = computed(() =>
+    this.savedKpiEntries().filter((entry) => entry.overallScoring !== null && entry.overallScoring <= 2),
+  );
+
+  readonly gapAnalysisDraft = signal<Record<string, { initiative: string; comments: string; targetDate: string }>>({});
+  readonly gapAnalysisSaving = signal(false);
+  readonly gapAnalysisSaved = signal(false);
+  readonly gapAnalysisError = signal<string | null>(null);
+
+  // Rehydrates the draft from whatever's currently saved for this student/year. Called
+  // imperatively at the same points the main KPI form is (re)loaded — selecting a student,
+  // switching years, right after a table save, right after opening a new KPI year — rather than
+  // from an effect reacting to the live entries signal, so an in-progress edit here can't get
+  // silently discarded by an unrelated background bootstrap poll the way an earlier KPI bug did.
+  private loadGapAnalysisDraft(studentId: string, year: number) {
+    const draft: Record<string, { initiative: string; comments: string; targetDate: string }> = {};
+    for (const entry of this.managerData.kpiEntriesForStudentYear(studentId, year)) {
+      if (entry.overallScoring !== null && entry.overallScoring <= 2) {
+        draft[entry.id] = { initiative: entry.gapInitiative, comments: entry.gapComments, targetDate: entry.gapTargetDate };
+      }
+    }
+
+    this.gapAnalysisDraft.set(draft);
+    this.gapAnalysisSaved.set(false);
+    this.gapAnalysisError.set(null);
+  }
+
+  updateGapDraftField(entryId: string, field: 'initiative' | 'comments' | 'targetDate', value: string) {
+    this.gapAnalysisDraft.update((current) => ({
+      ...current,
+      [entryId]: { ...(current[entryId] ?? { initiative: '', comments: '', targetDate: '' }), [field]: value },
+    }));
+    this.gapAnalysisSaved.set(false);
+    this.gapAnalysisError.set(null);
+  }
+
+  async saveGapAnalysis() {
+    const studentId = this.selectedKpiStudentId();
+    if (!studentId || this.gapAnalysisSaving()) {
+      return;
+    }
+
+    const draft = this.gapAnalysisDraft();
+    const updates = this.kpiGapEntries().map((entry) => {
+      const staged = draft[entry.id];
+      return {
+        id: entry.id,
+        gapInitiative: staged?.initiative ?? entry.gapInitiative,
+        gapComments: staged?.comments ?? entry.gapComments,
+        gapTargetDate: staged?.targetDate ?? entry.gapTargetDate,
+      };
+    });
+
+    if (!updates.length) {
+      return;
+    }
+
+    this.gapAnalysisSaving.set(true);
+    this.gapAnalysisError.set(null);
+    const success = await this.managerData.updateKpiGapAnalysis(studentId, updates);
+    this.gapAnalysisSaving.set(false);
+
+    if (success) {
+      this.gapAnalysisSaved.set(true);
+      setTimeout(() => this.gapAnalysisSaved.set(false), 3000);
+    } else {
+      this.gapAnalysisError.set('Could not save the performance gap analysis — please try again.');
+    }
+  }
+
   // Weight-weighted average of Overall Scoring across every KPI that's actually been given a
   // score — unscored rows are excluded from both the numerator and denominator so a still-blank
   // KPI doesn't silently drag the total down. Falls back to the employee's own self-score until
@@ -8982,6 +9323,9 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       employeeScoring: new FormControl<StudentKpiScore | null>(null),
       overallScoring: new FormControl<StudentKpiScore | null>(null),
       dateOfReview: new FormControl<string | null>(this.todayIsoDate()),
+      gapInitiative: new FormControl<string | null>(''),
+      gapComments: new FormControl<string | null>(''),
+      gapTargetDate: new FormControl<string | null>(''),
     }) as KpiEntryFormGroup;
   }
 
@@ -9014,8 +9358,10 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
   selectKpiStudent(studentId: string) {
     this.selectedKpiStudentId.set(studentId);
-    this.selectedKpiYear.set(this.managerData.currentKpiYear());
+    const year = this.managerData.currentKpiYear();
+    this.selectedKpiYear.set(year);
     this.loadKpiFormForStudent(studentId);
+    this.loadGapAnalysisDraft(studentId, year);
     // start in read-only if entries already saved, else jump straight to form
     const hasSaved = (this.kpiEntriesByStudent()[studentId]?.length ?? 0) > 0;
     this.kpiEditMode.set(!hasSaved);
@@ -9027,6 +9373,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.selectedKpiYear.set(null);
     this.kpiEditMode.set(false);
     this.kpiSaved.set(false);
+    this.gapAnalysisDraft.set({});
   }
 
   // Switches which year's table is on screen for the selected student. Always drops out of edit
@@ -9039,7 +9386,15 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
     const studentId = this.selectedKpiStudentId();
     if (studentId) {
-      void this.managerData.fetchKpiEntriesForStudentYear(studentId, year);
+      // Best-effort with whatever's cached right now (the current year always is); a past year
+      // may not be yet, so reload the draft again once the fetch below actually lands it — but
+      // only if the year selector hasn't since moved on to somewhere else.
+      this.loadGapAnalysisDraft(studentId, year);
+      void this.managerData.fetchKpiEntriesForStudentYear(studentId, year).then(() => {
+        if (this.selectedKpiStudentId() === studentId && this.selectedKpiYear() === year) {
+          this.loadGapAnalysisDraft(studentId, year);
+        }
+      });
     }
   }
 
@@ -9079,9 +9434,11 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       this.kpiYearPromptOpen.set(false);
       // The selected student's table just moved to a new (empty-scored, copied-forward) current
       // year — reload it so the on-screen table reflects that instead of stale pre-open data.
-      if (this.selectedKpiStudentId()) {
+      const studentId = this.selectedKpiStudentId();
+      if (studentId) {
         this.selectedKpiYear.set(year);
         this.kpiEditMode.set(false);
+        this.loadGapAnalysisDraft(studentId, year);
       }
     } else {
       this.kpiYearOpenError.set(result.message);
@@ -9117,10 +9474,19 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       employeeScoring: g.controls.employeeScoring.value ?? null,
       overallScoring: g.controls.overallScoring.value ?? null,
       dateOfReview: g.controls.dateOfReview.value ?? '',
+      gapInitiative: g.controls.gapInitiative.value ?? '',
+      gapComments: g.controls.gapComments.value ?? '',
+      gapTargetDate: g.controls.gapTargetDate.value ?? '',
     }));
     this.managerData.setKpiEntriesForStudent(studentId, entries);
     this.kpiEditMode.set(false);
     this.kpiSaved.set(true);
     setTimeout(() => this.kpiSaved.set(false), 3000);
+    // Which rows now qualify as a "gap" may have just changed (a row's Overall Scoring could
+    // have moved above or below the 1-2 threshold) — refresh the draft to match.
+    const year = this.selectedKpiYear();
+    if (year !== null) {
+      this.loadGapAnalysisDraft(studentId, year);
+    }
   }
 }
