@@ -873,6 +873,16 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     <path d="M 30,120 A 90,90 0 0,1 83.40,37.78" class="admin-gauge-band admin-gauge-band-critical" [class.admin-gauge-band-ready]="dashboardGaugeReady()" />
                     <path d="M 87.75,35.98 A 90,90 0 0,1 152.25,35.98" class="admin-gauge-band admin-gauge-band-serious" [class.admin-gauge-band-ready]="dashboardGaugeReady()" />
                     <path d="M 156.60,37.78 A 90,90 0 0,1 210,120" class="admin-gauge-band admin-gauge-band-good" [class.admin-gauge-band-ready]="dashboardGaugeReady()" />
+                    @if (performanceGaugeMarker(); as marker) {
+                      <circle
+                        [attr.cx]="marker.x"
+                        [attr.cy]="marker.y"
+                        [attr.fill]="performanceGaugeMarkerColor()"
+                        r="7"
+                        class="admin-gauge-marker"
+                        [class.admin-gauge-marker-ready]="dashboardGaugeReady()"
+                      />
+                    }
                     <text x="120" y="102" text-anchor="middle" class="admin-gauge-value" [class.admin-gauge-value-ready]="dashboardGaugeReady()">{{ performanceGaugeAverageLabel() }}</text>
                     <text x="120" y="120" text-anchor="middle" class="admin-gauge-value-caption" dy="14">average / 5</text>
                     <text x="18" y="129" text-anchor="start" class="admin-gauge-scale-label">1</text>
@@ -3381,9 +3391,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
        The card replays its pop-in every time the admin (re)opens the Dashboard tab: the outer
        @if in the template destroys and recreates this whole subtree on each visit, which is what
        lets a CSS animation (auto-plays from 0% on insertion) restart for free, while the bands/
-       value additionally wait for dashboardGaugeReady() before their transition fires — see the
-       effect that drives that signal. The needle is deliberately NOT gated by that signal: its
-       rotation always comes straight from the real data so its position can never get stuck. */
+       value/marker additionally wait for dashboardGaugeReady() before their transition fires —
+       see the effect that drives that signal. */
     @keyframes admin-gauge-card-pop {
       0% { opacity: 0; transform: translateY(10px) scale(0.96); }
       60% { opacity: 1; transform: translateY(-2px) scale(1.015); }
@@ -3446,6 +3455,29 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-gauge-band-ready {
       stroke-dashoffset: 0;
+    }
+
+    @keyframes admin-gauge-marker-pop {
+      0% { opacity: 0; transform: scale(0.3); }
+      65% { opacity: 1; transform: scale(1.25); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    /* A plain dot at (cx, cy) rather than a rotated needle — see performanceGaugeMarker above for
+       why. stroke/stroke-width give it a white ring so it stays visible sitting on top of any band
+       colour; the scale animation is on transform, not r, so it can't shift the dot off its (cx,
+       cy) position the way animating the needle's rotation used to shift its pivot. */
+    .admin-gauge-marker {
+      stroke: #ffffff;
+      stroke-width: 2.5;
+      filter: drop-shadow(0 1px 3px rgba(15, 23, 42, 0.35));
+      opacity: 0;
+      transform-box: fill-box;
+      transform-origin: center;
+    }
+
+    .admin-gauge-marker-ready {
+      animation: admin-gauge-marker-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.85s both;
     }
 
     @keyframes admin-gauge-value-pop {
@@ -4549,6 +4581,43 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly performanceGaugeAverageLabel = computed(() => {
     const average = this.performanceGaugeAverage();
     return average === null ? '—' : average.toFixed(1);
+  });
+
+  // Where the average sits on the arc, as a plain (x, y) point — not a rotated needle. The gauge
+  // used to have a rotating needle here; it was pulled after two rounds of animation bugs tied to
+  // getting its resting angle and transform-origin/pivot right. A dot placed directly at its final
+  // coordinates has no rotation and no pivot to get wrong, so it can't get stuck at the wrong angle
+  // the way the needle did. The arc runs from value 1 at 180° through the top (value 3, 270°) to
+  // value 5 at 0°/360° — see the fixed band <path> coordinates above, which this angle mapping was
+  // reverse-derived from to stay pixel-consistent with them.
+  readonly performanceGaugeMarker = computed<{ x: number; y: number } | null>(() => {
+    const average = this.performanceGaugeAverage();
+    if (average === null) {
+      return null;
+    }
+
+    const clamped = Math.min(5, Math.max(1, average));
+    const angleDegrees = 180 + 45 * (clamped - 1);
+    const angleRadians = (angleDegrees * Math.PI) / 180;
+    return {
+      x: 120 + 90 * Math.cos(angleRadians),
+      y: 120 + 90 * Math.sin(angleRadians),
+    };
+  });
+
+  // Tints the marker to match the band it's sitting in, using the same 2.5 / 3.5 thresholds as
+  // performanceGaugeBandCounts, so it visually agrees with which legend row the average falls under.
+  readonly performanceGaugeMarkerColor = computed(() => {
+    const average = this.performanceGaugeAverage();
+    if (average === null) {
+      return '#0f172a';
+    }
+
+    if (average < 2.5) {
+      return '#d03b3b';
+    }
+
+    return average < 3.5 ? '#ec835a' : '#0ca30c';
   });
 
   // Band thresholds mirror the gauge's colour zones: below 2.5 rounds to a rating of 2, 2.5–3.5
