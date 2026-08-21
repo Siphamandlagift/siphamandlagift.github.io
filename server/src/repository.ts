@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { getApp, getApps, initializeApp } from 'firebase-admin/app';
-import { getFirestore, type DocumentSnapshot, type Firestore, type WriteBatch } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore, type DocumentSnapshot, type Firestore, type WriteBatch } from 'firebase-admin/firestore';
 import { createDefaultData, createDefaultStudentTemplate } from './default-data.js';
 import {
   createPasswordCredentials,
@@ -2182,10 +2182,19 @@ class FirestoreLmsRepository extends LmsRepository {
       // still has under the pre-year-feature shape (kpiEntries, no kpiYears yet) has to be
       // migrated right here too — otherwise this write would treat their KPI history as empty
       // and silently orphan it the instant this transaction actually commits a kpiYears field.
-      const kpiYears = normalizeStudentKpiYears(snapshot.data() as { kpiYears?: unknown; kpiEntries?: unknown }, currentKpiYear);
+      const rawData = snapshot.data() as { kpiYears?: unknown; kpiEntries?: unknown };
+      const kpiYears = normalizeStudentKpiYears(rawData, currentKpiYear);
       const existingEntries = findKpiYearEntries(kpiYears, currentKpiYear);
       const nextEntries = preserveEmployeeScoringOnFullReplace(existingEntries, normalizeStudentKpiEntries(entries));
-      transaction.update(ref, { kpiYears: this.sanitizeForFirestore(withKpiYearEntries(kpiYears, currentKpiYear, nextEntries)) });
+      transaction.update(ref, {
+        kpiYears: this.sanitizeForFirestore(withKpiYearEntries(kpiYears, currentKpiYear, nextEntries)),
+        // Once a legacy document has been migrated into kpiYears above, the old flat field is
+        // dead weight — left in place it would keep getting read by normalizeStudentKpiYears'
+        // Array.isArray(kpiYears) branch forever ignoring it, but never actually cleaned up,
+        // since this is a merge (update), not a full-document replace like the generic write()
+        // path that normally strips it.
+        ...('kpiEntries' in rawData ? { kpiEntries: FieldValue.delete() } : {}),
+      });
       return nextEntries;
     });
   }
@@ -2201,13 +2210,17 @@ class FirestoreLmsRepository extends LmsRepository {
       const currentKpiYear = this.readCurrentKpiYear(storeSnapshot);
       const scoringById = new Map(updates.map((update) => [update.id, update.employeeScoring]));
       // Same migrate-on-read as setKpiEntriesForStudent above — see that comment.
-      const kpiYears = normalizeStudentKpiYears(snapshot.data() as { kpiYears?: unknown; kpiEntries?: unknown }, currentKpiYear);
+      const rawData = snapshot.data() as { kpiYears?: unknown; kpiEntries?: unknown };
+      const kpiYears = normalizeStudentKpiYears(rawData, currentKpiYear);
       const existingEntries = findKpiYearEntries(kpiYears, currentKpiYear);
       const nextEntries = existingEntries.map((entry) =>
         scoringById.has(entry.id) ? { ...entry, employeeScoring: scoringById.get(entry.id) ?? null } : entry,
       );
 
-      transaction.update(ref, { kpiYears: this.sanitizeForFirestore(withKpiYearEntries(kpiYears, currentKpiYear, nextEntries)) });
+      transaction.update(ref, {
+        kpiYears: this.sanitizeForFirestore(withKpiYearEntries(kpiYears, currentKpiYear, nextEntries)),
+        ...('kpiEntries' in rawData ? { kpiEntries: FieldValue.delete() } : {}),
+      });
       return nextEntries;
     });
   }
@@ -2217,6 +2230,80 @@ class FirestoreLmsRepository extends LmsRepository {
   private readCurrentKpiYear(storeSnapshot: DocumentSnapshot): number {
     const stored = storeSnapshot.exists ? (storeSnapshot.data() as Partial<LmsDataStore>)?.currentKpiYear : undefined;
     return typeof stored === 'number' && Number.isFinite(stored) ? stored : new Date().getFullYear();
+  }
+
+  // Scoped override of the org-wide "open a new KPI year" action. The inherited implementation
+  // (base class above) goes through the generic read()+write() path, which re-lists and fully
+  // overwrites every document in every collection via an unconditional batch.set() — including
+  // every student document — rather than a merge. That's the same full-dataset read-modify-write
+  // race the three scoped overrides above exist to avoid: any write that lands on a student
+  // document (a self-score, a snapshot autosave) in the window between this method's read and its
+  // write gets silently clobbered by this method's own (older) snapshot of that student. Opening a
+  // year is rare and manager-initiated rather than high-frequency like those other three, but the
+  // blast radius is worse if it does collide — a lost write during an org-wide rollover, not just
+  // one student's save. This override narrows every write to only the kpiYears field via update()
+  // (merge) instead of set() (full replace), and touches only the students collection and the root
+  // store document — nothing else is read or rewritten.
+  override async openKpiYear(year: number) {
+    if (!Number.isInteger(year)) {
+      throw new Error('Year must be a whole number.');
+    }
+
+    const resultPromise = this.firestoreWriteQueue.catch(() => {}).then(async () => {
+      const storeSnapshot = await this.storeDocument.get();
+      const storeData = storeSnapshot.exists ? (storeSnapshot.data() as Partial<LmsDataStore>) : undefined;
+      const currentKpiYear = this.readCurrentKpiYear(storeSnapshot);
+      const kpiYearsOpened = Array.isArray(storeData?.kpiYearsOpened) ? storeData.kpiYearsOpened : [currentKpiYear];
+
+      if (kpiYearsOpened.includes(year)) {
+        throw new Error(`KPI year ${year} has already been opened.`);
+      }
+
+      if (year <= currentKpiYear) {
+        throw new Error(`New KPI year must be after the current year (${currentKpiYear}).`);
+      }
+
+      const studentDocuments = await this.collection('students').get();
+      const batchOperations: FirestoreBatchOperation[] = [];
+
+      for (const document of studentDocuments.docs) {
+        const rawData = document.data() as { kpiYears?: unknown; kpiEntries?: unknown };
+        const kpiYears = normalizeStudentKpiYears(rawData, currentKpiYear);
+        const currentYearEntries = findKpiYearEntries(kpiYears, currentKpiYear);
+        const carriedForwardEntries: StudentKpiEntryRecord[] = currentYearEntries.map((entry) => ({
+          id: `kpi-${year}-${entry.id}`,
+          kpi: entry.kpi,
+          weight: entry.weight,
+          agreedOutput: entry.agreedOutput,
+          measure: entry.measure,
+          comments: entry.comments,
+          managerScoring: null,
+          employeeScoring: null,
+          overallScoring: null,
+          dateOfReview: '',
+        }));
+
+        const nextKpiYears = this.sanitizeForFirestore(withKpiYearEntries(kpiYears, year, carriedForwardEntries));
+        const ref = document.ref;
+        batchOperations.push((batch) => {
+          batch.update(ref, {
+            kpiYears: nextKpiYears,
+            ...('kpiEntries' in rawData ? { kpiEntries: FieldValue.delete() } : {}),
+          });
+        });
+      }
+
+      const nextKpiYearsOpened = [...kpiYearsOpened, year].sort((left, right) => left - right);
+      batchOperations.push((batch) => {
+        batch.set(this.storeDocument, { currentKpiYear: year, kpiYearsOpened: nextKpiYearsOpened }, { merge: true });
+      });
+
+      await this.commitBatchOperations(batchOperations);
+      return { currentKpiYear: year, kpiYearsOpened: nextKpiYearsOpened };
+    });
+
+    this.firestoreWriteQueue = resultPromise.then(() => {}, () => {});
+    return resultPromise;
   }
 
   // Scoped override of the same shape as the two KPI methods above, for the same reason: the

@@ -4902,9 +4902,8 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
   selectKpiYear(year: number) {
     this.hasManuallySelectedKpiYear = true;
     this.selectedKpiYear.set(year);
-    this.pendingEmployeeScoring.set({});
-    this.kpiSubmitSaved.set(false);
-    this.kpiSubmitError.set(false);
+    // kpiYearPendingResetEffect (below) clears pendingEmployeeScoring/kpiSubmitSaved/kpiSubmitError
+    // whenever selectedKpiYear actually changes, so this doesn't need to duplicate that here.
 
     const id = this.matchedKpiStudentId();
     if (id) {
@@ -4963,6 +4962,25 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
   readonly kpiSubmitting = signal(false);
   readonly kpiSubmitSaved = signal(false);
   readonly kpiSubmitError = signal(false);
+
+  // Guards against a stale-submit bug: if a manager opens a new KPI year while a student has
+  // Employee Scoring picks staged but not yet submitted, kpiYearFollowEffect above silently moves
+  // this student onto the new year's (freshly empty) table — the Submit button stays enabled the
+  // whole time since it never depended on the year. Without this, submitMyKpiRatings would still
+  // send the old year's staged row ids, which match nothing in the new table; the student would
+  // see "Ratings submitted" while nothing was actually saved for either year. Runs on every change
+  // to selectedKpiYear, whichever effect above caused it (auto-follow or a manual selectKpiYear
+  // pick), so the discard happens unconditionally rather than only on the manual path.
+  private lastKpiYearForPendingState: number | null = null;
+  private readonly kpiYearPendingResetEffect = effect(() => {
+    const year = this.selectedKpiYear();
+    if (year !== this.lastKpiYearForPendingState) {
+      this.lastKpiYearForPendingState = year;
+      this.pendingEmployeeScoring.set({});
+      this.kpiSubmitSaved.set(false);
+      this.kpiSubmitError.set(false);
+    }
+  });
 
   resolveEmployeeScoringDisplay(entry: StudentKpiEntry): StudentKpiScore | null {
     const pending = this.pendingEmployeeScoring();

@@ -2396,6 +2396,23 @@ app.put('/api/students/:studentId/kpi-entries/employee-scoring', async (request,
       return;
     }
 
+    // updateKpiEmployeeScoring only merges scoring onto rows that already exist in the CURRENT
+    // year's table, matched by id — it never errors on an id it can't find (see repository.ts).
+    // That's normally fine (a manager may have removed a row since the client last loaded it),
+    // but if NONE of the submitted ids matched anything, the table has changed out from under the
+    // client wholesale — most commonly because a manager opened a new KPI year while the client
+    // still had the closed year's row ids staged locally. Silently 200-ing that would tell the
+    // client its ratings saved when nothing was actually written. Surface it as a conflict instead
+    // so the client rolls back its optimistic update and the user sees a real error to retry from.
+    const entryIds = new Set(entries.map((entry) => entry.id));
+    const matchedCount = body.entries.filter((update) => entryIds.has(update.id)).length;
+    if (body.entries.length > 0 && matchedCount === 0) {
+      response.status(409).json({
+        message: 'These KPI ratings could not be saved because the KPI table has changed — for example, a new review year may have opened. Please refresh and try again.',
+      });
+      return;
+    }
+
     response.json({ entries });
   } catch (error) {
     next(error);
