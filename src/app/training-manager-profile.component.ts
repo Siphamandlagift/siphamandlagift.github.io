@@ -17,6 +17,7 @@ import {
   ManagerPanel,
   MentorshipAssignmentRecord,
   MentorshipSubmissionRecord,
+  StudentKpiEntry,
   StudentKpiScore,
   TrainingAssessmentType,
   TrainingManagerDataService,
@@ -2485,7 +2486,7 @@ type KpiEntryFormGroup = FormGroup<{
                                     <span>Initiative to address the gap</span>
                                     <textarea
                                       rows="2"
-                                      [value]="gapAnalysisDraft()[entry.id]?.initiative ?? entry.gapInitiative"
+                                      [value]="gapDraftFieldValue(entry, 'initiative')"
                                       (input)="updateGapDraftField(entry.id, 'initiative', $any($event.target).value)"
                                       placeholder="e.g. Enrol in a targeted coaching programme"></textarea>
                                   </label>
@@ -2493,7 +2494,7 @@ type KpiEntryFormGroup = FormGroup<{
                                     <span>Comments</span>
                                     <textarea
                                       rows="2"
-                                      [value]="gapAnalysisDraft()[entry.id]?.comments ?? entry.gapComments"
+                                      [value]="gapDraftFieldValue(entry, 'comments')"
                                       (input)="updateGapDraftField(entry.id, 'comments', $any($event.target).value)"
                                       placeholder="Additional context..."></textarea>
                                   </label>
@@ -2501,7 +2502,7 @@ type KpiEntryFormGroup = FormGroup<{
                                     <span>Target date</span>
                                     <input
                                       type="date"
-                                      [value]="gapAnalysisDraft()[entry.id]?.targetDate ?? entry.gapTargetDate"
+                                      [value]="gapDraftFieldValue(entry, 'targetDate')"
                                       (input)="updateGapDraftField(entry.id, 'targetDate', $any($event.target).value)" />
                                   </label>
                                 </div>
@@ -9227,11 +9228,31 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.gapAnalysisError.set(null);
   }
 
+  // Plain `record[id]` indexing types as always-present in this codebase's TS config (no
+  // noUncheckedIndexedAccess), even though a given entry id may genuinely have no staged draft
+  // yet — using `?.`/`??` on it is therefore a type error in a template (NG8102: "always
+  // truthy") even though it's exactly the right runtime check. `in` sidesteps that by not
+  // narrowing on the lookup's (inaccurate) static type at all — same idiom already used by
+  // resolveEmployeeScoringDisplay in student-profile.component.ts for the same reason.
+  private stagedGapDraftFor(entryId: string) {
+    const draft = this.gapAnalysisDraft();
+    return entryId in draft ? draft[entryId] : null;
+  }
+
+  gapDraftFieldValue(entry: StudentKpiEntry, field: 'initiative' | 'comments' | 'targetDate'): string {
+    const staged = this.stagedGapDraftFor(entry.id);
+    if (staged) {
+      return staged[field];
+    }
+
+    return field === 'initiative' ? entry.gapInitiative : field === 'comments' ? entry.gapComments : entry.gapTargetDate;
+  }
+
   updateGapDraftField(entryId: string, field: 'initiative' | 'comments' | 'targetDate', value: string) {
-    this.gapAnalysisDraft.update((current) => ({
-      ...current,
-      [entryId]: { ...(current[entryId] ?? { initiative: '', comments: '', targetDate: '' }), [field]: value },
-    }));
+    this.gapAnalysisDraft.update((current) => {
+      const existing = this.stagedGapDraftFor(entryId) ?? { initiative: '', comments: '', targetDate: '' };
+      return { ...current, [entryId]: { ...existing, [field]: value } };
+    });
     this.gapAnalysisSaved.set(false);
     this.gapAnalysisError.set(null);
   }
@@ -9242,16 +9263,12 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const draft = this.gapAnalysisDraft();
-    const updates = this.kpiGapEntries().map((entry) => {
-      const staged = draft[entry.id];
-      return {
-        id: entry.id,
-        gapInitiative: staged?.initiative ?? entry.gapInitiative,
-        gapComments: staged?.comments ?? entry.gapComments,
-        gapTargetDate: staged?.targetDate ?? entry.gapTargetDate,
-      };
-    });
+    const updates = this.kpiGapEntries().map((entry) => ({
+      id: entry.id,
+      gapInitiative: this.gapDraftFieldValue(entry, 'initiative'),
+      gapComments: this.gapDraftFieldValue(entry, 'comments'),
+      gapTargetDate: this.gapDraftFieldValue(entry, 'targetDate'),
+    }));
 
     if (!updates.length) {
       return;
