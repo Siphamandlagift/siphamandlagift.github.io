@@ -1081,6 +1081,55 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
               </div>
               <p class="kpi-year-empty-note" *ngIf="!isViewingCurrentKpiYear()">This is a closed, read-only record of {{ selectedKpiYear() }} — only the current year can be scored.</p>
             </div>
+
+            <div class="idp-program-card kpi-gap-card" *ngIf="myKpiEntries().length > 0">
+              <div class="idp-program-card-header kpi-gap-card-header">
+                <div class="idp-program-card-title-shell">
+                  <span class="kpi-gap-icon" aria-hidden="true">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <path d="M12 3.5 21.5 20h-19L12 3.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                      <path d="M12 9.75v4.25" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      <circle cx="12" cy="17.1" r="0.95" fill="currentColor"/>
+                    </svg>
+                  </span>
+                  <span class="idp-program-card-title">Performance Gap Analysis</span>
+                  <span class="idp-program-count kpi-gap-count" aria-hidden="true">{{ myKpiGapEntries().length }} {{ myKpiGapEntries().length === 1 ? 'gap' : 'gaps' }}</span>
+                </div>
+              </div>
+              <p class="kpi-gap-subtitle">Your manager's plan for closing out any KPI rated 1 or 2 on Overall Scoring.</p>
+
+              <div class="kpi-gap-empty" *ngIf="!myKpiGapEntries().length">
+                <span class="kpi-gap-empty-icon" aria-hidden="true">✓</span>
+                <span>No performance gaps for {{ selectedKpiYear() }} — every scored KPI is rated 3 or above.</span>
+              </div>
+
+              <div class="kpi-gap-list" *ngIf="myKpiGapEntries().length">
+                <div
+                  class="kpi-gap-item"
+                  *ngFor="let entry of myKpiGapEntries(); trackBy: trackKpiEntryById"
+                  [class.kpi-gap-item-critical]="entry.overallScoring === 1"
+                  [class.kpi-gap-item-warning]="entry.overallScoring === 2">
+                  <div class="kpi-gap-item-header">
+                    <strong class="kpi-gap-item-title">{{ entry.kpi || 'Untitled KPI' }}</strong>
+                    <span class="kpi-score-pill kpi-score-flag">{{ kpiScoreLabel(entry.overallScoring) }}</span>
+                  </div>
+                  <div class="kpi-gap-fields kpi-gap-fields-readonly">
+                    <div class="kpi-gap-field">
+                      <span>Initiative to address the gap</span>
+                      <p>{{ entry.gapInitiative || 'Not provided yet' }}</p>
+                    </div>
+                    <div class="kpi-gap-field">
+                      <span>Comments</span>
+                      <p>{{ entry.gapComments || 'Not provided yet' }}</p>
+                    </div>
+                    <div class="kpi-gap-field kpi-gap-field-date">
+                      <span>Target date</span>
+                      <p>{{ entry.gapTargetDate || 'Not provided yet' }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
             <ng-template #noKpiEntries>
               <article class="utility-card">
                 <p *ngIf="isViewingCurrentKpiYear()">Your manager hasn't set up any KPIs for you yet.</p>
@@ -2875,6 +2924,142 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
       background: #eef2ff;
       color: #4338ca;
       font-size: 0.78rem;
+    }
+
+    /* Performance Gap Analysis — read-only here (only a manager/admin can write these fields, see
+       training-manager-profile.component.ts). Same warm-tinted "alert" card and severity-graded
+       item styling as the manager's editable version, just with the fields rendered as plain text
+       instead of a form. */
+    .kpi-gap-card {
+      background: linear-gradient(165deg, rgba(254, 242, 242, 0.65) 0%, rgba(255, 255, 255, 0.98) 60%);
+      border: 1px solid #fecdd3;
+    }
+
+    .kpi-gap-card-header {
+      border-bottom-color: #fecdd3;
+    }
+
+    .kpi-gap-icon {
+      display: inline-flex;
+      color: #dc2626;
+    }
+
+    .kpi-gap-count {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    .kpi-gap-subtitle {
+      margin: 0;
+      padding: 0 1.25rem 0.9rem;
+      font-size: 0.82rem;
+      color: #7f1d1d;
+    }
+
+    .kpi-gap-empty {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin: 0 1.25rem 1.25rem;
+      padding: 0.9rem 1rem;
+      border: 1px dashed #bbf7d0;
+      border-radius: 10px;
+      background: #f0fdf4;
+      color: #166534;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .kpi-gap-empty-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.35rem;
+      height: 1.35rem;
+      border-radius: 999px;
+      background: #16a34a;
+      color: #fff;
+      font-size: 0.78rem;
+      font-weight: 800;
+      flex: 0 0 auto;
+    }
+
+    .kpi-gap-list {
+      display: grid;
+      gap: 0.9rem;
+      padding: 0 1.25rem 1.25rem;
+    }
+
+    .kpi-gap-item {
+      background: #fff;
+      border: 1px solid #fecaca;
+      border-left: 4px solid #f59e0b;
+      border-radius: 10px;
+      padding: 0.95rem 1.1rem;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+
+    .kpi-gap-item-critical {
+      border-left-color: #dc2626;
+      background: linear-gradient(180deg, rgba(254, 226, 226, 0.5) 0%, #fff 45%);
+    }
+
+    .kpi-gap-item-warning {
+      border-left-color: #f59e0b;
+      background: linear-gradient(180deg, rgba(255, 247, 237, 0.6) 0%, #fff 45%);
+    }
+
+    .kpi-gap-item-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .kpi-gap-item-title {
+      font-size: 0.92rem;
+      color: #0f172a;
+    }
+
+    .kpi-gap-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr 11rem;
+      gap: 0.85rem;
+      margin-top: 0.85rem;
+    }
+
+    .kpi-gap-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      min-width: 0;
+    }
+
+    .kpi-gap-field > span {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: #78716c;
+    }
+
+    .kpi-gap-fields-readonly .kpi-gap-field p {
+      margin: 0;
+      padding: 0.5rem 0.6rem;
+      min-height: 1.35rem;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      color: #334155;
+      word-break: break-word;
+    }
+
+    @media (max-width: 720px) {
+      .kpi-gap-fields {
+        grid-template-columns: 1fr;
+      }
     }
 
     /* "Full screen" toggles the same card into a large centered overlay instead of duplicating
@@ -4898,6 +5083,14 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
 
     return this.managerData.kpiEntriesForStudentYear(id, year);
   });
+
+  // Every KPI rated 1 or 2 on Overall Scoring, alongside the manager's plan to close it (gap
+  // fields are read-only here — only a manager or admin can write them, see
+  // training-manager-profile.component.ts). Same threshold as the manager's own gap analysis
+  // view, just presented as a plain read-only summary instead of an editable form.
+  readonly myKpiGapEntries = computed(() =>
+    this.myKpiEntries().filter((entry) => entry.overallScoring !== null && entry.overallScoring <= 2),
+  );
 
   selectKpiYear(year: number) {
     this.hasManuallySelectedKpiYear = true;
