@@ -2379,11 +2379,11 @@ type KpiEntryFormGroup = FormGroup<{
                             <tbody>
                               @for (entryControl of kpiEntriesControls(); track $index) {
                                 <tr [formGroupName]="$index">
-                                  <td><textarea rows="2" formControlName="keyResultArea" placeholder="e.g. Customer Service"></textarea></td>
-                                  <td><textarea rows="2" formControlName="kpi" placeholder="e.g. Improve customer response time"></textarea></td>
+                                  <td><textarea rows="2" formControlName="keyResultArea" placeholder="e.g. Manufacturing"></textarea></td>
+                                  <td><textarea rows="2" formControlName="kpi" placeholder="e.g. Manufacturing of silicon cups"></textarea></td>
                                   <td class="kpi-cell-weight"><input type="number" min="0" max="100" formControlName="weight" /></td>
-                                  <td><textarea rows="2" formControlName="target" placeholder="Target output..."></textarea></td>
-                                  <td><textarea rows="2" formControlName="actual" placeholder="Actual result..."></textarea></td>
+                                  <td><textarea rows="2" formControlName="target" placeholder="e.g. Produce 1000 cups a month"></textarea></td>
+                                  <td><textarea rows="2" formControlName="actual" placeholder="e.g. Produced 940"></textarea></td>
                                   <td class="kpi-cell-center">
                                     <select formControlName="overallScoring" [class.kpi-score-flag]="entryControl.controls.overallScoring.value === 2">
                                       <option [ngValue]="null">Not scored</option>
@@ -2425,10 +2425,13 @@ type KpiEntryFormGroup = FormGroup<{
                         @if (kpiSaved()) {
                           <p class="idp-form-status" role="status" aria-live="polite">KPI table saved.</p>
                         }
+                        @if (kpiTotalWeight() !== 100) {
+                          <p class="kpi-weight-error" role="alert">Total weight must equal 100% before you can save — currently {{ kpiTotalWeight() }}%.</p>
+                        }
                         @if (kpiHasSavedEntries()) {
                           <button type="button" class="idp-cancel-btn" (click)="cancelKpiEdit()">Cancel</button>
                         }
-                        <button class="idp-save-button" type="submit">Save</button>
+                        <button class="idp-save-button" type="submit" [disabled]="kpiTotalWeight() !== 100">Save</button>
                       </div>
                     </form>
                   }
@@ -5601,6 +5604,11 @@ type KpiEntryFormGroup = FormGroup<{
         cursor: pointer;
       }
       .idp-save-button:hover { background: #1e40af; }
+      .idp-save-button:disabled {
+        background: #94a3b8;
+        cursor: not-allowed;
+      }
+      .idp-save-button:disabled:hover { background: #94a3b8; }
       .idp-form-status {
         font-size: 0.82rem;
         color: #22c55e;
@@ -5929,6 +5937,14 @@ type KpiEntryFormGroup = FormGroup<{
       .kpi-total-weight-off {
         color: #b91c1c;
         background: #fef2f2;
+      }
+
+      .kpi-weight-error {
+        margin: 0;
+        flex-basis: 100%;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #b91c1c;
       }
 
       .kpi-year-banner {
@@ -9467,6 +9483,10 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   saveKpiEntries() {
     const studentId = this.selectedKpiStudentId();
     if (!studentId) return;
+    // Backstop for the disabled Save button above — a plain HTML <form> can still submit on
+    // Enter pressed inside a text field even while its submit button is disabled, so the actual
+    // 100%-total requirement has to be enforced here too, not just via [disabled].
+    if (this.kpiTotalWeight() !== 100) return;
     const entries = this.kpiForm.controls.entries.controls.map((g) => ({
       id: g.controls.id.value?.trim() || '',
       keyResultArea: g.controls.keyResultArea.value ?? '',

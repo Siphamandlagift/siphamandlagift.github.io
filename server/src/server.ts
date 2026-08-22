@@ -2383,6 +2383,24 @@ app.put('/api/students/:studentId/kpi-entries', async (request, response, next) 
     }
 
     const body = kpiEntriesReplaceSchema.parse(request.body);
+
+    // A KPI table is meant to add up to a complete picture of the role — a manager saving a
+    // table that doesn't sum to 100% (missing coverage, or double-counted) would silently skew
+    // every weighted rating downstream (kpiOverallWeightedRating here, the same computation on
+    // the student's own view, and the admin performance report/gauge). Rejecting it here is what
+    // actually enforces that, rather than just the client-side warning label — a request crafted
+    // by hand, or sent before a client-side check existed, would otherwise sail through. Skipped
+    // for an empty table (a manager who hasn't set up any KPIs yet isn't required to hit 100% of
+    // nothing), and compared with a small tolerance since weights are entered as decimals and can
+    // pick up floating-point rounding noise (e.g. three rows of 33.33... summing to 99.99...).
+    const totalWeight = body.entries.reduce((total, entry) => total + entry.weight, 0);
+    if (body.entries.length > 0 && Math.abs(totalWeight - 100) > 0.01) {
+      response.status(400).json({
+        message: `The KPI table's total weight must equal 100% before it can be saved (currently ${Math.round(totalWeight * 100) / 100}%).`,
+      });
+      return;
+    }
+
     const entries = await repository.setKpiEntriesForStudent(request.params.studentId, body.entries);
 
     if (entries === null) {
