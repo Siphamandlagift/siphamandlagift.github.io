@@ -9135,15 +9135,19 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
   // ── Performance / KPI ─────────────────────────────────────────────────
   readonly kpiScoreOptions: ReadonlyArray<{ value: StudentKpiScore; label: string }> = [
-    { value: 1, label: '1 - Unacceptable' },
-    { value: 2, label: '2 - Not Fully Effective' },
-    { value: 3, label: '3 - Fully Effective' },
-    { value: 4, label: '4 - Highly Effective' },
-    { value: 5, label: '5 - Outstanding' },
+    { value: 1, label: '1 - Unsatisfactory' },
+    { value: 2, label: '2 - Needs Improvement' },
+    { value: 3, label: '3 - Meets Expectations' },
+    { value: 4, label: '4 - Exceeds Expectations' },
   ];
 
+  // A rating saved under the old 5-point scale (before it moved to this 4-point one) can still
+  // carry a raw stored value of 5 — clamped to 4 here rather than rewriting that historical data,
+  // so it reads as the new top rating instead of falling through to "Not scored" for having no
+  // matching option any more.
   kpiScoreLabel(score: StudentKpiScore | null): string {
-    return this.kpiScoreOptions.find((option) => option.value === score)?.label ?? 'Not scored';
+    const clamped = score === null ? null : (Math.min(score, 4) as StudentKpiScore);
+    return this.kpiScoreOptions.find((option) => option.value === clamped)?.label ?? 'Not scored';
   }
 
   readonly selectedKpiStudentId = signal<string | null>(null);
@@ -9296,8 +9300,10 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   readonly savedKpiOverallWeightedRating = computed(() => this.computeKpiOverallWeightedRating(this.savedKpiEntries()));
 
   private computeKpiOverallWeightedRating(entries: ReadonlyArray<{ weight: number; overallScoring: StudentKpiScore | null; employeeScoring: StudentKpiScore | null }>): number | null {
+    // Clamped to 4 for the same reason as kpiScoreLabel above — a legacy 5 shouldn't be able to
+    // pull this average past the current scale's max.
     const scoredEntries = entries
-      .map((entry) => ({ weight: entry.weight, score: entry.overallScoring ?? entry.employeeScoring }))
+      .map((entry) => ({ weight: entry.weight, score: this.clampKpiScoreToScale(entry.overallScoring ?? entry.employeeScoring) }))
       .filter((entry) => entry.score !== null && entry.weight > 0);
     const totalWeight = scoredEntries.reduce((total, entry) => total + entry.weight, 0);
     if (!totalWeight) {
@@ -9308,8 +9314,12 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     return weightedSum / totalWeight;
   }
 
+  private clampKpiScoreToScale(score: StudentKpiScore | null): number | null {
+    return score === null ? null : Math.min(score, 4);
+  }
+
   formatKpiOverallRating(rating: number | null): string {
-    return rating === null ? 'Not yet scored' : `${rating.toFixed(1)} / 5`;
+    return rating === null ? 'Not yet scored' : `${rating.toFixed(1)} / 4`;
   }
 
   // Not computed(): FormControl values aren't signals, so these are recalculated on every change

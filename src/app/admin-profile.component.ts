@@ -868,11 +868,11 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                 </div>
 
                 <div class="admin-gauge-body">
-                  <svg class="admin-gauge-svg" viewBox="0 0 240 145" role="img" [attr.aria-label]="'Average overall performance rating ' + performanceGaugeAverageLabel() + ' out of 5'">
+                  <svg class="admin-gauge-svg" viewBox="0 0 240 145" role="img" [attr.aria-label]="'Average overall performance rating ' + performanceGaugeAverageLabel() + ' out of 4'">
                     <path d="M 30,120 A 90,90 0 1,1 210,120" class="admin-gauge-band-track" />
-                    <path d="M 30,120 A 90,90 0 0,1 83.40,37.78" class="admin-gauge-band admin-gauge-band-critical" [class.admin-gauge-band-ready]="dashboardGaugeReady()" />
-                    <path d="M 87.75,35.98 A 90,90 0 0,1 152.25,35.98" class="admin-gauge-band admin-gauge-band-serious" [class.admin-gauge-band-ready]="dashboardGaugeReady()" />
-                    <path d="M 156.60,37.78 A 90,90 0 0,1 210,120" class="admin-gauge-band admin-gauge-band-good" [class.admin-gauge-band-ready]="dashboardGaugeReady()" />
+                    <path d="M 30,120 A 90,90 0 0,1 117.64,30.03" class="admin-gauge-band admin-gauge-band-critical" [class.admin-gauge-band-ready]="dashboardGaugeReady()" />
+                    <path d="M 122.36,30.03 A 90,90 0 0,1 196.74,72.97" class="admin-gauge-band admin-gauge-band-serious" [class.admin-gauge-band-ready]="dashboardGaugeReady()" />
+                    <path d="M 199.09,77.06 A 90,90 0 0,1 210,120" class="admin-gauge-band admin-gauge-band-good" [class.admin-gauge-band-ready]="dashboardGaugeReady()" />
                     @if (performanceGaugeMarker(); as marker) {
                       <circle
                         [attr.cx]="marker.x"
@@ -884,25 +884,25 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       />
                     }
                     <text x="120" y="102" text-anchor="middle" class="admin-gauge-value" [class.admin-gauge-value-ready]="dashboardGaugeReady()">{{ performanceGaugeAverageLabel() }}</text>
-                    <text x="120" y="120" text-anchor="middle" class="admin-gauge-value-caption" dy="14">average / 5</text>
+                    <text x="120" y="120" text-anchor="middle" class="admin-gauge-value-caption" dy="14">average / 4</text>
                     <text x="18" y="129" text-anchor="start" class="admin-gauge-scale-label">1</text>
-                    <text x="222" y="129" text-anchor="end" class="admin-gauge-scale-label">5</text>
+                    <text x="222" y="129" text-anchor="end" class="admin-gauge-scale-label">4</text>
                   </svg>
 
                   <div class="admin-gauge-legend">
                     <div class="admin-gauge-legend-row">
                       <span class="admin-gauge-legend-dot admin-gauge-legend-dot-critical"></span>
-                      <span class="admin-gauge-legend-text"><strong>Not fully effective</strong> — rating 2</span>
+                      <span class="admin-gauge-legend-text"><strong>Needs Improvement or below</strong> — rating 1–2</span>
                       <span class="admin-gauge-legend-count">{{ performanceGaugeBandCounts().critical }}</span>
                     </div>
                     <div class="admin-gauge-legend-row">
                       <span class="admin-gauge-legend-dot admin-gauge-legend-dot-serious"></span>
-                      <span class="admin-gauge-legend-text"><strong>Fully effective</strong> — rating 3</span>
+                      <span class="admin-gauge-legend-text"><strong>Meets Expectations</strong> — rating 3</span>
                       <span class="admin-gauge-legend-count">{{ performanceGaugeBandCounts().serious }}</span>
                     </div>
                     <div class="admin-gauge-legend-row">
                       <span class="admin-gauge-legend-dot admin-gauge-legend-dot-good"></span>
-                      <span class="admin-gauge-legend-text"><strong>Highly effective+</strong> — rating 4–5</span>
+                      <span class="admin-gauge-legend-text"><strong>Exceeds Expectations</strong> — rating 4</span>
                       <span class="admin-gauge-legend-count">{{ performanceGaugeBandCounts().good }}</span>
                     </div>
                     @if (!performanceGaugeBandCounts().total) {
@@ -4427,6 +4427,15 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         return right.dateCapturedValue.localeCompare(left.dateCapturedValue);
       });
   });
+  // The rating scale moved from 5 points down to 4 (Exceeds/Meets/Needs Improvement/
+  // Unsatisfactory); a KPI scored under the old scale before this change can still carry a raw
+  // stored value of 5. Rather than rewriting that historical data, every place that turns a score
+  // into a displayed number or feeds it into a weighted average clamps it down to the new max
+  // first — the old top rating just reads as the new top rating.
+  private clampKpiScoreToScale(score: number | null): number | null {
+    return score === null ? null : Math.min(score, 4);
+  }
+
   readonly performanceReportRows = computed<PerformanceReportRow[]>(() => {
     const managerNamesById = this.reportManagerNamesById();
 
@@ -4442,9 +4451,13 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         // Same fallback as the student/manager KPI views: an entry counts toward the overall
         // rating using the manager's Overall score where set, otherwise the employee's own
         // self-score — so this report agrees with what those pages show instead of only ever
-        // reflecting the manager's (possibly still-blank) Overall column.
+        // reflecting the manager's (possibly still-blank) Overall column. Clamped to the current
+        // 4-point scale's max — a KPI rated 5 under the old 5-point scale (before Exceeds
+        // Expectations/Meets Expectations/Needs Improvement/Unsatisfactory replaced it) still
+        // reads as the new top rating rather than silently exceeding a scale that no longer goes
+        // that high; the stored value itself is left untouched.
         const scoredEntries = entries
-          .map((entry) => ({ weight: entry.weight, score: entry.overallScoring ?? entry.employeeScoring }))
+          .map((entry) => ({ weight: entry.weight, score: this.clampKpiScoreToScale(entry.overallScoring ?? entry.employeeScoring) }))
           .filter((entry) => entry.score !== null && entry.weight > 0);
         const scoredWeight = scoredEntries.reduce((total, entry) => total + entry.weight, 0);
         const overallRating = scoredWeight
@@ -4468,7 +4481,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
           kpiCount: entries.length,
           totalWeight,
           overallRating,
-          overallRatingLabel: overallRating === null ? 'Not yet scored' : `${overallRating.toFixed(1)} / 5`,
+          overallRatingLabel: overallRating === null ? 'Not yet scored' : `${overallRating.toFixed(1)} / 4`,
           lastReviewDate: this.formatReportDateLabel(lastReviewDateValue || null),
           lastReviewDateValue,
         };
@@ -4587,8 +4600,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   // used to have a rotating needle here; it was pulled after two rounds of animation bugs tied to
   // getting its resting angle and transform-origin/pivot right. A dot placed directly at its final
   // coordinates has no rotation and no pivot to get wrong, so it can't get stuck at the wrong angle
-  // the way the needle did. The arc runs from value 1 at 180° through the top (value 3, 270°) to
-  // value 5 at 0°/360° — see the fixed band <path> coordinates above, which this angle mapping was
+  // the way the needle did. The arc runs from value 1 at 180° through the top (value 2.5, 270°) to
+  // value 4 at 0°/360° — see the fixed band <path> coordinates above, which this angle mapping was
   // reverse-derived from to stay pixel-consistent with them.
   readonly performanceGaugeMarker = computed<{ x: number; y: number } | null>(() => {
     const average = this.performanceGaugeAverage();
@@ -4596,8 +4609,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       return null;
     }
 
-    const clamped = Math.min(5, Math.max(1, average));
-    const angleDegrees = 180 + 45 * (clamped - 1);
+    const clamped = Math.min(4, Math.max(1, average));
+    const angleDegrees = 180 + 60 * (clamped - 1);
     const angleRadians = (angleDegrees * Math.PI) / 180;
     return {
       x: 120 + 90 * Math.cos(angleRadians),
@@ -4621,8 +4634,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   });
 
   // Band thresholds mirror the gauge's colour zones: below 2.5 rounds to a rating of 2, 2.5–3.5
-  // rounds to 3, 3.5 and up rounds to 4 or 5. Ratings that would round to 1 are folded into the
-  // same red/critical band as 2 — there's no separate zone for it, and it's clearly no better.
+  // rounds to 3, 3.5 and up rounds to 4 (the scale's max). Ratings that would round to 1 are
+  // folded into the same red/critical band as 2 — there's no separate zone for it, and it's
+  // clearly no better.
   readonly performanceGaugeBandCounts = computed(() => {
     const rows = this.scoredPerformanceRows();
     const critical = rows.filter((row) => row.overallRating < 2.5).length;
