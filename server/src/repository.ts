@@ -409,20 +409,29 @@ function normalizeStudentKpiEntries(entries: unknown): StudentKpiEntryRecord[] {
   }
 
   return entries.map((entry, index) => {
-    const candidate = entry as Partial<StudentKpiEntryRecord>;
+    const candidate = entry as Partial<StudentKpiEntryRecord> & { agreedOutput?: unknown };
     const id = typeof candidate.id === 'string' && candidate.id.trim() ? candidate.id.trim() : `kpi-${Date.now()}-${index}`;
     const weight = typeof candidate.weight === 'number' && Number.isFinite(candidate.weight) ? candidate.weight : 0;
+    // Rows saved before the Target/Actual column revision have `agreedOutput` but no `target` yet
+    // — migrate it forward on read rather than losing what was already recorded there.
+    const target = typeof candidate.target === 'string'
+      ? candidate.target
+      : typeof candidate.agreedOutput === 'string'
+        ? candidate.agreedOutput
+        : '';
 
     return {
       id,
+      keyResultArea: typeof candidate.keyResultArea === 'string' ? candidate.keyResultArea : '',
       kpi: typeof candidate.kpi === 'string' ? candidate.kpi : '',
       weight,
-      agreedOutput: typeof candidate.agreedOutput === 'string' ? candidate.agreedOutput : '',
-      measure: typeof candidate.measure === 'string' ? candidate.measure : '',
+      target,
+      actual: typeof candidate.actual === 'string' ? candidate.actual : '',
       comments: typeof candidate.comments === 'string' ? candidate.comments : '',
+      overallScoring: normalizeStudentKpiScore(candidate.overallScoring),
       managerScoring: normalizeStudentKpiScore(candidate.managerScoring),
       employeeScoring: normalizeStudentKpiScore(candidate.employeeScoring),
-      overallScoring: normalizeStudentKpiScore(candidate.overallScoring),
+      measure: typeof candidate.measure === 'string' ? candidate.measure : '',
       dateOfReview: typeof candidate.dateOfReview === 'string' ? candidate.dateOfReview : '',
       gapInitiative: typeof candidate.gapInitiative === 'string' ? candidate.gapInitiative : '',
       gapComments: typeof candidate.gapComments === 'string' ? candidate.gapComments : '',
@@ -431,14 +440,17 @@ function normalizeStudentKpiEntries(entries: unknown): StudentKpiEntryRecord[] {
   });
 }
 
-// employeeScoring and the three Performance Gap Analysis fields are each written through their
-// own dedicated, more narrowly-scoped endpoint (updateKpiEmployeeScoring, updateKpiGapAnalysis),
-// independently of the manager's full-table save. Without this, a manager's Save on
+// employeeScoring, managerScoring, and the three Performance Gap Analysis fields are each frozen
+// off from the manager's full-table save form. employeeScoring and the gap fields have their own
+// dedicated, more narrowly-scoped endpoints (updateKpiEmployeeScoring, updateKpiGapAnalysis);
+// managerScoring has no live editable path left at all since Manager/Employee/Overall Scoring
+// collapsed into the single Final Rating column (overallScoring) — but its historical value is
+// still preserved rather than deleted. Without this, a manager's Save on
 // setKpiEntriesForStudent — built from whatever their edit form last loaded, which doesn't carry
-// any of these fields — would silently overwrite a student's self-score or a manager's own
-// gap-analysis notes the instant anything else on that row gets saved, even minutes or hours
-// later: the manager's client has no way to know a newer value exists once their form is open.
-// Forcing every incoming row's protected fields back to whatever the CURRENT stored values
+// a live edit to any of these fields — would silently overwrite a student's self-score or a
+// manager's own gap-analysis notes the instant anything else on that row gets saved, even minutes
+// or hours later: the manager's client has no way to know a newer value exists once their form is
+// open. Forcing every incoming row's protected fields back to whatever the CURRENT stored values
 // actually are (matched by row id; a genuinely new row simply has no existing value to preserve)
 // makes those fields structurally impossible for this endpoint to touch, no matter how stale the
 // caller's payload is — this is what actually keeps a saved rating (or gap plan) from ever
@@ -453,6 +465,7 @@ function preserveEmployeeScoringOnFullReplace(
     const existing = existingById.get(entry.id);
     return {
       ...entry,
+      managerScoring: existing ? existing.managerScoring : entry.managerScoring,
       employeeScoring: existing ? existing.employeeScoring : entry.employeeScoring,
       gapInitiative: existing ? existing.gapInitiative : entry.gapInitiative,
       gapComments: existing ? existing.gapComments : entry.gapComments,
@@ -795,14 +808,18 @@ export class LmsRepository {
       const currentYearEntries = findKpiYearEntries(kpiYears, data.currentKpiYear);
       const carriedForwardEntries: StudentKpiEntryRecord[] = currentYearEntries.map((entry) => ({
         id: `kpi-${year}-${entry.id}`,
+        keyResultArea: entry.keyResultArea,
         kpi: entry.kpi,
         weight: entry.weight,
-        agreedOutput: entry.agreedOutput,
+        target: entry.target,
         measure: entry.measure,
         comments: entry.comments,
+        // Actual/scores/date all describe THIS review period's outcome, so they reset along with
+        // the rating — only the KPI's own definition (KRA/KPI/weight/target/measure) carries over.
+        actual: '',
+        overallScoring: null,
         managerScoring: null,
         employeeScoring: null,
-        overallScoring: null,
         dateOfReview: '',
         // A gap plan is written against a specific low score; once the score resets for the new
         // year, last year's plan belongs to last year's (closed, read-only) record, not this one.
@@ -2352,14 +2369,16 @@ class FirestoreLmsRepository extends LmsRepository {
         const currentYearEntries = findKpiYearEntries(kpiYears, currentKpiYear);
         const carriedForwardEntries: StudentKpiEntryRecord[] = currentYearEntries.map((entry) => ({
           id: `kpi-${year}-${entry.id}`,
+          keyResultArea: entry.keyResultArea,
           kpi: entry.kpi,
           weight: entry.weight,
-          agreedOutput: entry.agreedOutput,
+          target: entry.target,
           measure: entry.measure,
           comments: entry.comments,
+          actual: '',
+          overallScoring: null,
           managerScoring: null,
           employeeScoring: null,
-          overallScoring: null,
           dateOfReview: '',
           gapInitiative: '',
           gapComments: '',

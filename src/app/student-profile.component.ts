@@ -1003,83 +1003,49 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
               <div class="kpi-table-wrap">
                 <table class="kpi-table">
                   <colgroup>
-                    <col style="width: 15%" />
-                    <col style="width: 7%" />
-                    <col style="width: 13%" />
-                    <col style="width: 12%" />
-                    <col style="width: 12%" />
-                    <col style="width: 11%" />
-                    <col style="width: 11%" />
-                    <col style="width: 11%" />
+                    <col style="width: 14%" />
+                    <col style="width: 16%" />
                     <col style="width: 8%" />
+                    <col style="width: 16%" />
+                    <col style="width: 16%" />
+                    <col style="width: 10%" />
+                    <col style="width: 20%" />
                   </colgroup>
                   <thead>
                     <tr>
-                      <th>KPI</th>
-                      <th class="kpi-cell-weight">Weight</th>
-                      <th>Agreed Output</th>
-                      <th>Measure</th>
+                      <th>Key Result Area</th>
+                      <th>Key Performance Indicator</th>
+                      <th class="kpi-cell-weight">Weight of KPI</th>
+                      <th>Target</th>
+                      <th>Actual</th>
+                      <th class="kpi-cell-center">Final Rating</th>
                       <th>Comments</th>
-                      <th class="kpi-cell-center">Manager Scoring</th>
-                      <th class="kpi-cell-center">Employee Scoring</th>
-                      <th class="kpi-cell-center">Overall Scoring</th>
-                      <th class="kpi-cell-center">Date of Review</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr *ngFor="let entry of myKpiEntries(); trackBy: trackKpiEntryById">
+                      <td>{{ entry.keyResultArea || 'Not provided' }}</td>
                       <td>{{ entry.kpi || 'Not provided' }}</td>
                       <td class="kpi-cell-weight">{{ entry.weight }}%</td>
-                      <td>{{ entry.agreedOutput || 'Not provided' }}</td>
-                      <td>{{ entry.measure || 'Not provided' }}</td>
-                      <td>{{ entry.comments || 'Not provided' }}</td>
-                      <td class="kpi-cell-center"><span class="kpi-score-pill" [class.kpi-score-flag]="entry.managerScoring === 2" [class.kpi-score-empty]="entry.managerScoring === null">{{ kpiScoreLabel(entry.managerScoring) }}</span></td>
-                      <td class="kpi-cell-center kpi-employee-scoring-cell" [class.kpi-score-flag]="resolveEmployeeScoringDisplay(entry) === 2" *ngIf="isViewingCurrentKpiYear(); else employeeScoringReadOnly">
-                        <select [value]="resolveEmployeeScoringDisplay(entry) ?? ''" (change)="stageMyKpiEmployeeScoring(entry.id, $event)">
-                          <option value="">Not scored</option>
-                          <option *ngFor="let option of kpiScoreOptions" [value]="option.value">{{ option.label }}</option>
-                        </select>
-                        <span class="kpi-employee-scoring-pending" *ngIf="isEmployeeScoringPending(entry.id)">Not submitted yet</span>
-                      </td>
-                      <ng-template #employeeScoringReadOnly>
-                        <td class="kpi-cell-center"><span class="kpi-score-pill" [class.kpi-score-flag]="entry.employeeScoring === 2" [class.kpi-score-empty]="entry.employeeScoring === null">{{ kpiScoreLabel(entry.employeeScoring) }}</span></td>
-                      </ng-template>
+                      <td>{{ entry.target || 'Not provided' }}</td>
+                      <td>{{ entry.actual || 'Not provided' }}</td>
                       <td class="kpi-cell-center"><span class="kpi-score-pill" [class.kpi-score-flag]="entry.overallScoring === 2" [class.kpi-score-empty]="entry.overallScoring === null">{{ kpiScoreLabel(entry.overallScoring) }}</span></td>
-                      <td class="kpi-cell-center">{{ entry.dateOfReview || 'Not provided' }}</td>
+                      <td>{{ entry.comments || 'Not provided' }}</td>
                     </tr>
                   </tbody>
                   <tfoot>
                     <tr class="kpi-totals-row">
                       <td>Totals</td>
+                      <td></td>
                       <td class="kpi-cell-weight" [class.kpi-total-weight-off]="myKpiTotalWeight() !== 100">{{ myKpiTotalWeight() }}%</td>
                       <td></td>
                       <td></td>
-                      <td></td>
-                      <td class="kpi-cell-center"></td>
-                      <td class="kpi-cell-center"></td>
                       <td class="kpi-cell-center"><span class="kpi-score-pill kpi-total-rating-pill">{{ formatKpiOverallRating(myKpiOverallWeightedRating()) }}</span></td>
-                      <td class="kpi-cell-center"></td>
+                      <td></td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
-
-              <div class="kpi-submit-actions" *ngIf="isViewingCurrentKpiYear()">
-                @if (kpiSubmitSaved()) {
-                  <p class="kpi-submit-status kpi-submit-status-saved" role="status" aria-live="polite">Ratings submitted.</p>
-                }
-                @if (kpiSubmitError()) {
-                  <p class="kpi-submit-status kpi-submit-status-error" role="alert">Couldn't save — try again.</p>
-                }
-                <button
-                  type="button"
-                  class="kpi-submit-button"
-                  [disabled]="!hasPendingKpiChanges() || kpiSubmitting()"
-                  (click)="submitMyKpiRatings()">
-                  {{ kpiSubmitting() ? 'Submitting…' : 'Submit Ratings' }}
-                </button>
-              </div>
-              <p class="kpi-year-empty-note" *ngIf="!isViewingCurrentKpiYear()">This is a closed, read-only record of {{ selectedKpiYear() }} — only the current year can be scored.</p>
             </div>
 
             <div class="idp-program-card kpi-gap-card" *ngIf="myKpiEntries().length > 0">
@@ -2776,81 +2742,6 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
       color: #b91c1c;
     }
 
-    .kpi-employee-scoring-cell select {
-      display: block;
-      width: 100%;
-      max-width: 100%;
-      padding: 0.5rem 0.6rem;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      font: inherit;
-      color: #0f172a;
-      background: #fff;
-      box-sizing: border-box;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
-    }
-
-    .kpi-employee-scoring-cell select:hover {
-      border-color: #cbd5e1;
-    }
-
-    .kpi-employee-scoring-cell select:focus {
-      border-color: var(--brand-primary);
-      outline: none;
-      box-shadow: 0 0 0 3px var(--brand-tint);
-    }
-
-    .kpi-employee-scoring-pending {
-      display: block;
-      font-size: 0.72rem;
-      font-weight: 700;
-      color: #b45309;
-    }
-
-    .kpi-submit-actions {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 0.8rem;
-      padding: 0.9rem 1rem 0;
-      flex-wrap: wrap;
-    }
-
-    .kpi-submit-status {
-      margin: 0;
-      font-size: 0.85rem;
-      font-weight: 700;
-    }
-
-    .kpi-submit-status-saved {
-      color: #15803d;
-    }
-
-    .kpi-submit-status-error {
-      color: #b91c1c;
-    }
-
-    .kpi-submit-button {
-      padding: 0.6rem 1.3rem;
-      border: none;
-      border-radius: 999px;
-      background: var(--brand-primary);
-      color: #fff;
-      font: inherit;
-      font-weight: 700;
-      cursor: pointer;
-      transition: background-color 0.15s ease, opacity 0.15s ease;
-    }
-
-    .kpi-submit-button:hover:not(:disabled) {
-      background: var(--brand-secondary);
-    }
-
-    .kpi-submit-button:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-    }
-
     .kpi-total-weight {
       font-size: 0.76rem;
       font-weight: 700;
@@ -2897,19 +2788,6 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
       background: #fffbeb;
       border-radius: 999px;
       padding: 0.2rem 0.65rem;
-    }
-
-    .kpi-year-empty-note {
-      margin: 0.75rem 0 0;
-      font-size: 0.85rem;
-      color: #64748b;
-    }
-
-    .kpi-employee-scoring-cell.kpi-score-flag select {
-      border-color: #ef4444;
-      background: #fef2f2;
-      color: #b91c1c;
-      font-weight: 700;
     }
 
     .kpi-totals-row td {
@@ -5015,9 +4893,9 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     return this.managerData.idpEntriesByStudent()[matchedStudent.id] ?? [];
   });
 
-  // Manager-entered KPI table shown in the student view — every field is read-only except
-  // Employee scoring, which the student fills in themselves (see stageMyKpiEmployeeScoring /
-  // submitMyKpiRatings).
+  // Manager-entered KPI table shown in the student view — every field, including Final Rating, is
+  // read-only here; only a manager or admin can edit it (see training-manager-profile.
+  // component.ts).
   //
   // Resolves by live email match against the roster FIRST, with the session's studentId claim
   // only as a fallback. This is the opposite of an earlier version of this logic, which preferred
@@ -5051,10 +4929,9 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
   });
 
   // Without this, *ngFor's default identity-based diffing sees a brand-new object on every
-  // update (every save creates fresh entry objects) and destroys+recreates the whole <tr>,
-  // including the Employee scoring <select> — which can lose the value it was just set to on
-  // re-render before Angular gets a chance to re-bind it. Tracking by the stable entry id keeps
-  // the DOM node in place and just updates its bound value instead.
+  // update (every save creates fresh entry objects) and destroys+recreates the whole <tr>.
+  // Tracking by the stable entry id keeps the DOM node in place and just updates its bound
+  // values instead.
   trackKpiEntryById(_index: number, entry: StudentKpiEntry): string {
     return entry.id;
   }
@@ -5095,8 +4972,6 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
   selectKpiYear(year: number) {
     this.hasManuallySelectedKpiYear = true;
     this.selectedKpiYear.set(year);
-    // kpiYearPendingResetEffect (below) clears pendingEmployeeScoring/kpiSubmitSaved/kpiSubmitError
-    // whenever selectedKpiYear actually changes, so this doesn't need to duplicate that here.
 
     const id = this.matchedKpiStudentId();
     if (id) {
@@ -5110,11 +4985,11 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
 
   readonly kpiFullScreen = signal(false);
 
-  // Weight-weighted average of Overall Scoring across every KPI that's actually been given a
-  // score — unscored rows are excluded from both the numerator and denominator so a still-blank
-  // KPI doesn't silently drag the total down. Falls back to the employee's own self-score until
-  // the manager finalizes an Overall score, so a student who rates themselves actually sees that
-  // reflected here instead of the total staying "Not yet scored".
+  // Weight-weighted average of Final Rating across every KPI that's actually been given a score —
+  // unscored rows are excluded from both the numerator and denominator so a still-blank KPI
+  // doesn't silently drag the total down. Falls back to a legacy employeeScoring value for rows
+  // scored before Manager/Employee/Overall Scoring collapsed into this single Final Rating column,
+  // so old data still contributes correctly to the total instead of reading as unscored.
   readonly myKpiOverallWeightedRating = computed(() => {
     const scoredEntries = this.myKpiEntries()
       .map((entry) => ({ weight: entry.weight, score: entry.overallScoring ?? entry.employeeScoring }))
@@ -5142,79 +5017,6 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
 
   kpiScoreLabel(score: StudentKpiScore | null): string {
     return this.kpiScoreOptions.find((option) => option.value === score)?.label ?? 'Not scored';
-  }
-
-  // The student stages every Employee Scoring pick locally and only sends them to the backend
-  // when they click Submit — one confirmed batch write per session at the table instead of a
-  // save-on-every-change network call per row, matching the same "review, then confirm" pattern
-  // the manager's own KPI form already uses (see saveKpiEntries in training-manager-profile.
-  // component.ts). pendingEmployeeScoring holds entryId -> staged value; an entry with no staged
-  // pick yet simply isn't a key in it.
-  readonly pendingEmployeeScoring = signal<Record<string, StudentKpiScore | null>>({});
-  readonly hasPendingKpiChanges = computed(() => Object.keys(this.pendingEmployeeScoring()).length > 0);
-  readonly kpiSubmitting = signal(false);
-  readonly kpiSubmitSaved = signal(false);
-  readonly kpiSubmitError = signal(false);
-
-  // Guards against a stale-submit bug: if a manager opens a new KPI year while a student has
-  // Employee Scoring picks staged but not yet submitted, kpiYearFollowEffect above silently moves
-  // this student onto the new year's (freshly empty) table — the Submit button stays enabled the
-  // whole time since it never depended on the year. Without this, submitMyKpiRatings would still
-  // send the old year's staged row ids, which match nothing in the new table; the student would
-  // see "Ratings submitted" while nothing was actually saved for either year. Runs on every change
-  // to selectedKpiYear, whichever effect above caused it (auto-follow or a manual selectKpiYear
-  // pick), so the discard happens unconditionally rather than only on the manual path.
-  private lastKpiYearForPendingState: number | null = null;
-  private readonly kpiYearPendingResetEffect = effect(() => {
-    const year = this.selectedKpiYear();
-    if (year !== this.lastKpiYearForPendingState) {
-      this.lastKpiYearForPendingState = year;
-      this.pendingEmployeeScoring.set({});
-      this.kpiSubmitSaved.set(false);
-      this.kpiSubmitError.set(false);
-    }
-  });
-
-  resolveEmployeeScoringDisplay(entry: StudentKpiEntry): StudentKpiScore | null {
-    const pending = this.pendingEmployeeScoring();
-    return entry.id in pending ? pending[entry.id] : entry.employeeScoring;
-  }
-
-  isEmployeeScoringPending(entryId: string): boolean {
-    return entryId in this.pendingEmployeeScoring();
-  }
-
-  stageMyKpiEmployeeScoring(entryId: string, event: Event) {
-    const select = event.target as HTMLSelectElement | null;
-    const raw = select?.value ?? '';
-    const employeeScoring = raw ? (Number(raw) as StudentKpiScore) : null;
-    this.pendingEmployeeScoring.update((current) => ({ ...current, [entryId]: employeeScoring }));
-    this.kpiSubmitSaved.set(false);
-    this.kpiSubmitError.set(false);
-  }
-
-  async submitMyKpiRatings() {
-    const studentId = this.matchedKpiStudentId();
-    const updates = Object.entries(this.pendingEmployeeScoring()).map(([id, employeeScoring]) => ({ id, employeeScoring }));
-    if (!studentId || !updates.length || this.kpiSubmitting()) {
-      return;
-    }
-
-    this.kpiSubmitting.set(true);
-    this.kpiSubmitError.set(false);
-    const success = await this.managerData.updateEmployeeKpiScoring(studentId, updates);
-    this.kpiSubmitting.set(false);
-
-    if (success) {
-      this.pendingEmployeeScoring.set({});
-      this.kpiSubmitSaved.set(true);
-      setTimeout(() => this.kpiSubmitSaved.set(false), 3000);
-    } else {
-      // Keep the staged picks in place on failure — the optimistic update was already rolled
-      // back by updateEmployeeKpiScoring, but the student's in-progress selections shouldn't be
-      // silently discarded just because the save didn't go through; let them retry with one click.
-      this.kpiSubmitError.set(true);
-    }
   }
 
   readonly studentData = inject(StudentDataService);

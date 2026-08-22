@@ -348,14 +348,23 @@ export type StudentKpiScoreRecord = 1 | 2 | 3 | 4 | 5;
 
 export type StudentKpiEntryRecord = {
   id: string;
+  // Visible table columns (Key Result Area / Key Performance Indicator / Weight of KPI / Target /
+  // Actual / Final Rating / Comments):
+  keyResultArea: string;
   kpi: string;
   weight: number;
-  agreedOutput: string;
-  measure: string;
+  target: string;
+  actual: string;
   comments: string;
+  // The single editable rating going forward — displayed as "Final Rating". Manager Scoring and
+  // Employee Scoring are no longer separately editable (the employee self-scoring step was
+  // removed), but both fields — and measure/dateOfReview — are kept and preserved on every write
+  // rather than deleted, so historical data already recorded under the old three-way scoring
+  // model stays intact and readable even though nothing writes new values into them any more.
+  overallScoring: StudentKpiScoreRecord | null;
   managerScoring: StudentKpiScoreRecord | null;
   employeeScoring: StudentKpiScoreRecord | null;
-  overallScoring: StudentKpiScoreRecord | null;
+  measure: string;
   dateOfReview: string;
   // Performance Gap Analysis — only meaningful once overallScoring lands at 1 or 2. Written
   // through its own dedicated endpoint (see updateKpiGapAnalysis), the same way employeeScoring

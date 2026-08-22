@@ -719,14 +719,20 @@ const studentKpiScoreSchema = z.union([z.literal(1), z.literal(2), z.literal(3),
 
 const studentKpiEntrySchema = z.object({
   id: z.string().min(1),
+  keyResultArea: z.string(),
   kpi: z.string(),
   weight: z.number(),
-  agreedOutput: z.string(),
-  measure: z.string(),
+  target: z.string(),
+  actual: z.string(),
   comments: z.string(),
+  overallScoring: studentKpiScoreSchema,
+  // No longer independently editable in the manager's form (see the Final Rating column) — sent
+  // through as hidden fields carrying forward whatever's already stored so this full-table save
+  // can't blank them out. Kept required (not .default('')/nullable-optional) because the client
+  // always includes them now, unlike gapInitiative/etc. below which it genuinely omits.
   managerScoring: studentKpiScoreSchema,
   employeeScoring: studentKpiScoreSchema,
-  overallScoring: studentKpiScoreSchema,
+  measure: z.string(),
   dateOfReview: z.string(),
   // The manager's full-table save form never carries these — they're written independently
   // through the gap-analysis endpoint below and forced back to whatever's already stored by

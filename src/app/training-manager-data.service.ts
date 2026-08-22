@@ -42,14 +42,21 @@ export type StudentKpiScore = 1 | 2 | 3 | 4 | 5;
 
 export type StudentKpiEntry = {
   id: string;
+  // Visible columns: Key Result Area / Key Performance Indicator / Weight of KPI / Target /
+  // Actual / Final Rating (overallScoring) / Comments.
+  keyResultArea: string;
   kpi: string;
   weight: number;
-  agreedOutput: string;
-  measure: string;
+  target: string;
+  actual: string;
   comments: string;
+  overallScoring: StudentKpiScore | null;
+  // No longer independently editable — Manager/Employee/Overall Scoring collapsed into the single
+  // Final Rating (overallScoring) column above. Kept (not removed) so historical data recorded
+  // under the old three-way scoring model stays intact; nothing writes new values into these.
   managerScoring: StudentKpiScore | null;
   employeeScoring: StudentKpiScore | null;
-  overallScoring: StudentKpiScore | null;
+  measure: string;
   dateOfReview: string;
   // Performance Gap Analysis — only meaningful once overallScoring lands at 1 or 2; captured here
   // rather than in a separate structure so it travels with the KPI row through the same save,
@@ -664,62 +671,10 @@ export class TrainingManagerDataService {
     }
   }
 
-  // Student-facing: merges only the Employee scoring field into existing KPI rows — can't add/
-  // remove rows or touch any other field. The backend enforces that same restriction
-  // independently (see /kpi-entries/employee-scoring in server.ts); this just keeps the local
-  // cache in sync with what the backend actually accepted. Takes a batch of updates rather than
-  // one at a time — the student stages every row they want to score locally (see
-  // stageMyKpiEmployeeScoring in student-profile.component.ts) and submits them together as one
-  // confirmed write, instead of firing a save on every single dropdown change.
-  updateEmployeeKpiScoring(studentId: string, updates: { id: string; employeeScoring: StudentKpiScore | null }[]): Promise<boolean> {
-    const normalizedStudentId = studentId.trim();
-    if (!normalizedStudentId || !updates.length) {
-      return Promise.resolve(false);
-    }
-
-    const previousEntries = this.kpiEntriesByStudentSignal()[normalizedStudentId] ?? [];
-    const scoringById = new Map(updates.map((update) => [update.id, update.employeeScoring]));
-
-    this.kpiEntriesDirtyAt[normalizedStudentId] = Date.now();
-    this.kpiEntriesByStudentSignal.update((current) => {
-      const next = {
-        ...current,
-        [normalizedStudentId]: previousEntries.map((entry) =>
-          scoringById.has(entry.id) ? { ...entry, employeeScoring: scoringById.get(entry.id) ?? null } : entry,
-        ),
-      };
-      this.saveKpiEntriesByStudent(next);
-      return next;
-    });
-
-    return new Promise<boolean>((resolve) => {
-      this.backend.updateKpiEmployeeScoring(normalizedStudentId, updates).subscribe({
-        next: (entries) => {
-          this.kpiEntriesDirtyAt[normalizedStudentId] = Date.now();
-          this.kpiEntriesByStudentSignal.update((current) => {
-            const next = { ...current, [normalizedStudentId]: entries };
-            this.saveKpiEntriesByStudent(next);
-            return next;
-          });
-          resolve(true);
-        },
-        // Roll back the optimistic update the backend didn't actually accept — otherwise the
-        // score looks saved (still shown selected) until the next bootstrap poll silently
-        // reverts it, which is exactly the "input isn't seen" symptom this was reported as.
-        error: () => {
-          this.kpiEntriesByStudentSignal.update((current) => {
-            const next = { ...current, [normalizedStudentId]: previousEntries };
-            this.saveKpiEntriesByStudent(next);
-            return next;
-          });
-          resolve(false);
-        },
-      });
-    });
-  }
-
   // Manager-facing: merges only the three Performance Gap Analysis fields into existing KPI
-  // rows — same shape as updateEmployeeKpiScoring above, just for the initiative/comments/target
+  // rows — same shape as the employee-scoring endpoint this app used to have (see server.ts,
+  // which keeps that endpoint and the employeeScoring field for historical data even though no
+  // client calls it any more), just for the initiative/comments/target
   // date a manager records against a KPI rated 1 or 2. Staged and submitted as one batch by the
   // Performance Gap Analysis card in training-manager-profile.component.ts.
   updateKpiGapAnalysis(
@@ -3179,19 +3134,28 @@ export class TrainingManagerDataService {
   }
 
   private normalizeKpiEntry(entry: unknown): StudentKpiEntry {
-    const candidate = (entry && typeof entry === 'object' ? entry : {}) as Partial<StudentKpiEntry>;
+    const candidate = (entry && typeof entry === 'object' ? entry : {}) as Partial<StudentKpiEntry> & { agreedOutput?: unknown };
     const weight = typeof candidate.weight === 'number' && Number.isFinite(candidate.weight) ? candidate.weight : 0;
+    // A locally cached entry from before the Target/Actual column revision has `agreedOutput` but
+    // no `target` yet — migrate it forward rather than losing what was already recorded there.
+    const target = typeof candidate.target === 'string'
+      ? candidate.target
+      : typeof candidate.agreedOutput === 'string'
+        ? candidate.agreedOutput
+        : '';
 
     return {
       id: typeof candidate.id === 'string' && candidate.id.trim() ? candidate.id.trim() : `kpi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      keyResultArea: typeof candidate.keyResultArea === 'string' ? candidate.keyResultArea : '',
       kpi: typeof candidate.kpi === 'string' ? candidate.kpi : '',
       weight,
-      agreedOutput: typeof candidate.agreedOutput === 'string' ? candidate.agreedOutput : '',
-      measure: typeof candidate.measure === 'string' ? candidate.measure : '',
+      target,
+      actual: typeof candidate.actual === 'string' ? candidate.actual : '',
       comments: typeof candidate.comments === 'string' ? candidate.comments : '',
+      overallScoring: this.normalizeKpiScoreValue(candidate.overallScoring),
       managerScoring: this.normalizeKpiScoreValue(candidate.managerScoring),
       employeeScoring: this.normalizeKpiScoreValue(candidate.employeeScoring),
-      overallScoring: this.normalizeKpiScoreValue(candidate.overallScoring),
+      measure: typeof candidate.measure === 'string' ? candidate.measure : '',
       dateOfReview: typeof candidate.dateOfReview === 'string' ? candidate.dateOfReview : '',
       gapInitiative: typeof candidate.gapInitiative === 'string' ? candidate.gapInitiative : '',
       gapComments: typeof candidate.gapComments === 'string' ? candidate.gapComments : '',
@@ -3218,7 +3182,7 @@ export class TrainingManagerDataService {
 
   // Unlike IDP entries, KPI entries have their own dedicated endpoint (see server.ts) rather
   // than riding along on the general student snapshot — that's what lets the server enforce the
-  // manager-vs-student write split described on setKpiEntriesForStudent / updateEmployeeKpiScoring.
+  // full-table-vs-scoped write split described on setKpiEntriesForStudent / updateKpiGapAnalysis.
   private persistKpiEntriesToBackend(studentId: string) {
     if (!this.backendHydrated) {
       return;

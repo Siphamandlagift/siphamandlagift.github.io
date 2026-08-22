@@ -109,14 +109,23 @@ type IdpEntryFormGroup = FormGroup<{
 
 type KpiEntryFormGroup = FormGroup<{
   id: FormControl<string | null>;
+  keyResultArea: FormControl<string | null>;
   kpi: FormControl<string | null>;
   weight: FormControl<number | null>;
-  agreedOutput: FormControl<string | null>;
-  measure: FormControl<string | null>;
+  target: FormControl<string | null>;
+  actual: FormControl<string | null>;
   comments: FormControl<string | null>;
+  overallScoring: FormControl<StudentKpiScore | null>;
+  // Not shown or edited in the main table any more (Manager/Employee/Overall Scoring collapsed
+  // into the single Final Rating column above; Measure and Date of Review dropped as visible
+  // columns entirely) — held here purely so this form round-trips the values it loaded rather
+  // than blanking them out on save. The server independently guards managerScoring/employeeScoring
+  // against a full-table save overwriting them regardless, but shipping accurate values is still
+  // better than relying solely on that backstop, and measure/dateOfReview have no other writer at
+  // all so this is the only thing keeping them from silently going blank on the next save.
   managerScoring: FormControl<StudentKpiScore | null>;
   employeeScoring: FormControl<StudentKpiScore | null>;
-  overallScoring: FormControl<StudentKpiScore | null>;
+  measure: FormControl<string | null>;
   dateOfReview: FormControl<string | null>;
   // Not shown or edited in the main table (see the Performance Gap Analysis card instead) — held
   // here purely so this form round-trips the values it loaded rather than blanking them out on
@@ -2279,55 +2288,47 @@ type KpiEntryFormGroup = FormGroup<{
                       <div class="kpi-table-wrap">
                         <table class="kpi-table">
                           <colgroup>
+                            <col style="width: 14%" />
                             <col style="width: 16%" />
-                            <col style="width: 7%" />
-                            <col style="width: 13%" />
-                            <col style="width: 12%" />
-                            <col style="width: 12%" />
-                            <col style="width: 11%" />
-                            <col style="width: 11%" />
-                            <col style="width: 11%" />
-                            <col style="width: 7%" />
+                            <col style="width: 8%" />
+                            <col style="width: 16%" />
+                            <col style="width: 16%" />
+                            <col style="width: 10%" />
+                            <col style="width: 20%" />
                           </colgroup>
                           <thead>
                             <tr>
-                              <th>KPI</th>
-                              <th class="kpi-cell-weight">Weight</th>
-                              <th>Agreed Output</th>
-                              <th>Measure</th>
+                              <th>Key Result Area</th>
+                              <th>Key Performance Indicator</th>
+                              <th class="kpi-cell-weight">Weight of KPI</th>
+                              <th>Target</th>
+                              <th>Actual</th>
+                              <th class="kpi-cell-center">Final Rating</th>
                               <th>Comments</th>
-                              <th class="kpi-cell-center">Manager Scoring</th>
-                              <th class="kpi-cell-center">Employee Scoring</th>
-                              <th class="kpi-cell-center">Overall Scoring</th>
-                              <th class="kpi-cell-center">Date of Review</th>
                             </tr>
                           </thead>
                           <tbody>
                             @for (entry of savedKpiEntries(); track entry.id) {
                               <tr>
+                                <td>{{ entry.keyResultArea || 'Not provided' }}</td>
                                 <td>{{ entry.kpi || 'Not provided' }}</td>
                                 <td class="kpi-cell-weight">{{ entry.weight }}%</td>
-                                <td>{{ entry.agreedOutput || 'Not provided' }}</td>
-                                <td>{{ entry.measure || 'Not provided' }}</td>
-                                <td>{{ entry.comments || 'Not provided' }}</td>
-                                <td class="kpi-cell-center"><span class="kpi-score-pill" [class.kpi-score-flag]="entry.managerScoring === 2" [class.kpi-score-empty]="entry.managerScoring === null">{{ kpiScoreLabel(entry.managerScoring) }}</span></td>
-                                <td class="kpi-cell-center"><span class="kpi-score-pill" [class.kpi-score-flag]="entry.employeeScoring === 2" [class.kpi-score-empty]="entry.employeeScoring === null">{{ kpiScoreLabel(entry.employeeScoring) }}</span></td>
+                                <td>{{ entry.target || 'Not provided' }}</td>
+                                <td>{{ entry.actual || 'Not provided' }}</td>
                                 <td class="kpi-cell-center"><span class="kpi-score-pill" [class.kpi-score-flag]="entry.overallScoring === 2" [class.kpi-score-empty]="entry.overallScoring === null">{{ kpiScoreLabel(entry.overallScoring) }}</span></td>
-                                <td class="kpi-cell-center">{{ entry.dateOfReview || 'Not provided' }}</td>
+                                <td>{{ entry.comments || 'Not provided' }}</td>
                               </tr>
                             }
                           </tbody>
                           <tfoot>
                             <tr class="kpi-totals-row">
                               <td>Totals</td>
+                              <td></td>
                               <td class="kpi-cell-weight" [class.kpi-total-weight-off]="savedKpiTotalWeight() !== 100">{{ savedKpiTotalWeight() }}%</td>
                               <td></td>
                               <td></td>
-                              <td></td>
-                              <td class="kpi-cell-center"></td>
-                              <td class="kpi-cell-center"></td>
                               <td class="kpi-cell-center"><span class="kpi-score-pill kpi-total-rating-pill">{{ formatKpiOverallRating(savedKpiOverallWeightedRating()) }}</span></td>
-                              <td class="kpi-cell-center"></td>
+                              <td></td>
                             </tr>
                           </tfoot>
                         </table>
@@ -2355,47 +2356,34 @@ type KpiEntryFormGroup = FormGroup<{
                           <table class="kpi-table kpi-table-editable">
                             <colgroup>
                               <col style="width: 13%" />
-                              <col style="width: 6%" />
-                              <col style="width: 11%" />
+                              <col style="width: 15%" />
+                              <col style="width: 7%" />
+                              <col style="width: 14%" />
+                              <col style="width: 14%" />
                               <col style="width: 10%" />
-                              <col style="width: 10%" />
-                              <col style="width: 10%" />
-                              <col style="width: 9%" />
-                              <col style="width: 10%" />
-                              <col style="width: 13%" />
+                              <col style="width: 19%" />
                               <col style="width: 8%" />
                             </colgroup>
                             <thead>
                               <tr>
-                                <th>KPI</th>
-                                <th class="kpi-cell-weight">Weight %</th>
-                                <th>Agreed Output</th>
-                                <th>Measure</th>
+                                <th>Key Result Area</th>
+                                <th>Key Performance Indicator</th>
+                                <th class="kpi-cell-weight">Weight of KPI %</th>
+                                <th>Target</th>
+                                <th>Actual</th>
+                                <th class="kpi-cell-center">Final Rating</th>
                                 <th>Comments</th>
-                                <th class="kpi-cell-center">Manager Scoring</th>
-                                <th class="kpi-cell-center">Employee Scoring</th>
-                                <th class="kpi-cell-center">Overall Scoring</th>
-                                <th class="kpi-cell-center">Date of Review</th>
                                 <th></th>
                               </tr>
                             </thead>
                             <tbody>
                               @for (entryControl of kpiEntriesControls(); track $index) {
                                 <tr [formGroupName]="$index">
+                                  <td><textarea rows="2" formControlName="keyResultArea" placeholder="e.g. Customer Service"></textarea></td>
                                   <td><textarea rows="2" formControlName="kpi" placeholder="e.g. Improve customer response time"></textarea></td>
                                   <td class="kpi-cell-weight"><input type="number" min="0" max="100" formControlName="weight" /></td>
-                                  <td><textarea rows="2" formControlName="agreedOutput" placeholder="Agreed output..."></textarea></td>
-                                  <td><textarea rows="2" formControlName="measure" placeholder="How is this measured?"></textarea></td>
-                                  <td><textarea rows="2" formControlName="comments" placeholder="Comments..."></textarea></td>
-                                  <td class="kpi-cell-center">
-                                    <select formControlName="managerScoring" [class.kpi-score-flag]="entryControl.controls.managerScoring.value === 2">
-                                      <option [ngValue]="null">Not scored</option>
-                                      @for (option of kpiScoreOptions; track option.value) {
-                                        <option [ngValue]="option.value">{{ option.label }}</option>
-                                      }
-                                    </select>
-                                  </td>
-                                  <td class="kpi-cell-center kpi-employee-scoring-cell"><span class="kpi-score-pill" [class.kpi-score-flag]="entryControl.controls.employeeScoring.value === 2" [class.kpi-score-empty]="entryControl.controls.employeeScoring.value === null">{{ kpiScoreLabel(entryControl.controls.employeeScoring.value) }}</span></td>
+                                  <td><textarea rows="2" formControlName="target" placeholder="Target output..."></textarea></td>
+                                  <td><textarea rows="2" formControlName="actual" placeholder="Actual result..."></textarea></td>
                                   <td class="kpi-cell-center">
                                     <select formControlName="overallScoring" [class.kpi-score-flag]="entryControl.controls.overallScoring.value === 2">
                                       <option [ngValue]="null">Not scored</option>
@@ -2404,7 +2392,7 @@ type KpiEntryFormGroup = FormGroup<{
                                       }
                                     </select>
                                   </td>
-                                  <td class="kpi-cell-center"><input type="date" formControlName="dateOfReview" /></td>
+                                  <td><textarea rows="2" formControlName="comments" placeholder="Comments..."></textarea></td>
                                   <td>
                                     <button
                                       type="button"
@@ -2420,14 +2408,12 @@ type KpiEntryFormGroup = FormGroup<{
                             <tfoot>
                               <tr class="kpi-totals-row">
                                 <td>Totals</td>
+                                <td></td>
                                 <td class="kpi-cell-weight" [class.kpi-total-weight-off]="kpiTotalWeight() !== 100">{{ kpiTotalWeight() }}%</td>
                                 <td></td>
                                 <td></td>
-                                <td></td>
-                                <td class="kpi-cell-center"></td>
-                                <td class="kpi-cell-center"></td>
                                 <td class="kpi-cell-center"><span class="kpi-score-pill kpi-total-rating-pill">{{ formatKpiOverallRating(kpiOverallWeightedRating()) }}</span></td>
-                                <td class="kpi-cell-center"></td>
+                                <td></td>
                                 <td></td>
                               </tr>
                             </tfoot>
@@ -2463,7 +2449,7 @@ type KpiEntryFormGroup = FormGroup<{
                         </div>
                       </div>
                       <p class="kpi-gap-subtitle">
-                        Every KPI rated 1 or 2 on Overall Scoring {{ isViewingCurrentKpiYear() ? 'needs' : 'needed' }} a documented plan to close the gap.
+                        Every KPI rated 1 or 2 on Final Rating {{ isViewingCurrentKpiYear() ? 'needs' : 'needed' }} a documented plan to close the gap.
                       </p>
 
                       @if (!kpiGapEntries().length) {
@@ -9232,8 +9218,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   // noUncheckedIndexedAccess), even though a given entry id may genuinely have no staged draft
   // yet — using `?.`/`??` on it is therefore a type error in a template (NG8102: "always
   // truthy") even though it's exactly the right runtime check. `in` sidesteps that by not
-  // narrowing on the lookup's (inaccurate) static type at all — same idiom already used by
-  // resolveEmployeeScoringDisplay in student-profile.component.ts for the same reason.
+  // narrowing on the lookup's (inaccurate) static type at all.
   private stagedGapDraftFor(entryId: string) {
     const draft = this.gapAnalysisDraft();
     return entryId in draft ? draft[entryId] : null;
@@ -9331,14 +9316,16 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   private createKpiEntryGroup(): KpiEntryFormGroup {
     return new FormGroup({
       id: new FormControl<string | null>(''),
+      keyResultArea: new FormControl<string | null>(''),
       kpi: new FormControl<string | null>(''),
       weight: new FormControl<number | null>(0),
-      agreedOutput: new FormControl<string | null>(''),
-      measure: new FormControl<string | null>(''),
+      target: new FormControl<string | null>(''),
+      actual: new FormControl<string | null>(''),
       comments: new FormControl<string | null>(''),
+      overallScoring: new FormControl<StudentKpiScore | null>(null),
       managerScoring: new FormControl<StudentKpiScore | null>(null),
       employeeScoring: new FormControl<StudentKpiScore | null>(null),
-      overallScoring: new FormControl<StudentKpiScore | null>(null),
+      measure: new FormControl<string | null>(''),
       dateOfReview: new FormControl<string | null>(this.todayIsoDate()),
       gapInitiative: new FormControl<string | null>(''),
       gapComments: new FormControl<string | null>(''),
@@ -9482,14 +9469,16 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     if (!studentId) return;
     const entries = this.kpiForm.controls.entries.controls.map((g) => ({
       id: g.controls.id.value?.trim() || '',
+      keyResultArea: g.controls.keyResultArea.value ?? '',
       kpi: g.controls.kpi.value ?? '',
       weight: g.controls.weight.value ?? 0,
-      agreedOutput: g.controls.agreedOutput.value ?? '',
-      measure: g.controls.measure.value ?? '',
+      target: g.controls.target.value ?? '',
+      actual: g.controls.actual.value ?? '',
       comments: g.controls.comments.value ?? '',
+      overallScoring: g.controls.overallScoring.value ?? null,
       managerScoring: g.controls.managerScoring.value ?? null,
       employeeScoring: g.controls.employeeScoring.value ?? null,
-      overallScoring: g.controls.overallScoring.value ?? null,
+      measure: g.controls.measure.value ?? '',
       dateOfReview: g.controls.dateOfReview.value ?? '',
       gapInitiative: g.controls.gapInitiative.value ?? '',
       gapComments: g.controls.gapComments.value ?? '',
