@@ -1966,6 +1966,23 @@ type KpiEntryFormGroup = FormGroup<{
 
                       <div class="enrollment-offering-picker" role="listbox" aria-label="Students" aria-multiselectable="true">
                         @if (assignWizardFilteredStudents().length) {
+                          <label class="enrollment-offering-option enrollment-offering-select-all" [class.enrollment-offering-option-selected]="assignWizardAllFilteredStudentsSelected()">
+                            <span class="enrollment-offering-option-check-wrap">
+                              <input
+                                type="checkbox"
+                                class="enrollment-offering-option-input"
+                                [checked]="assignWizardAllFilteredStudentsSelected()"
+                                (change)="toggleAssignWizardSelectAllStudents($any($event.target).checked)" />
+                              <span class="enrollment-offering-option-check" aria-hidden="true">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                              </span>
+                            </span>
+                            <span class="enrollment-offering-option-body">
+                              <span class="enrollment-offering-option-title">Select all</span>
+                              <span class="enrollment-offering-option-meta">{{ assignWizardFilteredStudents().length }} {{ assignWizardFilteredStudents().length === 1 ? 'student' : 'students' }} shown</span>
+                            </span>
+                          </label>
+
                           <div class="enrollment-offering-picker-list">
                             @for (student of assignWizardFilteredStudents(); track student.id) {
                               <label class="enrollment-offering-option" [class.enrollment-offering-option-selected]="isAssignWizardStudentSelected(student.id)">
@@ -4962,6 +4979,18 @@ type KpiEntryFormGroup = FormGroup<{
       font-size: 0.88rem;
     }
 
+    /* Sits above the picker list (a sibling, not a list member) — the tinted background and
+       dashed border keep it reading as a control acting ON the list rather than one more row
+       in it, even though it reuses the same option/check-button markup and styling. */
+    .enrollment-offering-select-all {
+      background: #f8fafc;
+      border-style: dashed;
+    }
+
+    .enrollment-offering-select-all.enrollment-offering-option-selected {
+      border-style: solid;
+    }
+
     .enrollment-offering-option-meta {
       color: #64748b;
       font-size: 0.76rem;
@@ -6927,6 +6956,19 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       [student.name, student.surname, student.group, student.email, student.department]
         .some((value) => value.toLowerCase().includes(query)),
     );
+  });
+  // "Select all" reflects and acts on whatever the search has currently filtered down to, not
+  // literally every student in the system — the more useful reading when it's sitting right above
+  // a search box, and it means searching to a smaller group and selecting all of them doesn't
+  // silently pull in everyone else too.
+  readonly assignWizardAllFilteredStudentsSelected = computed(() => {
+    const filtered = this.assignWizardFilteredStudents();
+    if (!filtered.length) {
+      return false;
+    }
+
+    const selected = this.assignWizardSelectedStudentIds();
+    return filtered.every((student) => selected[student.id]);
   });
   readonly assignWizardSelectedStudents = computed(() => {
     const selected = this.assignWizardSelectedStudentIds();
@@ -9334,6 +9376,19 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
   isAssignWizardStudentSelected(studentId: string) {
     return this.assignWizardSelectedStudentIds()[studentId] ?? false;
+  }
+
+  // Only ever touches the currently filtered/visible students — a student hidden by an active
+  // search keeps whatever selection state they already had, whichever way this is clicked.
+  toggleAssignWizardSelectAllStudents(checked: boolean) {
+    const filtered = this.assignWizardFilteredStudents();
+    this.assignWizardSelectedStudentIds.update((current) => {
+      const next = { ...current };
+      for (const student of filtered) {
+        next[student.id] = checked;
+      }
+      return next;
+    });
   }
 
   // Direct step-button navigation and Back/Next both funnel through this — later steps stay
