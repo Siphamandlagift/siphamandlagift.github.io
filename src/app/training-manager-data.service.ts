@@ -658,10 +658,19 @@ export class TrainingManagerDataService {
   // locally.
   async openKpiYear(year: number): Promise<{ success: true } | { success: false; message: string }> {
     try {
-      const result = await firstValueFrom(this.backend.openKpiYear(year));
-      this.currentKpiYearSignal.set(result.currentKpiYear);
-      this.kpiYearsOpenedSignal.set(result.kpiYearsOpened);
-      this.refreshBootstrapState();
+      await firstValueFrom(this.backend.openKpiYear(year));
+      // Deliberately NOT setting currentKpiYearSignal/kpiYearsOpenedSignal from the response here
+      // — refreshBootstrapState() below does that itself once the fresh (new-year, blank-scored)
+      // entries actually land, and awaiting it before returning is what stops a caller from acting
+      // on the new year before its data exists locally. Setting the signals early used to make
+      // refreshBootstrapState's own "did the KPI year just change?" check (comparing the bootstrap
+      // response's year against currentKpiYearSignal) see them as already equal, silently skipping
+      // the safe "take the server's fresh data outright" branch in favour of the ordinary
+      // dirty-timestamp merge — which assumes old and new data are the same logical table. That
+      // let a manager who opened a new year, then immediately opened a student's KPI table before
+      // the background refresh finished, load and resave the *previous* year's already-scored rows
+      // under the new year.
+      await this.refreshBootstrapState();
       return { success: true };
     } catch (error) {
       const message = error instanceof Object && 'error' in error && (error as { error?: { message?: string } }).error?.message
@@ -2462,58 +2471,69 @@ export class TrainingManagerDataService {
   /** Periodically refreshes the bootstrap-loaded collections (offerings, students, mentorship,
    *  assignment submissions, external training requests, IDP entries) so the manager/admin
    *  dashboards don't silently go stale for the life of a long-lived session — mirroring the
-   *  refresh that already existed for managerMessages. */
-  private refreshBootstrapState() {
+   *  refresh that already existed for managerMessages. Returns a Promise (resolving once this
+   *  particular fetch settles, success or failure) so a caller that needs the refresh to have
+   *  actually landed before proceeding — e.g. openKpiYear, which shouldn't report success until
+   *  the new year's data is really in the local cache — can await it; the periodic poll below
+   *  still just fires it without awaiting, which is unaffected by this being awaitable. */
+  private refreshBootstrapState(): Promise<void> {
     const requestStartedAt = Date.now();
-    this.backend.getBootstrap().subscribe({
-      next: (bootstrap) => {
-        this.offeringsSignal.set(this.mergeServerAuthoritative(bootstrap.offerings, this.offeringsSignal()));
-        this.studentsSignal.set(this.mergeServerAuthoritative(bootstrap.students, this.studentsSignal()));
-        this.trainingManagersSignal.set(bootstrap.trainingManagers);
-        this.mentorshipAssignmentsSignal.set(this.mergeServerAuthoritative(bootstrap.mentorshipAssignments, this.mentorshipAssignmentsSignal()));
-        this.mentorshipSubmissionsSignal.set(this.mergeServerAuthoritative(bootstrap.mentorshipSubmissions, this.mentorshipSubmissionsSignal()));
-        this.assignmentSubmissionsSignal.set(
-          this.mergeServerAuthoritative(this.hydrateAssignmentSubmissions(bootstrap.assignmentSubmissions), this.assignmentSubmissionsSignal()),
-        );
-        this.externalTrainingRequestsSignal.set(
-          this.mergeServerAuthoritative(bootstrap.externalTrainingRequests, this.externalTrainingRequestsSignal()),
-        );
-        this.idpEntriesByStudentSignal.set(
-          this.mergeServerAuthoritativeRecord(
-            this.normalizeIdpEntriesByStudent(bootstrap.idpEntriesByStudent),
-            this.idpEntriesByStudentSignal(),
-            this.idpEntriesDirtyAt,
-            requestStartedAt,
-          ),
-        );
-        // A year the local cache's dirty timestamps were recorded against isn't comparable to a
-        // *different* year's server data once someone opens a new KPI year mid-session — the
-        // dirty-merge logic assumes "local" and "server" are the same logical table, which is no
-        // longer true across a year boundary. Just take the server's fresh (new-year) data
-        // outright in that case, and drop the now-irrelevant dirty timestamps from the old year.
-        if (typeof bootstrap.currentKpiYear === 'number' && bootstrap.currentKpiYear !== this.currentKpiYearSignal()) {
-          this.kpiEntriesByStudentSignal.set(this.normalizeKpiEntriesByStudent(bootstrap.kpiEntriesByStudent));
-          for (const key of Object.keys(this.kpiEntriesDirtyAt)) {
-            delete this.kpiEntriesDirtyAt[key];
-          }
-        } else {
-          this.kpiEntriesByStudentSignal.set(
+    return new Promise<void>((resolve) => {
+      this.backend.getBootstrap().subscribe({
+        next: (bootstrap) => {
+          this.offeringsSignal.set(this.mergeServerAuthoritative(bootstrap.offerings, this.offeringsSignal()));
+          this.studentsSignal.set(this.mergeServerAuthoritative(bootstrap.students, this.studentsSignal()));
+          this.trainingManagersSignal.set(bootstrap.trainingManagers);
+          this.mentorshipAssignmentsSignal.set(this.mergeServerAuthoritative(bootstrap.mentorshipAssignments, this.mentorshipAssignmentsSignal()));
+          this.mentorshipSubmissionsSignal.set(this.mergeServerAuthoritative(bootstrap.mentorshipSubmissions, this.mentorshipSubmissionsSignal()));
+          this.assignmentSubmissionsSignal.set(
+            this.mergeServerAuthoritative(this.hydrateAssignmentSubmissions(bootstrap.assignmentSubmissions), this.assignmentSubmissionsSignal()),
+          );
+          this.externalTrainingRequestsSignal.set(
+            this.mergeServerAuthoritative(bootstrap.externalTrainingRequests, this.externalTrainingRequestsSignal()),
+          );
+          this.idpEntriesByStudentSignal.set(
             this.mergeServerAuthoritativeRecord(
-              this.normalizeKpiEntriesByStudent(bootstrap.kpiEntriesByStudent),
-              this.kpiEntriesByStudentSignal(),
-              this.kpiEntriesDirtyAt,
+              this.normalizeIdpEntriesByStudent(bootstrap.idpEntriesByStudent),
+              this.idpEntriesByStudentSignal(),
+              this.idpEntriesDirtyAt,
               requestStartedAt,
             ),
           );
-        }
-        if (typeof bootstrap.currentKpiYear === 'number') {
-          this.currentKpiYearSignal.set(bootstrap.currentKpiYear);
-        }
-        if (bootstrap.kpiYearsOpened?.length) {
-          this.kpiYearsOpenedSignal.set(bootstrap.kpiYearsOpened);
-        }
-      },
-      error: () => { /* Silently skip failed polls */ },
+          // A year the local cache's dirty timestamps were recorded against isn't comparable to a
+          // *different* year's server data once someone opens a new KPI year mid-session — the
+          // dirty-merge logic assumes "local" and "server" are the same logical table, which is no
+          // longer true across a year boundary. Just take the server's fresh (new-year) data
+          // outright in that case, and drop the now-irrelevant dirty timestamps from the old year.
+          if (typeof bootstrap.currentKpiYear === 'number' && bootstrap.currentKpiYear !== this.currentKpiYearSignal()) {
+            this.kpiEntriesByStudentSignal.set(this.normalizeKpiEntriesByStudent(bootstrap.kpiEntriesByStudent));
+            for (const key of Object.keys(this.kpiEntriesDirtyAt)) {
+              delete this.kpiEntriesDirtyAt[key];
+            }
+          } else {
+            this.kpiEntriesByStudentSignal.set(
+              this.mergeServerAuthoritativeRecord(
+                this.normalizeKpiEntriesByStudent(bootstrap.kpiEntriesByStudent),
+                this.kpiEntriesByStudentSignal(),
+                this.kpiEntriesDirtyAt,
+                requestStartedAt,
+              ),
+            );
+          }
+          if (typeof bootstrap.currentKpiYear === 'number') {
+            this.currentKpiYearSignal.set(bootstrap.currentKpiYear);
+          }
+          if (bootstrap.kpiYearsOpened?.length) {
+            this.kpiYearsOpenedSignal.set(bootstrap.kpiYearsOpened);
+          }
+          resolve();
+        },
+        error: () => {
+          // Silently skip failed polls — but still resolve, so an awaiting caller (openKpiYear)
+          // doesn't hang forever on a transient network failure.
+          resolve();
+        },
+      });
     });
   }
 

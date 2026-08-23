@@ -9499,7 +9499,14 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   }
 
   private todayIsoDate() {
-    return new Date().toISOString().slice(0, 10);
+    // Built from local getFullYear/getMonth/getDate rather than toISOString() (which is UTC) — a
+    // manager filling this form out in the evening west of UTC, or early morning east of UTC, would
+    // otherwise get a default date that's a day off from what their own calendar/clock shows.
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   readonly idpForm = new FormGroup({
@@ -9827,7 +9834,16 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     if (saved?.length) {
       for (const entry of saved) {
         const g = this.createKpiEntryGroup();
-        g.setValue(entry);
+        // overallScoring is clamped to the current 4-point scale before populating the form: the
+        // editable <select> only lists options 1-4, so a legacy row stored under the old 5-point
+        // scale would otherwise set a value with no matching <option>, rendering as blank/unselected
+        // in edit mode even though it shows correctly (clamped to 4) in the read-only view via
+        // kpiScoreLabel above. managerScoring/employeeScoring are left untouched — they're not
+        // editable here, just round-tripped as-is.
+        g.setValue({
+          ...entry,
+          overallScoring: entry.overallScoring === null ? null : (Math.min(entry.overallScoring, 4) as StudentKpiScore),
+        });
         entriesArray.push(g);
       }
     } else {
