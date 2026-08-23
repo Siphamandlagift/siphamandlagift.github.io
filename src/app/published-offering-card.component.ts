@@ -271,16 +271,24 @@ export class PublishedOfferingCardComponent {
   readonly open = output<void>();
 
   // completionDeadline is stored as a plain YYYY-MM-DD (an <input type="date"> value) — parsed as
-  // UTC midnight and compared against today's UTC midnight so the "overdue"/"soon" cutoffs land on
-  // calendar-day boundaries rather than shifting with the viewer's timezone.
+  // LOCAL midnight and compared against today's LOCAL midnight, matching parseCalendarDate in
+  // student-data.service.ts (which the student-facing Calendar tab and Dashboard key off for this
+  // same field). Parsing as UTC here instead — as an earlier version of this did — made this card
+  // disagree with the student's own Courses tab about whether a course was overdue, for any
+  // student not in UTC.
   private readonly deadlineDate = computed(() => {
-    const raw = this.offering().completionDeadline;
+    const raw = this.offering().completionDeadline?.trim();
     if (!raw) {
       return null;
     }
 
-    const parsed = new Date(`${raw}T00:00:00Z`);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
+    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!isoMatch) {
+      return null;
+    }
+
+    const [, year, month, day] = isoMatch;
+    return new Date(Number(year), Number(month) - 1, Number(day));
   });
 
   readonly deadlineLabel = computed(() => {
@@ -289,7 +297,7 @@ export class PublishedOfferingCardComponent {
       return null;
     }
 
-    return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+    return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
   });
 
   readonly deadlineStatus = computed<'overdue' | 'soon' | 'normal'>(() => {
@@ -298,9 +306,9 @@ export class PublishedOfferingCardComponent {
       return 'normal';
     }
 
-    const todayUtc = new Date();
-    todayUtc.setUTCHours(0, 0, 0, 0);
-    const daysRemaining = Math.round((date.getTime() - todayUtc.getTime()) / 86_400_000);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const daysRemaining = Math.round((date.getTime() - today.getTime()) / 86_400_000);
 
     if (daysRemaining < 0) {
       return 'overdue';

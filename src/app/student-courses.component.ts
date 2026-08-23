@@ -2270,6 +2270,12 @@ export class StudentCoursesComponent {
       : offerings.find((offering) => offering.title === course.name);
   }
 
+  // Parsed as LOCAL midnight, matching parseCalendarDate in student-data.service.ts (which the
+  // Calendar tab and Dashboard both key off for this exact same completionDeadline field). Parsing
+  // as UTC midnight here instead — as an earlier version of this method did — made the two tabs
+  // disagree on whether a course was overdue for any student west of UTC in the evening (UTC has
+  // already rolled to the next day while the student's local "today" hasn't), and the other way
+  // around for students east of UTC.
   private courseDeadlineDate(course: StudentCourse): Date | null {
     // A completed course has no pending deadline to act on any more, same exclusion the calendar
     // applies — a finished course keeping a "Due ..." badge would read as still outstanding work.
@@ -2277,18 +2283,23 @@ export class StudentCoursesComponent {
       return null;
     }
 
-    const raw = this.resolveCourseOffering(course)?.completionDeadline;
+    const raw = this.resolveCourseOffering(course)?.completionDeadline?.trim();
     if (!raw) {
       return null;
     }
 
-    const parsed = new Date(`${raw}T00:00:00Z`);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
+    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!isoMatch) {
+      return null;
+    }
+
+    const [, year, month, day] = isoMatch;
+    return new Date(Number(year), Number(month) - 1, Number(day));
   }
 
   courseDeadlineLabel(course: StudentCourse): string | null {
     const date = this.courseDeadlineDate(course);
-    return date ? date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : null;
+    return date ? date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : null;
   }
 
   courseDeadlineStatus(course: StudentCourse): 'overdue' | 'soon' | 'normal' {
@@ -2297,9 +2308,9 @@ export class StudentCoursesComponent {
       return 'normal';
     }
 
-    const todayUtc = new Date();
-    todayUtc.setUTCHours(0, 0, 0, 0);
-    const daysRemaining = Math.round((date.getTime() - todayUtc.getTime()) / 86_400_000);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const daysRemaining = Math.round((date.getTime() - today.getTime()) / 86_400_000);
 
     if (daysRemaining < 0) {
       return 'overdue';

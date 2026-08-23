@@ -18,9 +18,7 @@ type CalendarDay = {
   imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="calendar-shell" aria-labelledby="calendar-heading">
-
-
+    <section class="calendar-shell" aria-label="Calendar">
       <div class="calendar-layout">
         <section class="calendar-panel" aria-label="Monthly calendar">
           <div class="calendar-toolbar calendar-toolbar-primary">
@@ -167,28 +165,6 @@ type CalendarDay = {
       box-sizing: border-box;
     }
 
-    .calendar-hero {
-      display: flex;
-      align-items: flex-start;
-      justify-content: flex-start;
-      gap: 1rem;
-      margin-bottom: 1rem;
-    }
-
-    .calendar-title {
-      margin: 0 0 0.2rem;
-      font-size: clamp(1.7rem, 1.9vw, 2.05rem);
-      font-weight: 700;
-      color: #14213d;
-    }
-
-    .calendar-subtitle {
-      margin: 0;
-      max-width: 36rem;
-      color: #5b6780;
-      font-size: 0.92rem;
-    }
-
     .calendar-layout {
       display: grid;
       grid-template-columns: minmax(0, 1.9fr) minmax(18rem, 19rem);
@@ -245,10 +221,6 @@ type CalendarDay = {
       min-width: 0;
     }
 
-    .calendar-toolbar-group-end {
-      justify-content: flex-end;
-    }
-
     .calendar-nav-btns {
       display: flex;
       align-items: center;
@@ -256,7 +228,6 @@ type CalendarDay = {
     }
 
     .calendar-link-btn,
-    .calendar-select-btn,
     .calendar-icon-btn {
       min-height: 2.5rem;
       border-radius: 10px;
@@ -274,17 +245,6 @@ type CalendarDay = {
       min-height: auto;
     }
 
-    .calendar-select-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.65rem;
-      padding: 0.65rem 0.95rem;
-      border: 1px solid #e2e8f0;
-      background: #f8fafc;
-      color: #1f3b63;
-    }
-
-    .calendar-select-btn svg,
     .calendar-icon-btn svg {
       width: 1rem;
       height: 1rem;
@@ -309,8 +269,6 @@ type CalendarDay = {
 
     .calendar-link-btn:hover,
     .calendar-link-btn:focus-visible,
-    .calendar-select-btn:hover,
-    .calendar-select-btn:focus-visible,
     .calendar-icon-btn:hover,
     .calendar-icon-btn:focus-visible {
       background: #eff6ff;
@@ -318,7 +276,6 @@ type CalendarDay = {
     }
 
     .calendar-link-btn:focus-visible,
-    .calendar-select-btn:focus-visible,
     .calendar-icon-btn:focus-visible,
     .calendar-day:focus-visible {
       box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
@@ -582,10 +539,6 @@ type CalendarDay = {
       .calendar-month-label {
         justify-self: flex-start;
       }
-
-      .calendar-toolbar-group-end {
-        justify-content: flex-start;
-      }
     }
 
     @media (max-width: 720px) {
@@ -594,14 +547,9 @@ type CalendarDay = {
         border-radius: 22px;
       }
 
-      .calendar-hero,
       .calendar-toolbar {
         flex-direction: column;
         align-items: stretch;
-      }
-
-      .calendar-summary-chip {
-        align-self: flex-start;
       }
 
       .calendar-panel,
@@ -630,6 +578,11 @@ export class StudentCalendarComponent {
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December',
   ];
+  // Only for seeding the initial view (this month, today selected) when the component is first
+  // constructed — "now" at that moment is exactly what's wanted there. Everywhere else that needs
+  // the actual current date (isToday, goToToday, daysUntil, upcomingEvents) calls now() instead,
+  // since this component can stay mounted for a while and a date captured once at construction
+  // would otherwise silently go stale if a student leaves the tab open across midnight.
   readonly today = new Date();
   readonly currentMonth = signal(this.today.getMonth());
   readonly currentYear = signal(this.today.getFullYear());
@@ -643,7 +596,7 @@ export class StudentCalendarComponent {
   );
   readonly upcomingEvents = computed(() =>
     [...this.events()]
-      .filter((event) => event.date >= this.stripTime(this.today))
+      .filter((event) => event.date >= this.stripTime(this.now()))
       .sort((left, right) => left.date.getTime() - right.date.getTime())
       .slice(0, 5)
   );
@@ -712,14 +665,15 @@ export class StudentCalendarComponent {
   }
 
   goToToday() {
-    this.currentMonth.set(this.today.getMonth());
-    this.currentYear.set(this.today.getFullYear());
-    this.selectedDay.set(new Date(this.today));
+    const now = this.now();
+    this.currentMonth.set(now.getMonth());
+    this.currentYear.set(now.getFullYear());
+    this.selectedDay.set(now);
     this.generateCalendar();
   }
 
   isToday(day: CalendarDay) {
-    return !!day.date && day.inCurrentMonth && this.isSameDay(day.date, this.today);
+    return !!day.date && day.inCurrentMonth && this.isSameDay(day.date, this.now());
   }
 
   isSelected(day: CalendarDay) {
@@ -794,8 +748,12 @@ export class StudentCalendarComponent {
   }
 
   private daysUntil(date: Date): number {
-    const diff = this.stripTime(date).getTime() - this.stripTime(this.today).getTime();
+    const diff = this.stripTime(date).getTime() - this.stripTime(this.now()).getTime();
     return Math.round(diff / 86_400_000);
+  }
+
+  private now(): Date {
+    return new Date();
   }
 
   private formatShortDate(date: Date): string {
