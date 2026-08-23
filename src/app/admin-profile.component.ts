@@ -993,12 +993,11 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       </select>
                     </label>
                     <button type="button" class="admin-secondary-btn" (click)="downloadBulkUploadTemplate()">Download template</button>
-                    <label class="admin-upload-btn admin-upload-btn-prominent">
-                      <span class="admin-upload-btn-icon" aria-hidden="true">+</span>
-                      <span class="admin-upload-btn-label">Upload users file</span>
+                    <label class="admin-upload-btn">
+                      <span>Upload users file</span>
                       <input type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" (change)="handleBulkUserUpload($event)" />
                     </label>
-                    <button type="button" class="admin-primary-btn" (click)="openSingleUserForm()">Add user</button>
+                    <button type="button" class="admin-secondary-btn" (click)="openSingleUserForm()">Add user</button>
                     <span class="admin-chip">CSV or XLSX</span>
                   </div>
                 </div>
@@ -3648,56 +3647,29 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       color: #b91c1c;
     }
 
-    .admin-upload-btn-prominent {
-      gap: 0.7rem;
-      /* min-height/padding intentionally match the shared .admin-primary-btn/.admin-secondary-btn
-         sizing (2.6rem) — this button sits in the same toolbar row as "Download template" and
-         "Add user", so it needs to line up with them rather than standing taller. */
-      border-radius: 10px;
-      box-shadow: 0 3px 10px rgba(23, 52, 70, 0.14);
-    }
-
-    .admin-upload-btn-icon {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 1.7rem;
-      height: 1.7rem;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.18);
-      font-size: 1rem;
-      font-weight: 900;
-      line-height: 1;
-      flex: 0 0 auto;
-    }
-
-    .admin-upload-btn-label {
-      font-size: 0.9rem;
-      font-weight: 800;
-      line-height: 1.1;
-    }
-
-    /* User Management's toolbar CTAs (Download template / Upload users file / Add user) were the
-       same 2.6rem as every standalone action button in the admin app — next to this panel's
-       compact search bar and table they read as noticeably bulky, so they get their own smaller,
-       still-uniform size here rather than the shared baseline. Still a proper button shape (10px
-       radius), not shrunk all the way down to the Edit/Delete row pills. */
+    /* User Management's three toolbar CTAs (Download template / Upload users file / Add user)
+       all read as one matched set: same compact size, and Upload users file/Add user both take on
+       Download template's plain secondary look (white, bordered, no gradient/icon) instead of
+       their app-wide default primary/gradient styling. Scoped to this one toolbar — every other
+       .admin-upload-btn / .admin-primary-btn elsewhere in the admin app is untouched. */
     .admin-bulk-upload-actions .admin-secondary-btn,
-    .admin-bulk-upload-actions .admin-upload-btn,
-    .admin-bulk-upload-actions .admin-primary-btn {
+    .admin-bulk-upload-actions .admin-upload-btn {
       min-height: 2.3rem;
       padding: 0.5rem 0.85rem;
       font-size: 0.85rem;
     }
 
-    .admin-bulk-upload-actions .admin-upload-btn-icon {
-      width: 1.4rem;
-      height: 1.4rem;
-      font-size: 0.85rem;
+    .admin-bulk-upload-actions .admin-upload-btn {
+      background: #ffffff;
+      color: #173446;
+      border-color: rgba(148, 163, 184, 0.32);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
     }
 
-    .admin-bulk-upload-actions .admin-upload-btn-label {
-      font-size: 0.85rem;
+    .admin-bulk-upload-actions .admin-upload-btn:hover,
+    .admin-bulk-upload-actions .admin-upload-btn:focus-within {
+      border-color: rgba(56, 189, 248, 0.32);
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.1);
     }
 
     .admin-upload-issues {
