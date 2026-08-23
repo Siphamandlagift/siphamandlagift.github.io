@@ -932,9 +932,9 @@ type ScormRuntimeState = {
     /* Only rendered for a not-yet-completed course whose offering has a deadline set — neutral
        blue normally, amber inside the last 7 days, red once it's passed, matching the same
        urgency colours used for this course's deadline everywhere else it appears (the manager's
-       course card, the calendar). */
-    /* Floats over the thumbnail (bottom-left) instead of sitting in the card body's own flow, so
-       it reads as a badge on the course rather than another line of card content. */
+       course card, the calendar). Floats directly over the thumbnail (bottom-left, no background
+       box); a text-shadow instead of a solid pill keeps it legible against whatever image happens
+       to be behind it. */
     .course-deadline-badge {
       position: absolute;
       left: 0.65rem;
@@ -942,24 +942,20 @@ type ScormRuntimeState = {
       z-index: 1;
       display: inline-flex;
       align-items: center;
-      gap: 0.35rem;
-      padding: 0.26rem 0.55rem;
-      border-radius: 999px;
-      background: #eff6ff;
-      color: #1d4ed8;
-      font-size: 0.7rem;
+      gap: 0.3rem;
+      color: #eff6ff;
+      font-size: 0.72rem;
       font-weight: 700;
-      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.22);
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
     }
 
     .course-deadline-badge-soon {
-      background: #fffbeb;
-      color: #b45309;
+      color: #fde68a;
     }
 
     .course-deadline-badge-overdue {
-      background: #fef2f2;
-      color: #b91c1c;
+      color: #fecaca;
     }
 
     .progress-bar {

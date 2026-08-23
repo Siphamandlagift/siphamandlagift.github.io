@@ -175,9 +175,10 @@ import { TrainingOffering } from './training-manager-data.service';
     }
 
     /* Neutral by default; tips into amber inside the last week and red once the date has passed,
-       so a manager scanning the grid can spot courses needing attention without opening each one. */
-    /* Floats over the thumbnail (bottom-left) instead of sitting in the card body's own flow, so
-       it reads as a badge on the course rather than another line of card content. */
+       so a manager scanning the grid can spot courses needing attention without opening each one.
+       Floats directly over the thumbnail (bottom-left, no background box) instead of sitting in
+       the card body's own flow — a text-shadow instead of a solid pill keeps it legible against
+       whatever image happens to be behind it. */
     .offering-deadline-badge {
       position: absolute;
       left: 1rem;
@@ -185,24 +186,20 @@ import { TrainingOffering } from './training-manager-data.service';
       z-index: 1;
       display: inline-flex;
       align-items: center;
-      gap: 0.4rem;
-      padding: 0.3rem 0.65rem;
-      border-radius: 999px;
-      background: #eff6ff;
-      color: #1d4ed8;
-      font-size: 0.76rem;
+      gap: 0.35rem;
+      color: #eff6ff;
+      font-size: 0.78rem;
       font-weight: 700;
-      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2);
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
     }
 
     .offering-deadline-badge-soon {
-      background: #fffbeb;
-      color: #b45309;
+      color: #fde68a;
     }
 
     .offering-deadline-badge-overdue {
-      background: #fef2f2;
-      color: #b91c1c;
+      color: #fecaca;
     }
 
     .offering-title,
