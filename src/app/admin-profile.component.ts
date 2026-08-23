@@ -3677,6 +3677,29 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       line-height: 1.1;
     }
 
+    /* User Management's toolbar CTAs (Download template / Upload users file / Add user) were the
+       same 2.6rem as every standalone action button in the admin app — next to this panel's
+       compact search bar and table they read as noticeably bulky, so they get their own smaller,
+       still-uniform size here rather than the shared baseline. Still a proper button shape (10px
+       radius), not shrunk all the way down to the Edit/Delete row pills. */
+    .admin-bulk-upload-actions .admin-secondary-btn,
+    .admin-bulk-upload-actions .admin-upload-btn,
+    .admin-bulk-upload-actions .admin-primary-btn {
+      min-height: 2.3rem;
+      padding: 0.5rem 0.85rem;
+      font-size: 0.85rem;
+    }
+
+    .admin-bulk-upload-actions .admin-upload-btn-icon {
+      width: 1.4rem;
+      height: 1.4rem;
+      font-size: 0.85rem;
+    }
+
+    .admin-bulk-upload-actions .admin-upload-btn-label {
+      font-size: 0.85rem;
+    }
+
     .admin-upload-issues {
       margin-bottom: 0.85rem;
       padding: 0.85rem;
