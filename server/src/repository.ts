@@ -738,7 +738,18 @@ export class LmsRepository {
     return nextData;
   }
 
-  async getBootstrap() {
+  // `caller` is the requesting session's identity (role/studentId/email off its JWT), passed in by
+  // the /api/bootstrap route handler. A manager/administrator session gets the full, unscoped
+  // response below — the manager/admin UI genuinely needs every student's IDP/KPI/messages/
+  // submissions to do reviews and reporting. Anything else (a student session, or no resolvable
+  // identity) gets the *scoped* response further down: every other student's HR/performance data
+  // used to ride along in this exact same response and reach the browser of every logged-in user
+  // regardless of role, because nothing here scoped it down — the manager/admin UI was the only
+  // caller that actually needed the unscoped view, and student-facing frontend code only ever
+  // looks up its own record out of what bootstrap returns anyway (see the call sites in
+  // student-data.service.ts / student-profile.component.ts / student-courses.component.ts, which
+  // all `.find()`/filter down to the caller's own id or email after receiving the response).
+  async getBootstrap(caller?: { role: string; studentId: string | null; email: string } | null) {
     const data = await this.read();
     const idpEntriesByStudent = Object.fromEntries(
       data.students.map((student) => [student.id, student.idpEntries ?? []]),
@@ -749,22 +760,60 @@ export class LmsRepository {
     const kpiEntriesByStudent = Object.fromEntries(
       data.students.map((student) => [student.id, findKpiYearEntries(student.kpiYears ?? [], data.currentKpiYear)]),
     );
+    const students = data.students.map(({ courses, notifications, messages, notifiedOfferingIds, idpEntries, kpiYears, ...student }) => student);
+
+    const isPrivileged = caller?.role === 'administrator' || caller?.role === 'training-manager';
+    if (isPrivileged) {
+      return {
+        offerings: data.offerings,
+        branding: data.branding,
+        students,
+        idpEntriesByStudent,
+        kpiEntriesByStudent,
+        currentKpiYear: data.currentKpiYear,
+        kpiYearsOpened: data.kpiYearsOpened,
+        trainingManagers: data.trainingManagers,
+        managerMessages: data.managerMessages,
+        mentorshipAssignments: data.mentorshipAssignments,
+        assignmentSubmissions: data.assignmentSubmissions,
+        mentorshipSubmissions: data.mentorshipSubmissions,
+        quizSubmissions: data.quizSubmissions,
+        externalTrainingRequests: data.externalTrainingRequests,
+      };
+    }
+
+    // Same resolution order as isOwnStudentRecord in server.ts: prefer the session's studentId
+    // claim, fall back to an email match against the roster (the claim can be absent on an older
+    // token, or stale if the roster entry was recreated after the session was issued).
+    const ownStudent = caller
+      ? students.find((student) => student.id === caller.studentId)
+        ?? students.find((student) => student.email.trim().toLowerCase() === caller.email.trim().toLowerCase())
+      : undefined;
+    const ownStudentId = ownStudent?.id ?? null;
+    const ownEmail = (ownStudent?.email ?? caller?.email ?? '').trim().toLowerCase();
 
     return {
       offerings: data.offerings,
       branding: data.branding,
-      students: data.students.map(({ courses, notifications, messages, notifiedOfferingIds, idpEntries, kpiYears, ...student }) => student),
-      idpEntriesByStudent,
-      kpiEntriesByStudent,
+      students: ownStudent ? [ownStudent] : [],
+      idpEntriesByStudent: ownStudentId ? { [ownStudentId]: idpEntriesByStudent[ownStudentId] ?? [] } : {},
+      kpiEntriesByStudent: ownStudentId ? { [ownStudentId]: kpiEntriesByStudent[ownStudentId] ?? [] } : {},
       currentKpiYear: data.currentKpiYear,
       kpiYearsOpened: data.kpiYearsOpened,
       trainingManagers: data.trainingManagers,
-      managerMessages: data.managerMessages,
-      mentorshipAssignments: data.mentorshipAssignments,
-      assignmentSubmissions: data.assignmentSubmissions,
-      mentorshipSubmissions: data.mentorshipSubmissions,
-      quizSubmissions: data.quizSubmissions,
-      externalTrainingRequests: data.externalTrainingRequests,
+      // The student-facing reply flow fetches its own thread through the dedicated, ownership-
+      // scoped GET /api/manager-messages instead — nothing in the student UI reads this bootstrap
+      // field, so it's left empty here rather than handing over every other student's inbox.
+      managerMessages: [],
+      mentorshipAssignments: data.mentorshipAssignments.filter((assignment) => assignment.menteeId === ownStudentId),
+      assignmentSubmissions: data.assignmentSubmissions.filter((submission) => submission.studentId === ownStudentId),
+      // Not read by any student-facing code today (only via managerData in the manager/admin UI) —
+      // left empty rather than handing over every other student's submissions.
+      mentorshipSubmissions: [],
+      quizSubmissions: [],
+      externalTrainingRequests: data.externalTrainingRequests.filter(
+        (request) => request.studentId === ownStudentId || request.studentEmail.trim().toLowerCase() === ownEmail,
+      ),
     };
   }
 
@@ -2361,10 +2410,26 @@ class FirestoreLmsRepository extends LmsRepository {
       }
 
       const studentDocuments = await this.collection('students').get();
-      const batchOperations: FirestoreBatchOperation[] = [];
 
-      for (const document of studentDocuments.docs) {
-        const rawData = document.data() as { kpiYears?: unknown; kpiEntries?: unknown };
+      // Each student's carry-forward runs as its own Firestore transaction (reading and writing
+      // that one document's kpiYears field together), rather than building one shared batch from
+      // this method's single upfront collection read. The batch approach computed nextKpiYears
+      // from a read taken once at the top of this method, then unconditionally overwrote the
+      // kpiYears field with that stale snapshot — silently discarding a concurrent student
+      // self-score save, manager gap-analysis edit, or snapshot autosave that transactionally
+      // committed to the same student's kpiYears in the window between this method's read and its
+      // batch commit. A per-student transaction reads and writes that document together and
+      // retries automatically if it loses that race, matching how setKpiEntriesForStudent/
+      // updateKpiEmployeeScoring/updateKpiGapAnalysis/updateStudentSnapshot below are already
+      // scoped for exactly this reason.
+      await Promise.all(studentDocuments.docs.map((document) => this.firestore.runTransaction(async (transaction) => {
+        const ref = document.ref;
+        const snapshot = await transaction.get(ref);
+        if (!snapshot.exists) {
+          return;
+        }
+
+        const rawData = snapshot.data() as { kpiYears?: unknown; kpiEntries?: unknown };
         const kpiYears = normalizeStudentKpiYears(rawData, currentKpiYear);
         const currentYearEntries = findKpiYearEntries(kpiYears, currentKpiYear);
         const carriedForwardEntries: StudentKpiEntryRecord[] = currentYearEntries.map((entry) => ({
@@ -2386,21 +2451,15 @@ class FirestoreLmsRepository extends LmsRepository {
         }));
 
         const nextKpiYears = this.sanitizeForFirestore(withKpiYearEntries(kpiYears, year, carriedForwardEntries));
-        const ref = document.ref;
-        batchOperations.push((batch) => {
-          batch.update(ref, {
-            kpiYears: nextKpiYears,
-            ...('kpiEntries' in rawData ? { kpiEntries: FieldValue.delete() } : {}),
-          });
+        transaction.update(ref, {
+          kpiYears: nextKpiYears,
+          ...('kpiEntries' in rawData ? { kpiEntries: FieldValue.delete() } : {}),
         });
-      }
+      })));
 
       const nextKpiYearsOpened = [...kpiYearsOpened, year].sort((left, right) => left - right);
-      batchOperations.push((batch) => {
-        batch.set(this.storeDocument, { currentKpiYear: year, kpiYearsOpened: nextKpiYearsOpened }, { merge: true });
-      });
+      await this.storeDocument.set({ currentKpiYear: year, kpiYearsOpened: nextKpiYearsOpened }, { merge: true });
 
-      await this.commitBatchOperations(batchOperations);
       return { currentKpiYear: year, kpiYearsOpened: nextKpiYearsOpened };
     });
 

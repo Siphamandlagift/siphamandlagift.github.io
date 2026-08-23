@@ -53,11 +53,16 @@ export function createMultiTenantApp() {
   app.use('/auth', createAuthRoutes(authController));
   app.use(authenticateRequest(repository, config));
   app.use(requireCompanyScope());
-  app.use(requireActiveSubscription(repository));
+  // requireActiveSubscription used to run globally, ahead of every router below including
+  // /billing — so a platform admin whose own company's subscription lapsed (or a tenant whose
+  // subscription lapsed and who just wants to see billing/me to find out why) got a blanket 402
+  // before ever reaching the routes meant to fix or explain exactly that. Billing itself must stay
+  // reachable regardless of subscription state; the gate now only applies to the actual paywalled
+  // product surface.
   app.use('/billing', createBillingRoutes(billingController));
-  app.use('/dashboard', requirePermission('dashboard:read'), createDashboardRoutes(dashboardController));
-  app.use('/users', requirePermission('users:read'), createUserRoutes(userController));
-  app.use('/courses', requirePermission('courses:read'), createCourseRoutes(courseController));
+  app.use('/dashboard', requireActiveSubscription(repository), requirePermission('dashboard:read'), createDashboardRoutes(dashboardController));
+  app.use('/users', requireActiveSubscription(repository), requirePermission('users:read'), createUserRoutes(userController));
+  app.use('/courses', requireActiveSubscription(repository), requirePermission('courses:read'), createCourseRoutes(courseController));
   app.use(notFoundHandler);
   app.use(errorHandler);
 

@@ -721,7 +721,12 @@ const studentKpiEntrySchema = z.object({
   id: z.string().min(1),
   keyResultArea: z.string(),
   kpi: z.string(),
-  weight: z.number(),
+  // Bounded to a single row's plausible share of the table — the *sum* across all rows is
+  // separately required to total 100% below, but nothing previously stopped an individual row from
+  // being negative or over 100, which could still sum to exactly 100% (e.g. -50 and 150) while
+  // corrupting the weighted-rating average every downstream view assumes is built from sane,
+  // non-negative per-row weights.
+  weight: z.number().min(0).max(100),
   target: z.string(),
   actual: z.string(),
   comments: z.string(),
@@ -1726,9 +1731,9 @@ app.get('/api/health', (_request, response) => {
   });
 });
 
-app.get('/api/bootstrap', async (_request, response, next) => {
+app.get('/api/bootstrap', async (request, response, next) => {
   try {
-    response.json(await repository.getBootstrap());
+    response.json(await repository.getBootstrap(getAuthenticatedIdentity(request)));
   } catch (error) {
     next(error);
   }
@@ -2654,8 +2659,33 @@ app.put('/api/manager-state', async (request, response, next) => {
 
 app.get('/api/manager-messages', async (request, response, next) => {
   try {
+    const identity = getAuthenticatedIdentity(request);
+    const isPrivileged = identity?.role === 'administrator' || identity?.role === 'training-manager';
     const data = await repository.read();
-    response.json(data.managerMessages);
+
+    if (isPrivileged) {
+      response.json(data.managerMessages);
+      return;
+    }
+
+    // A student session only ever needs its own thread(s) — the reply flow (see
+    // deliverReplyToManagerInbox in student-data.service.ts) fetches this list purely to locate
+    // its own message by sender name before appending a reply and PUTing the whole list back
+    // through PUT /api/manager-state (which merges by id, so handing back a filtered list here
+    // doesn't touch other students' threads). Matching by profile.name mirrors exactly what the
+    // client already sets `sender` to when it first creates a message (deliverMessageToManagerInbox).
+    // Returning every student's support-ticket queue to any authenticated caller was the bug this
+    // closes.
+    const ownStudent = identity
+      ? data.students.find((student) => student.id === identity.studentId)
+        ?? data.students.find((student) => student.email.trim().toLowerCase() === identity.email.trim().toLowerCase())
+      : undefined;
+    const ownSenderName = ownStudent?.profile?.name?.trim().toLowerCase();
+    const ownMessages = ownSenderName
+      ? data.managerMessages.filter((message) => message.sender.trim().toLowerCase() === ownSenderName)
+      : [];
+
+    response.json(ownMessages);
   } catch (error) {
     next(error);
   }
@@ -2674,6 +2704,18 @@ app.post('/api/manager-messages', async (request, response, next) => {
 app.post('/api/external-training-requests', async (request, response, next) => {
   try {
     const externalTrainingRequest = externalTrainingRequestCreateSchema.parse(request.body);
+    const identity = getAuthenticatedIdentity(request);
+    const isPrivileged = identity?.role === 'administrator' || identity?.role === 'training-manager';
+    // Only a manager/admin (who never actually calls this route today — see
+    // persistExternalTrainingRequestCreate in training-manager-data.service.ts, only invoked from
+    // the student's own submission form) or the student themself may submit a request under a
+    // given studentEmail. Without this, any authenticated session could forge a training request
+    // attributed to someone else purely by putting their email/name in the body.
+    if (!isPrivileged && identity?.email.trim().toLowerCase() !== externalTrainingRequest.studentEmail.trim().toLowerCase()) {
+      response.status(403).json({ message: 'You can only submit an external training request for your own account.' });
+      return;
+    }
+
     const created = await repository.createExternalTrainingRequest(externalTrainingRequest);
 
     if (!created) {
@@ -2708,6 +2750,21 @@ app.put('/api/external-training-requests/:requestId', async (request, response, 
       ...request.body,
       requestId: request.params.requestId,
     });
+    const identity = getAuthenticatedIdentity(request);
+    const isPrivileged = identity?.role === 'administrator' || identity?.role === 'training-manager';
+    if (!isPrivileged) {
+      // Checked against the *existing* record's studentEmail, not the submitted body's — otherwise
+      // an attacker could point requestId at someone else's "Needs Revision" request while putting
+      // their own email in the body, passing an ownership check that only looked at the payload.
+      const data = await repository.read();
+      const existing = data.externalTrainingRequests.find((entry) => entry.id === externalTrainingRequest.requestId);
+      const ownsExisting = Boolean(identity && existing && existing.studentEmail.trim().toLowerCase() === identity.email.trim().toLowerCase());
+      if (!ownsExisting) {
+        response.status(403).json({ message: 'You can only edit your own external training request.' });
+        return;
+      }
+    }
+
     const updated = await repository.updateExternalTrainingRequest(externalTrainingRequest);
 
     if (!updated) {
@@ -2759,7 +2816,11 @@ app.put('/api/external-training-requests/:requestId/documents', requireManagerOr
   }
 });
 
-app.get('/api/assignment-submissions', async (_request, response, next) => {
+// Not called by any current frontend code (assignment/quiz submissions reach the student and
+// manager/admin UIs scoped, through bootstrap and the student snapshot) — gated to manager/admin
+// rather than left open to any authenticated session, which previously let any student pull every
+// other student's assignment submissions (responseText, uploaded documents, reviewer feedback).
+app.get('/api/assignment-submissions', requireManagerOrAdministrator, async (_request, response, next) => {
   try {
     response.json(await repository.listAssignmentSubmissions());
   } catch (error) {
@@ -2767,7 +2828,9 @@ app.get('/api/assignment-submissions', async (_request, response, next) => {
   }
 });
 
-app.get('/api/quiz-submissions', async (_request, response, next) => {
+// Same reasoning as GET /api/assignment-submissions above — unused by any current frontend code,
+// previously reachable by any authenticated session including a plain student.
+app.get('/api/quiz-submissions', requireManagerOrAdministrator, async (_request, response, next) => {
   try {
     response.json(await repository.listQuizSubmissions());
   } catch (error) {
