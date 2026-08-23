@@ -1039,8 +1039,7 @@ type KpiEntryFormGroup = FormGroup<{
                           [offering]="offering"
                           [selected]="selectedPublishedOfferingId() === offering.id"
                           [assignedCount]="offeringEnrollmentCount(offering.id)"
-                          (open)="openPublishedOffering(offering)"
-                          (enroll)="goToEnrollmentForOffering(offering)" />
+                          (open)="openPublishedOffering(offering)" />
                       }
                     </div>
                   </section>
@@ -1361,7 +1360,6 @@ type KpiEntryFormGroup = FormGroup<{
                   (close)="closePublishedOfferingDetail()"
                   (editContent)="editPublishedOfferingContent(activeOffering)"
                   (deleteCourse)="confirmDeletePublishedOffering(activeOffering)"
-                  (enroll)="goToEnrollmentForOffering(activeOffering)"
                   (reviewAssignment)="applyAssignmentReview($event)"
                   (save)="savePublishedOffering($event)" />
               </div>
@@ -1575,7 +1573,6 @@ type KpiEntryFormGroup = FormGroup<{
                       </span>
                       <span class="student-list-cell" role="cell">{{ student.department }}</span>
                       <div class="student-list-actions" role="cell">
-                        <button type="button" class="assign-btn assign-btn-compact" (click)="openAssignWizard({ studentIds: [student.id] })">Assign</button>
                         <button type="button" class="courses-btn" (click)="openManageEnrollmentStudent(student)">Courses ({{ managerData.offeringsForStudent(student).length }})</button>
                       </div>
                     </article>
@@ -1600,7 +1597,6 @@ type KpiEntryFormGroup = FormGroup<{
                     <span role="columnheader">No. students</span>
                     <span role="columnheader">Start date</span>
                     <span role="columnheader">End date</span>
-                    <span role="columnheader">Assign</span>
                     <span role="columnheader">Courses</span>
                     <span role="columnheader">Edit</span>
                     <span role="columnheader">Delete</span>
@@ -1612,9 +1608,6 @@ type KpiEntryFormGroup = FormGroup<{
                       <span class="enrollment-group-cell" role="cell">{{ group.members.length }}</span>
                       <span class="enrollment-group-cell" role="cell">{{ group.startDate }}</span>
                       <span class="enrollment-group-cell" role="cell">{{ group.endDate }}</span>
-                      <div class="enrollment-group-cell enrollment-group-action-cell" role="cell">
-                        <button type="button" class="assign-btn assign-btn-compact" (click)="openAssignWizard({ studentIds: groupMemberIds(group) })">Assign</button>
-                      </div>
                       <div class="enrollment-group-cell enrollment-group-action-cell" role="cell">
                         <button type="button" class="courses-btn" (click)="openManageEnrollmentGroup(group)">{{ managerData.offeringsForGroup(group.members).length }}</button>
                       </div>
@@ -1834,9 +1827,6 @@ type KpiEntryFormGroup = FormGroup<{
                       </div>
                     </div>
 
-                    <div class="enrollment-modal-actions">
-                      <button type="button" class="assign-btn" (click)="closeManageEnrollmentStudent(); openAssignWizard({ studentIds: [managedStudent.id] })">+ Assign another course</button>
-                    </div>
                   </section>
                 </div>
               }
@@ -1870,9 +1860,6 @@ type KpiEntryFormGroup = FormGroup<{
                       </div>
                     </div>
 
-                    <div class="enrollment-modal-actions">
-                      <button type="button" class="assign-btn" (click)="closeManageEnrollmentGroup(); openAssignWizard({ studentIds: groupMemberIds(managedGroup) })">+ Assign another course</button>
-                    </div>
                   </section>
                 </div>
               }
@@ -4625,10 +4612,10 @@ type KpiEntryFormGroup = FormGroup<{
     .enrollment-groups-head,
     .enrollment-group-row {
       display: grid;
-      grid-template-columns: 1.4fr 0.8fr 1fr 1fr 0.7fr 0.7fr 0.6fr 0.6fr;
+      grid-template-columns: 1.4fr 0.8fr 1fr 1fr 0.7fr 0.6fr 0.6fr;
       gap: 0.6rem;
       align-items: center;
-      min-width: 52rem;
+      min-width: 46rem;
     }
 
     .enrollment-groups-head {
@@ -7550,13 +7537,6 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     }
   }
 
-  goToEnrollmentForOffering(offering: TrainingOffering, event?: Event) {
-    event?.stopPropagation();
-    this.closePublishedOfferingDetail();
-    this.selectedPanel.set('enrollment');
-    this.openAssignWizard({ offeringId: offering.id });
-  }
-
   selectCreateSection(section: CreateCourseSection) {
     this.openCreateSection(section);
   }
@@ -9171,10 +9151,6 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     }
   }
 
-  groupMemberIds(group: EnrollmentGroupSummary): string[] {
-    return group.members.map((student) => student.id);
-  }
-
   openManageEnrollmentStudent(student: EnrollmentStudent) {
     this.managingEnrollmentStudentId.set(student.id);
   }
@@ -9200,13 +9176,12 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   }
 
   // ── Assign wizard ─────────────────────────────────────────────────────
-  openAssignWizard(preset?: { offeringId?: string; studentIds?: string[] }) {
-    this.assignWizardSelectedOfferingIds.set(preset?.offeringId ? { [preset.offeringId]: true } : {});
-    this.assignWizardSelectedStudentIds.set(
-      preset?.studentIds?.length
-        ? Object.fromEntries(preset.studentIds.map((id) => [id, true]))
-        : {},
-    );
+  // No preset parameter — "+ New assignment" in the panel header is the only entry point into
+  // this wizard now, deliberately: it always starts from a clean slate rather than being
+  // pre-filtered by whichever student, group, or course the manager happened to click from.
+  openAssignWizard() {
+    this.assignWizardSelectedOfferingIds.set({});
+    this.assignWizardSelectedStudentIds.set({});
     this.assignWizardOfferingSearchTerm.set('');
     this.assignWizardStudentSearchTerm.set('');
     this.assignWizardDeadline.set('');

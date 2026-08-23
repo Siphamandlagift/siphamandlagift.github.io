@@ -41,7 +41,6 @@ import { TrainingOffering } from './training-manager-data.service';
 
         <div class="offering-actions">
           <button type="button" class="offering-action-btn offering-action-btn-primary" (click)="openFromAction($event)">View details</button>
-          <button type="button" class="offering-action-btn" (click)="enroll.emit(); $event.stopPropagation()">Assign learners</button>
         </div>
       </div>
     </article>
@@ -229,7 +228,6 @@ export class PublishedOfferingCardComponent {
   readonly assignedCount = input(0);
 
   readonly open = output<void>();
-  readonly enroll = output<void>();
 
   openFromKeyboard(event: Event) {
     event.preventDefault();

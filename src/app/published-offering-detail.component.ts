@@ -43,7 +43,6 @@ type PublishedOfferingPresentationPreview = {
             <button type="button" class="detail-action-btn" (click)="startEdit()">Edit course</button>
             <button type="button" class="detail-action-btn" (click)="editContent.emit()">Edit content</button>
             <button type="button" class="detail-action-btn detail-action-btn-danger" (click)="deleteCourse.emit()">Delete course</button>
-            <button type="button" class="detail-action-btn detail-action-btn-primary" (click)="enroll.emit()">Assign learners</button>
           }
         </div>
       </div>
@@ -737,7 +736,6 @@ export class PublishedOfferingDetailComponent {
   readonly assignmentSubmissions = input<AssignmentSubmissionRecord[]>([]);
 
   readonly close = output<void>();
-  readonly enroll = output<void>();
   readonly editContent = output<void>();
   readonly deleteCourse = output<void>();
   readonly save = output<PublishedOfferingUpdate>();
