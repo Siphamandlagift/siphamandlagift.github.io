@@ -1290,37 +1290,6 @@ export class TrainingManagerDataService {
     this.persistStudents();
   }
 
-  assignGroupToOffering(groupName: string, offeringId: string) {
-    const normalizedGroupName = groupName.trim();
-    const assignedOffering = this.offerings().find((offering) => offering.id === offeringId);
-
-    if (!normalizedGroupName || !assignedOffering) {
-      return 0;
-    }
-
-    let assignedCount = 0;
-
-    this.studentsSignal.update((students) =>
-      students.map((student) => {
-        if (student.group !== normalizedGroupName || student.assignedOfferingIds.includes(offeringId)) {
-          return student;
-        }
-
-        assignedCount += 1;
-        const assignedOfferingIds = [...student.assignedOfferingIds, offeringId];
-
-        return {
-          ...student,
-          ...this.resolveAssignmentState(student, assignedOfferingIds, assignedOffering.completionDeadline),
-        };
-      }),
-    );
-
-    this.persistStudents();
-
-    return assignedCount;
-  }
-
   removeGroupFromOffering(groupName: string, offeringId: string) {
     const normalizedGroupName = groupName.trim();
 
@@ -1432,24 +1401,9 @@ export class TrainingManagerDataService {
     return this.offerings().filter((offering) => assignments.has(offering.id));
   }
 
-  assignableOfferingsForStudent(student: EnrollmentStudent) {
-    const assignments = new Set(student.assignedOfferingIds);
-    return this.offerings().filter((offering) => !assignments.has(offering.id));
-  }
-
   offeringsForGroup(students: EnrollmentStudent[]) {
     const assignments = new Set(students.flatMap((student) => student.assignedOfferingIds));
     return this.offerings().filter((offering) => assignments.has(offering.id));
-  }
-
-  assignableOfferingsForGroup(students: EnrollmentStudent[]) {
-    if (!students.length) {
-      return this.offerings();
-    }
-
-    return this.offerings().filter((offering) =>
-      students.some((student) => !student.assignedOfferingIds.includes(offering.id)),
-    );
   }
 
   markManagerMessageRead(messageId: string) {
