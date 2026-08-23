@@ -5004,6 +5004,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     if (this.sidebarScrollTimeout) {
       clearTimeout(this.sidebarScrollTimeout);
     }
+    this.reportSnapshotRefreshSub.unsubscribe();
   }
 
   /** Shows the sidebar's scrollbar thumb only while actively scrolling, hiding it again
@@ -5472,11 +5473,15 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       }
 
       const worksheet = workbook.Sheets[firstSheetName];
+      // blankrows: true (not false) so a blank row in the source sheet still occupies a slot in
+      // rawRows — parseBulkUploadRows below relies on each row's array index lining up with its
+      // real position in the file to report an accurate line number; dropping blank rows here would
+      // shift every row after one out of sync with the file the admin actually has open.
       const rawRows = xlsx.utils.sheet_to_json<(string | number | boolean | Date)[]>(worksheet, {
         header: 1,
         raw: false,
         defval: '',
-        blankrows: false,
+        blankrows: true,
         dateNF: 'yyyy-mm-dd',
       });
 
@@ -5484,11 +5489,13 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     }
 
     const csvText = await file.text();
+    // Blank lines are kept as [] (not filtered out) for the same reason as blankrows above — the
+    // line-number reported for a later row depends on earlier rows, blank or not, all still
+    // occupying a slot.
     const rawRows = csvText
       .split(/\r?\n/)
       .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => this.parseCsvLine(line));
+      .map((line) => (line ? this.parseCsvLine(line) : []));
 
     return this.parseBulkUploadRows(rawRows);
   }
@@ -5510,13 +5517,21 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     const seenEmails = new Set<string>();
 
     rawRows.slice(1).forEach((values, rowIndex) => {
+      const lineNumber = rowIndex + 2;
+
+      // A genuinely blank line/row in the source file (not filtered out earlier — see
+      // parseBulkUploadFile — specifically so this index keeps lining up with the file's real line
+      // numbers) isn't a data row to validate or report an issue against; just skip it in place.
+      if (values.length === 0 || values.every((value) => !value?.trim())) {
+        return;
+      }
+
       const record = new Map<string, string>();
 
       headers.forEach((header, index) => {
         record.set(header, values[index]?.trim() ?? '');
       });
 
-      const lineNumber = rowIndex + 2;
       const row = this.buildBulkUploadRow(record, lineNumber, seenEmails);
 
       if ('message' in row) {
@@ -6125,8 +6140,12 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       return null;
     }
 
-    const birthDate = new Date(trimmed);
-    if (Number.isNaN(birthDate.getTime())) {
+    // Parsed via parseDateOnly (local midnight) rather than new Date(trimmed), which parses a bare
+    // YYYY-MM-DD string as UTC midnight — for an admin browsing from a timezone behind UTC, that
+    // shifts the birth date back a calendar day, making the "has the birthday happened yet this
+    // year" check below fire a day early and undercount age by one on that specific day each year.
+    const birthDate = this.parseDateOnly(trimmed);
+    if (!birthDate || Number.isNaN(birthDate.getTime())) {
       return null;
     }
 
