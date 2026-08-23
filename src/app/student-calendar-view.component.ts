@@ -99,21 +99,14 @@ type CalendarDay = {
             @if (selectedDayEvents().length) {
               <ul class="event-list">
                 @for (event of selectedDayEvents(); track event.id) {
-                  <li class="event-item" [class.event-item-assignment]="event.kind === 'assignment'">
-                    <span class="event-icon" aria-hidden="true">
-                      @if (event.kind === 'assignment') {
-                        <svg viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="16" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="m9 13 2 2 4-4"/></svg>
-                      } @else {
-                        <svg viewBox="0 0 24 24"><path d="M4 6.5c0-1 .8-1.5 2-1.5h5v13H6c-1.2 0-2 .5-2 1.5V6.5Z"/><path d="M20 6.5c0-1-.8-1.5-2-1.5h-5v13h5c1.2 0 2 .5 2 1.5V6.5Z"/></svg>
-                      }
-                    </span>
+                  <li class="event-item">
                     <div class="event-copy">
                       @if (event.actionLabel) {
                         <button type="button" class="event-title-link" (click)="openEvent(event)">{{ event.title }}</button>
                       } @else {
                         <span class="event-title">{{ event.title }}</span>
                       }
-                      @if (event.courseName) {
+                      @if (event.kind === 'assignment' && event.courseName) {
                         <span class="event-course">{{ event.courseName }}</span>
                       }
                     </div>
@@ -131,21 +124,14 @@ type CalendarDay = {
             @if (upcomingEvents().length) {
               <ul class="event-list">
                 @for (event of upcomingEvents(); track event.id) {
-                  <li class="event-item" [class.event-item-assignment]="event.kind === 'assignment'">
-                    <span class="event-icon" aria-hidden="true">
-                      @if (event.kind === 'assignment') {
-                        <svg viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="16" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="m9 13 2 2 4-4"/></svg>
-                      } @else {
-                        <svg viewBox="0 0 24 24"><path d="M4 6.5c0-1 .8-1.5 2-1.5h5v13H6c-1.2 0-2 .5-2 1.5V6.5Z"/><path d="M20 6.5c0-1-.8-1.5-2-1.5h-5v13h5c1.2 0 2 .5 2 1.5V6.5Z"/></svg>
-                      }
-                    </span>
+                  <li class="event-item">
                     <div class="event-copy">
                       @if (event.actionLabel) {
                         <button type="button" class="event-title-link" (click)="openEvent(event)">{{ event.title }}</button>
                       } @else {
                         <span class="event-title">{{ event.title }}</span>
                       }
-                      @if (event.courseName) {
+                      @if (event.kind === 'assignment' && event.courseName) {
                         <span class="event-course">{{ event.courseName }}</span>
                       }
                     </div>
@@ -513,33 +499,6 @@ type CalendarDay = {
       border-radius: 14px;
     }
 
-    .event-icon {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 2rem;
-      height: 2rem;
-      flex: 0 0 auto;
-      border-radius: 10px;
-      background: #eef2ff;
-      color: #4338ca;
-    }
-
-    .event-item-assignment .event-icon {
-      background: #fff7ed;
-      color: #c2410c;
-    }
-
-    .event-icon svg {
-      width: 1.05rem;
-      height: 1.05rem;
-      stroke: currentColor;
-      stroke-width: 1.8;
-      fill: none;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
     .event-title {
       color: #14213d;
       font-weight: 700;
@@ -658,10 +617,6 @@ type CalendarDay = {
 
       .event-item {
         flex-wrap: wrap;
-      }
-
-      .event-due-badge {
-        margin-left: calc(2rem + 0.65rem);
       }
     }
   `],
