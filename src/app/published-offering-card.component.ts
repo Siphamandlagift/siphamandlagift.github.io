@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { TrainingOffering } from './training-manager-data.service';
 
@@ -35,6 +35,19 @@ import { TrainingOffering } from './training-manager-data.service';
           <span class="offering-date">{{ offering().createdOn }}</span>
           <span>{{ assignedCount() }} assigned</span>
         </div>
+
+        @if (deadlineLabel(); as label) {
+          <div
+            class="offering-deadline-badge"
+            [class.offering-deadline-badge-overdue]="deadlineStatus() === 'overdue'"
+            [class.offering-deadline-badge-soon]="deadlineStatus() === 'soon'">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/>
+              <path d="M12 7.5v5l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>{{ deadlineStatus() === 'overdue' ? 'Overdue' : 'Due' }} {{ label }}</span>
+          </div>
+        }
 
         <div class="offering-title">{{ offering().title }}</div>
         <p class="offering-copy">{{ offering().description }}</p>
@@ -161,6 +174,31 @@ import { TrainingOffering } from './training-manager-data.service';
       color: #64748b;
     }
 
+    /* Neutral by default; tips into amber inside the last week and red once the date has passed,
+       so a manager scanning the grid can spot courses needing attention without opening each one. */
+    .offering-deadline-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      align-self: flex-start;
+      padding: 0.3rem 0.65rem;
+      border-radius: 999px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-size: 0.76rem;
+      font-weight: 700;
+    }
+
+    .offering-deadline-badge-soon {
+      background: #fffbeb;
+      color: #b45309;
+    }
+
+    .offering-deadline-badge-overdue {
+      background: #fef2f2;
+      color: #b91c1c;
+    }
+
     .offering-title,
     .offering-copy,
     p {
@@ -228,6 +266,45 @@ export class PublishedOfferingCardComponent {
   readonly assignedCount = input(0);
 
   readonly open = output<void>();
+
+  // completionDeadline is stored as a plain YYYY-MM-DD (an <input type="date"> value) — parsed as
+  // UTC midnight and compared against today's UTC midnight so the "overdue"/"soon" cutoffs land on
+  // calendar-day boundaries rather than shifting with the viewer's timezone.
+  private readonly deadlineDate = computed(() => {
+    const raw = this.offering().completionDeadline;
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = new Date(`${raw}T00:00:00Z`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  });
+
+  readonly deadlineLabel = computed(() => {
+    const date = this.deadlineDate();
+    if (!date) {
+      return null;
+    }
+
+    return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  });
+
+  readonly deadlineStatus = computed<'overdue' | 'soon' | 'normal'>(() => {
+    const date = this.deadlineDate();
+    if (!date) {
+      return 'normal';
+    }
+
+    const todayUtc = new Date();
+    todayUtc.setUTCHours(0, 0, 0, 0);
+    const daysRemaining = Math.round((date.getTime() - todayUtc.getTime()) / 86_400_000);
+
+    if (daysRemaining < 0) {
+      return 'overdue';
+    }
+
+    return daysRemaining <= 7 ? 'soon' : 'normal';
+  });
 
   openFromKeyboard(event: Event) {
     event.preventDefault();
