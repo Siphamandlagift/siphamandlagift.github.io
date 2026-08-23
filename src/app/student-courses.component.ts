@@ -126,7 +126,7 @@ type ScormRuntimeState = {
               <div class="course-card-top" [style.background-image]="'url(' + course.image + ')'">
                 <span class="course-status-pill">{{ course.completed ? 'Completed' : 'In Progress' }}</span>
                 <div class="eye-overlay">
-                  <svg class="eye-icon" width="54" height="54" fill="none" viewBox="0 0 24 24"><path fill="#fff" d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12c-2.8 0-5-2.2-5-5s2.2-5 5-5 5 2.2 5 5-2.2 5-5 5Zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/></svg>
+                  <svg class="eye-icon" width="38" height="38" fill="none" viewBox="0 0 24 24"><path fill="#fff" d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12c-2.8 0-5-2.2-5-5s2.2-5 5-5 5 2.2 5 5-2.2 5-5 5Zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/></svg>
                 </div>
               </div>
 
@@ -149,10 +149,6 @@ type ScormRuntimeState = {
                   <div class="progress-bar-fill" [style.width.%]="course.completed ? 100 : course.progress || 0"></div>
                 </div>
                 <div class="progress-label">Progress: {{ course.completed ? 100 : course.progress || 0 }}%</div>
-
-                <div class="course-actions">
-
-                </div>
               </div>
             </article>
           </ng-container>
@@ -843,13 +839,13 @@ type ScormRuntimeState = {
 
     .course-card-top {
       position: relative;
-      height: 150px;
+      height: 96px;
       background-size: cover;
       background-position: center;
       display: flex;
       align-items: flex-start;
       justify-content: flex-end;
-      padding: 0.9rem;
+      padding: 0.7rem;
       isolation: isolate;
     }
 
@@ -868,8 +864,8 @@ type ScormRuntimeState = {
       border-radius: 999px;
       background: rgba(255, 255, 255, 0.92);
       color: #4f46e5;
-      padding: 0.35rem 0.8rem;
-      font-size: 0.88rem;
+      padding: 0.28rem 0.65rem;
+      font-size: 0.78rem;
       font-weight: 700;
       box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
     }
@@ -909,21 +905,28 @@ type ScormRuntimeState = {
     .course-card-body {
       display: flex;
       flex-direction: column;
-      gap: 0.65rem;
-      padding: 1.25rem;
+      gap: 0.45rem;
+      padding: 0.9rem 1rem;
       text-align: center;
     }
 
     .course-title {
       color: #14213d;
-      font-size: 1.1rem;
+      font-size: 1rem;
       font-weight: 700;
     }
 
+    /* Clamped to 2 lines (instead of a fixed min-height reserving that space even when the
+       description is short) so a long description gets an ellipsis rather than stretching the
+       card, and a short one doesn't leave dead space below it. */
     .course-description {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
       color: #64748b;
-      font-size: 0.95rem;
-      min-height: 2.8rem;
+      font-size: 0.86rem;
+      line-height: 1.35;
     }
 
     /* Only rendered for a not-yet-completed course whose offering has a deadline set — neutral
@@ -970,41 +973,8 @@ type ScormRuntimeState = {
 
     .progress-label {
       color: #475569;
-      font-size: 0.92rem;
+      font-size: 0.82rem;
       font-weight: 600;
-    }
-
-    .course-actions {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 2.6rem;
-    }
-
-    .course-action-btn {
-      border: none;
-      border-radius: 12px;
-      background: linear-gradient(135deg, #6366f1, #4f46e5);
-      color: #fff;
-      padding: 0.72rem 1rem;
-      font-size: 0.92rem;
-      font-weight: 700;
-      cursor: pointer;
-      box-shadow: 0 12px 24px rgba(79, 70, 229, 0.18);
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
-    }
-
-    .course-action-btn:hover,
-    .course-action-btn:focus-visible {
-      transform: translateY(-1px);
-      box-shadow: 0 14px 28px rgba(79, 70, 229, 0.22);
-      outline: none;
-    }
-
-    .course-complete-note {
-      color: #15803d;
-      font-size: 0.9rem;
-      font-weight: 700;
     }
 
     .workspace-header {
