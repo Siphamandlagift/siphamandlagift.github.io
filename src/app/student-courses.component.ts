@@ -128,11 +128,6 @@ type ScormRuntimeState = {
                 <div class="eye-overlay">
                   <svg class="eye-icon" width="38" height="38" fill="none" viewBox="0 0 24 24"><path fill="#fff" d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12c-2.8 0-5-2.2-5-5s2.2-5 5-5 5 2.2 5 5-2.2 5-5 5Zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/></svg>
                 </div>
-              </div>
-
-              <div class="course-card-body">
-                <div class="course-title">{{ course.name }}</div>
-                <div class="course-description">{{ course.description }}</div>
                 @if (courseDeadlineLabel(course); as deadlineLabel) {
                   <div
                     class="course-deadline-badge"
@@ -145,6 +140,11 @@ type ScormRuntimeState = {
                     <span>{{ courseDeadlineStatus(course) === 'overdue' ? 'Overdue' : 'Due' }} {{ deadlineLabel }}</span>
                   </div>
                 }
+              </div>
+
+              <div class="course-card-body">
+                <div class="course-title">{{ course.name }}</div>
+                <div class="course-description">{{ course.description }}</div>
                 <div class="progress-bar">
                   <div class="progress-bar-fill" [style.width.%]="course.completed ? 100 : course.progress || 0"></div>
                 </div>
@@ -933,17 +933,23 @@ type ScormRuntimeState = {
        blue normally, amber inside the last 7 days, red once it's passed, matching the same
        urgency colours used for this course's deadline everywhere else it appears (the manager's
        course card, the calendar). */
+    /* Floats over the thumbnail (bottom-left) instead of sitting in the card body's own flow, so
+       it reads as a badge on the course rather than another line of card content. */
     .course-deadline-badge {
+      position: absolute;
+      left: 0.65rem;
+      bottom: 0.65rem;
+      z-index: 1;
       display: inline-flex;
       align-items: center;
-      align-self: center;
-      gap: 0.4rem;
-      padding: 0.3rem 0.65rem;
+      gap: 0.35rem;
+      padding: 0.26rem 0.55rem;
       border-radius: 999px;
       background: #eff6ff;
       color: #1d4ed8;
-      font-size: 0.78rem;
+      font-size: 0.7rem;
       font-weight: 700;
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.22);
     }
 
     .course-deadline-badge-soon {

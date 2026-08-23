@@ -28,13 +28,6 @@ import { TrainingOffering } from './training-manager-data.service';
             <span class="offering-thumbnail-badge">Custom thumbnail</span>
           </div>
         }
-      </div>
-
-      <div class="offering-card-body">
-        <div class="offering-top-row">
-          <span class="offering-date">{{ offering().createdOn }}</span>
-          <span>{{ assignedCount() }} assigned</span>
-        </div>
 
         @if (deadlineLabel(); as label) {
           <div
@@ -48,6 +41,13 @@ import { TrainingOffering } from './training-manager-data.service';
             <span>{{ deadlineStatus() === 'overdue' ? 'Overdue' : 'Due' }} {{ label }}</span>
           </div>
         }
+      </div>
+
+      <div class="offering-card-body">
+        <div class="offering-top-row">
+          <span class="offering-date">{{ offering().createdOn }}</span>
+          <span>{{ assignedCount() }} assigned</span>
+        </div>
 
         <div class="offering-title">{{ offering().title }}</div>
         <p class="offering-copy">{{ offering().description }}</p>
@@ -176,17 +176,23 @@ import { TrainingOffering } from './training-manager-data.service';
 
     /* Neutral by default; tips into amber inside the last week and red once the date has passed,
        so a manager scanning the grid can spot courses needing attention without opening each one. */
+    /* Floats over the thumbnail (bottom-left) instead of sitting in the card body's own flow, so
+       it reads as a badge on the course rather than another line of card content. */
     .offering-deadline-badge {
+      position: absolute;
+      left: 1rem;
+      bottom: 1rem;
+      z-index: 1;
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
-      align-self: flex-start;
       padding: 0.3rem 0.65rem;
       border-radius: 999px;
       background: #eff6ff;
       color: #1d4ed8;
       font-size: 0.76rem;
       font-weight: 700;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2);
     }
 
     .offering-deadline-badge-soon {
