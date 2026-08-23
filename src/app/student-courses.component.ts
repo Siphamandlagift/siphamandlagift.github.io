@@ -6,7 +6,7 @@ import { PdfViewerComponent } from './pdf-viewer.component';
 import { PowerPointWindowComponent } from './powerpoint-window.component';
 import { StudentAssessmentAttempt, StudentCourse, StudentDataService } from './student-data.service';
 import { resolvePowerPointUploadType } from './powerpoint-preview';
-import { AssignmentSubmissionRecord, TrainingAssessmentType, TrainingContentItem, TrainingContentKind, TrainingManagerDataService, TrainingQuestionType } from './training-manager-data.service';
+import { AssignmentSubmissionRecord, TrainingAssessmentType, TrainingContentItem, TrainingContentKind, TrainingManagerDataService, TrainingOffering, TrainingQuestionType } from './training-manager-data.service';
 
 type WorkspaceDocument = {
   title: string;
@@ -133,6 +133,18 @@ type ScormRuntimeState = {
               <div class="course-card-body">
                 <div class="course-title">{{ course.name }}</div>
                 <div class="course-description">{{ course.description }}</div>
+                @if (courseDeadlineLabel(course); as deadlineLabel) {
+                  <div
+                    class="course-deadline-badge"
+                    [class.course-deadline-badge-overdue]="courseDeadlineStatus(course) === 'overdue'"
+                    [class.course-deadline-badge-soon]="courseDeadlineStatus(course) === 'soon'">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/>
+                      <path d="M12 7.5v5l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span>{{ courseDeadlineStatus(course) === 'overdue' ? 'Overdue' : 'Due' }} {{ deadlineLabel }}</span>
+                  </div>
+                }
                 <div class="progress-bar">
                   <div class="progress-bar-fill" [style.width.%]="course.completed ? 100 : course.progress || 0"></div>
                 </div>
@@ -912,6 +924,33 @@ type ScormRuntimeState = {
       color: #64748b;
       font-size: 0.95rem;
       min-height: 2.8rem;
+    }
+
+    /* Only rendered for a not-yet-completed course whose offering has a deadline set — neutral
+       blue normally, amber inside the last 7 days, red once it's passed, matching the same
+       urgency colours used for this course's deadline everywhere else it appears (the manager's
+       course card, the calendar). */
+    .course-deadline-badge {
+      display: inline-flex;
+      align-items: center;
+      align-self: center;
+      gap: 0.4rem;
+      padding: 0.3rem 0.65rem;
+      border-radius: 999px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .course-deadline-badge-soon {
+      background: #fffbeb;
+      color: #b45309;
+    }
+
+    .course-deadline-badge-overdue {
+      background: #fef2f2;
+      color: #b91c1c;
     }
 
     .progress-bar {
@@ -2249,6 +2288,53 @@ export class StudentCoursesComponent {
     if (!q) return tab;
     return tab.filter((c) => c.name.toLowerCase().includes(q) || (c.description ?? '').toLowerCase().includes(q));
   });
+
+  // Same match-by-offeringId-then-title fallback the calendar's buildCalendarEvents uses to find
+  // a course's offering — see student-data.service.ts.
+  private resolveCourseOffering(course: StudentCourse): TrainingOffering | undefined {
+    const offerings = this.managerData.offerings();
+    return course.offeringId
+      ? offerings.find((offering) => offering.id === course.offeringId)
+      : offerings.find((offering) => offering.title === course.name);
+  }
+
+  private courseDeadlineDate(course: StudentCourse): Date | null {
+    // A completed course has no pending deadline to act on any more, same exclusion the calendar
+    // applies — a finished course keeping a "Due ..." badge would read as still outstanding work.
+    if (course.completed) {
+      return null;
+    }
+
+    const raw = this.resolveCourseOffering(course)?.completionDeadline;
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = new Date(`${raw}T00:00:00Z`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  courseDeadlineLabel(course: StudentCourse): string | null {
+    const date = this.courseDeadlineDate(course);
+    return date ? date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : null;
+  }
+
+  courseDeadlineStatus(course: StudentCourse): 'overdue' | 'soon' | 'normal' {
+    const date = this.courseDeadlineDate(course);
+    if (!date) {
+      return 'normal';
+    }
+
+    const todayUtc = new Date();
+    todayUtc.setUTCHours(0, 0, 0, 0);
+    const daysRemaining = Math.round((date.getTime() - todayUtc.getTime()) / 86_400_000);
+
+    if (daysRemaining < 0) {
+      return 'overdue';
+    }
+
+    return daysRemaining <= 7 ? 'soon' : 'normal';
+  }
   readonly selectedCourseWorkspace = computed(() => {
     const course = this.selectedCourse();
     if (!course) {
