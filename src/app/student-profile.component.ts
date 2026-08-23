@@ -961,7 +961,6 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
 
           <section *ngIf="selectedPanel() === 'performance'" class="performance-section">
             <div class="section-heading-block">
-              <p class="eyebrow">Performance</p>
               <h1>Performance</h1>
             </div>
 
@@ -1443,7 +1442,6 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
 
           <section *ngIf="selectedPanel() === 'idp'" class="idp-section">
             <div class="section-heading-block">
-              <p class="eyebrow">Individual Development Plan</p>
               <h1>My IDP</h1>
             </div>
 
