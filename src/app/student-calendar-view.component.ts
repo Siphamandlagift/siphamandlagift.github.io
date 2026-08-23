@@ -69,8 +69,22 @@ type CalendarDay = {
                 (click)="selectDay(day)"
               >
                 <span class="calendar-day-number">{{ day.date | date:'dd' }}</span>
-                @if (hasEvents(day.date)) {
-                  <span class="event-dot" aria-hidden="true"></span>
+                @if (dayEventInfo(day.date); as info) {
+                  @if (info.count > 1) {
+                    <span
+                      class="event-indicator event-indicator-count"
+                      [class.event-indicator-today]="info.urgency === 'today'"
+                      [class.event-indicator-soon]="info.urgency === 'soon'"
+                      [class.event-indicator-past]="info.urgency === 'past'"
+                      [attr.aria-label]="info.count + ' events'">{{ info.count }}</span>
+                  } @else {
+                    <span
+                      class="event-indicator"
+                      [class.event-indicator-today]="info.urgency === 'today'"
+                      [class.event-indicator-soon]="info.urgency === 'soon'"
+                      [class.event-indicator-past]="info.urgency === 'past'"
+                      aria-hidden="true"></span>
+                  }
                 }
               </button>
             }
@@ -85,14 +99,23 @@ type CalendarDay = {
             @if (selectedDayEvents().length) {
               <ul class="event-list">
                 @for (event of selectedDayEvents(); track event.id) {
-                  <li class="event-item">
+                  <li class="event-item" [class.event-item-assignment]="event.kind === 'assignment'">
+                    <span class="event-icon" aria-hidden="true">
+                      @if (event.kind === 'assignment') {
+                        <svg viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="16" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="m9 13 2 2 4-4"/></svg>
+                      } @else {
+                        <svg viewBox="0 0 24 24"><path d="M4 6.5c0-1 .8-1.5 2-1.5h5v13H6c-1.2 0-2 .5-2 1.5V6.5Z"/><path d="M20 6.5c0-1-.8-1.5-2-1.5h-5v13h5c1.2 0 2 .5 2 1.5V6.5Z"/></svg>
+                      }
+                    </span>
                     <div class="event-copy">
                       @if (event.actionLabel) {
                         <button type="button" class="event-title-link" (click)="openEvent(event)">{{ event.title }}</button>
                       } @else {
                         <span class="event-title">{{ event.title }}</span>
                       }
-                      <span class="event-date">{{ event.date | date:'MMM d, y' }}</span>
+                      @if (event.courseName) {
+                        <span class="event-course">{{ event.courseName }}</span>
+                      }
                     </div>
                   </li>
                 }
@@ -108,15 +131,27 @@ type CalendarDay = {
             @if (upcomingEvents().length) {
               <ul class="event-list">
                 @for (event of upcomingEvents(); track event.id) {
-                  <li class="event-item">
+                  <li class="event-item" [class.event-item-assignment]="event.kind === 'assignment'">
+                    <span class="event-icon" aria-hidden="true">
+                      @if (event.kind === 'assignment') {
+                        <svg viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="16" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="m9 13 2 2 4-4"/></svg>
+                      } @else {
+                        <svg viewBox="0 0 24 24"><path d="M4 6.5c0-1 .8-1.5 2-1.5h5v13H6c-1.2 0-2 .5-2 1.5V6.5Z"/><path d="M20 6.5c0-1-.8-1.5-2-1.5h-5v13h5c1.2 0 2 .5 2 1.5V6.5Z"/></svg>
+                      }
+                    </span>
                     <div class="event-copy">
                       @if (event.actionLabel) {
                         <button type="button" class="event-title-link" (click)="openEvent(event)">{{ event.title }}</button>
                       } @else {
                         <span class="event-title">{{ event.title }}</span>
                       }
-                      <span class="event-date">{{ event.date | date:'MMM d, y' }}</span>
+                      @if (event.courseName) {
+                        <span class="event-course">{{ event.courseName }}</span>
+                      }
                     </div>
+                    <span class="event-due-badge" [class.event-due-badge-overdue]="eventUrgency(event) === 'past'" [class.event-due-badge-today]="eventUrgency(event) === 'today'" [class.event-due-badge-soon]="eventUrgency(event) === 'soon'">
+                      {{ dueLabel(event) }}
+                    </span>
                   </li>
                 }
               </ul>
@@ -386,14 +421,44 @@ type CalendarDay = {
       line-height: 1;
     }
 
-    .event-dot {
+    /* Plain dot by default; grows into a numbered badge when a day has more than one event
+       (see event-indicator-count), and both are tinted by how soon the day is — muted grey once
+       it's passed, brand blue for today, amber inside the coming week, default blue beyond that —
+       the same urgency language the Upcoming Events list uses. */
+    .event-indicator {
       position: absolute;
-      bottom: 0.55rem;
-      left: 0.55rem;
-      width: 0.35rem;
-      height: 0.35rem;
-      border-radius: 50%;
-      background: #111827;
+      bottom: 0.5rem;
+      left: 0.5rem;
+      width: 0.4rem;
+      height: 0.4rem;
+      border-radius: 999px;
+      background: #2563eb;
+    }
+
+    .event-indicator-count {
+      width: auto;
+      min-width: 1.05rem;
+      height: 1.05rem;
+      padding: 0 0.2rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 0.62rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .event-indicator-today {
+      background: #4f46e5;
+    }
+
+    .event-indicator-soon {
+      background: #d97706;
+    }
+
+    .event-indicator-past {
+      background: #94a3b8;
     }
 
     .calendar-side-title {
@@ -440,11 +505,39 @@ type CalendarDay = {
 
     .event-item {
       display: flex;
-      align-items: flex-start;
-      padding: 0.72rem 0.8rem;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.65rem 0.8rem;
       background: #f8fafc;
       border: 1px solid #ecf0f7;
       border-radius: 14px;
+    }
+
+    .event-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2rem;
+      height: 2rem;
+      flex: 0 0 auto;
+      border-radius: 10px;
+      background: #eef2ff;
+      color: #4338ca;
+    }
+
+    .event-item-assignment .event-icon {
+      background: #fff7ed;
+      color: #c2410c;
+    }
+
+    .event-icon svg {
+      width: 1.05rem;
+      height: 1.05rem;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .event-title {
@@ -452,17 +545,44 @@ type CalendarDay = {
       font-weight: 700;
     }
 
-    .event-date {
+    .event-course {
       color: #64748b;
-      font-size: 0.82rem;
-      white-space: nowrap;
+      font-size: 0.78rem;
     }
 
     .event-copy {
       display: flex;
       flex-direction: column;
-      gap: 0.25rem;
+      gap: 0.2rem;
       min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .event-due-badge {
+      flex: 0 0 auto;
+      align-self: center;
+      padding: 0.28rem 0.6rem;
+      border-radius: 999px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-size: 0.72rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .event-due-badge-today {
+      background: #eef2ff;
+      color: #4338ca;
+    }
+
+    .event-due-badge-soon {
+      background: #fffbeb;
+      color: #b45309;
+    }
+
+    .event-due-badge-overdue {
+      background: #fef2f2;
+      color: #b91c1c;
     }
 
     .event-title-link {
@@ -537,11 +657,11 @@ type CalendarDay = {
       }
 
       .event-item {
-        flex-direction: column;
+        flex-wrap: wrap;
       }
 
-      .event-date {
-        white-space: normal;
+      .event-due-badge {
+        margin-left: calc(2rem + 0.65rem);
       }
     }
   `],
@@ -661,12 +781,70 @@ export class StudentCalendarComponent {
     this.selectedDay.set(new Date(day.date));
   }
 
-  hasEvents(date: Date) {
-    return this.events().some((event) => this.isSameDay(event.date, date));
+  // Drives the calendar-grid dot/badge for a day: how many events land on it, and how urgent the
+  // day is relative to today, so the grid itself gives the same at-a-glance signal as the
+  // Upcoming Events list rather than just a plain "something's here" dot.
+  dayEventInfo(date: Date): { count: number; urgency: 'past' | 'today' | 'soon' | 'normal' } | null {
+    const count = this.events().filter((event) => this.isSameDay(event.date, date)).length;
+    if (!count) {
+      return null;
+    }
+
+    return { count, urgency: this.urgencyForDaysUntil(this.daysUntil(date)) };
+  }
+
+  eventUrgency(event: StudentCalendarEvent): 'past' | 'today' | 'soon' | 'normal' {
+    return this.urgencyForDaysUntil(this.daysUntil(event.date));
+  }
+
+  // "Overdue by N days"/"Due today"/"Due tomorrow"/"Due in N days" for anything within the next
+  // week, since a relative count is more immediately useful there than a calendar date is — past
+  // a week out the exact date reads better than "Due in 11 days", so it falls back to that instead.
+  dueLabel(event: StudentCalendarEvent): string {
+    const days = this.daysUntil(event.date);
+    if (days < 0) {
+      const overdueBy = Math.abs(days);
+      return `Overdue by ${overdueBy} ${overdueBy === 1 ? 'day' : 'days'}`;
+    }
+
+    if (days === 0) {
+      return 'Due today';
+    }
+
+    if (days === 1) {
+      return 'Due tomorrow';
+    }
+
+    if (days <= 7) {
+      return `Due in ${days} days`;
+    }
+
+    return `Due ${this.formatShortDate(event.date)}`;
   }
 
   openEvent(event: StudentCalendarEvent) {
     this.studentData.openCalendarEvent(event);
+  }
+
+  private urgencyForDaysUntil(days: number): 'past' | 'today' | 'soon' | 'normal' {
+    if (days < 0) {
+      return 'past';
+    }
+
+    if (days === 0) {
+      return 'today';
+    }
+
+    return days <= 7 ? 'soon' : 'normal';
+  }
+
+  private daysUntil(date: Date): number {
+    const diff = this.stripTime(date).getTime() - this.stripTime(this.today).getTime();
+    return Math.round(diff / 86_400_000);
+  }
+
+  private formatShortDate(date: Date): string {
+    return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
   }
 
   private isSameDay(left: Date, right: Date) {

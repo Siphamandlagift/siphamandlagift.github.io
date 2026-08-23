@@ -112,6 +112,7 @@ export type StudentCalendarEvent = {
   id: string;
   date: Date;
   title: string;
+  kind: 'course' | 'assignment';
   courseName?: string;
   offeringId?: string;
   stepId?: string;
@@ -1625,6 +1626,7 @@ export class StudentDataService {
         id: `${offering.id}-course-deadline`,
         date: deadline,
         title: `Course due: ${offering.title}`,
+        kind: 'course',
         courseName: course.name,
         offeringId: offering.id,
         actionLabel: 'Open in Courses',
@@ -1640,6 +1642,7 @@ export class StudentDataService {
           id: `${offering.id}-${item.id || `assignment-${itemIndex + 1}`}-deadline`,
           date: deadline,
           title: `Assignment due: ${title}`,
+          kind: 'assignment',
           courseName: course.name,
           offeringId: offering.id,
           stepId: item.id || `${offering.id}-assessment-${itemIndex + 1}`,
