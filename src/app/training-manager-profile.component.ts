@@ -1930,10 +1930,16 @@ type KpiEntryFormGroup = FormGroup<{
                           <div class="enrollment-offering-picker-list">
                             @for (offering of assignWizardFilteredOfferings(); track offering.id) {
                               <label class="enrollment-offering-option" [class.enrollment-offering-option-selected]="isAssignWizardOfferingSelected(offering.id)">
-                                <input
-                                  type="checkbox"
-                                  [checked]="isAssignWizardOfferingSelected(offering.id)"
-                                  (change)="toggleAssignWizardOffering(offering.id, $any($event.target).checked)" />
+                                <span class="enrollment-offering-option-check-wrap">
+                                  <input
+                                    type="checkbox"
+                                    class="enrollment-offering-option-input"
+                                    [checked]="isAssignWizardOfferingSelected(offering.id)"
+                                    (change)="toggleAssignWizardOffering(offering.id, $any($event.target).checked)" />
+                                  <span class="enrollment-offering-option-check" aria-hidden="true">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                  </span>
+                                </span>
                                 <span class="enrollment-offering-option-body">
                                   <span class="enrollment-offering-option-title">{{ offering.title }}</span>
                                   <span class="enrollment-offering-option-meta">{{ offering.type }} • {{ offering.category }} • {{ offeringEnrollmentCount(offering.id) }} assigned</span>
@@ -1963,10 +1969,16 @@ type KpiEntryFormGroup = FormGroup<{
                           <div class="enrollment-offering-picker-list">
                             @for (student of assignWizardFilteredStudents(); track student.id) {
                               <label class="enrollment-offering-option" [class.enrollment-offering-option-selected]="isAssignWizardStudentSelected(student.id)">
-                                <input
-                                  type="checkbox"
-                                  [checked]="isAssignWizardStudentSelected(student.id)"
-                                  (change)="toggleAssignWizardStudent(student.id, $any($event.target).checked)" />
+                                <span class="enrollment-offering-option-check-wrap">
+                                  <input
+                                    type="checkbox"
+                                    class="enrollment-offering-option-input"
+                                    [checked]="isAssignWizardStudentSelected(student.id)"
+                                    (change)="toggleAssignWizardStudent(student.id, $any($event.target).checked)" />
+                                  <span class="enrollment-offering-option-check" aria-hidden="true">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                  </span>
+                                </span>
                                 <span class="enrollment-offering-option-body">
                                   <span class="enrollment-offering-option-title">{{ student.name }} {{ student.surname }}</span>
                                   <span class="enrollment-offering-option-meta">{{ student.group || 'Ungrouped' }} • {{ student.department }} • {{ student.email }}</span>
@@ -1981,72 +1993,69 @@ type KpiEntryFormGroup = FormGroup<{
                     }
 
                     @if (assignWizardStep() === 3) {
-                      @if (assignWizardResultMessage(); as message) {
-                        <div class="assign-wizard-success">
-                          <span class="assign-wizard-success-icon" aria-hidden="true">✓</span>
-                          <p>{{ message }}</p>
-                        </div>
-                      } @else {
-                        <div class="assign-wizard-summary">
-                          <div class="student-assignment-block">
-                            <div class="student-assignment-label">Courses &amp; programmes ({{ assignWizardSelectedOfferingCount() }})</div>
-                            <div class="student-chip-row">
-                              @for (offering of assignWizardSelectedOfferings(); track offering.id) {
-                                <span class="assignment-chip">{{ offering.title }}</span>
-                              }
-                            </div>
-                          </div>
-                          <div class="student-assignment-block">
-                            <div class="student-assignment-label">Students ({{ assignWizardSelectedStudentCount() }})</div>
-                            <div class="student-chip-row">
-                              @for (student of assignWizardSelectedStudents(); track student.id) {
-                                <span class="assignment-chip">{{ student.name }} {{ student.surname }}</span>
-                              }
-                            </div>
+                      <div class="assign-wizard-summary">
+                        <div class="student-assignment-block">
+                          <div class="student-assignment-label">Courses &amp; programmes ({{ assignWizardSelectedOfferingCount() }})</div>
+                          <div class="student-chip-row">
+                            @for (offering of assignWizardSelectedOfferings(); track offering.id) {
+                              <span class="assignment-chip">{{ offering.title }}</span>
+                            }
                           </div>
                         </div>
+                        <div class="student-assignment-block">
+                          <div class="student-assignment-label">Students ({{ assignWizardSelectedStudentCount() }})</div>
+                          <div class="student-chip-row">
+                            @for (student of assignWizardSelectedStudents(); track student.id) {
+                              <span class="assignment-chip">{{ student.name }} {{ student.surname }}</span>
+                            }
+                          </div>
+                        </div>
+                      </div>
 
-                        <label class="student-search-field">
-                          <span class="student-search-label">Deadline for completion</span>
-                          <input
-                            type="date"
-                            [value]="assignWizardDeadline()"
-                            (input)="assignWizardDeadline.set($any($event.target).value)" />
-                        </label>
-                        <p class="field-hint">
-                          @if (assignWizardSelectedOfferingCount() > 1) {
-                            Sets the completion deadline on every course/programme selected above — applies to everyone assigned to them, not just the students picked here.
-                          } @else {
-                            Sets this course's completion deadline — applies to everyone assigned to it, not just the students picked here.
-                          }
-                          Leave blank to keep the current deadline{{ assignWizardSelectedOfferingCount() > 1 ? 's' : '' }} unchanged.
-                        </p>
-                      }
+                      <label class="student-search-field">
+                        <span class="student-search-label">Deadline for completion</span>
+                        <input
+                          type="date"
+                          [value]="assignWizardDeadline()"
+                          (input)="assignWizardDeadline.set($any($event.target).value)" />
+                      </label>
+                      <p class="field-hint">
+                        @if (assignWizardSelectedOfferingCount() > 1) {
+                          Sets the completion deadline on every course/programme selected above — applies to everyone assigned to them, not just the students picked here.
+                        } @else {
+                          Sets this course's completion deadline — applies to everyone assigned to it, not just the students picked here.
+                        }
+                        Leave blank to keep the current deadline{{ assignWizardSelectedOfferingCount() > 1 ? 's' : '' }} unchanged.
+                      </p>
                     }
 
                     <div class="enrollment-modal-actions">
-                      @if (assignWizardResultMessage()) {
-                        <button type="button" class="assign-btn" (click)="closeAssignWizard()">Done</button>
+                      @if (assignWizardStep() > 1) {
+                        <button type="button" class="builder-secondary-btn" (click)="assignWizardBack()">Back</button>
+                      }
+                      @if (assignWizardStep() < 3) {
+                        <button
+                          type="button"
+                          class="assign-btn"
+                          [disabled]="assignWizardStep() === 1 ? assignWizardSelectedOfferingCount() === 0 : assignWizardSelectedStudentCount() === 0"
+                          (click)="assignWizardNext()">
+                          Next
+                        </button>
                       } @else {
-                        @if (assignWizardStep() > 1) {
-                          <button type="button" class="builder-secondary-btn" (click)="assignWizardBack()">Back</button>
-                        }
-                        @if (assignWizardStep() < 3) {
-                          <button
-                            type="button"
-                            class="assign-btn"
-                            [disabled]="assignWizardStep() === 1 ? assignWizardSelectedOfferingCount() === 0 : assignWizardSelectedStudentCount() === 0"
-                            (click)="assignWizardNext()">
-                            Next
-                          </button>
-                        } @else {
-                          <button type="button" class="assign-btn" [disabled]="assignWizardSaving()" (click)="confirmAssignWizard()">
-                            {{ assignWizardSaving() ? 'Assigning…' : 'Confirm assignment' }}
-                          </button>
-                        }
+                        <button type="button" class="assign-btn" [disabled]="assignWizardSaving()" (click)="confirmAssignWizard()">
+                          {{ assignWizardSaving() ? 'Assigning…' : 'Confirm assignment' }}
+                        </button>
                       }
                     </div>
                   </section>
+                </div>
+              }
+
+              @if (assignWizardToast(); as toastMessage) {
+                <div class="assign-toast" role="status" aria-live="polite">
+                  <span class="assign-toast-icon" aria-hidden="true">✓</span>
+                  <span class="assign-toast-message">{{ toastMessage }}</span>
+                  <button type="button" class="assign-toast-dismiss" aria-label="Dismiss notification" (click)="dismissAssignWizardToast()">×</button>
                 </div>
               }
             </section>
@@ -4880,13 +4889,65 @@ type KpiEntryFormGroup = FormGroup<{
       box-shadow: 0 2px 8px rgba(79, 70, 229, 0.12);
     }
 
-    .enrollment-offering-option input[type='checkbox'] {
-      margin-top: 0.2rem;
+    /* Custom check button — the native checkbox stays in the DOM (positioned invisibly over its
+       own custom indicator) for real checkbox semantics/keyboard behaviour, while what's actually
+       visible is the rounded square that fills in and shows a check mark via the :checked sibling
+       selector below. No JS beyond the existing toggle handler is needed for the visual state. */
+    .enrollment-offering-option-check-wrap {
+      position: relative;
       flex: 0 0 auto;
-      width: 1.05rem;
-      height: 1.05rem;
-      accent-color: var(--brand-primary);
+      width: 1.35rem;
+      height: 1.35rem;
+      margin-top: 0.15rem;
+    }
+
+    .enrollment-offering-option-input {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      opacity: 0;
       cursor: pointer;
+    }
+
+    .enrollment-offering-option-check {
+      position: absolute;
+      inset: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 7px;
+      border: 2px solid #cbd5e1;
+      background: #fff;
+      color: #fff;
+      pointer-events: none;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .enrollment-offering-option-check svg {
+      opacity: 0;
+      transform: scale(0.5);
+      transition: opacity 0.15s ease, transform 0.15s ease;
+    }
+
+    .enrollment-offering-option-input:hover ~ .enrollment-offering-option-check {
+      border-color: var(--brand-primary);
+    }
+
+    .enrollment-offering-option-input:focus-visible ~ .enrollment-offering-option-check {
+      outline: 2px solid var(--brand-primary);
+      outline-offset: 2px;
+    }
+
+    .enrollment-offering-option-input:checked ~ .enrollment-offering-option-check {
+      border-color: var(--brand-primary);
+      background: var(--brand-primary);
+    }
+
+    .enrollment-offering-option-input:checked ~ .enrollment-offering-option-check svg {
+      opacity: 1;
+      transform: scale(1);
     }
 
     .enrollment-offering-option-body {
@@ -4963,33 +5024,70 @@ type KpiEntryFormGroup = FormGroup<{
       gap: 0.85rem;
     }
 
-    .assign-wizard-success {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.6rem;
-      padding: 2rem 1rem;
-      text-align: center;
+    @keyframes assign-toast-in {
+      0% { opacity: 0; transform: translateY(12px) scale(0.96); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
     }
 
-    .assign-wizard-success-icon {
+    .assign-toast {
+      position: fixed;
+      right: 1.5rem;
+      bottom: 1.5rem;
+      z-index: 60;
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      max-width: min(24rem, calc(100vw - 2rem));
+      padding: 0.85rem 0.85rem 0.85rem 1rem;
+      border-radius: 14px;
+      background: #173446;
+      color: #fff;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.28);
+      animation: assign-toast-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .assign-toast-icon {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 2.6rem;
-      height: 2.6rem;
+      width: 1.6rem;
+      height: 1.6rem;
       border-radius: 999px;
-      background: #dcfce7;
-      color: #15803d;
-      font-size: 1.3rem;
+      background: #22c55e;
+      color: #fff;
+      font-size: 0.85rem;
       font-weight: 800;
+      flex: 0 0 auto;
     }
 
-    .assign-wizard-success p {
-      margin: 0;
-      color: #173446;
-      font-weight: 700;
-      font-size: 0.95rem;
+    .assign-toast-message {
+      flex: 1 1 auto;
+      font-size: 0.86rem;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .assign-toast-dismiss {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.5rem;
+      height: 1.5rem;
+      border: none;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .assign-toast-dismiss:hover,
+    .assign-toast-dismiss:focus-visible {
+      background: rgba(255, 255, 255, 0.22);
+      outline: none;
     }
 
     .course-studio-card {
@@ -6642,7 +6740,13 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   readonly assignWizardStudentSearchTerm = signal('');
   readonly assignWizardDeadline = signal('');
   readonly assignWizardSaving = signal(false);
-  readonly assignWizardResultMessage = signal<string | null>(null);
+  // Pop notification shown after a successful assignment — the wizard closes immediately rather
+  // than showing its own in-modal success screen, so this is the only confirmation the manager
+  // sees. Auto-dismisses; a timer handle (not a signal, since it's not rendered) lets a second
+  // assignment landing before the first toast clears restart the countdown instead of the two
+  // racing to clear each other's toast early.
+  readonly assignWizardToast = signal<string | null>(null);
+  private assignWizardToastTimer: ReturnType<typeof setTimeout> | null = null;
   readonly thumbnailPreview = signal<string | null>(null);
   readonly thumbnailFileName = signal<string>('');
   readonly thumbnailUploading = signal(false);
@@ -6993,6 +7097,9 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.clearWelcomeBannerTimers();
     if (this.sidebarScrollTimeout) {
       clearTimeout(this.sidebarScrollTimeout);
+    }
+    if (this.assignWizardToastTimer) {
+      clearTimeout(this.assignWizardToastTimer);
     }
   }
 
@@ -9186,14 +9293,31 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.assignWizardStudentSearchTerm.set('');
     this.assignWizardDeadline.set('');
     this.assignWizardSaving.set(false);
-    this.assignWizardResultMessage.set(null);
     this.assignWizardStep.set(1);
     this.assignWizardOpen.set(true);
   }
 
   closeAssignWizard() {
     this.assignWizardOpen.set(false);
-    this.assignWizardResultMessage.set(null);
+  }
+
+  private showAssignWizardToast(message: string) {
+    if (this.assignWizardToastTimer) {
+      clearTimeout(this.assignWizardToastTimer);
+    }
+    this.assignWizardToast.set(message);
+    this.assignWizardToastTimer = setTimeout(() => {
+      this.assignWizardToast.set(null);
+      this.assignWizardToastTimer = null;
+    }, 4000);
+  }
+
+  dismissAssignWizardToast() {
+    if (this.assignWizardToastTimer) {
+      clearTimeout(this.assignWizardToastTimer);
+      this.assignWizardToastTimer = null;
+    }
+    this.assignWizardToast.set(null);
   }
 
   toggleAssignWizardOffering(offeringId: string, checked: boolean) {
@@ -9270,9 +9394,9 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     }
 
     this.assignWizardSaving.set(false);
-    this.assignWizardResultMessage.set(
-      `Assigned ${offerings.length} ${offerings.length === 1 ? 'course' : 'courses'} to ${students.length} ${students.length === 1 ? 'student' : 'students'}.`,
-    );
+    const message = `Assigned ${offerings.length} ${offerings.length === 1 ? 'course' : 'courses'} to ${students.length} ${students.length === 1 ? 'student' : 'students'}.`;
+    this.closeAssignWizard();
+    this.showAssignWizardToast(message);
   }
 
   // ── IDP ────────────────────────────────────────────────────────────────
