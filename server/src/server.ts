@@ -17,7 +17,7 @@ import { z } from 'zod';
 import { getApp, getApps, initializeApp } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 import { createDefaultData } from './default-data.js';
-import { createLmsRepository } from './repository.js';
+import { createLmsRepository, maskAssessmentAnswerKey } from './repository.js';
 import { PasswordResetEmailService } from './email-service.js';
 import { isStrongPassword, passwordPolicyMessage } from './auth-utils.js';
 
@@ -811,7 +811,9 @@ const studentSnapshotUpdateSchema = z.object({
   notifications: z.array(studentNotificationSchema),
   messages: z.array(studentMessageSchema),
   notifiedOfferingIds: z.array(z.string()),
-  assessmentAttempts: z.record(z.string(), studentAssessmentAttemptSchema),
+  // Optional and ignored (see repository.updateStudentSnapshot) — accepted rather than rejected
+  // only to tolerate an older client mid-deploy still sending it on an unrelated autosave.
+  assessmentAttempts: z.record(z.string(), studentAssessmentAttemptSchema).optional(),
   idpEntries: z.array(studentIdpEntrySchema).optional(),
 });
 
@@ -2257,9 +2259,12 @@ app.post('/api/auth/managed-users/credentials', requireAdministrator, async (req
   }
 });
 
-app.get('/api/offerings', async (_request, response, next) => {
+app.get('/api/offerings', async (request, response, next) => {
   try {
-    response.json(await repository.listOfferings());
+    const identity = getAuthenticatedIdentity(request);
+    const isPrivileged = identity?.role === 'administrator' || identity?.role === 'training-manager';
+    const offerings = await repository.listOfferings();
+    response.json(isPrivileged ? offerings : maskAssessmentAnswerKey(offerings));
   } catch (error) {
     next(error);
   }
@@ -2870,6 +2875,51 @@ app.post('/api/assignment-submissions', async (request, response, next) => {
     }
 
     response.status(201).json(await repository.upsertAssignmentSubmission(submission));
+  } catch (error) {
+    next(error);
+  }
+});
+
+const quizAttemptRequestSchema = z.object({
+  offeringId: z.string().min(1),
+  answers: z.array(quizSubmissionAnswerSchema),
+});
+
+// The sole write path for a quiz result — see repository.gradeQuizAttempt. Grades the submitted
+// raw answers against the server's own copy of the offering (never a client-supplied one) and
+// returns the resulting attempt; the client never sends (and the server never trusts) a
+// passed/score value for this. Replaces the old client-side-grade-then-report flow
+// (evaluateQuizAttempt in student-courses.component.ts + POST /api/quiz-submissions +
+// PUT /.../snapshot's assessmentAttempts field), which required shipping the answer key
+// (choices[].isCorrect, matchingPairs[].answer) to every student's browser to grade against.
+app.post('/api/students/:studentId/quiz-attempts/:contentItemId', async (request, response, next) => {
+  try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
+    const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
+    if (!isPrivileged && !(await isOwnStudentRecord(request.params.studentId, identity))) {
+      response.status(403).json({ message: 'You can only submit your own quiz attempts.' });
+      return;
+    }
+
+    const { offeringId, answers } = quizAttemptRequestSchema.parse(request.body);
+    const result = await repository.gradeQuizAttempt(request.params.studentId, offeringId, request.params.contentItemId, answers);
+
+    if ('error' in result) {
+      if (result.error === 'attempts-exhausted') {
+        response.status(409).json({ message: 'No attempts remaining for this assessment.' });
+        return;
+      }
+
+      response.status(404).json({ message: 'Assessment not found.' });
+      return;
+    }
+
+    response.status(201).json(result.attempt);
   } catch (error) {
     next(error);
   }

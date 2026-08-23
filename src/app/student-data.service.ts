@@ -961,7 +961,10 @@ export class StudentDataService {
       return Promise.resolve(true);
     }
 
-    const { studentId: _studentId, ...snapshotUpdate } = persistedSnapshot;
+    // assessmentAttempts is dropped rather than sent: the server now ignores it on this path and
+    // writes it exclusively through gradeQuizAttempt (see recordAssessmentAttempt above), so
+    // sending the local copy here would just be redundant, stale-by-construction payload.
+    const { studentId: _studentId, assessmentAttempts: _assessmentAttempts, ...snapshotUpdate } = persistedSnapshot;
     const snapshotUpdateForBackend = {
       ...snapshotUpdate,
       // Strip the bulky base64 blob from backend writes once a Firebase Storage URL exists for

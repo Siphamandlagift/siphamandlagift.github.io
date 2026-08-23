@@ -102,7 +102,12 @@ export type StudentSnapshotResponse = {
   idpEntries?: StudentIdpEntry[];
 };
 
-export type StudentSnapshotUpdate = Omit<StudentSnapshotResponse, 'studentId'>;
+// assessmentAttempts is optional (unlike on StudentSnapshotResponse, which the server still
+// returns it on) — the server ignores it on this path now and writes it exclusively through
+// gradeQuizAttempt, so a snapshot save no longer needs to carry it.
+export type StudentSnapshotUpdate = Omit<StudentSnapshotResponse, 'studentId' | 'assessmentAttempts'> & {
+  assessmentAttempts?: Record<string, StudentAssessmentAttempt>;
+};
 
 export type ScormUploadResponse = {
   packageId: string;
@@ -446,6 +451,16 @@ export class LmsBackendService {
 
   upsertQuizSubmission(submission: QuizSubmissionRecord): Observable<QuizSubmissionRecord> {
     return this.http.post<QuizSubmissionRecord>(`${this.config.baseUrl}/quiz-submissions`, submission);
+  }
+
+  // Grades a quiz attempt server-side — the server looks up the offering's own copy of the
+  // questions/answer key and returns the resulting attempt; this never sends (and the server
+  // never trusts) a passed/score value computed here.
+  gradeQuizAttempt(studentId: string, offeringId: string, contentItemId: string, answers: QuizSubmissionAnswer[]): Observable<StudentAssessmentAttempt> {
+    return this.http.post<StudentAssessmentAttempt>(
+      `${this.config.baseUrl}/students/${studentId}/quiz-attempts/${contentItemId}`,
+      { offeringId, answers },
+    );
   }
 
   upsertMentorshipSubmission(submission: MentorshipSubmissionRecord): Observable<MentorshipSubmissionRecord> {

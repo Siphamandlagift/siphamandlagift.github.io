@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule, DOCUMENT } from '@angular/common';
+import { firstValueFrom } from 'rxjs';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { LmsBackendService } from './lms-backend.service';
 import { PdfViewerComponent } from './pdf-viewer.component';
@@ -53,7 +54,6 @@ type WorkspaceAssessmentQuestion = {
   prompt: string;
   points: number;
   options?: string[];
-  correctOptions?: string[];
   matchingPairs?: Array<{
     prompt: string;
     answer: string;
@@ -3509,62 +3509,9 @@ export class StudentCoursesComponent {
     return this.currentMatchingAssignments()[prompt] ?? '';
   }
 
-  private evaluateQuizAttempt(assessment: WorkspaceAssessment) {
-    const passMark = this.selectedAssessmentPassMarkPercentage();
-    const questionEvaluations = assessment.questions.map((question, index) => this.evaluateQuizQuestion(question, index));
-    const earnedPoints = questionEvaluations.reduce((total, evaluation) => total + evaluation.earnedPoints, 0);
-    const possiblePoints = questionEvaluations.reduce((total, evaluation) => total + evaluation.possiblePoints, 0);
-    const scorePercentage = possiblePoints > 0 ? Math.round((earnedPoints / possiblePoints) * 100) : 100;
-
-    return {
-      earnedPoints,
-      possiblePoints,
-      scorePercentage,
-      passed: scorePercentage >= (passMark ?? 100),
-    };
-  }
-
-  private evaluateQuizQuestion(question: WorkspaceAssessmentQuestion, questionIndex: number) {
-    if (question.questionType === 'Matching') {
-      const matchingPairs = question.matchingPairs ?? [];
-
-      if (!matchingPairs.length) {
-        return {
-          earnedPoints: Math.max(question.points, 1),
-          possiblePoints: Math.max(question.points, 1),
-        };
-      }
-
-      const matchingAssignments = this.matchingAssignmentsForQuestion(question.id);
-      const incorrectPairs = matchingPairs.filter((pair) => matchingAssignments[pair.prompt] !== pair.answer);
-      const correctMatches = matchingPairs.length - incorrectPairs.length;
-      const possiblePoints = Math.max(question.points, matchingPairs.length, 1);
-      const earnedPoints = Math.round((correctMatches / matchingPairs.length) * possiblePoints);
-
-      return {
-        earnedPoints,
-        possiblePoints,
-      };
-    }
-
-    const correctOptions = (question.correctOptions ?? []).map((option) => option.trim()).filter(Boolean);
-    const possiblePoints = Math.max(question.points, 1);
-
-    if (!correctOptions.length) {
-      return {
-        earnedPoints: possiblePoints,
-        possiblePoints,
-      };
-    }
-
-    const submittedAnswer = this.submittedQuizAnswerForQuestion(question);
-    const isCorrect = correctOptions.includes(submittedAnswer);
-
-    return {
-      earnedPoints: isCorrect ? possiblePoints : 0,
-      possiblePoints,
-    };
-  }
+  // Grading itself now happens server-side (see gradeQuizAttempt in repository.ts) — the browser
+  // is never sent the answer key (choices[].isCorrect/matchingPairs[].answer) to grade against.
+  // submitAssessment() posts the raw answers and applies the attempt the server returns.
 
   async submitAssessment() {
     if (!this.canSubmitAssessment() || this.isAssessmentSubmitted()) {
@@ -3660,47 +3607,25 @@ export class StudentCoursesComponent {
 
     this.clearAssessmentSubmissionFeedback();
 
-    const evaluation = this.evaluateQuizAttempt(assessment);
-    const nextAttempt: StudentAssessmentAttempt = {
-      attemptsUsed: (this.currentQuizAttempt()?.attemptsUsed ?? 0) + 1,
-      passed: evaluation.passed,
-      lastScorePercentage: evaluation.scorePercentage,
-      lastScoreEarned: evaluation.earnedPoints,
-      lastScorePossible: evaluation.possiblePoints,
-      lastSubmittedAt: new Date().toISOString(),
-    };
+    // Graded server-side (see gradeQuizAttempt in repository.ts) rather than computed here and
+    // then just reported to the backend — the server holds the answer key
+    // (choices[].isCorrect/matchingPairs[].answer) and never sends it to the browser, so grading
+    // can no longer happen client-side. That also means, unlike the old flow, the result isn't
+    // known until this call resolves — there's nothing to optimistically record locally first.
+    try {
+      const nextAttempt = await firstValueFrom(
+        this.backend.gradeQuizAttempt(student.id, offering.id, assessmentId, this.buildQuizSubmissionAnswers(assessment)),
+      );
 
-    // Record the attempt locally first so the failed/exhausted state is always
-    // persisted — even if the backend call below fails or the page is refreshed.
-    this.studentData.recordAssessmentAttempt(attemptKey, nextAttempt);
-    this.retakingQuizAssessments.update((retakes) => ({ ...retakes, [attemptKey]: false }));
+      this.studentData.recordAssessmentAttempt(attemptKey, nextAttempt);
+      this.retakingQuizAssessments.update((retakes) => ({ ...retakes, [attemptKey]: false }));
 
-    if (nextAttempt.passed) {
-      this.markSelectedStepComplete();
+      if (nextAttempt.passed) {
+        this.markSelectedStepComplete();
+      }
+    } catch {
+      this.setAssessmentSubmissionError('This assessment could not be submitted right now. Check your connection and try again.');
     }
-
-    this.backend.upsertQuizSubmission({
-      id: `quiz-${student.id}-${offering.id}-${assessmentId}`,
-      studentId: student.id,
-      studentName: `${student.name} ${student.surname}`,
-      studentEmail: student.email,
-      courseId: offering.id,
-      courseTitle: offering.title,
-      assessmentId,
-      assessmentTitle: assessment.title,
-      answers: this.buildQuizSubmissionAnswers(assessment),
-      attemptsUsed: nextAttempt.attemptsUsed,
-      passed: nextAttempt.passed,
-      scorePercentage: nextAttempt.lastScorePercentage,
-      scoreEarned: nextAttempt.lastScoreEarned,
-      scorePossible: nextAttempt.lastScorePossible,
-      submittedAt: nextAttempt.lastSubmittedAt,
-    }).subscribe({
-      error: () => {
-        // Backend sync failed — the attempt is already recorded locally so the
-        // locked/failed state is preserved. No UI reset needed.
-      },
-    });
   }
 
   hasAssessmentDocument() {
@@ -4299,7 +4224,6 @@ export class StudentCoursesComponent {
           prompt: question.prompt || fallbackQuestions[0]?.prompt || item.title || fallback.title,
           points: typeof question.points === 'number' && Number.isFinite(question.points) && question.points > 0 ? question.points : 1,
           options: question.choices.map((choice) => choice.text).filter(Boolean),
-          correctOptions: question.choices.filter((choice) => choice.isCorrect && choice.text.trim()).map((choice) => choice.text),
           matchingPairs: question.matchingPairs.length ? question.matchingPairs : undefined,
           dragAndDropEnabled: question.dragAndDropEnabled,
           attachmentFileName: question.attachmentFileName || undefined,

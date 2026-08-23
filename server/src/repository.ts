@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { getApp, getApps, initializeApp } from 'firebase-admin/app';
-import { FieldValue, getFirestore, type DocumentSnapshot, type Firestore, type WriteBatch } from 'firebase-admin/firestore';
+import { FieldPath, FieldValue, getFirestore, type DocumentSnapshot, type Firestore, type WriteBatch } from 'firebase-admin/firestore';
 import { createDefaultData, createDefaultStudentTemplate } from './default-data.js';
 import {
   createPasswordCredentials,
@@ -29,7 +29,9 @@ import {
   ManagedUserCredentialInput,
   ManagedUserCredentialsUpsertResponse,
   PasswordResetTokenStatus,
+  QuizSubmissionAnswerRecord,
   QuizSubmissionRecord,
+  StudentAssessmentAttemptRecord,
   StudentIdpEntryRecord,
   StudentKpiEntryRecord,
   StudentKpiScoreRecord,
@@ -38,6 +40,8 @@ import {
   StudentSnapshotUpdate,
   StudentRecord,
   SystemTrainingManagerRecord,
+  TrainingAssessmentQuestion,
+  TrainingContentItem,
   TrainingOffering,
   TrainingOfferingUpdate,
 } from './contracts.js';
@@ -538,6 +542,119 @@ function createStudentRecordFromEnrollment(student: EnrollmentStudentRecord): St
   };
 }
 
+// Ported verbatim from evaluateQuizQuestion/evaluateQuizAttempt in student-courses.component.ts.
+// Grading used to run entirely client-side, which is exactly why the browser had to be sent the
+// answer key (choices[].isCorrect, matchingPairs[].answer) in the first place — it needed it to
+// grade against. Keeping the exact same algorithm here, quirks included (a question with no
+// choice marked isCorrect auto-awards full credit — pre-existing client behavior, not something
+// this move is meant to fix), means no existing quiz's pass/fail outcome changes just because
+// grading now happens on the server instead of in the browser.
+function gradeQuizQuestion(question: TrainingAssessmentQuestion, answer: QuizSubmissionAnswerRecord | undefined) {
+  const possiblePointsBase = Math.max(question.points, 1);
+
+  if (question.questionType === 'Matching') {
+    const matchingPairs = question.matchingPairs;
+    if (!matchingPairs.length) {
+      return { earnedPoints: possiblePointsBase, possiblePoints: possiblePointsBase };
+    }
+
+    const submittedByPrompt = new Map((answer?.matchingResponses ?? []).map((response) => [response.prompt, response.answer]));
+    const incorrectPairs = matchingPairs.filter((pair) => submittedByPrompt.get(pair.prompt) !== pair.answer);
+    const correctMatches = matchingPairs.length - incorrectPairs.length;
+    const possiblePoints = Math.max(question.points, matchingPairs.length, 1);
+    const earnedPoints = Math.round((correctMatches / matchingPairs.length) * possiblePoints);
+    return { earnedPoints, possiblePoints };
+  }
+
+  const correctOptions = question.choices
+    .filter((choice) => choice.isCorrect && choice.text.trim())
+    .map((choice) => choice.text.trim())
+    .filter(Boolean);
+  const possiblePoints = possiblePointsBase;
+
+  if (!correctOptions.length) {
+    return { earnedPoints: possiblePoints, possiblePoints };
+  }
+
+  const submittedAnswer = (
+    question.questionType === 'Short Answer' || question.questionType === 'Long Answer'
+      ? answer?.responseText
+      : answer?.selectedOption
+  )?.trim() ?? '';
+  const isCorrect = correctOptions.includes(submittedAnswer);
+
+  return { earnedPoints: isCorrect ? possiblePoints : 0, possiblePoints };
+}
+
+// A content item with zero configured questions (e.g. a bare "Read and Acknowledge" step) falls
+// out of this naturally as possiblePoints === 0 → scorePercentage 100 → passed, the same net
+// result the client's old fallback-question path produced (a single synthetic 1-point question
+// with no correct answer configured, which its own "no correctOptions → auto full credit" branch
+// also scored as 1/1 → 100%) — just arrived at without needing to reconstruct that synthetic
+// question here too.
+function gradeQuizAttempt(contentItem: TrainingContentItem, answers: QuizSubmissionAnswerRecord[]) {
+  const answersByQuestionId = new Map(answers.map((answer) => [answer.questionId, answer]));
+  const questionEvaluations = contentItem.questions.map((question, index) => {
+    const questionId = `${contentItem.id}-question-${index + 1}`;
+    return gradeQuizQuestion(question, answersByQuestionId.get(questionId));
+  });
+
+  const earnedPoints = questionEvaluations.reduce((total, evaluation) => total + evaluation.earnedPoints, 0);
+  const possiblePoints = questionEvaluations.reduce((total, evaluation) => total + evaluation.possiblePoints, 0);
+  const scorePercentage = possiblePoints > 0 ? Math.round((earnedPoints / possiblePoints) * 100) : 100;
+  const passed = scorePercentage >= (contentItem.passMarkPercentage ?? 100);
+
+  return { earnedPoints, possiblePoints, scorePercentage, passed };
+}
+
+type GradeQuizAttemptResult =
+  | { attempt: StudentAssessmentAttemptRecord }
+  | { error: 'not-found' | 'attempts-exhausted' };
+
+// Masks (rather than strips) the answer key on every quiz question so a non-privileged (student)
+// response never carries choices[].isCorrect / matchingPairs[].answer — now that grading happens
+// server-side (gradeQuizAttempt above), the student app never needs these values for anything.
+// Masking instead of omitting the field keeps the wire shape matching the shared TrainingOffering
+// type on the frontend, so this needs no special-casing in client code that just doesn't read the
+// masked fields. Managers/admins still get the real values (needed for quiz authoring).
+// Fisher-Yates — used below to scramble which matchingPairs.answer a prompt is shown paired with,
+// without changing the set of answer texts themselves.
+function shuffled<T>(items: T[]): T[] {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+  }
+  return result;
+}
+
+export function maskAssessmentAnswerKey(offerings: TrainingOffering[]): TrainingOffering[] {
+  return offerings.map((offering) => ({
+    ...offering,
+    contentItems: offering.contentItems.map((item) => ({
+      ...item,
+      questions: item.questions.map((question) => {
+        // matchingPairs.answer can't just be blanked like choices.isCorrect — unlike isCorrect,
+        // the answer TEXT is real content the student needs (it's the pool of draggable chips
+        // rendered in availableMatchingAnswers/the matching UI in student-courses.component.ts,
+        // not merely a correctness flag). What must stay hidden is which prompt each answer is
+        // *actually* paired with, not the answer text itself, so the fix is to reshuffle which
+        // answer sits next to which prompt in the array — the frontend only ever reads
+        // matchingPairs[].prompt (per row) and the pooled, order-independent set of
+        // matchingPairs[].answer values (the chip bank), never a specific prompt/answer pair's
+        // correspondence, so a scrambled pairing renders identically while no longer encoding the
+        // real answer key.
+        const shuffledAnswers = shuffled(question.matchingPairs.map((pair) => pair.answer));
+        return {
+          ...question,
+          choices: question.choices.map((choice) => ({ ...choice, isCorrect: false })),
+          matchingPairs: question.matchingPairs.map((pair, index) => ({ ...pair, answer: shuffledAnswers[index] })),
+        };
+      }),
+    })),
+  }));
+}
+
 function mergeEnrollmentStudentRecord(existing: StudentRecord | undefined, student: EnrollmentStudentRecord): StudentRecord {
   if (!existing) {
     return createStudentRecordFromEnrollment(student);
@@ -793,7 +910,9 @@ export class LmsRepository {
     const ownEmail = (ownStudent?.email ?? caller?.email ?? '').trim().toLowerCase();
 
     return {
-      offerings: data.offerings,
+      // Masked: quiz grading happens server-side now (gradeQuizAttempt), so a student session
+      // never needs choices[].isCorrect / matchingPairs[].answer — see maskAssessmentAnswerKey.
+      offerings: maskAssessmentAnswerKey(data.offerings),
       branding: data.branding,
       students: ownStudent ? [ownStudent] : [],
       idpEntriesByStudent: ownStudentId ? { [ownStudentId]: idpEntriesByStudent[ownStudentId] ?? [] } : {},
@@ -967,7 +1086,12 @@ export class LmsRepository {
       notifications: snapshot.notifications,
       messages: snapshot.messages,
       notifiedOfferingIds: snapshot.notifiedOfferingIds,
-      assessmentAttempts: snapshot.assessmentAttempts,
+      // Never taken from the client — quiz results are graded and written exclusively by
+      // gradeQuizAttempt below. A snapshot save (autosaved on practically every student
+      // interaction) used to carry the client's own self-graded assessmentAttempts map and
+      // overwrite this field wholesale, which is exactly what let a direct API call declare any
+      // quiz "passed" with any score, bypassing the quiz UI entirely.
+      assessmentAttempts: data.students[studentIndex].assessmentAttempts,
       idpEntries: normalizeStudentIdpEntries(snapshot.idpEntries ?? data.students[studentIndex].idpEntries ?? []),
     };
 
@@ -1286,6 +1410,72 @@ export class LmsRepository {
 
     const next = await this.write(data);
     return next.quizSubmissions.find((entry) => entry.id === submission.id) ?? null;
+  }
+
+  // The sole writer of a student's assessmentAttempts — grades the submitted raw answers against
+  // the server's own copy of the offering (never a client-supplied one) and persists the result,
+  // rather than trusting a client-computed passed/score the way the old
+  // POST /api/quiz-submissions + PUT /.../snapshot combination did. See gradeQuizAttempt/
+  // gradeQuizQuestion above for the actual grading algorithm.
+  async gradeQuizAttempt(studentId: string, offeringId: string, contentItemId: string, answers: QuizSubmissionAnswerRecord[]): Promise<GradeQuizAttemptResult> {
+    const data = await this.read();
+    const studentIndex = data.students.findIndex((entry) => entry.id === studentId);
+    const offering = data.offerings.find((entry) => entry.id === offeringId);
+    const contentItem = offering?.contentItems.find((entry) => entry.id === contentItemId);
+
+    if (studentIndex === -1 || !offering || !contentItem) {
+      return { error: 'not-found' };
+    }
+
+    const student = data.students[studentIndex];
+    const attemptKey = `${offeringId}::${contentItemId}`;
+    const existingAttempt = student.assessmentAttempts?.[attemptKey];
+
+    if (typeof contentItem.maxAttempts === 'number' && existingAttempt && existingAttempt.attemptsUsed >= contentItem.maxAttempts) {
+      return { error: 'attempts-exhausted' };
+    }
+
+    const graded = gradeQuizAttempt(contentItem, answers);
+    const attempt: StudentAssessmentAttemptRecord = {
+      attemptsUsed: (existingAttempt?.attemptsUsed ?? 0) + 1,
+      passed: graded.passed,
+      lastScorePercentage: graded.scorePercentage,
+      lastScoreEarned: graded.earnedPoints,
+      lastScorePossible: graded.possiblePoints,
+      lastSubmittedAt: new Date().toISOString(),
+    };
+
+    data.students[studentIndex] = {
+      ...student,
+      assessmentAttempts: { ...(student.assessmentAttempts ?? {}), [attemptKey]: attempt },
+    };
+
+    const submission: QuizSubmissionRecord = {
+      id: `quiz-${studentId}-${offeringId}-${contentItemId}`,
+      studentId,
+      studentName: `${student.name} ${student.surname}`.trim(),
+      studentEmail: student.email,
+      courseId: offeringId,
+      courseTitle: offering.title,
+      assessmentId: contentItemId,
+      assessmentTitle: contentItem.title,
+      answers,
+      attemptsUsed: attempt.attemptsUsed,
+      passed: attempt.passed,
+      scorePercentage: attempt.lastScorePercentage,
+      scoreEarned: attempt.lastScoreEarned,
+      scorePossible: attempt.lastScorePossible,
+      submittedAt: attempt.lastSubmittedAt,
+    };
+    const existingSubmissionIndex = data.quizSubmissions.findIndex((entry) => entry.id === submission.id);
+    if (existingSubmissionIndex === -1) {
+      data.quizSubmissions.unshift(submission);
+    } else {
+      data.quizSubmissions[existingSubmissionIndex] = submission;
+    }
+
+    await this.write(data);
+    return { attempt };
   }
 
   async createExternalTrainingRequest(input: ExternalTrainingRequestCreateInput) {
@@ -2529,7 +2719,9 @@ class FirestoreLmsRepository extends LmsRepository {
         notifications: snapshot.notifications,
         messages: snapshot.messages,
         notifiedOfferingIds: snapshot.notifiedOfferingIds,
-        assessmentAttempts: snapshot.assessmentAttempts,
+        // Same reasoning as the inherited base-class path above: quiz results are graded and
+        // written exclusively by gradeQuizAttempt now, never taken from a snapshot save.
+        assessmentAttempts: existing.assessmentAttempts,
         idpEntries: normalizeStudentIdpEntries(snapshot.idpEntries ?? existing.idpEntries ?? []),
       };
 
@@ -2595,6 +2787,80 @@ class FirestoreLmsRepository extends LmsRepository {
     if (hasUpdates) {
       await batch.commit();
     }
+  }
+
+  // Scoped override, same reasoning as updateStudentSnapshot above: writes only the one
+  // assessmentAttempts.<attemptKey> field on the student's own document inside a transaction
+  // (via FieldPath, so a literal "::" or any other character in the key can't be misread as a
+  // further nested field path the way a dotted-string field path could), instead of the inherited
+  // read()+write() path rewriting the whole document from a snapshot taken before this
+  // transaction started. maxAttempts is enforced against the value read inside the same
+  // transaction, so two attempts submitted back-to-back can't both slip in under the limit.
+  override async gradeQuizAttempt(studentId: string, offeringId: string, contentItemId: string, answers: QuizSubmissionAnswerRecord[]): Promise<GradeQuizAttemptResult> {
+    const offeringSnapshot = await this.collection('offerings').doc(offeringId).get();
+    const offering = offeringSnapshot.exists ? (offeringSnapshot.data() as TrainingOffering) : null;
+    const contentItem = offering?.contentItems.find((entry) => entry.id === contentItemId);
+
+    if (!offering || !contentItem) {
+      return { error: 'not-found' };
+    }
+
+    const ref = this.collection('students').doc(studentId);
+    const attemptKey = `${offeringId}::${contentItemId}`;
+
+    const transactionResult = await this.firestore.runTransaction(async (transaction): Promise<GradeQuizAttemptResult & { studentName?: string; studentEmail?: string }> => {
+      const snapshot = await transaction.get(ref);
+      if (!snapshot.exists) {
+        return { error: 'not-found' };
+      }
+
+      const student = snapshot.data() as StudentRecord;
+      const existingAttempt = student.assessmentAttempts?.[attemptKey];
+
+      if (typeof contentItem.maxAttempts === 'number' && existingAttempt && existingAttempt.attemptsUsed >= contentItem.maxAttempts) {
+        return { error: 'attempts-exhausted' };
+      }
+
+      const graded = gradeQuizAttempt(contentItem, answers);
+      const attempt: StudentAssessmentAttemptRecord = {
+        attemptsUsed: (existingAttempt?.attemptsUsed ?? 0) + 1,
+        passed: graded.passed,
+        lastScorePercentage: graded.scorePercentage,
+        lastScoreEarned: graded.earnedPoints,
+        lastScorePossible: graded.possiblePoints,
+        lastSubmittedAt: new Date().toISOString(),
+      };
+
+      transaction.update(ref, new FieldPath('assessmentAttempts', attemptKey), this.sanitizeForFirestore(attempt));
+
+      return { attempt, studentName: `${student.name} ${student.surname}`.trim(), studentEmail: student.email };
+    });
+
+    if ('error' in transactionResult) {
+      return transactionResult;
+    }
+
+    const { attempt, studentName, studentEmail } = transactionResult;
+    const submission: QuizSubmissionRecord = {
+      id: `quiz-${studentId}-${offeringId}-${contentItemId}`,
+      studentId,
+      studentName: studentName ?? '',
+      studentEmail: studentEmail ?? '',
+      courseId: offeringId,
+      courseTitle: offering.title,
+      assessmentId: contentItemId,
+      assessmentTitle: contentItem.title,
+      answers,
+      attemptsUsed: attempt.attemptsUsed,
+      passed: attempt.passed,
+      scorePercentage: attempt.lastScorePercentage,
+      scoreEarned: attempt.lastScoreEarned,
+      scorePossible: attempt.lastScorePossible,
+      submittedAt: attempt.lastSubmittedAt,
+    };
+    await this.collection('quizSubmissions').doc(submission.id).set(this.sanitizeForFirestore(submission));
+
+    return { attempt };
   }
 }
 

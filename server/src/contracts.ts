@@ -605,7 +605,11 @@ export type StudentSnapshotUpdate = {
   notifications: StudentNotificationRecord[];
   messages: StudentMessageRecord[];
   notifiedOfferingIds: string[];
-  assessmentAttempts: Record<string, StudentAssessmentAttemptRecord>;
+  // Optional and ignored server-side if present — quiz results are graded and written
+  // exclusively through the dedicated quiz-attempt grading endpoint, never through a snapshot
+  // save. Kept optional (rather than removed) only so an older client mid-rollout can still
+  // include it without the request being rejected.
+  assessmentAttempts?: Record<string, StudentAssessmentAttemptRecord>;
   idpEntries?: StudentIdpEntryRecord[];
 };
 
