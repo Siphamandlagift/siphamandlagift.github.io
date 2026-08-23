@@ -3775,10 +3775,18 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       font-size: 0.72rem;
     }
 
-    /* Report-panel action buttons (Download report, Clear filters, Back to ATR/WSP, etc.) now
-       just use the shared .admin-primary-btn/.admin-secondary-btn sizing — they used to run a
-       shade taller (2.75rem) with smaller text (0.82rem) than every other admin button, which
-       looked inconsistent next to the rest of the panel's Save/Cancel/Add-style buttons. */
+    /* Report-panel action buttons (Download report, Clear filters, Back to ATR/WSP, etc.) match
+       User Management's toolbar size (2.3rem) rather than the app-wide 2.6rem default — same
+       sizing values as .admin-bulk-upload-actions above, kept as separate scoped rules since the
+       two toolbars are unrelated sections. Primary/secondary colors are untouched here (Download
+       report stays the gradient CTA, Clear filters/Back stay the bordered look) — only size
+       changed, unlike the User Management toolbar where the look was unified too. */
+    .admin-report-actions .admin-primary-btn,
+    .admin-report-actions .admin-secondary-btn {
+      min-height: 2.3rem;
+      padding: 0.5rem 0.85rem;
+      font-size: 0.85rem;
+    }
 
     .admin-report-table tbody tr:last-child td {
       border-bottom: none;
