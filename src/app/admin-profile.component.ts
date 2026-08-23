@@ -3650,8 +3650,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-upload-btn-prominent {
       gap: 0.7rem;
-      min-height: 2.8rem;
-      padding: 0.6rem 0.95rem;
+      /* min-height/padding intentionally match the shared .admin-primary-btn/.admin-secondary-btn
+         sizing (2.6rem) — this button sits in the same toolbar row as "Download template" and
+         "Add user", so it needs to line up with them rather than standing taller. */
       border-radius: 10px;
       box-shadow: 0 3px 10px rgba(23, 52, 70, 0.14);
     }
@@ -3779,11 +3780,10 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       font-size: 0.72rem;
     }
 
-    .admin-report-builder-grid-stack .admin-report-actions .admin-primary-btn,
-    .admin-report-builder-grid-stack .admin-report-actions .admin-secondary-btn {
-      font-size: 0.82rem;
-      min-height: 2.75rem;
-    }
+    /* Report-panel action buttons (Download report, Clear filters, Back to ATR/WSP, etc.) now
+       just use the shared .admin-primary-btn/.admin-secondary-btn sizing — they used to run a
+       shade taller (2.75rem) with smaller text (0.82rem) than every other admin button, which
+       looked inconsistent next to the rest of the panel's Save/Cancel/Add-style buttons. */
 
     .admin-report-table tbody tr:last-child td {
       border-bottom: none;
