@@ -5843,7 +5843,18 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     const studentEmail = currentStudent?.email ?? this.studentData.profile().email.trim();
     const mentorName = input.mentorName?.trim() || this.currentMentorFullName();
 
-    if (!studentId || !studentName || !studentEmail || !mentorName || !input.actionPlan.trim()) {
+    if (!mentorName) {
+      // The form data itself (profile/objectives/progress report) already saved successfully by
+      // the time this runs — this only blocks the separate, manager-visible submission record,
+      // which needs a mentor name to route to anyone for review. Without this, a student who
+      // hasn't been assigned a mentor yet and leaves the mentor name blank got a normal "saved"
+      // confirmation while nothing was ever recorded for their manager to see, with no indication
+      // why — exactly the "I submitted it but my manager says it's not there" report this fixes.
+      alert('Saved, but a mentor name is needed before this can be sent to your manager for review. Add a mentor name in the Mentorship Profile form, save it, then save this form again.');
+      return;
+    }
+
+    if (!studentId || !studentName || !studentEmail || !input.actionPlan.trim()) {
       return;
     }
 
