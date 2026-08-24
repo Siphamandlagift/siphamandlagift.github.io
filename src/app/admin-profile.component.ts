@@ -26,6 +26,21 @@ type SetaReportTab = 'atr' | 'wsp';
 type AtrSubReport = 'beneficiaries-completed' | 'number-beneficiaries' | 'pivotal-actual';
 type WspSubReport = 'beneficiaries-planned' | 'employment-summary' | 'pivotal-planned';
 type CompletedTrainingEvent = { request: ExternalTrainingRequestRecord; student: EnrollmentStudent | undefined };
+
+// A row parsed from the training-record bulk-upload file, resolved and validated (learner email
+// matched to a real student, training type normalized against the 4-value enum) — ready to hand
+// to POST /api/external-training-requests. Kept alongside its source line number so a failure at
+// the save step (network/server error, not a parsing issue) can still point at the right row.
+type TrainingRecordUploadRow = {
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  courseName: string;
+  provider: string;
+  trainingType: 'Accredited' | 'Workshop/Seminar' | 'Informal Training' | 'Short Course';
+  trainingStartDate: string;
+  trainingEndDate: string;
+};
 type PlannedTrainingEvent = { student: EnrollmentStudent; nameOfLearningProgramme: string; typeOfLearningProgramme: string };
 
 // The consolidated Training Report merges two very different "training occurred" signals into
@@ -1298,6 +1313,56 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                             </label>
                             <button type="button" class="admin-primary-btn" [disabled]="!canDownloadAnnualReport()" (click)="downloadAnnualReport()">Download report</button>
                           </div>
+                        </article>
+
+                        <article class="admin-section-card">
+                          <div class="admin-section-card-header">
+                            <h2>Bulk import training records</h2>
+                            <span>Backfill approved training for existing learners</span>
+                          </div>
+
+                          <p class="admin-settings-hint">
+                            Upload a CSV or XLSX file with Learner Email, Course Name, Provider, Training Type, Start Date and End Date. Each valid row is saved and approved automatically, so it shows up here and in the SETA (ATR) reports right away — nothing needs a separate manual approval step.
+                          </p>
+
+                          <div class="admin-report-actions">
+                            <button type="button" class="admin-secondary-btn" (click)="downloadTrainingRecordUploadTemplate()">Download template</button>
+                            <label class="admin-report-filter-field admin-report-download-field">
+                              <span>Approving manager</span>
+                              <select [value]="trainingRecordApprovingManagerId()" (change)="updateTrainingRecordApprovingManager($event)">
+                                <option value="">Select a manager</option>
+                                @for (manager of managerData.trainingManagers(); track manager.id) {
+                                  <option [value]="manager.id">{{ manager.name }}</option>
+                                }
+                              </select>
+                            </label>
+                            <label class="admin-upload-btn" [class.admin-upload-btn-disabled]="trainingRecordUploadInProgress()">
+                              <span>{{ trainingRecordUploadInProgress() ? 'Uploading…' : 'Upload training records file' }}</span>
+                              <input
+                                type="file"
+                                accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                [disabled]="trainingRecordUploadInProgress()"
+                                (change)="handleTrainingRecordUpload($event)" />
+                            </label>
+                          </div>
+
+                          @if (trainingRecordUploadMessage()) {
+                            <div class="admin-upload-feedback" [class.admin-upload-feedback-error]="trainingRecordUploadTone() === 'error'" role="status" aria-live="polite">
+                              {{ trainingRecordUploadMessage() }}
+                            </div>
+                          }
+
+                          @if (trainingRecordUploadIssues().length) {
+                            <div class="admin-upload-issues" role="alert" aria-live="assertive">
+                              <div class="admin-upload-issues-title">Upload issues</div>
+                              <div class="admin-upload-issues-copy">Fix the rows below and upload the file again.</div>
+                              <ul class="admin-upload-issues-list">
+                                @for (issue of trainingRecordUploadIssues(); track issue.lineNumber + issue.message) {
+                                  <li>Row {{ issue.lineNumber }}: {{ issue.message }}</li>
+                                }
+                              </ul>
+                            </div>
+                          }
                         </article>
 
                         @if (filteredAnnualTrainingReportRows().length) {
@@ -3951,7 +4016,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
        report stays the gradient CTA, Clear filters/Back stay the bordered look) — only size
        changed, unlike the User Management toolbar where the look was unified too. */
     .admin-report-actions .admin-primary-btn,
-    .admin-report-actions .admin-secondary-btn {
+    .admin-report-actions .admin-secondary-btn,
+    .admin-report-actions .admin-upload-btn {
       min-height: 2.3rem;
       padding: 0.5rem 0.85rem;
       font-size: 0.85rem;
@@ -4335,6 +4401,11 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly bulkUploadMessage = signal('');
   readonly bulkUploadTone = signal<'success' | 'error'>('success');
   readonly bulkUploadIssues = signal<BulkUploadIssue[]>([]);
+  readonly trainingRecordUploadMessage = signal('');
+  readonly trainingRecordUploadTone = signal<'success' | 'error'>('success');
+  readonly trainingRecordUploadIssues = signal<BulkUploadIssue[]>([]);
+  readonly trainingRecordUploadInProgress = signal(false);
+  readonly trainingRecordApprovingManagerId = signal('');
   readonly adminProfileImageDataUrl = signal<string | null>(null);
   readonly uploadingProfileImage = signal(false);
   readonly companyLogoUploading = signal(false);
@@ -5404,6 +5475,11 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.selectedAnnualReportDepartment.set(input?.value ?? '');
   }
 
+  updateTrainingRecordApprovingManager(event: Event) {
+    const input = event.target as HTMLSelectElement | null;
+    this.trainingRecordApprovingManagerId.set(input?.value ?? '');
+  }
+
   updateAnnualReportSource(event: Event) {
     const input = event.target as HTMLSelectElement | null;
     const nextValue = input?.value === 'LMS' || input?.value === 'External' ? input.value : 'All';
@@ -5516,6 +5592,262 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       if (input) {
         input.value = '';
       }
+    }
+  }
+
+  downloadTrainingRecordUploadTemplate() {
+    const csv = this.getTrainingRecordUploadTemplateRows()
+      .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+
+    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), 'LMS-Training-Records-Template.csv');
+  }
+
+  private getTrainingRecordUploadTemplateRows() {
+    return [
+      ['Learner Email', 'Course Name', 'Provider', 'Training Type', 'Start Date', 'End Date'],
+      ['lebo.mokoena@example.com', 'First Aid Level 1', 'Red Cross', 'Short Course', '2026-02-10', '2026-02-12'],
+    ];
+  }
+
+  // Bulk-uploaded training records are backfilled, already-completed history (that's the whole
+  // point of a bulk import for SETA compliance) — created via the same
+  // POST /api/external-training-requests the single "add training request" form uses (so every
+  // required-field/approving-manager check that endpoint already does still applies here), then
+  // immediately approved via PUT /.../review with this admin as reviewer. Both calls go straight
+  // through LmsBackendService rather than the optimistic managerData.submitExternalTrainingRequest/
+  // reviewExternalTrainingRequest wrappers, because those update the local signal under a
+  // temporary client-side id and fire the real HTTP write without awaiting it — this flow needs
+  // the *real* server-assigned id back from the create call before it can review that same record,
+  // which only a directly-awaited request can guarantee.
+  async handleTrainingRecordUpload(event: Event) {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0] ?? null;
+
+    if (!file) {
+      return;
+    }
+
+    const approvingManagerId = this.trainingRecordApprovingManagerId();
+    if (!approvingManagerId) {
+      this.trainingRecordUploadTone.set('error');
+      this.trainingRecordUploadMessage.set('Choose an approving manager before uploading.');
+      this.trainingRecordUploadIssues.set([]);
+      if (input) {
+        input.value = '';
+      }
+      return;
+    }
+
+    this.trainingRecordUploadInProgress.set(true);
+    this.trainingRecordUploadIssues.set([]);
+
+    try {
+      const parsedUpload = await this.parseTrainingRecordUploadFile(file);
+      const issues = [...parsedUpload.issues];
+
+      if (!parsedUpload.rows.length) {
+        this.trainingRecordUploadTone.set('error');
+        this.trainingRecordUploadMessage.set(issues.length ? 'No valid training records were found. Review the upload issues below.' : 'No valid training records were found in the uploaded file.');
+        this.trainingRecordUploadIssues.set(issues);
+        return;
+      }
+
+      let added = 0;
+      const reviewerName = this.adminName().trim() || 'Administrator';
+
+      for (const { lineNumber, row } of parsedUpload.rows) {
+        try {
+          const created = await firstValueFrom(this.backend.createExternalTrainingRequest({
+            studentId: row.studentId,
+            studentName: row.studentName,
+            studentEmail: row.studentEmail,
+            courseName: row.courseName,
+            provider: row.provider,
+            trainingType: row.trainingType,
+            alignedToIdp: 'No',
+            trainingStartDate: row.trainingStartDate,
+            trainingEndDate: row.trainingEndDate,
+            courseCost: '0',
+            additionalCostRequired: 'No',
+            travelCost: '',
+            examCost: '',
+            accommodationCost: '',
+            approvingManagerId,
+            invoiceFileName: '',
+            invoiceDataUrl: '',
+            brochureFileName: '',
+            brochureDataUrl: '',
+          }));
+
+          await firstValueFrom(this.backend.reviewExternalTrainingRequest({
+            requestId: created.id,
+            reviewerName,
+            status: 'Approved',
+            feedback: 'Bulk-imported and approved.',
+          }));
+
+          added += 1;
+        } catch {
+          issues.push({ lineNumber, message: `Could not save the training record for ${row.studentEmail}.` });
+        }
+      }
+
+      this.trainingRecordUploadIssues.set(issues);
+      this.trainingRecordUploadTone.set(issues.length ? 'error' : 'success');
+      this.trainingRecordUploadMessage.set(
+        `Bulk upload complete. ${added} training record(s) added and approved.${issues.length ? ` ${issues.length} row issue(s) need attention.` : ''}`,
+      );
+
+      if (added) {
+        // Pulls the freshly created+approved records into managerData's live signals immediately,
+        // rather than leaving the report views to catch up on the next 20s poll.
+        await this.managerData.refreshNow();
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Bulk upload failed.';
+      this.trainingRecordUploadTone.set('error');
+      this.trainingRecordUploadMessage.set(message);
+      this.trainingRecordUploadIssues.set([]);
+    } finally {
+      this.trainingRecordUploadInProgress.set(false);
+      if (input) {
+        input.value = '';
+      }
+    }
+  }
+
+  private async parseTrainingRecordUploadFile(file: File): Promise<{ rows: Array<{ lineNumber: number; row: TrainingRecordUploadRow }>; issues: BulkUploadIssue[] }> {
+    const extension = file.name.split('.').pop()?.toLowerCase();
+
+    if (extension === 'xlsx') {
+      const xlsx = await import('xlsx');
+      const fileBuffer = await file.arrayBuffer();
+      const workbook = xlsx.read(fileBuffer, { type: 'array', cellDates: true });
+      const firstSheetName = workbook.SheetNames[0];
+
+      if (!firstSheetName) {
+        return { rows: [], issues: [] };
+      }
+
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rawRows = xlsx.utils.sheet_to_json<(string | number | boolean | Date)[]>(worksheet, {
+        header: 1,
+        raw: false,
+        defval: '',
+        blankrows: true,
+        dateNF: 'yyyy-mm-dd',
+      });
+
+      return this.parseTrainingRecordUploadRows(rawRows.map((row) => row.map((value) => String(value ?? ''))));
+    }
+
+    const csvText = await file.text();
+    const rawRows = csvText
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .map((line) => (line ? this.parseCsvLine(line) : []));
+
+    return this.parseTrainingRecordUploadRows(rawRows);
+  }
+
+  private parseTrainingRecordUploadRows(rawRows: string[][]): { rows: Array<{ lineNumber: number; row: TrainingRecordUploadRow }>; issues: BulkUploadIssue[] } {
+    if (rawRows.length < 2) {
+      return { rows: [], issues: [] };
+    }
+
+    const headers = rawRows[0].map((header) => header.toLowerCase().replace(/[^a-z0-9]/g, ''));
+    const requiredHeaders = ['learneremail', 'coursename', 'provider', 'trainingtype', 'startdate', 'enddate'];
+
+    if (requiredHeaders.some((header) => !headers.includes(header))) {
+      throw new Error('The upload file is missing one or more required fields: Learner Email, Course Name, Provider, Training Type, Start Date, End Date.');
+    }
+
+    const rows: Array<{ lineNumber: number; row: TrainingRecordUploadRow }> = [];
+    const issues: BulkUploadIssue[] = [];
+
+    rawRows.slice(1).forEach((values, rowIndex) => {
+      const lineNumber = rowIndex + 2;
+
+      if (values.length === 0 || values.every((value) => !value?.trim())) {
+        return;
+      }
+
+      const record = new Map<string, string>();
+      headers.forEach((header, index) => {
+        record.set(header, values[index]?.trim() ?? '');
+      });
+
+      const built = this.buildTrainingRecordUploadRow(record, lineNumber);
+      if ('message' in built) {
+        issues.push(built);
+        return;
+      }
+
+      rows.push({ lineNumber, row: built });
+    });
+
+    return { rows, issues };
+  }
+
+  private buildTrainingRecordUploadRow(record: Map<string, string>, lineNumber: number): TrainingRecordUploadRow | BulkUploadIssue {
+    const email = (record.get('learneremail') ?? '').trim().toLowerCase();
+    const courseName = (record.get('coursename') ?? '').trim();
+    const provider = (record.get('provider') ?? '').trim();
+    const rawTrainingType = (record.get('trainingtype') ?? '').trim();
+    const trainingStartDate = this.normalizeBulkUploadDate(record.get('startdate') ?? '');
+    const trainingEndDate = this.normalizeBulkUploadDate(record.get('enddate') ?? '');
+
+    if (!email || !courseName || !provider || !rawTrainingType) {
+      return { lineNumber, message: 'Required values are missing.' };
+    }
+
+    if (!this.isValidEmail(email)) {
+      return { lineNumber, message: 'Learner email is invalid.' };
+    }
+
+    if (!trainingStartDate || !trainingEndDate) {
+      return { lineNumber, message: 'Start date or end date is invalid.' };
+    }
+
+    const trainingType = this.normalizeTrainingType(rawTrainingType);
+    if (!trainingType) {
+      return { lineNumber, message: 'Training type must be Accredited, Workshop/Seminar, Informal Training, or Short Course.' };
+    }
+
+    const student = this.users().find((entry) => entry.email.toLowerCase() === email);
+    if (!student) {
+      return { lineNumber, message: `No matching learner found for ${email}.` };
+    }
+
+    return {
+      studentId: student.id,
+      studentName: `${student.name} ${student.surname}`.trim(),
+      studentEmail: student.email,
+      courseName,
+      provider,
+      trainingType,
+      trainingStartDate,
+      trainingEndDate,
+    };
+  }
+
+  private normalizeTrainingType(value: string): TrainingRecordUploadRow['trainingType'] | null {
+    switch (value.trim().toLowerCase()) {
+      case 'accredited':
+        return 'Accredited';
+      case 'workshop/seminar':
+      case 'workshop':
+      case 'seminar':
+        return 'Workshop/Seminar';
+      case 'informal training':
+      case 'informal':
+        return 'Informal Training';
+      case 'short course':
+      case 'shortcourse':
+        return 'Short Course';
+      default:
+        return null;
     }
   }
 

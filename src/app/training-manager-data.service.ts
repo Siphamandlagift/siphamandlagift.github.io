@@ -2476,6 +2476,16 @@ export class TrainingManagerDataService {
    *  actually landed before proceeding — e.g. openKpiYear, which shouldn't report success until
    *  the new year's data is really in the local cache — can await it; the periodic poll below
    *  still just fires it without awaiting, which is unaffected by this being awaitable. */
+  /** Public entry point for a caller that just wrote something outside this service's own
+   *  optimistic-update methods (e.g. admin-profile.component.ts's bulk training-record upload,
+   *  which calls the backend directly rather than through submitExternalTrainingRequest/
+   *  reviewExternalTrainingRequest so it can await the real server-assigned id between the create
+   *  and review calls) and wants the local signals to reflect that write immediately, rather than
+   *  waiting for the next 20s poll. */
+  async refreshNow(): Promise<void> {
+    await this.refreshBootstrapState();
+  }
+
   private refreshBootstrapState(): Promise<void> {
     const requestStartedAt = Date.now();
     return new Promise<void>((resolve) => {
