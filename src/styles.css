@@ -1952,6 +1952,30 @@ training-manager-profile .student-search-field input:focus {
 	box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
 }
 
+training-manager-profile .student-search-group-field {
+	display: grid;
+	gap: 0.28rem;
+	flex: 0 0 auto;
+	min-width: 12rem;
+}
+
+training-manager-profile .student-search-field select,
+training-manager-profile .student-search-group-field select {
+	border: 1px solid #dbe2ea;
+	border-radius: 12px;
+	padding: 0.62rem 0.75rem;
+	font-size: 0.84rem;
+	color: #173446;
+	background: #fff;
+	font: inherit;
+}
+
+training-manager-profile .student-search-group-field select:focus {
+	outline: none;
+	border-color: #818cf8;
+	box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+}
+
 training-manager-profile .student-search-empty {
 	padding: 0.85rem 0.72rem 0;
 }

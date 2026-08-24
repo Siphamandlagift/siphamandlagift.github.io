@@ -1955,14 +1955,25 @@ type KpiEntryFormGroup = FormGroup<{
                     }
 
                     @if (assignWizardStep() === 2) {
-                      <label class="student-search-field">
-                        <span class="student-search-label">Search students</span>
-                        <input
-                          type="search"
-                          [value]="assignWizardStudentSearchTerm()"
-                          (input)="assignWizardStudentSearchTerm.set($any($event.target).value)"
-                          placeholder="Search by name, surname, group, email, or department" />
-                      </label>
+                      <div class="student-search-row">
+                        <label class="student-search-field">
+                          <span class="student-search-label">Search students</span>
+                          <input
+                            type="search"
+                            [value]="assignWizardStudentSearchTerm()"
+                            (input)="assignWizardStudentSearchTerm.set($any($event.target).value)"
+                            placeholder="Search by name, surname, group, email, or department" />
+                        </label>
+                        <label class="student-search-group-field">
+                          <span class="student-search-label">Group</span>
+                          <select [value]="assignWizardStudentGroupFilter()" (change)="updateAssignWizardStudentGroupFilter($event)">
+                            <option value="">All groups</option>
+                            @for (group of assignWizardStudentGroups(); track group) {
+                              <option [value]="group">{{ group }}</option>
+                            }
+                          </select>
+                        </label>
+                      </div>
 
                       <div class="enrollment-offering-picker" role="listbox" aria-label="Students" aria-multiselectable="true">
                         @if (assignWizardFilteredStudents().length) {
@@ -6767,6 +6778,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   readonly assignWizardSelectedStudentIds = signal<Record<string, boolean>>({});
   readonly assignWizardOfferingSearchTerm = signal('');
   readonly assignWizardStudentSearchTerm = signal('');
+  readonly assignWizardStudentGroupFilter = signal('');
   readonly assignWizardDeadline = signal('');
   readonly assignWizardSaving = signal(false);
   // Pop notification shown after a successful assignment — the wizard closes immediately rather
@@ -6944,9 +6956,19 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   readonly assignWizardSelectedOfferingCount = computed(() =>
     Object.values(this.assignWizardSelectedOfferingIds()).filter(Boolean).length,
   );
+  // Distinct groups across the current roster, for the group filter dropdown in the assign
+  // wizard's student-selection step — lets a manager narrow the list to one group (e.g. a single
+  // intake cohort) and select everyone in it at once, rather than relying on search text alone.
+  readonly assignWizardStudentGroups = computed(() => {
+    const groups = new Set(this.managerData.students().map((student) => student.group.trim()).filter(Boolean));
+    return Array.from(groups).sort((left, right) => left.localeCompare(right));
+  });
   readonly assignWizardFilteredStudents = computed(() => {
     const query = this.assignWizardStudentSearchTerm().trim().toLowerCase();
-    const students = this.managerData.students();
+    const groupFilter = this.assignWizardStudentGroupFilter();
+    const students = groupFilter
+      ? this.managerData.students().filter((student) => student.group === groupFilter)
+      : this.managerData.students();
 
     if (!query) {
       return students;
@@ -9333,6 +9355,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.assignWizardSelectedStudentIds.set({});
     this.assignWizardOfferingSearchTerm.set('');
     this.assignWizardStudentSearchTerm.set('');
+    this.assignWizardStudentGroupFilter.set('');
     this.assignWizardDeadline.set('');
     this.assignWizardSaving.set(false);
     this.assignWizardStep.set(1);
@@ -9372,6 +9395,11 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
   toggleAssignWizardStudent(studentId: string, checked: boolean) {
     this.assignWizardSelectedStudentIds.update((current) => ({ ...current, [studentId]: checked }));
+  }
+
+  updateAssignWizardStudentGroupFilter(event: Event) {
+    const target = event.target as HTMLSelectElement | null;
+    this.assignWizardStudentGroupFilter.set(target?.value ?? '');
   }
 
   isAssignWizardStudentSelected(studentId: string) {
