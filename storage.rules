@@ -1,12 +1,20 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // LMS training content: allow browser direct uploads (training managers uploading videos,
-    // documents, etc.) capped at 500 MB per file. Reads are public so learners can stream
-    // uploaded video files via their Firebase Storage download URL.
+    // LMS training content. Reads are public so learners can stream uploaded video files via
+    // their Firebase Storage download URL. Writes are always denied here deliberately — the app
+    // never uploads directly against these rules: every upload goes through the authenticated
+    // POST /api/storage/upload-url backend endpoint, which mints a short-lived signed URL that
+    // the browser PUTs to (signed URLs are a separate GCS authorization mechanism that bypasses
+    // Storage Rules entirely, so this "allow write: if false" costs the app's real upload flow
+    // nothing). The previous rule here — allow write if under 500MB, with no auth check at all —
+    // let anyone who knows this project's public Firebase config (always embedded in any Firebase
+    // web app's client JS, not a secret) upload or overwrite arbitrary files here directly via the
+    // Storage SDK/REST API, bypassing the backend entirely: free file hosting, cost abuse, or
+    // overwriting real uploads (course thumbnails, certificates) at a guessed/enumerated path.
     match /lms-uploads/{allPaths=**} {
       allow read: if true;
-      allow write: if request.resource.size < 500 * 1024 * 1024;
+      allow write: if false;
     }
 
     // Deny everything else by default.
