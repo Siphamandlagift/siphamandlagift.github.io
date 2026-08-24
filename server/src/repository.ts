@@ -2899,7 +2899,118 @@ class FirestoreLmsRepository extends LmsRepository {
     return resultPromise;
   }
 
-  // Scoped override of the same shape as the two KPI methods above, for the same reason: the
+  // Scoped override of the same shape as the KPI methods above. The inherited read()+write()
+  // path (base class, above) merges patch.students into a single in-memory array and hands the
+  // whole thing to write(), which batch.set()s *every* student document from that one snapshot —
+  // taken once at the top of this call. A student's own concurrent write (a KPI self-score, a
+  // snapshot autosave, an IDP entry) landing on their document in the window between that read
+  // and this batch's commit gets silently reverted once the batch lands, the same lost-update
+  // race already fixed for setKpiEntriesForStudent/updateKpiEmployeeScoring/updateKpiGapAnalysis/
+  // updateStudentSnapshot/openKpiYear above — just never applied to this endpoint, even though
+  // it's the one behind every roster save (User Management add/edit/delete, bulk CSV upload,
+  // course-assignment saves).
+  //
+  // Each patched student gets its own transaction instead: read fresh, merge via the same
+  // mergeEnrollmentStudentRecord used by the inherited path, write inside that same transaction.
+  // Passing the whole merged document to transaction.set() still looks like a full replace, but
+  // because the read-merge-write happens atomically relative to other writes on that one
+  // document, a concurrent write forces this transaction to retry against fresh data instead of
+  // racing it — see updateStudentSnapshot's override below for the same pattern.
+  //
+  // Everything else in the patch (trainingManagers/managerMessages/mentorshipAssignments/
+  // mentorshipSubmissions/externalTrainingRequests) isn't independently written by any other
+  // transactional endpoint, so it doesn't carry this race — its merge semantics are kept exactly
+  // as the inherited path computes them, just committed through a batch scoped to only the
+  // collections actually present in this patch. Critically, this never delegates to the
+  // inherited write() for that part either: write() unconditionally resyncs *all*
+  // firestoreCollectionNames, including students, from whatever this method's own (possibly
+  // now-stale, post-transactions) read produced — which would quietly reintroduce the very race
+  // this override exists to close.
+  override async patchManagerState(patch: ManagerStatePatch): Promise<LmsDataStore> {
+    if (patch.students) {
+      // runTransaction resolves to whatever the callback returns, so this already collects each
+      // student's merged record — no need to re-fetch afterward just to sync auth accounts below.
+      const mergedStudents = await Promise.all(patch.students.map((patchedStudent) => this.firestore.runTransaction(async (transaction) => {
+        const ref = this.collection('students').doc(patchedStudent.id);
+        const snapshot = await transaction.get(ref);
+        const existing = snapshot.exists ? (snapshot.data() as StudentRecord) : undefined;
+        const merged = mergeEnrollmentStudentRecord(existing, patchedStudent);
+        transaction.set(ref, this.sanitizeForFirestore(merged));
+        return merged;
+      })));
+
+      // Same scoped, best-effort sync — and the same accepted gap (accounts matched only by
+      // linkedStudentId, not the rarer email-fallback case) — as updateStudentSnapshot's override
+      // uses below, rather than the inherited path's full authAccounts-collection scan.
+      await Promise.all(mergedStudents.map((student) => this.syncLinkedAuthAccountForStudent(student)));
+    }
+
+    const hasOtherChanges = Boolean(
+      patch.trainingManagers || patch.managerMessages || patch.mentorshipAssignments
+      || patch.mentorshipSubmissions || patch.externalTrainingRequests,
+    );
+
+    if (hasOtherChanges) {
+      const data = await this.read();
+
+      if (patch.trainingManagers) {
+        data.trainingManagers = patch.trainingManagers;
+      }
+
+      if (patch.managerMessages) {
+        const patchById = new Map(patch.managerMessages.map((m) => [m.id, m]));
+        const onlyInDb = data.managerMessages.filter((m) => !patchById.has(m.id));
+        data.managerMessages = [...onlyInDb, ...patch.managerMessages];
+      }
+
+      if (patch.mentorshipAssignments) {
+        const patchById = new Map(patch.mentorshipAssignments.map((a) => [a.id, a]));
+        const onlyInDb = data.mentorshipAssignments.filter((a) => !patchById.has(a.id));
+        data.mentorshipAssignments = [...onlyInDb, ...patch.mentorshipAssignments];
+      }
+
+      if (patch.mentorshipSubmissions) {
+        const patchById = new Map(patch.mentorshipSubmissions.map((s) => [s.id, s]));
+        const onlyInDb = data.mentorshipSubmissions.filter((s) => !patchById.has(s.id));
+        data.mentorshipSubmissions = [...onlyInDb, ...patch.mentorshipSubmissions];
+      }
+
+      if (patch.externalTrainingRequests) {
+        data.externalTrainingRequests = patch.externalTrainingRequests;
+      }
+
+      const batchOperations: FirestoreBatchOperation[] = [
+        (batch) => {
+          batch.set(this.storeDocument, { updatedAt: new Date().toISOString() }, { merge: true });
+        },
+      ];
+
+      if (patch.trainingManagers) {
+        await this.queueCollectionSync(batchOperations, 'trainingManagers', data.trainingManagers);
+      }
+      if (patch.managerMessages) {
+        await this.queueCollectionSync(batchOperations, 'managerMessages', data.managerMessages);
+      }
+      if (patch.mentorshipAssignments) {
+        await this.queueCollectionSync(batchOperations, 'mentorshipAssignments', data.mentorshipAssignments);
+      }
+      if (patch.mentorshipSubmissions) {
+        await this.queueCollectionSync(batchOperations, 'mentorshipSubmissions', data.mentorshipSubmissions);
+      }
+      if (patch.externalTrainingRequests) {
+        await this.queueCollectionSync(batchOperations, 'externalTrainingRequests', data.externalTrainingRequests);
+      }
+
+      await this.commitBatchOperations(batchOperations);
+    }
+
+    // Unused by every caller (patchManagerState's client-side wrapper is typed
+    // Observable<unknown> and nothing reads the response body) — this read only exists to satisfy
+    // the inherited method's Promise<LmsDataStore> return type.
+    return this.read();
+  }
+
+  // Scoped override of the same shape as the KPI methods above, for the same reason: the
   // inherited read()+write() path round-trips and rewrites the ENTIRE store for a single
   // student's routine snapshot save (autosaved on practically every student-side interaction —
   // browsing a course, marking a notification read, etc.), so it's the highest-frequency
