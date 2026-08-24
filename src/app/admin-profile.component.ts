@@ -18,6 +18,7 @@ type BulkUploadIssue = {
   message: string;
 };
 
+type AdminSettingsSection = 'profile-picture' | 'company-logo' | 'theme';
 type ReportDownloadFormat = 'CSV' | 'XLSX';
 type AdminReportView = 'annual-training' | 'idp-report' | 'performance-report' | 'certificate-licence-report' | 'seta-report';
 type TrainingReportSource = 'All' | 'LMS' | 'External';
@@ -2041,36 +2042,60 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
           @if (selectedPanel() === 'settings') {
             <section class="admin-panel">
-              <div class="admin-settings-list" role="list" aria-label="System options">
-                <article class="admin-section-card admin-settings-item" role="listitem">
-                  <div class="admin-settings-item-main">
+              <section class="admin-section-card">
+                @if (!selectedSettingsSection()) {
+                  <div class="admin-settings-menu" role="list" aria-label="System options">
+                    <button type="button" class="admin-settings-menu-item" role="listitem" (click)="selectSettingsSection('profile-picture')">
+                      <span class="admin-settings-menu-item-title">Admin profile picture</span>
+                      <span class="admin-settings-menu-item-copy">Upload or remove the picture shown for your admin account.</span>
+                      <span class="admin-settings-menu-item-status">{{ uploadingProfileImage() ? 'Uploading…' : (adminProfileImageDataUrl() ? 'Uploaded' : 'Using initials avatar') }}</span>
+                    </button>
+                    <button type="button" class="admin-settings-menu-item" role="listitem" (click)="selectSettingsSection('company-logo')">
+                      <span class="admin-settings-menu-item-title">Company logo</span>
+                      <span class="admin-settings-menu-item-copy">Upload the brand mark shown across the LMS.</span>
+                      <span class="admin-settings-menu-item-status">{{ companyLogoUploading() ? 'Uploading…' : (branding.companyLogoDataUrl() ? 'Uploaded' : 'Default brand mark') }}</span>
+                    </button>
+                    <button type="button" class="admin-settings-menu-item" role="listitem" (click)="selectSettingsSection('theme')">
+                      <span class="admin-settings-menu-item-title">Theme colour</span>
+                      <span class="admin-settings-menu-item-copy">Choose the colour theme used across the admin, manager and student workspaces.</span>
+                      <span class="admin-settings-menu-item-status">{{ branding.currentTheme().label }}</span>
+                    </button>
+                  </div>
+                }
+
+                @if (selectedSettingsSection()) {
+                  <button type="button" class="admin-inline-btn admin-settings-back-btn" (click)="clearSettingsSection()">Back to settings</button>
+                }
+
+                @if (selectedSettingsSection() === 'profile-picture') {
+                  <div class="admin-settings-section-detail">
                     <div class="admin-section-card-header">
                       <h2>Admin profile picture</h2>
                       <span>{{ uploadingProfileImage() ? 'Uploading…' : (adminProfileImageDataUrl() ? 'Uploaded' : 'Using initials avatar') }}</span>
                     </div>
-                  </div>
 
-                  <div class="admin-settings-item-controls admin-logo-panel">
-                    <div class="admin-logo-preview" [class.admin-logo-preview-has-image]="!!adminProfileImageDataUrl()">
-                      @if (adminProfileImageDataUrl()) {
-                        <img [src]="adminProfileImageDataUrl()!" alt="Admin profile picture preview" />
-                      } @else {
-                        <span>{{ adminInitials() }}</span>
-                      }
+                    <div class="admin-settings-item-controls admin-logo-panel">
+                      <div class="admin-logo-preview" [class.admin-logo-preview-has-image]="!!adminProfileImageDataUrl()">
+                        @if (adminProfileImageDataUrl()) {
+                          <img [src]="adminProfileImageDataUrl()!" alt="Admin profile picture preview" />
+                        } @else {
+                          <span>{{ adminInitials() }}</span>
+                        }
+                      </div>
+
+                      <div class="admin-logo-actions">
+                        <label class="admin-upload-btn">
+                          <span>{{ uploadingProfileImage() ? 'Uploading…' : 'Upload picture' }}</span>
+                          <input type="file" accept="image/*" [disabled]="uploadingProfileImage()" (change)="onAdminProfileImageSelected($event)" />
+                        </label>
+                        <button type="button" class="admin-secondary-btn" [disabled]="!adminProfileImageDataUrl() || uploadingProfileImage()" (click)="clearAdminProfileImage()">Remove picture</button>
+                      </div>
                     </div>
-
-                    <div class="admin-logo-actions">
-                      <label class="admin-upload-btn">
-                        <span>{{ uploadingProfileImage() ? 'Uploading…' : 'Upload picture' }}</span>
-                        <input type="file" accept="image/*" [disabled]="uploadingProfileImage()" (change)="onAdminProfileImageSelected($event)" />
-                      </label>
-                      <button type="button" class="admin-secondary-btn" [disabled]="!adminProfileImageDataUrl() || uploadingProfileImage()" (click)="clearAdminProfileImage()">Remove picture</button>
-                    </div>
                   </div>
-                </article>
+                }
 
-                <article class="admin-section-card admin-settings-item" role="listitem">
-                  <div class="admin-settings-item-main">
+                @if (selectedSettingsSection() === 'company-logo') {
+                  <div class="admin-settings-section-detail">
                     <div class="admin-section-card-header">
                       <h2>Company logo</h2>
                       <span>{{ companyLogoUploading() ? 'Uploading…' : (branding.companyLogoDataUrl() ? 'Uploaded' : 'Default brand mark') }}</span>
@@ -2078,59 +2103,59 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     @if (companyLogoUploadError()) {
                       <div class="admin-upload-feedback admin-upload-feedback-error" role="status" aria-live="polite">{{ companyLogoUploadError() }}</div>
                     }
-                  </div>
 
-                  <div class="admin-settings-item-controls admin-logo-panel">
-                    <div class="admin-logo-preview" [class.admin-logo-preview-has-image]="!!branding.companyLogoDataUrl()">
-                      @if (branding.companyLogoDataUrl()) {
-                        <img [src]="branding.companyLogoDataUrl()!" alt="Selected company logo preview" />
-                      } @else {
-                        <span>AD</span>
-                      }
+                    <div class="admin-settings-item-controls admin-logo-panel">
+                      <div class="admin-logo-preview" [class.admin-logo-preview-has-image]="!!branding.companyLogoDataUrl()">
+                        @if (branding.companyLogoDataUrl()) {
+                          <img [src]="branding.companyLogoDataUrl()!" alt="Selected company logo preview" />
+                        } @else {
+                          <span>AD</span>
+                        }
+                      </div>
+
+                      <div class="admin-logo-actions">
+                        <label class="admin-upload-btn" [class.admin-upload-btn-disabled]="companyLogoUploading()">
+                          <span>{{ companyLogoUploading() ? 'Uploading…' : 'Upload logo' }}</span>
+                          <input type="file" accept="image/*" [disabled]="companyLogoUploading()" (change)="onLogoSelected($event)" />
+                        </label>
+                        <button type="button" class="admin-secondary-btn" [disabled]="!branding.companyLogoDataUrl() || companyLogoUploading()" (click)="removeCompanyLogo()">Remove logo</button>
+                      </div>
                     </div>
-
-                    <div class="admin-logo-actions">
-                      <label class="admin-upload-btn" [class.admin-upload-btn-disabled]="companyLogoUploading()">
-                        <span>{{ companyLogoUploading() ? 'Uploading…' : 'Upload logo' }}</span>
-                        <input type="file" accept="image/*" [disabled]="companyLogoUploading()" (change)="onLogoSelected($event)" />
-                      </label>
-                      <button type="button" class="admin-secondary-btn" [disabled]="!branding.companyLogoDataUrl() || companyLogoUploading()" (click)="removeCompanyLogo()">Remove logo</button>
-                    </div>
                   </div>
-                </article>
+                }
 
-                <article class="admin-section-card admin-settings-item" role="listitem">
-                  <div class="admin-settings-item-main">
+                @if (selectedSettingsSection() === 'theme') {
+                  <div class="admin-settings-section-detail">
                     <div class="admin-section-card-header">
                       <h2>Theme colour</h2>
                       <span>{{ branding.currentTheme().label }}</span>
                     </div>
-                  </div>
 
-                  <div class="admin-settings-item-controls admin-settings-item-controls-stack">
-                    @if (themeUpdateError()) {
-                      <div class="admin-upload-feedback admin-upload-feedback-error" role="status" aria-live="polite">{{ themeUpdateError() }}</div>
-                    }
+                    <div class="admin-settings-item-controls admin-settings-item-controls-stack">
+                      @if (themeUpdateError()) {
+                        <div class="admin-upload-feedback admin-upload-feedback-error" role="status" aria-live="polite">{{ themeUpdateError() }}</div>
+                      }
 
-                    <label class="admin-settings-field">
-                      <span>Colour</span>
-                      <select [value]="branding.selectedThemeId()" (change)="onThemeSelectionChange($event)">
-                        @for (theme of branding.themeOptions; track theme.id) {
-                          <option [value]="theme.id">{{ theme.label }}</option>
-                        }
-                      </select>
-                    </label>
+                      <label class="admin-settings-field">
+                        <span>Colour</span>
+                        <select [value]="branding.selectedThemeId()" (change)="onThemeSelectionChange($event)">
+                          @for (theme of branding.themeOptions; track theme.id) {
+                            <option [value]="theme.id">{{ theme.label }}</option>
+                          }
+                        </select>
+                      </label>
 
-                    <div class="admin-theme-selection-summary" aria-live="polite">
-                      <div class="admin-theme-swatches" aria-hidden="true">
-                        <span [style.background]="branding.currentTheme().primary"></span>
-                        <span [style.background]="branding.currentTheme().secondary"></span>
-                        <span [style.background]="branding.currentTheme().tint"></span>
+                      <div class="admin-theme-selection-summary" aria-live="polite">
+                        <div class="admin-theme-swatches" aria-hidden="true">
+                          <span [style.background]="branding.currentTheme().primary"></span>
+                          <span [style.background]="branding.currentTheme().secondary"></span>
+                          <span [style.background]="branding.currentTheme().tint"></span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </article>
-              </div>
+                }
+              </section>
             </section>
           }
         <!-- removed extra closing main tag to fix template structure -->
@@ -2923,7 +2948,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       box-shadow: 0 4px 12px rgba(56, 189, 248, 0.1);
     }
 
-    .admin-settings-list {
+    .admin-settings-menu {
       display: grid;
       gap: 1rem;
     }
@@ -3200,16 +3225,60 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       gap: 0.75rem;
     }
 
-    .admin-settings-item {
-      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-      align-items: center;
-      gap: 1.25rem;
+    /* The clickable rows in the collapsed settings menu (Admin profile picture / Company logo /
+       Theme colour) — same list-of-cards-that-open-a-detail-view pattern as the student profile's
+       Profile & Settings screen (student-profile-settings.component.ts), adapted to this
+       component's --admin-* theme variables and existing .admin-secondary-btn-style palette
+       instead of introducing new ones. */
+    .admin-settings-menu-item {
+      display: grid;
+      gap: 0.35rem;
+      width: 100%;
+      padding: 1rem 1.1rem;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 14px;
+      background: #ffffff;
+      text-align: left;
+      cursor: pointer;
+      font: inherit;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
     }
 
-    .admin-settings-item-main {
+    .admin-settings-menu-item:hover,
+    .admin-settings-menu-item:focus-visible {
+      border-color: var(--admin-secondary);
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+      transform: translateX(2px);
+      outline: none;
+    }
+
+    .admin-settings-menu-item-title {
+      color: var(--admin-primary);
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .admin-settings-menu-item-copy {
+      color: #64748b;
+      font-size: 0.88rem;
+      line-height: 1.45;
+    }
+
+    .admin-settings-menu-item-status {
+      color: #173446;
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .admin-settings-back-btn {
+      justify-self: start;
+      margin-bottom: 1rem;
+    }
+
+    .admin-settings-section-detail {
       display: grid;
-      gap: 0.45rem;
-      min-width: 0;
+      gap: 0.75rem;
     }
 
     .admin-settings-item-controls {
@@ -3972,9 +4041,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
         grid-template-columns: 1fr 1fr;
       }
 
-      .admin-settings-item {
-        grid-template-columns: 1fr;
-      }
     }
 
     @media (max-width: 960px) {
@@ -4139,6 +4205,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly selectedSetaReportTab = signal<SetaReportTab | null>(null);
   readonly selectedAtrSubReport = signal<AtrSubReport | null>(null);
   readonly selectedWspSubReport = signal<WspSubReport | null>(null);
+  readonly selectedSettingsSection = signal<AdminSettingsSection | null>(null);
   readonly annualReportSearchTerm = signal('');
   readonly selectedAnnualReportDepartment = signal('');
   readonly selectedAnnualReportSource = signal<TrainingReportSource>('All');
@@ -5065,6 +5132,14 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     }
 
     this.clearReportView();
+  }
+
+  selectSettingsSection(section: AdminSettingsSection) {
+    this.selectedSettingsSection.set(section);
+  }
+
+  clearSettingsSection() {
+    this.selectedSettingsSection.set(null);
   }
 
   private normalizeReportDateValue(dateValue: string | null | undefined) {
