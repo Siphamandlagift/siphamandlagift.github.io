@@ -143,5 +143,12 @@ export function createDefaultData(): LmsDataStore {
     updatedAt: new Date().toISOString(),
     currentKpiYear: new Date().getFullYear(),
     kpiYearsOpened: [new Date().getFullYear()],
+    hrIntegration: {
+      enabled: false,
+      baseUrl: '',
+      authHeaderName: 'Authorization',
+      authHeaderValue: '',
+      lastSyncSummary: null,
+    },
   };
 }

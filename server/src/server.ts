@@ -799,6 +799,16 @@ const brandingSettingsSchema = z.object({
   companyLogoDataUrl: z.string().nullable(),
 });
 
+const hrIntegrationConfigUpdateSchema = z.object({
+  enabled: z.boolean(),
+  baseUrl: z.string().min(1).url('Enter a valid URL for the HR endpoint.'),
+  authHeaderName: z.string().min(1),
+  // Optional and left blank by the client whenever the admin isn't changing the stored
+  // credential — see updateHrIntegrationConfig in repository.ts for the "blank = keep existing"
+  // handling.
+  authHeaderValue: z.string().optional(),
+});
+
 const studentSnapshotUpdateSchema = z.object({
   profile: studentProfileSchema,
   badgeState: studentBadgeStateSchema,
@@ -1753,6 +1763,39 @@ app.put('/api/branding', requireAdministrator, async (request, response, next) =
   try {
     const payload = brandingSettingsSchema.parse(request.body);
     response.json(await repository.updateBranding(payload));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Admin-only: the stored authHeaderValue is never included in this response — see
+// getHrIntegrationConfig/redactHrIntegrationConfig in repository.ts.
+app.get('/api/admin/hr-integration', requireAdministrator, async (_request, response, next) => {
+  try {
+    response.json(await repository.getHrIntegrationConfig());
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/admin/hr-integration', requireAdministrator, async (request, response, next) => {
+  try {
+    const payload = hrIntegrationConfigUpdateSchema.parse(request.body);
+    response.json(await repository.updateHrIntegrationConfig(payload));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/admin/hr-integration/sync', requireAdministrator, async (_request, response, next) => {
+  try {
+    const result = await repository.syncRosterFromHr();
+    if ('error' in result) {
+      response.status(result.error === 'not-configured' ? 400 : 502).json({ message: result.message });
+      return;
+    }
+
+    response.json(result.summary);
   } catch (error) {
     next(error);
   }

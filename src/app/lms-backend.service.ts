@@ -226,6 +226,32 @@ export type BrandingSettings = {
   companyLogoDataUrl: string | null;
 };
 
+export type HrIntegrationSyncSummary = {
+  added: number;
+  updated: number;
+  skipped: number;
+  issues: string[];
+  syncedAt: string;
+};
+
+// authHeaderValue is never included — the server redacts it to hasCredential. See
+// redactHrIntegrationConfig in repository.ts.
+export type HrIntegrationConfig = {
+  enabled: boolean;
+  baseUrl: string;
+  authHeaderName: string;
+  hasCredential: boolean;
+  lastSyncSummary: HrIntegrationSyncSummary | null;
+};
+
+export type HrIntegrationConfigUpdate = {
+  enabled: boolean;
+  baseUrl: string;
+  authHeaderName: string;
+  // Blank/omitted keeps the currently stored credential unchanged.
+  authHeaderValue?: string;
+};
+
 export type ChangePasswordRequest = {
   email: string;
   password: string;
@@ -312,6 +338,18 @@ export class LmsBackendService {
 
   updateBranding(input: BrandingSettings): Observable<BrandingSettings> {
     return this.http.put<BrandingSettings>(`${this.config.baseUrl}/branding`, input);
+  }
+
+  getHrIntegrationConfig(): Observable<HrIntegrationConfig> {
+    return this.http.get<HrIntegrationConfig>(`${this.config.baseUrl}/admin/hr-integration`);
+  }
+
+  updateHrIntegrationConfig(input: HrIntegrationConfigUpdate): Observable<HrIntegrationConfig> {
+    return this.http.put<HrIntegrationConfig>(`${this.config.baseUrl}/admin/hr-integration`, input);
+  }
+
+  syncHrRoster(): Observable<HrIntegrationSyncSummary> {
+    return this.http.post<HrIntegrationSyncSummary>(`${this.config.baseUrl}/admin/hr-integration/sync`, {});
   }
 
   getOfferings(): Observable<TrainingOffering[]> {

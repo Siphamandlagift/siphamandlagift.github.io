@@ -6,7 +6,7 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { Router } from '@angular/router';
 import { firstValueFrom, interval } from 'rxjs';
 import { EnrollmentStudent, EnrollmentStudentInput, ExternalTrainingRequestRecord, TrainingManagerDataService } from './training-manager-data.service';
-import { LmsBackendService, type LoginRole, type ManagedUserCredentialInput, type ResolveRolesEntry } from './lms-backend.service';
+import { LmsBackendService, type HrIntegrationConfig, type HrIntegrationConfigUpdate, type HrIntegrationSyncSummary, type LoginRole, type ManagedUserCredentialInput, type ResolveRolesEntry } from './lms-backend.service';
 import { LmsBrandThemeId, LmsBrandingService } from './lms-branding.service';
 import type { StudentCertificateLicence, StudentCertificateStatus, StudentCourse } from './student-data.service';
 import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLmsSessionRecord } from './session-auth';
@@ -18,7 +18,7 @@ type BulkUploadIssue = {
   message: string;
 };
 
-type AdminSettingsSection = 'profile-picture' | 'company-logo' | 'theme';
+type AdminSettingsSection = 'profile-picture' | 'company-logo' | 'theme' | 'hr-integration';
 type ReportDownloadFormat = 'CSV' | 'XLSX';
 type AdminReportView = 'annual-training' | 'idp-report' | 'performance-report' | 'certificate-licence-report' | 'seta-report';
 type TrainingReportSource = 'All' | 'LMS' | 'External';
@@ -2060,6 +2060,11 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       <span class="admin-settings-menu-item-copy">Choose the colour theme used across the admin, manager and student workspaces.</span>
                       <span class="admin-settings-menu-item-status">{{ branding.currentTheme().label }}</span>
                     </button>
+                    <button type="button" class="admin-settings-menu-item" role="listitem" (click)="selectSettingsSection('hr-integration')">
+                      <span class="admin-settings-menu-item-title">HR system integration</span>
+                      <span class="admin-settings-menu-item-copy">Pull roster data automatically from an external HR system's API.</span>
+                      <span class="admin-settings-menu-item-status">{{ hrIntegrationConfig()?.enabled ? 'Enabled' : 'Not connected' }}</span>
+                    </button>
                   </div>
                 }
 
@@ -2152,6 +2157,83 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           <span [style.background]="branding.currentTheme().tint"></span>
                         </div>
                       </div>
+                    </div>
+                  </div>
+                }
+
+                @if (selectedSettingsSection() === 'hr-integration') {
+                  <div class="admin-settings-section-detail">
+                    <div class="admin-section-card-header">
+                      <h2>HR system integration</h2>
+                      <span>{{ hrIntegrationConfig()?.enabled ? 'Enabled' : 'Not connected' }}</span>
+                    </div>
+
+                    <p class="admin-settings-hint">
+                      The configured endpoint must return a JSON array of roster records with at least <code>email</code>, <code>name</code>, <code>surname</code>, <code>department</code>, <code>group</code>, <code>dateEnrolled</code> and <code>deadlineDate</code>. A matching email updates that user; a new email adds one. Nothing already in the roster is ever removed by a sync.
+                    </p>
+
+                    @if (hrIntegrationLoading()) {
+                      <div class="admin-upload-feedback" role="status" aria-live="polite">Loading…</div>
+                    }
+
+                    @if (hrIntegrationSaveError()) {
+                      <div class="admin-upload-feedback admin-upload-feedback-error" role="status" aria-live="polite">{{ hrIntegrationSaveError() }}</div>
+                    }
+
+                    <form class="admin-settings-item-controls admin-settings-item-controls-stack" [formGroup]="hrIntegrationForm" (ngSubmit)="saveHrIntegrationConfig()">
+                      <label class="admin-settings-field">
+                        <span>Status</span>
+                        <select formControlName="enabled">
+                          <option [ngValue]="true">Enabled</option>
+                          <option [ngValue]="false">Disabled</option>
+                        </select>
+                      </label>
+
+                      <label class="admin-settings-field">
+                        <span>HR endpoint URL</span>
+                        <input type="url" formControlName="baseUrl" placeholder="https://hr.example.com/api/roster" />
+                      </label>
+
+                      <label class="admin-settings-field">
+                        <span>Auth header name</span>
+                        <input type="text" formControlName="authHeaderName" placeholder="Authorization" />
+                      </label>
+
+                      <label class="admin-settings-field">
+                        <span>Auth header value</span>
+                        <input
+                          type="password"
+                          formControlName="authHeaderValue"
+                          autocomplete="off"
+                          [placeholder]="hrIntegrationConfig()?.hasCredential ? 'API key configured — leave blank to keep it' : 'e.g. Bearer xyz123'" />
+                      </label>
+
+                      <button type="submit" class="admin-primary-btn" [disabled]="hrIntegrationForm.invalid || hrIntegrationSaving()">{{ hrIntegrationSaving() ? 'Saving…' : 'Save connection' }}</button>
+                    </form>
+
+                    <div class="admin-settings-item-controls admin-settings-item-controls-stack">
+                      <button type="button" class="admin-secondary-btn" [disabled]="hrIntegrationSyncing() || !hrIntegrationConfig()?.enabled" (click)="syncHrRosterNow()">{{ hrIntegrationSyncing() ? 'Syncing…' : 'Sync now' }}</button>
+
+                      @if (hrIntegrationSyncError()) {
+                        <div class="admin-upload-feedback admin-upload-feedback-error" role="status" aria-live="polite">{{ hrIntegrationSyncError() }}</div>
+                      }
+
+                      @if (hrIntegrationConfig()?.lastSyncSummary; as summary) {
+                        <div class="admin-upload-feedback" role="status" aria-live="polite">
+                          Last synced {{ summary.syncedAt | date:'medium' }} — {{ summary.added }} added, {{ summary.updated }} updated, {{ summary.skipped }} skipped.
+                        </div>
+
+                        @if (summary.issues.length) {
+                          <div class="admin-upload-issues" role="alert" aria-live="assertive">
+                            <div class="admin-upload-issues-title">Sync issues</div>
+                            <ul class="admin-upload-issues-list">
+                              @for (issue of summary.issues; track issue) {
+                                <li>{{ issue }}</li>
+                              }
+                            </ul>
+                          </div>
+                        }
+                      }
                     </div>
                   </div>
                 }
@@ -3281,6 +3363,24 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       gap: 0.75rem;
     }
 
+    .admin-settings-hint {
+      margin: 0;
+      padding: 0.75rem 0.9rem;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 10px;
+      background: #f8fbff;
+      color: #475569;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    .admin-settings-hint code {
+      padding: 0.1rem 0.35rem;
+      border-radius: 6px;
+      background: rgba(15, 23, 42, 0.06);
+      font-size: 0.82rem;
+    }
+
     .admin-settings-item-controls {
       display: flex;
       align-items: center;
@@ -4206,6 +4306,20 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly selectedAtrSubReport = signal<AtrSubReport | null>(null);
   readonly selectedWspSubReport = signal<WspSubReport | null>(null);
   readonly selectedSettingsSection = signal<AdminSettingsSection | null>(null);
+  readonly hrIntegrationConfig = signal<HrIntegrationConfig | null>(null);
+  readonly hrIntegrationLoading = signal(false);
+  readonly hrIntegrationSaving = signal(false);
+  readonly hrIntegrationSaveError = signal<string | null>(null);
+  readonly hrIntegrationSyncing = signal(false);
+  readonly hrIntegrationSyncError = signal<string | null>(null);
+  readonly hrIntegrationForm = new FormGroup({
+    enabled: new FormControl(false, { nonNullable: true }),
+    baseUrl: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    authHeaderName: new FormControl('Authorization', { nonNullable: true, validators: [Validators.required] }),
+    // Left blank on load (the server never sends the real value back) — a blank save keeps
+    // whatever credential is already stored, see updateHrIntegrationConfig in repository.ts.
+    authHeaderValue: new FormControl('', { nonNullable: true }),
+  });
   readonly annualReportSearchTerm = signal('');
   readonly selectedAnnualReportDepartment = signal('');
   readonly selectedAnnualReportSource = signal<TrainingReportSource>('All');
@@ -5136,10 +5250,80 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   selectSettingsSection(section: AdminSettingsSection) {
     this.selectedSettingsSection.set(section);
+    if (section === 'hr-integration') {
+      this.loadHrIntegrationConfig();
+    }
   }
 
   clearSettingsSection() {
     this.selectedSettingsSection.set(null);
+  }
+
+  private async loadHrIntegrationConfig() {
+    this.hrIntegrationLoading.set(true);
+    this.hrIntegrationSaveError.set(null);
+    try {
+      const config = await firstValueFrom(this.backend.getHrIntegrationConfig());
+      this.hrIntegrationConfig.set(config);
+      this.hrIntegrationForm.patchValue({
+        enabled: config.enabled,
+        baseUrl: config.baseUrl,
+        authHeaderName: config.authHeaderName || 'Authorization',
+        authHeaderValue: '',
+      });
+    } catch {
+      this.hrIntegrationSaveError.set('Could not load the HR integration settings. Try again.');
+    } finally {
+      this.hrIntegrationLoading.set(false);
+    }
+  }
+
+  async saveHrIntegrationConfig() {
+    if (this.hrIntegrationForm.invalid || this.hrIntegrationSaving()) {
+      return;
+    }
+
+    this.hrIntegrationSaving.set(true);
+    this.hrIntegrationSaveError.set(null);
+    const value = this.hrIntegrationForm.getRawValue();
+
+    try {
+      const config = await firstValueFrom(this.backend.updateHrIntegrationConfig({
+        enabled: value.enabled,
+        baseUrl: value.baseUrl.trim(),
+        authHeaderName: value.authHeaderName.trim() || 'Authorization',
+        authHeaderValue: value.authHeaderValue.trim() || undefined,
+      }));
+      this.hrIntegrationConfig.set(config);
+      // Blank again after a successful save — the server never echoes the real credential back,
+      // so leaving whatever was typed on screen would misleadingly suggest it wasn't saved.
+      this.hrIntegrationForm.controls.authHeaderValue.setValue('');
+    } catch {
+      this.hrIntegrationSaveError.set('Could not save the HR integration settings. Check the URL and try again.');
+    } finally {
+      this.hrIntegrationSaving.set(false);
+    }
+  }
+
+  async syncHrRosterNow() {
+    if (this.hrIntegrationSyncing() || !this.hrIntegrationConfig()?.enabled) {
+      return;
+    }
+
+    this.hrIntegrationSyncing.set(true);
+    this.hrIntegrationSyncError.set(null);
+
+    try {
+      const summary = await firstValueFrom(this.backend.syncHrRoster());
+      this.hrIntegrationConfig.update((current) => current ? { ...current, lastSyncSummary: summary } : current);
+    } catch (error) {
+      const message = error instanceof Object && 'error' in error && (error as { error?: { message?: string } }).error?.message
+        ? (error as { error: { message: string } }).error.message
+        : 'The sync could not be completed. Check the connection settings and try again.';
+      this.hrIntegrationSyncError.set(message);
+    } finally {
+      this.hrIntegrationSyncing.set(false);
+    }
   }
 
   private normalizeReportDateValue(dateValue: string | null | undefined) {

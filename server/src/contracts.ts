@@ -427,6 +427,66 @@ export type BrandingSettingsRecord = {
   companyLogoDataUrl: string | null;
 };
 
+export type HrIntegrationSyncSummary = {
+  added: number;
+  updated: number;
+  skipped: number;
+  issues: string[];
+  syncedAt: string;
+};
+
+// Stored server-side, including the real authHeaderValue — never returned to the browser as-is.
+// See HrIntegrationConfigResponse below for the shape any GET actually sends back.
+export type HrIntegrationConfigRecord = {
+  enabled: boolean;
+  baseUrl: string;
+  authHeaderName: string;
+  authHeaderValue: string;
+  lastSyncSummary: HrIntegrationSyncSummary | null;
+};
+
+// What GET /api/admin/hr-integration actually returns: authHeaderValue is redacted to a boolean
+// (hasCredential) so the configured API key/token is never round-tripped to the browser.
+export type HrIntegrationConfigResponse = {
+  enabled: boolean;
+  baseUrl: string;
+  authHeaderName: string;
+  hasCredential: boolean;
+  lastSyncSummary: HrIntegrationSyncSummary | null;
+};
+
+// authHeaderValue is optional and, when blank/omitted, leaves the currently stored credential
+// untouched — the same "blank input = keep existing secret" convention used for password fields
+// elsewhere in this app, so re-saving the base URL doesn't force re-entering the API key.
+export type HrIntegrationConfigUpdateInput = {
+  enabled: boolean;
+  baseUrl: string;
+  authHeaderName: string;
+  authHeaderValue?: string;
+};
+
+// The JSON shape this LMS expects an external HR system's endpoint to return (an array of these).
+// Deliberately close to EnrollmentStudentInput/the CSV bulk-upload template fields so the same
+// validation and roster-merge logic can be shared between both import paths.
+export type HrIntegrationRosterRecord = {
+  email: string;
+  name: string;
+  surname: string;
+  department: string;
+  group: string;
+  dateEnrolled: string;
+  deadlineDate: string;
+  jobTitle?: string;
+  idNumber?: string;
+  ofoCode?: string;
+  race?: string;
+  gender?: string;
+  municipality?: string;
+  dateOfBirth?: string;
+  nqfLevel?: string;
+  activeStatus?: 'Active' | 'Inactive';
+};
+
 export type AssignmentSubmissionRecord = {
   id: string;
   studentId: string;
@@ -554,6 +614,7 @@ export type LmsDataStore = {
   // default-data.ts; migrated in from legacy per-student kpiEntries in normalizeData if missing.
   currentKpiYear: number;
   kpiYearsOpened: number[];
+  hrIntegration: HrIntegrationConfigRecord;
 };
 
 export type LmsBootstrapResponse = {

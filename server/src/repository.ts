@@ -22,6 +22,10 @@ import {
   ExternalTrainingRequestDocumentsInput,
   ExternalTrainingRequestReviewInput,
   ExternalTrainingRequestUpdateInput,
+  HrIntegrationConfigResponse,
+  HrIntegrationConfigUpdateInput,
+  HrIntegrationRosterRecord,
+  HrIntegrationSyncSummary,
   LoginRequestInput,
   LoginRole,
   LmsDataStore,
@@ -70,7 +74,7 @@ const firestoreCollectionNames = [
   'passwordResetTokens',
 ] as const satisfies readonly FirestoreCollectionName[];
 
-type FirestoreCollectionName = Exclude<keyof LmsDataStore, 'branding' | 'updatedAt' | 'currentKpiYear' | 'kpiYearsOpened'>;
+type FirestoreCollectionName = Exclude<keyof LmsDataStore, 'branding' | 'updatedAt' | 'currentKpiYear' | 'kpiYearsOpened' | 'hrIntegration'>;
 type FirestoreCollectionRecord<Name extends FirestoreCollectionName> = LmsDataStore[Name] extends Array<infer Item>
   ? Item & { id: string }
   : never;
@@ -655,6 +659,62 @@ export function maskAssessmentAnswerKey(offerings: TrainingOffering[]): Training
   }));
 }
 
+function redactHrIntegrationConfig(config: LmsDataStore['hrIntegration']): HrIntegrationConfigResponse {
+  return {
+    enabled: config.enabled,
+    baseUrl: config.baseUrl,
+    authHeaderName: config.authHeaderName,
+    hasCredential: config.authHeaderValue.trim().length > 0,
+    lastSyncSummary: config.lastSyncSummary,
+  };
+}
+
+function isValidHrEmailFormat(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+// Same acceptance rule as the client's bulk-upload date normalization (normalizeBulkUploadDate in
+// admin-profile.component.ts): accept an already-ISO yyyy-mm-dd string as-is, otherwise anything
+// Date-parseable, normalized to yyyy-mm-dd. Returns null for anything that parses to neither.
+function normalizeHrDate(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+}
+
+// Mirrors createUniqueStudentId in training-manager-data.service.ts (the client-side bulk-upload
+// id generator) closely enough to produce similarly readable/debuggable ids, just implemented
+// server-side since this sync never goes through the browser.
+function createHrSyncedStudentId(name: string, surname: string, email: string, usedIds: Set<string>): string {
+  const emailLocalPart = email.split('@')[0] ?? '';
+  const baseSlug = `${name}-${surname}-${emailLocalPart}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'hr-student';
+
+  let candidate = baseSlug;
+  let suffix = 2;
+  while (usedIds.has(candidate)) {
+    candidate = `${baseSlug}-${suffix}`;
+    suffix += 1;
+  }
+
+  usedIds.add(candidate);
+  return candidate;
+}
+
 function mergeEnrollmentStudentRecord(existing: StudentRecord | undefined, student: EnrollmentStudentRecord): StudentRecord {
   if (!existing) {
     return createStudentRecordFromEnrollment(student);
@@ -743,6 +803,7 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
     updatedAt: data.updatedAt || new Date().toISOString(),
     currentKpiYear,
     kpiYearsOpened,
+    hrIntegration: data.hrIntegration ?? defaults.hrIntegration,
   });
 
   syncLinkedAuthAccounts(normalized);
@@ -1225,6 +1286,185 @@ export class LmsRepository {
 
     const next = await this.write(data);
     return next.branding;
+  }
+
+  async getHrIntegrationConfig(): Promise<HrIntegrationConfigResponse> {
+    const data = await this.read();
+    return redactHrIntegrationConfig(data.hrIntegration);
+  }
+
+  async updateHrIntegrationConfig(input: HrIntegrationConfigUpdateInput): Promise<HrIntegrationConfigResponse> {
+    const data = await this.read();
+    const nextAuthHeaderValue = input.authHeaderValue?.trim();
+
+    data.hrIntegration = {
+      ...data.hrIntegration,
+      enabled: input.enabled,
+      baseUrl: input.baseUrl.trim(),
+      authHeaderName: input.authHeaderName.trim() || 'Authorization',
+      // A blank/omitted value keeps whatever credential is already stored — same convention as
+      // password fields elsewhere in this app, so saving the base URL doesn't force re-entering
+      // the API key every time.
+      authHeaderValue: nextAuthHeaderValue ? nextAuthHeaderValue : data.hrIntegration.authHeaderValue,
+    };
+
+    const next = await this.write(data);
+    return redactHrIntegrationConfig(next.hrIntegration);
+  }
+
+  // Pulls roster data from the admin-configured external HR endpoint and upserts it into the
+  // student roster. Deliberately additive-only: an existing student (matched by email, the same
+  // key the bulk-upload flow already dedupes on — see bulkUpsertStudents in
+  // training-manager-data.service.ts) is updated, a genuinely new email creates a new record, but
+  // nothing is ever deleted or deactivated just because this particular sync's response didn't
+  // mention them — unlike PUT /api/manager-state's full-roster-replace semantics (patchManagerState
+  // below), which would be unsafe to point an unattended/recurring sync at, since any student the
+  // HR feed doesn't happen to list (an admin/manager added directly in the LMS, or simply omitted
+  // from that page of the feed) would otherwise be wiped out.
+  async syncRosterFromHr(): Promise<
+    | { summary: HrIntegrationSyncSummary }
+    | { error: 'not-configured' | 'request-failed' | 'invalid-response'; message: string }
+  > {
+    const data = await this.read();
+    const config = data.hrIntegration;
+
+    if (!config.enabled || !config.baseUrl.trim() || !config.authHeaderValue.trim()) {
+      return { error: 'not-configured', message: 'HR system integration is not fully configured yet.' };
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(config.baseUrl, {
+        headers: { [config.authHeaderName || 'Authorization']: config.authHeaderValue },
+      });
+    } catch {
+      return { error: 'request-failed', message: 'Could not reach the configured HR endpoint.' };
+    }
+
+    if (!response.ok) {
+      return { error: 'request-failed', message: `The HR endpoint responded with status ${response.status}.` };
+    }
+
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      return { error: 'invalid-response', message: 'The HR endpoint did not return valid JSON.' };
+    }
+
+    if (!Array.isArray(payload)) {
+      return { error: 'invalid-response', message: 'Expected the HR endpoint to return a JSON array of roster records.' };
+    }
+
+    const existingByEmail = new Map(data.students.map((student) => [student.email.trim().toLowerCase(), student]));
+    const usedIds = new Set(data.students.map((student) => student.id));
+
+    let added = 0;
+    let updated = 0;
+    let skipped = 0;
+    const issues: string[] = [];
+
+    payload.forEach((rawRecord, index) => {
+      const rowLabel = `Record ${index + 1}`;
+      if (typeof rawRecord !== 'object' || rawRecord === null) {
+        issues.push(`${rowLabel}: not a valid object.`);
+        skipped += 1;
+        return;
+      }
+
+      const record = rawRecord as Partial<HrIntegrationRosterRecord>;
+      const email = record.email?.trim().toLowerCase() ?? '';
+      const name = record.name?.trim() ?? '';
+      const surname = record.surname?.trim() ?? '';
+      const department = record.department?.trim() ?? '';
+      const group = record.group?.trim() ?? '';
+      const dateEnrolled = normalizeHrDate(record.dateEnrolled ?? '');
+      const deadlineDate = normalizeHrDate(record.deadlineDate ?? '');
+
+      if (!email || !isValidHrEmailFormat(email)) {
+        issues.push(`${rowLabel}: missing or invalid email.`);
+        skipped += 1;
+        return;
+      }
+
+      if (!name || !surname || !department || !group) {
+        issues.push(`${rowLabel} (${email}): missing name, surname, department, or group.`);
+        skipped += 1;
+        return;
+      }
+
+      if (!dateEnrolled || !deadlineDate) {
+        issues.push(`${rowLabel} (${email}): missing or invalid dateEnrolled/deadlineDate.`);
+        skipped += 1;
+        return;
+      }
+
+      const activeStatus = record.activeStatus === 'Inactive' ? 'Inactive' as const : 'Active' as const;
+      const existing = existingByEmail.get(email);
+
+      const enrollmentInput: EnrollmentStudentRecord = existing
+        ? {
+            ...existing,
+            name,
+            surname,
+            department,
+            group,
+            dateEnrolled,
+            deadlineDate,
+            jobTitle: record.jobTitle?.trim() || existing.jobTitle,
+            idNumber: record.idNumber?.trim() || existing.idNumber,
+            ofoCode: record.ofoCode?.trim() || existing.ofoCode,
+            race: record.race?.trim() || existing.race,
+            gender: record.gender?.trim() || existing.gender,
+            municipality: record.municipality?.trim() || existing.municipality,
+            dateOfBirth: record.dateOfBirth?.trim() || existing.dateOfBirth,
+            nqfLevel: record.nqfLevel?.trim() || existing.nqfLevel,
+            activeStatus: record.activeStatus ? activeStatus : existing.activeStatus,
+          }
+        : {
+            id: createHrSyncedStudentId(name, surname, email, usedIds),
+            name,
+            surname,
+            department,
+            group,
+            dateEnrolled,
+            deadlineDate,
+            email,
+            jobTitle: record.jobTitle?.trim() ?? '',
+            idNumber: record.idNumber?.trim() ?? '',
+            activeStatus,
+            lineManager: '',
+            status: 'Not Yet Started',
+            assignedOfferingIds: [],
+            role: 'student',
+            isAdmin: false,
+            ofoCode: record.ofoCode?.trim(),
+            race: record.race?.trim(),
+            gender: record.gender?.trim(),
+            municipality: record.municipality?.trim(),
+            dateOfBirth: record.dateOfBirth?.trim(),
+            nqfLevel: record.nqfLevel?.trim(),
+          };
+
+      const merged = mergeEnrollmentStudentRecord(existing, enrollmentInput);
+      const studentIndex = data.students.findIndex((student) => student.id === merged.id);
+      if (studentIndex === -1) {
+        data.students.push(merged);
+        added += 1;
+      } else {
+        data.students[studentIndex] = merged;
+        updated += 1;
+      }
+
+      existingByEmail.set(email, merged);
+    });
+
+    const summary: HrIntegrationSyncSummary = { added, updated, skipped, issues, syncedAt: new Date().toISOString() };
+    data.hrIntegration = { ...data.hrIntegration, lastSyncSummary: summary };
+    syncLinkedAuthAccounts(data);
+    await this.write(data);
+
+    return { summary };
   }
 
   async createOffering(offering: TrainingOffering) {
@@ -2396,7 +2636,7 @@ class FirestoreLmsRepository extends LmsRepository {
 
     const defaults = normalizeData(createDefaultData());
     const storeData = storeSnapshot.exists
-      ? (storeSnapshot.data() as Partial<Pick<LmsDataStore, 'branding' | 'updatedAt' | 'currentKpiYear' | 'kpiYearsOpened'>>)
+      ? (storeSnapshot.data() as Partial<Pick<LmsDataStore, 'branding' | 'updatedAt' | 'currentKpiYear' | 'kpiYearsOpened' | 'hrIntegration'>>)
       : undefined;
 
     return normalizeData({
@@ -2415,6 +2655,7 @@ class FirestoreLmsRepository extends LmsRepository {
       updatedAt: storeData?.updatedAt ?? defaults.updatedAt,
       currentKpiYear: storeData?.currentKpiYear ?? defaults.currentKpiYear,
       kpiYearsOpened: storeData?.kpiYearsOpened ?? defaults.kpiYearsOpened,
+      hrIntegration: storeData?.hrIntegration ?? defaults.hrIntegration,
     });
   }
 
@@ -2440,6 +2681,7 @@ class FirestoreLmsRepository extends LmsRepository {
             updatedAt: nextData.updatedAt,
             currentKpiYear: nextData.currentKpiYear,
             kpiYearsOpened: nextData.kpiYearsOpened,
+            hrIntegration: nextData.hrIntegration,
           }));
         },
       ];
