@@ -400,6 +400,15 @@ export class TrainingManagerDataService {
   // "disappear" a few seconds after saving.
   private readonly idpEntriesDirtyAt: Record<string, number> = {};
   private readonly kpiEntriesDirtyAt: Record<string, number> = {};
+  // Same reasoning, but for the students array as a whole rather than per-id — studentsSignal
+  // (unlike idpEntriesByStudent/kpiEntriesByStudent) is merged via mergeServerAuthoritative, which
+  // trusts the server's copy of any id it already knows about wholesale, with no per-item
+  // staleness check at all. Without this, a poll already in flight when a manager assigns/
+  // unassigns a course (or otherwise edits the roster) resolves afterward with the pre-edit
+  // snapshot and silently reverts the edit in this session's own view — and since persistStudents
+  // always PUTs the *entire* current students() array, the next unrelated roster edit re-sends
+  // that reverted state and erases the original edit server-side too.
+  private studentsDirtyAt: number | null = null;
 
   readonly profile = this.profileSignal.asReadonly();
   readonly offerings = this.offeringsSignal.asReadonly();
@@ -999,6 +1008,10 @@ export class TrainingManagerDataService {
 
     this.saveOfferings(this.offerings());
     this.saveAssignmentSubmissions(this.assignmentSubmissionsSignal());
+    // This also just optimistically edited every affected student's assignedOfferingIds locally
+    // (above) ahead of the server's own independent cleanup of the same field — same staleness
+    // guard as persistStudents, for the same reason.
+    this.studentsDirtyAt = Date.now();
 
     if (this.backendHydrated) {
       this.backend.deleteOffering(normalizedOfferingId).subscribe({
@@ -2400,6 +2413,7 @@ export class TrainingManagerDataService {
   }
 
   private persistStudents() {
+    this.studentsDirtyAt = Date.now();
     this.saveStudents(this.students());
 
     if (!this.backendHydrated) {
@@ -2492,7 +2506,12 @@ export class TrainingManagerDataService {
       this.backend.getBootstrap().subscribe({
         next: (bootstrap) => {
           this.offeringsSignal.set(this.mergeServerAuthoritative(bootstrap.offerings, this.offeringsSignal()));
-          this.studentsSignal.set(this.mergeServerAuthoritative(bootstrap.students, this.studentsSignal()));
+          // A local roster write that started after this particular fetch did can't possibly be
+          // reflected in bootstrap.students yet, so it wins outright this cycle instead of being
+          // clobbered by this (now-stale) response — see studentsDirtyAt above. The next poll,
+          // started after that write, will pick up the confirmed server state normally.
+          const isStudentsStale = this.studentsDirtyAt !== null && this.studentsDirtyAt >= requestStartedAt;
+          this.studentsSignal.set(isStudentsStale ? this.studentsSignal() : this.mergeServerAuthoritative(bootstrap.students, this.studentsSignal()));
           this.trainingManagersSignal.set(bootstrap.trainingManagers);
           this.mentorshipAssignmentsSignal.set(this.mergeServerAuthoritative(bootstrap.mentorshipAssignments, this.mentorshipAssignmentsSignal()));
           this.mentorshipSubmissionsSignal.set(this.mergeServerAuthoritative(bootstrap.mentorshipSubmissions, this.mentorshipSubmissionsSignal()));

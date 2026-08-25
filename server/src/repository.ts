@@ -736,6 +736,29 @@ function mergeEnrollmentStudentRecord(existing: StudentRecord | undefined, stude
   };
 }
 
+// A student re-assigned to an offering they were previously (but aren't currently) assigned to
+// otherwise keeps whatever assessmentAttempts (quiz pass/fail, score, attempts used) they built
+// up during the prior enrollment cycle — stale "already passed"/"attempts exhausted" state from a
+// completed-then-removed enrollment makes a brand-new assignment look already finished (and could
+// even re-trigger certificate issuance client-side) before the student has done anything this time
+// around. Pruned only for offerings newly present in assignedOfferingIds compared to what was
+// already stored — not on every save, and not merely because a student is momentarily unassigned
+// — so a student who stays continuously assigned keeps their in-progress attempts untouched.
+// Keyed the same way gradeQuizAttempt writes them: `${offeringId}::${contentItemId}`.
+function pruneStaleAssessmentAttemptsOnReassignment(student: StudentRecord, previouslyAssignedOfferingIds: readonly string[]): StudentRecord {
+  const newlyAssignedIds = student.assignedOfferingIds.filter((id) => !previouslyAssignedOfferingIds.includes(id));
+  if (!newlyAssignedIds.length || !student.assessmentAttempts) {
+    return student;
+  }
+
+  const stalePrefixes = newlyAssignedIds.map((id) => `${id}::`);
+  const nextAssessmentAttempts = Object.fromEntries(
+    Object.entries(student.assessmentAttempts).filter(([key]) => !stalePrefixes.some((prefix) => key.startsWith(prefix))),
+  );
+
+  return { ...student, assessmentAttempts: nextAssessmentAttempts };
+}
+
 function normalizeData(data: LmsDataStore): LmsDataStore {
   const defaults = createDefaultData();
   const offerings = data.offerings ?? defaults.offerings;
@@ -2934,7 +2957,10 @@ class FirestoreLmsRepository extends LmsRepository {
         const ref = this.collection('students').doc(patchedStudent.id);
         const snapshot = await transaction.get(ref);
         const existing = snapshot.exists ? (snapshot.data() as StudentRecord) : undefined;
-        const merged = mergeEnrollmentStudentRecord(existing, patchedStudent);
+        const merged = pruneStaleAssessmentAttemptsOnReassignment(
+          mergeEnrollmentStudentRecord(existing, patchedStudent),
+          existing?.assignedOfferingIds ?? [],
+        );
         transaction.set(ref, this.sanitizeForFirestore(merged));
         return merged;
       })));

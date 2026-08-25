@@ -8,6 +8,7 @@ import { PowerPointWindowComponent } from './powerpoint-window.component';
 import { StudentAssessmentAttempt, StudentCourse, StudentDataService } from './student-data.service';
 import { resolvePowerPointUploadType } from './powerpoint-preview';
 import { AssignmentSubmissionRecord, TrainingAssessmentType, TrainingContentItem, TrainingContentKind, TrainingManagerDataService, TrainingOffering, TrainingQuestionType } from './training-manager-data.service';
+import { readLmsSessionRecord } from './session-auth';
 
 type WorkspaceDocument = {
   title: string;
@@ -2545,9 +2546,32 @@ export class StudentCoursesComponent {
 
     return this.assessmentAttemptKey(selectedCourse, selectedStepId);
   });
-  readonly currentStudentRecord = computed(() =>
-    this.managerData.students().find((student) => student.email === this.studentData.profile().email || `${student.name} ${student.surname}` === this.studentData.profile().name) ?? null,
-  );
+  // Resolves by normalized (trimmed, case-insensitive) live email match against the roster
+  // first, falling back to the session's studentId claim only when no email match is found —
+  // same reasoning and order as matchedKpiStudentId in student-profile.component.ts. This used
+  // to be a case-sensitive, untrimmed email match OR'd with an exact full-name string match,
+  // which could (a) fail to resolve at all for a real student whose roster email merely differs
+  // in case/whitespace from their own profile email, silently blocking every quiz/assignment/
+  // mentorship submission for them, or (b) mismatch to a *different* student who happens to
+  // share an exact full name, attributing their quiz/submission results to the wrong person.
+  readonly currentStudentRecord = computed(() => {
+    const students = this.managerData.students();
+    const studentEmail = this.studentData.profile().email.trim().toLocaleLowerCase();
+    const matchedStudent = studentEmail
+      ? students.find((student) => student.email.trim().toLocaleLowerCase() === studentEmail)
+      : undefined;
+
+    if (matchedStudent) {
+      return matchedStudent;
+    }
+
+    const sessionStudentId = readLmsSessionRecord()?.studentId?.trim();
+    if (!sessionStudentId) {
+      return null;
+    }
+
+    return students.find((student) => student.id === sessionStudentId) ?? null;
+  });
   readonly selectedManagerOffering = computed(() => {
     const selectedCourse = this.selectedCourse();
     if (!selectedCourse) {

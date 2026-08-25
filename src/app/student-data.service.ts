@@ -485,7 +485,14 @@ export class StudentDataService {
           this.syncPublishedOfferingsToLearnerCourses(assignedPublishedOfferings);
           // Prune notifications for offerings the student is no longer assigned to (or that are unpublished).
           this.pruneRemovedOfferingNotifications(assignedPublishedIds);
-          this.pruneRemovedOfferingAssessmentAttempts(publishedOfferings);
+          // Scoped to this student's own current assignments, matching pruneRemovedOfferingNotifications
+          // right above — previously used the unfiltered publishedOfferings (every published offering
+          // company-wide), so an attempt was only ever pruned if its offering was fully unpublished,
+          // never merely unassigned from this student. A student unassigned from a still-published
+          // offering kept their old assessmentAttempts for it indefinitely, so re-assigning them to the
+          // same offering later showed it as already passed/attempts-exhausted before they'd done
+          // anything in the new enrollment.
+          this.pruneRemovedOfferingAssessmentAttempts(assignedPublishedOfferings);
           this.addNotificationsForNewOfferings(assignedPublishedOfferings, knownNotifiedIds);
 
           // Track only assigned offering IDs so future assignments generate fresh notifications.
