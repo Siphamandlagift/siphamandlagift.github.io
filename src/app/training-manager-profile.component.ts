@@ -19,6 +19,7 @@ import {
   MentorshipSubmissionRecord,
   StudentKpiEntry,
   StudentKpiScore,
+  SuccessionCompetencyGap,
   SuccessionNominationStatus,
   SuccessionReadinessRating,
   SuccessionRoleRecord,
@@ -2657,7 +2658,7 @@ type KpiEntryFormGroup = FormGroup<{
           }
 
           @if (selectedPanel() === 'succession') {
-            <section class="manager-panel">
+            <section class="manager-panel succession-hq">
               <div class="section-heading-block">
                 <p class="eyebrow">Succession Planning</p>
                 <h1>Flag critical roles on your team</h1>
@@ -2672,24 +2673,33 @@ type KpiEntryFormGroup = FormGroup<{
                   <div class="idp-member-grid">
                     @for (member of myTeam(); track member.id) {
                       @if (successionRoleForIncumbent(member.id); as role) {
-                        <button type="button" class="idp-member-card" (click)="selectSuccessionRole(role.id)">
+                        <button type="button" class="idp-member-card succession-role-card" (click)="selectSuccessionRole(role.id)">
+                          <div class="succession-avatar succession-avatar-critical" aria-hidden="true">{{ member.name[0] }}{{ member.surname[0] }}</div>
                           <div class="idp-member-info">
                             <strong class="idp-member-name">{{ member.name }} {{ member.surname }}</strong>
                             <span class="idp-member-meta">{{ member.jobTitle || member.department }}</span>
                           </div>
                           <div class="idp-member-status">
-                            <span class="succession-critical-chip">Critical role</span>
-                            <span class="idp-program-count">{{ nominationsForRole(role.id).length }} {{ nominationsForRole(role.id).length === 1 ? 'nomination' : 'nominations' }}</span>
+                            <span class="succession-critical-chip">
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2Z" fill="currentColor"/></svg>
+                              Critical role
+                            </span>
+                            <span class="succession-count-chip">
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M17 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M10 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8 10v-2a4 4 0 0 0-3-3.87M15 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                              {{ nominationsForRole(role.id).length }} {{ nominationsForRole(role.id).length === 1 ? 'nomination' : 'nominations' }}
+                            </span>
                             <span class="idp-member-chevron" aria-hidden="true">›</span>
                           </div>
                         </button>
                       } @else {
                         <div class="idp-member-card succession-team-card">
+                          <div class="succession-avatar" aria-hidden="true">{{ member.name[0] }}{{ member.surname[0] }}</div>
                           <div class="idp-member-info">
                             <strong class="idp-member-name">{{ member.name }} {{ member.surname }}</strong>
                             <span class="idp-member-meta">{{ member.jobTitle || member.department }}</span>
                           </div>
-                          <button type="button" class="idp-program-add" [disabled]="flaggingRoleForStudentId() === member.id" (click)="flagCriticalRole(member.id)">
+                          <button type="button" class="succession-flag-btn" [disabled]="flaggingRoleForStudentId() === member.id" (click)="flagCriticalRole(member.id)">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 21V4a1 1 0 0 1 1-1h11.2a1 1 0 0 1 .8 1.6l-3 4 3 4a1 1 0 0 1-.8 1.6H6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                             {{ flaggingRoleForStudentId() === member.id ? 'Flagging…' : 'Flag as critical role' }}
                           </button>
                         </div>
@@ -2705,6 +2715,7 @@ type KpiEntryFormGroup = FormGroup<{
                 <div class="idp-detail-header">
                   <button type="button" class="idp-back-btn" (click)="clearSuccessionRole()">← Back to team</button>
                   <div class="idp-detail-identity">
+                    <div class="succession-avatar succession-avatar-lg succession-avatar-critical" aria-hidden="true">{{ successorInitials(role.incumbentStudentId) }}</div>
                     <div>
                       <h2 class="idp-detail-name">{{ role.title }}</h2>
                       <span class="idp-detail-meta">{{ role.department }} · {{ successorName(role.incumbentStudentId) }}</span>
@@ -2715,20 +2726,27 @@ type KpiEntryFormGroup = FormGroup<{
                 <div class="activity-card mentorship-review-card">
                   <div class="idp-program-actions succession-unflag-row">
                     <button type="button" class="idp-back-btn succession-danger-btn" [disabled]="unflaggingRole()" (click)="unflagRole(role.id)">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                       {{ unflaggingRole() ? 'Removing…' : 'This is no longer a critical role' }}
                     </button>
                   </div>
 
                   @if (!nominatingSuccessor()) {
-                    <button type="button" class="idp-program-add" (click)="openNominateForm()">Nominate Successor</button>
+                    <button type="button" class="succession-nominate-btn" (click)="openNominateForm()">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M8.5 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM19 8v6M22 11h-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      Nominate Successor
+                    </button>
                   } @else {
-                    <div class="idp-program-card">
+                    <div class="idp-program-card succession-glow-card">
                       <div class="idp-program-card-header">
                         <span class="idp-program-card-title">Nominate a successor</span>
                       </div>
                       <div class="idp-program-card-body succession-nominate-form">
                         <label class="succession-form-field">
-                          <span>Employee (from your team)</span>
+                          <span class="succession-field-label">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M17 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M10 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Employee (from your team)
+                          </span>
                           <select [value]="successionFormStudentId()" (change)="successionFormStudentId.set($any($event.target).value)">
                             <option value="">Select an employee…</option>
                             @for (student of teamCandidatesForRole(role); track student.id) {
@@ -2737,15 +2755,24 @@ type KpiEntryFormGroup = FormGroup<{
                           </select>
                         </label>
                         <label class="succession-form-field">
-                          <span>Readiness</span>
+                          <span class="succession-field-label">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 22c5.5-4 8-7.7 8-12A8 8 0 1 0 4 10c0 4.3 2.5 8 8 12Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Readiness
+                          </span>
                           <select [value]="successionFormReadiness()" (change)="successionFormReadiness.set($any($event.target).value)">
                             <option value="Ready Now">Ready Now</option>
                             <option value="Ready in 1-2 Years">Ready in 1-2 Years</option>
                             <option value="Ready in 3+ Years">Ready in 3+ Years</option>
                           </select>
+                          <div class="succession-progress-track" role="progressbar" [attr.aria-valuenow]="readinessPercent(successionFormReadiness())" aria-valuemin="0" aria-valuemax="100">
+                            <div class="succession-progress-fill" [class.succession-progress-hot]="readinessPercent(successionFormReadiness()) === 100" [style.width.%]="readinessPercent(successionFormReadiness())"></div>
+                          </div>
                         </label>
                         <label class="succession-form-field">
-                          <span>Rationale (optional)</span>
+                          <span class="succession-field-label">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5v-13Z" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                            Rationale (optional)
+                          </span>
                           <textarea rows="3" [value]="successionFormRationale()" (input)="successionFormRationale.set($any($event.target).value)"></textarea>
                         </label>
                         @if (successionFormError()) {
@@ -2763,12 +2790,27 @@ type KpiEntryFormGroup = FormGroup<{
                     <div class="idp-program-card succession-nomination-card">
                       <div class="idp-program-card-header">
                         <div class="idp-program-card-title-shell">
+                          <div class="succession-avatar succession-avatar-sm" aria-hidden="true">{{ successorInitials(nomination.successorStudentId) }}</div>
                           <span class="idp-program-card-title">{{ successorName(nomination.successorStudentId) }}</span>
-                          <span class="idp-status-badge"
-                            [class.idp-status-in-progress]="nomination.status === 'Draft'"
-                            [class.idp-status-completed]="nomination.status === 'Active'">{{ nomination.status }}</span>
+                          <span class="succession-status-badge" [class]="'succession-status-' + nomination.status.toLowerCase()">
+                            @if (nomination.status === 'Draft') {
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/></svg>
+                            } @else if (nomination.status === 'Active') {
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            } @else {
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+                            }
+                            {{ nomination.status }}
+                          </span>
                         </div>
-                        <span class="succession-readiness-chip">{{ nomination.readinessRating }}</span>
+                      </div>
+
+                      <div class="succession-readiness-row">
+                        <span class="succession-field-label succession-readiness-label">{{ nomination.readinessRating }}</span>
+                        <div class="succession-progress-track" role="progressbar" [attr.aria-valuenow]="readinessPercent(nomination.readinessRating)" aria-valuemin="0" aria-valuemax="100">
+                          <div class="succession-progress-fill" [class.succession-progress-hot]="readinessPercent(nomination.readinessRating) === 100" [style.width.%]="readinessPercent(nomination.readinessRating)"></div>
+                        </div>
+                        <span class="succession-progress-percent">{{ readinessPercent(nomination.readinessRating) }}%</span>
                       </div>
 
                       @if (nomination.readinessRationale) {
@@ -2777,12 +2819,16 @@ type KpiEntryFormGroup = FormGroup<{
 
                       <div class="idp-program-actions">
                         @if (nomination.status === 'Draft') {
-                          <button type="button" class="idp-program-add" (click)="setNominationStatus(nomination, 'Active')">Activate</button>
-                          <button type="button" class="idp-back-btn" (click)="setNominationStatus(nomination, 'Withdrawn')">Withdraw</button>
+                          <button type="button" class="succession-nominate-btn succession-nominate-btn-sm" (click)="setNominationStatus(nomination, 'Active')">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Activate
+                          </button>
+                          <button type="button" class="idp-back-btn succession-danger-btn" (click)="setNominationStatus(nomination, 'Withdrawn')">Withdraw</button>
                         } @else if (nomination.status === 'Active') {
-                          <button type="button" class="idp-back-btn" (click)="setNominationStatus(nomination, 'Withdrawn')">Withdraw</button>
+                          <button type="button" class="idp-back-btn succession-danger-btn" (click)="setNominationStatus(nomination, 'Withdrawn')">Withdraw</button>
                         }
                         <button type="button" class="idp-back-btn" (click)="toggleNominationDetail(nomination.id)">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                           {{ selectedNominationId() === nomination.id ? 'Hide development plan' : 'Development plan' }}
                         </button>
                       </div>
@@ -2791,11 +2837,31 @@ type KpiEntryFormGroup = FormGroup<{
                         <div class="succession-gap-editor">
                           @for (gap of nomination.competencyGaps; track gap.id) {
                             <div class="succession-gap-card">
-                              <div class="succession-gap-title">{{ gap.competency }}</div>
+                              <div class="succession-gap-header">
+                                <div class="succession-gap-title">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2Z" fill="currentColor"/></svg>
+                                  {{ gap.competency }}
+                                </div>
+                                <span class="succession-progress-percent">{{ gapCompletionPercent(gap) }}%</span>
+                              </div>
+                              <div class="succession-progress-track succession-progress-track-thin">
+                                <div class="succession-progress-fill" [class.succession-progress-hot]="gapCompletionPercent(gap) === 100" [style.width.%]="gapCompletionPercent(gap)"></div>
+                              </div>
                               <ul class="succession-action-list">
                                 @for (action of gap.developmentActions; track action.id) {
                                   <li class="succession-action-item">
-                                    <span class="succession-action-status" [class.succession-action-done]="action.status === 'Completed'">{{ action.status }}</span>
+                                    <span class="succession-action-status" [class]="'succession-action-status-' + actionStatusSlug(action.status)">
+                                      @if (action.status === 'Completed') {
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                      } @else if (action.status === 'In Progress') {
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.4"/></svg>
+                                      } @else if (action.status === 'On Hold') {
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 5v14M15 5v14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+                                      } @else {
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.4"/></svg>
+                                      }
+                                      {{ action.status }}
+                                    </span>
                                     <span class="succession-action-description">{{ action.description }}</span>
                                   </li>
                                 }
@@ -6355,14 +6421,122 @@ type KpiEntryFormGroup = FormGroup<{
       }
       .idp-cancel-btn:hover { background: #e2e8f0; }
 
-      .succession-nominate-form { display: grid; gap: 0.85rem; }
+      /* ===== Succession Planning — high-tech treatment ===== */
+      .succession-hq {
+        --succ-primary: #4f46e5;
+        --succ-cyan: #06b6d4;
+        --succ-critical: #dc2626;
+      }
+
+      .succession-avatar {
+        flex-shrink: 0;
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.85rem;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+        color: #fff;
+        background: linear-gradient(135deg, var(--succ-primary), var(--succ-cyan));
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.28);
+      }
+      .succession-avatar-critical { background: linear-gradient(135deg, #f97316, var(--succ-critical)); box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3); }
+      .succession-avatar-lg { width: 3.1rem; height: 3.1rem; font-size: 1rem; }
+      .succession-avatar-sm { width: 1.9rem; height: 1.9rem; font-size: 0.68rem; }
+
+      .succession-role-card {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(79, 70, 229, 0.18);
+        background: linear-gradient(180deg, rgba(79, 70, 229, 0.05), rgba(255, 255, 255, 0));
+      }
+      .succession-role-card::before {
+        content: '';
+        position: absolute;
+        inset: 0 0 auto 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--succ-critical), #f97316, var(--succ-primary), var(--succ-cyan));
+        background-size: 300% 100%;
+        animation: successionScanline 5s linear infinite;
+      }
+      @keyframes successionScanline {
+        0% { background-position: 0% 0; }
+        100% { background-position: 300% 0; }
+      }
+
+      .succession-team-card {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+      .succession-team-card .idp-member-info { flex: 1; }
+
+      .succession-critical-chip,
+      .succession-count-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .succession-critical-chip {
+        background: rgba(220, 38, 38, 0.12);
+        color: #b91c1c;
+        box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.18) inset;
+        animation: successionPulse 2.4s ease-in-out infinite;
+      }
+      @keyframes successionPulse {
+        0%, 100% { box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.18) inset, 0 0 0 0 rgba(220, 38, 38, 0.28); }
+        50% { box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.18) inset, 0 0 0 5px rgba(220, 38, 38, 0); }
+      }
+      .succession-count-chip { background: #eef2ff; color: #4338ca; }
+
+      .succession-flag-btn,
+      .succession-nominate-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        white-space: nowrap;
+        border: none;
+        border-radius: 999px;
+        padding: 0.6rem 1rem;
+        font: inherit;
+        font-size: 0.84rem;
+        font-weight: 700;
+        color: #fff;
+        cursor: pointer;
+        background: linear-gradient(135deg, var(--succ-primary), var(--succ-cyan));
+        box-shadow: 0 6px 16px rgba(79, 70, 229, 0.28);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+      .succession-flag-btn:hover:not(:disabled),
+      .succession-nominate-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 22px rgba(79, 70, 229, 0.34);
+      }
+      .succession-flag-btn:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
+      .succession-nominate-btn-sm { padding: 0.42rem 0.75rem; font-size: 0.78rem; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.24); }
+
+      .succession-glow-card {
+        border: 1px solid rgba(79, 70, 229, 0.22);
+        box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.06) inset, 0 12px 28px rgba(79, 70, 229, 0.1);
+      }
+
+      .succession-nominate-form { display: grid; gap: 1rem; }
       .succession-form-field {
         display: grid;
-        gap: 0.35rem;
+        gap: 0.4rem;
         font-size: 0.85rem;
         font-weight: 600;
         color: #334155;
       }
+      .succession-field-label { display: inline-flex; align-items: center; gap: 0.4rem; color: #4338ca; }
       .succession-form-field select,
       .succession-form-field textarea,
       .succession-form-field input {
@@ -6373,17 +6547,62 @@ type KpiEntryFormGroup = FormGroup<{
         font-weight: 400;
         color: #14213d;
         background: #fff;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
       }
-      .succession-readiness-chip {
-        padding: 0.3rem 0.7rem;
+      .succession-form-field select:focus,
+      .succession-form-field textarea:focus,
+      .succession-form-field input:focus {
+        outline: none;
+        border-color: var(--succ-primary, #4f46e5);
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.14);
+      }
+
+      .succession-progress-track {
+        position: relative;
+        width: 100%;
+        height: 0.5rem;
         border-radius: 999px;
-        background: rgba(99, 102, 241, 0.12);
-        color: #4f46e5;
-        font-size: 0.78rem;
-        font-weight: 700;
-        white-space: nowrap;
+        background: #e7ebf5;
+        overflow: hidden;
       }
-      .succession-nomination-card { display: grid; gap: 0.6rem; }
+      .succession-progress-track-thin { height: 0.35rem; }
+      .succession-progress-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #f97316, #facc15);
+        box-shadow: 0 0 8px rgba(249, 115, 22, 0.5);
+        transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .succession-progress-fill.succession-progress-hot {
+        background: linear-gradient(90deg, #22c55e, #06b6d4);
+        box-shadow: 0 0 8px rgba(34, 197, 94, 0.55);
+      }
+      .succession-progress-percent { font-size: 0.76rem; font-weight: 800; color: #4338ca; white-space: nowrap; }
+
+      .succession-readiness-row {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 0.6rem;
+      }
+      .succession-readiness-label { color: #334155; font-size: 0.82rem; }
+
+      .succession-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.2rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        background: #f1f5f9;
+        color: #475569;
+      }
+      .succession-status-draft { background: #eff6ff; color: #1d4ed8; }
+      .succession-status-active { background: rgba(34, 197, 94, 0.14); color: #15803d; }
+      .succession-status-withdrawn { background: rgba(148, 163, 184, 0.22); color: #475569; }
+
+      .succession-nomination-card { display: grid; gap: 0.65rem; }
       .succession-gap-editor {
         display: grid;
         gap: 0.75rem;
@@ -6397,11 +6616,17 @@ type KpiEntryFormGroup = FormGroup<{
         padding: 0.85rem;
         border-radius: 12px;
         background: #f8fafc;
+        border: 1px solid rgba(79, 70, 229, 0.1);
       }
-      .succession-gap-title { font-weight: 700; color: #14213d; font-size: 0.9rem; }
+      .succession-gap-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+      .succession-gap-title { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 700; color: #14213d; font-size: 0.9rem; }
+      .succession-gap-title svg { color: #f59e0b; }
       .succession-action-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.4rem; }
       .succession-action-item { display: flex; align-items: baseline; gap: 0.5rem; font-size: 0.85rem; color: #475569; }
       .succession-action-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
         flex-shrink: 0;
         padding: 0.12rem 0.5rem;
         border-radius: 999px;
@@ -6411,26 +6636,14 @@ type KpiEntryFormGroup = FormGroup<{
         font-weight: 700;
         white-space: nowrap;
       }
-      .succession-action-status.succession-action-done { background: rgba(34, 197, 94, 0.16); color: #15803d; }
+      .succession-action-status-completed { background: rgba(34, 197, 94, 0.16); color: #15803d; }
+      .succession-action-status-in-progress { background: #eff6ff; color: #1d4ed8; }
+      .succession-action-status-on-hold { background: #fff7ed; color: #c2410c; }
       .succession-action-add-row { display: flex; gap: 0.5rem; align-items: center; }
       .succession-action-add-row input { flex: 1; }
-      .succession-critical-chip {
-        padding: 0.2rem 0.6rem;
-        border-radius: 999px;
-        background: rgba(220, 38, 38, 0.12);
-        color: #b91c1c;
-        font-size: 0.72rem;
-        font-weight: 700;
-        white-space: nowrap;
-      }
-      .succession-team-card {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-      }
+
       .succession-unflag-row { justify-content: flex-end; margin-bottom: 0.5rem; }
-      .succession-danger-btn { color: #b91c1c; }
+      .succession-danger-btn { display: inline-flex; align-items: center; gap: 0.35rem; color: #b91c1c; }
 
       .idp-detail-header { margin-bottom: 1.25rem; }
       .idp-back-btn {
@@ -9801,6 +10014,34 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   successorName(studentId: string) {
     const student = this.managerData.students().find((entry) => entry.id === studentId);
     return student ? `${student.name} ${student.surname}` : 'Former team member';
+  }
+
+  successorInitials(studentId: string) {
+    const student = this.managerData.students().find((entry) => entry.id === studentId);
+    return student ? `${student.name[0] ?? ''}${student.surname[0] ?? ''}` : '?';
+  }
+
+  private static readonly readinessPercentByRating: Record<SuccessionReadinessRating, number> = {
+    'Ready Now': 100,
+    'Ready in 1-2 Years': 60,
+    'Ready in 3+ Years': 30,
+  };
+
+  readinessPercent(rating: SuccessionReadinessRating) {
+    return TrainingManagerProfileComponent.readinessPercentByRating[rating];
+  }
+
+  gapCompletionPercent(gap: SuccessionCompetencyGap) {
+    if (!gap.developmentActions.length) {
+      return 0;
+    }
+
+    const completed = gap.developmentActions.filter((action) => action.status === 'Completed').length;
+    return Math.round((completed / gap.developmentActions.length) * 100);
+  }
+
+  actionStatusSlug(status: string) {
+    return status.toLowerCase().replace(/\s+/g, '-');
   }
 
   flagCriticalRole(incumbentStudentId: string) {
