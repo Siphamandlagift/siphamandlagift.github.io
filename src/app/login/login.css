@@ -188,6 +188,11 @@
 	border: 1px solid #e6edf5;
 }
 
+.login-dialog-message {
+	justify-items: center;
+	text-align: center;
+}
+
 .login-dialog-message strong,
 .login-contact-card strong {
 	font-size: 0.92rem;
@@ -487,7 +492,7 @@
 
 .login-dialog-inline-error {
 	margin-top: 0;
-	text-align: left;
+	text-align: center;
 }
 
 /* ===== ROLE PICKER STEP ===== */
