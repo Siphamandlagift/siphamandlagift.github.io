@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { getApp, getApps, initializeApp } from 'firebase-admin/app';
-import { FieldPath, FieldValue, getFirestore, type DocumentSnapshot, type Firestore, type WriteBatch } from 'firebase-admin/firestore';
+import { FieldPath, FieldValue, getFirestore, type DocumentReference, type DocumentSnapshot, type Firestore, type WriteBatch } from 'firebase-admin/firestore';
 import { createDefaultData, createDefaultStudentTemplate } from './default-data.js';
 import {
   createPasswordCredentials,
@@ -43,6 +43,13 @@ import {
   StudentNotificationRecord,
   StudentSnapshotUpdate,
   StudentRecord,
+  StudentSuccessionStatus,
+  SuccessionNominationStatus,
+  SuccessionRoleInput,
+  SuccessionRoleRecord,
+  SuccessorNominationCreateInput,
+  SuccessorNominationRecord,
+  SuccessorNominationUpdateInput,
   SystemTrainingManagerRecord,
   TrainingAssessmentQuestion,
   TrainingContentItem,
@@ -78,6 +85,8 @@ const firestoreCollectionNames = [
   'externalTrainingRequests',
   'authAccounts',
   'passwordResetTokens',
+  'successionRoles',
+  'successorNominations',
 ] as const satisfies readonly FirestoreCollectionName[];
 
 type FirestoreCollectionName = Exclude<keyof LmsDataStore, 'branding' | 'updatedAt' | 'currentKpiYear' | 'kpiYearsOpened' | 'hrIntegration'>;
@@ -197,6 +206,39 @@ function createOfferingNotification(offering: TrainingOffering): StudentNotifica
     body: `${offering.title} has been loaded to your learner profile and is ready to open.`,
     dateLabel: 'Just now',
     unread: true,
+  };
+}
+
+function createSuccessionNotification(role: SuccessionRoleRecord): StudentNotificationRecord {
+  return {
+    id: `succession-${role.id}`,
+    badge: 'Succession',
+    title: "You've been earmarked for a role",
+    body: `You've been identified as a potential successor for ${role.title}. View your succession status on your profile.`,
+    dateLabel: 'Just now',
+    unread: true,
+  };
+}
+
+// Only ever returns an Active nomination — Draft/Withdrawn must never reach the learner — and
+// deliberately omits nominatedByManagerId / the role's incumbent, per the access rules.
+function computeSuccessionStatus(data: LmsDataStore, studentId: string): StudentSuccessionStatus | null {
+  const nomination = data.successorNominations.find(
+    (entry) => entry.successorStudentId === studentId && entry.status === 'Active',
+  );
+  if (!nomination) {
+    return null;
+  }
+
+  const role = data.successionRoles.find((entry) => entry.id === nomination.roleId);
+  if (!role) {
+    return null;
+  }
+
+  return {
+    roleTitle: role.title,
+    readinessRating: nomination.readinessRating,
+    competencyGaps: nomination.competencyGaps,
   };
 }
 
@@ -829,6 +871,8 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
     externalTrainingRequests: data.externalTrainingRequests ?? defaults.externalTrainingRequests,
     authAccounts: data.authAccounts ?? defaults.authAccounts,
     passwordResetTokens: (data.passwordResetTokens ?? defaults.passwordResetTokens).filter((token) => !token.consumedAt || new Date(token.consumedAt).getTime() > 0),
+    successionRoles: data.successionRoles ?? defaults.successionRoles,
+    successorNominations: data.successorNominations ?? defaults.successorNominations,
     updatedAt: data.updatedAt || new Date().toISOString(),
     currentKpiYear,
     kpiYearsOpened,
@@ -841,6 +885,12 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
 
 export class LmsRepository {
   private writeQueue = Promise.resolve();
+
+  protected static readonly successionStatusTransitions: Record<SuccessionNominationStatus, SuccessionNominationStatus[]> = {
+    Draft: ['Active', 'Withdrawn'],
+    Active: ['Withdrawn'],
+    Withdrawn: [],
+  };
 
   private serializeData(data: LmsDataStore) {
     return JSON.stringify(data, null, 2);
@@ -971,6 +1021,26 @@ export class LmsRepository {
 
     const isPrivileged = caller?.role === 'administrator' || caller?.role === 'training-manager';
     if (isPrivileged) {
+      // Unlike every other field in this branch, succession data is sensitive and NOT shared
+      // equally between admin and manager — an admin (L&D) sees every role/nomination for
+      // reporting, but a manager must only see roles they own and nominations against those
+      // roles, never another manager's. resolveApprovingManagers covers both a plain
+      // trainingManagers roster entry and a role==='manager' student account, the same set the
+      // admin's owning-manager picker is drawn from.
+      const isAdministrator = caller?.role === 'administrator';
+      const ownManagerId = !isAdministrator && caller
+        ? resolveApprovingManagers(data).find(
+          (manager) => manager.email.trim().toLowerCase() === caller.email.trim().toLowerCase(),
+        )?.id ?? null
+        : null;
+      const successionRoles = isAdministrator
+        ? data.successionRoles
+        : data.successionRoles.filter((role) => role.ownerManagerId === ownManagerId);
+      const successionRoleIds = new Set(successionRoles.map((role) => role.id));
+      const successorNominations = isAdministrator
+        ? data.successorNominations
+        : data.successorNominations.filter((nomination) => successionRoleIds.has(nomination.roleId));
+
       return {
         offerings: data.offerings,
         branding: data.branding,
@@ -986,6 +1056,8 @@ export class LmsRepository {
         mentorshipSubmissions: data.mentorshipSubmissions,
         quizSubmissions: data.quizSubmissions,
         externalTrainingRequests: data.externalTrainingRequests,
+        successionRoles,
+        successorNominations,
       };
     }
 
@@ -1023,6 +1095,11 @@ export class LmsRepository {
       externalTrainingRequests: data.externalTrainingRequests.filter(
         (request) => request.studentId === ownStudentId || request.studentEmail.trim().toLowerCase() === ownEmail,
       ),
+      // A student's own earmarking comes only through successionStatus on their snapshot — the
+      // raw collections are never handed to a student session, even filtered to their own id,
+      // since that would still leak the role's owner manager / incumbent fields.
+      successionRoles: [],
+      successorNominations: [],
     };
   }
 
@@ -1123,6 +1200,7 @@ export class LmsRepository {
           notifiedOfferingIds: student.notifiedOfferingIds,
           assessmentAttempts: student.assessmentAttempts ?? {},
           idpEntries: student.idpEntries ?? [],
+          successionStatus: computeSuccessionStatus(data, studentId),
         }
       : null;
   }
@@ -1205,6 +1283,7 @@ export class LmsRepository {
           notifiedOfferingIds: student.notifiedOfferingIds,
           assessmentAttempts: student.assessmentAttempts ?? {},
           idpEntries: student.idpEntries ?? [],
+          successionStatus: computeSuccessionStatus(next, studentId),
         }
       : null;
   }
@@ -2535,7 +2614,193 @@ export class LmsRepository {
     return { record, account };
   }
 
-  private formatDisplayDate(date: Date) {
+  async listSuccessionRoles() {
+    const data = await this.read();
+    return data.successionRoles;
+  }
+
+  async getSuccessionRole(roleId: string) {
+    const data = await this.read();
+    return data.successionRoles.find((role) => role.id === roleId) ?? null;
+  }
+
+  // Same pool as resolveApprovingManagers (a trainingManagers roster entry, or an active
+  // role==='manager' student account) — used by isOwnManagedRole in server.ts to resolve which
+  // manager identity the caller actually is.
+  async resolveManagerIdentity(email: string) {
+    const data = await this.read();
+    const normalizedEmail = email.trim().toLowerCase();
+    return resolveApprovingManagers(data).find(
+      (manager) => manager.email.trim().toLowerCase() === normalizedEmail,
+    ) ?? null;
+  }
+
+  async createSuccessionRole(input: SuccessionRoleInput) {
+    const data = await this.read();
+    const title = input.title.trim();
+    const department = input.department.trim();
+    const ownerManagerId = input.ownerManagerId.trim();
+
+    if (!title || !department || !ownerManagerId) {
+      return null;
+    }
+
+    const role: SuccessionRoleRecord = {
+      id: `succession-role-${Date.now()}`,
+      title,
+      department,
+      isBusinessCritical: input.isBusinessCritical === true,
+      ownerManagerId,
+      incumbentStudentId: input.incumbentStudentId?.trim() || undefined,
+      createdOn: this.formatDisplayDate(new Date()),
+    };
+
+    data.successionRoles.push(role);
+    await this.write(data);
+    return role;
+  }
+
+  async updateSuccessionRole(roleId: string, input: SuccessionRoleInput) {
+    const data = await this.read();
+    const index = data.successionRoles.findIndex((role) => role.id === roleId);
+    if (index === -1) {
+      return null;
+    }
+
+    const title = input.title.trim();
+    const department = input.department.trim();
+    const ownerManagerId = input.ownerManagerId.trim();
+    if (!title || !department || !ownerManagerId) {
+      return null;
+    }
+
+    data.successionRoles[index] = {
+      ...data.successionRoles[index],
+      title,
+      department,
+      isBusinessCritical: input.isBusinessCritical === true,
+      ownerManagerId,
+      incumbentStudentId: input.incumbentStudentId?.trim() || undefined,
+    };
+
+    const next = await this.write(data);
+    return next.successionRoles.find((role) => role.id === roleId) ?? null;
+  }
+
+  async deleteSuccessionRole(roleId: string) {
+    const data = await this.read();
+    if (!data.successionRoles.some((role) => role.id === roleId)) {
+      return false;
+    }
+
+    data.successionRoles = data.successionRoles.filter((role) => role.id !== roleId);
+    // Withdraw (rather than silently orphan) any nominations still pointed at the deleted role —
+    // keeps SuccessorNominationRecord.roleId always resolvable and preserves audit history
+    // instead of leaving a dangling reference behind.
+    const now = this.formatDisplayDate(new Date());
+    data.successorNominations = data.successorNominations.map((nomination) => (
+      nomination.roleId === roleId && nomination.status !== 'Withdrawn'
+        ? { ...nomination, status: 'Withdrawn' as const, withdrawnOn: now, updatedOn: now }
+        : nomination
+    ));
+
+    await this.write(data);
+    return true;
+  }
+
+  async listSuccessorNominations() {
+    const data = await this.read();
+    return data.successorNominations;
+  }
+
+  async createSuccessorNomination(input: SuccessorNominationCreateInput, nominatedByManagerId: string) {
+    const data = await this.read();
+    const roleId = input.roleId.trim();
+    const successorStudentId = input.successorStudentId.trim();
+    const role = data.successionRoles.find((entry) => entry.id === roleId);
+    const successor = data.students.find((entry) => entry.id === successorStudentId);
+
+    if (!role || !successor) {
+      return null;
+    }
+
+    const now = this.formatDisplayDate(new Date());
+    const nomination: SuccessorNominationRecord = {
+      id: `succession-nomination-${Date.now()}`,
+      roleId,
+      successorStudentId,
+      nominatedByManagerId,
+      readinessRating: input.readinessRating,
+      readinessRationale: input.readinessRationale?.trim() || undefined,
+      competencyGaps: [],
+      status: 'Draft',
+      createdOn: now,
+      updatedOn: now,
+    };
+
+    data.successorNominations.push(nomination);
+    await this.write(data);
+    return nomination;
+  }
+
+  async updateSuccessorNomination(nominationId: string, input: SuccessorNominationUpdateInput) {
+    const data = await this.read();
+    const index = data.successorNominations.findIndex((entry) => entry.id === nominationId);
+    if (index === -1) {
+      return null;
+    }
+
+    data.successorNominations[index] = {
+      ...data.successorNominations[index],
+      readinessRating: input.readinessRating,
+      readinessRationale: input.readinessRationale?.trim() || undefined,
+      competencyGaps: input.competencyGaps,
+      updatedOn: this.formatDisplayDate(new Date()),
+    };
+
+    const next = await this.write(data);
+    return next.successorNominations.find((entry) => entry.id === nominationId) ?? null;
+  }
+
+  // Withdrawing a nomination never deletes it — kept for audit history, same convention as every
+  // other status-only transition in this codebase (e.g. reviewExternalTrainingRequest).
+  async setSuccessorNominationStatus(nominationId: string, status: SuccessionNominationStatus) {
+    const data = await this.read();
+    const index = data.successorNominations.findIndex((entry) => entry.id === nominationId);
+    if (index === -1) {
+      return null;
+    }
+
+    const current = data.successorNominations[index];
+    if (!LmsRepository.successionStatusTransitions[current.status].includes(status)) {
+      return null;
+    }
+
+    const now = this.formatDisplayDate(new Date());
+    data.successorNominations[index] = {
+      ...current,
+      status,
+      updatedOn: now,
+      activatedOn: status === 'Active' ? now : current.activatedOn,
+      withdrawnOn: status === 'Withdrawn' ? now : current.withdrawnOn,
+    };
+
+    if (status === 'Active') {
+      const role = data.successionRoles.find((entry) => entry.id === current.roleId);
+      const studentIndex = data.students.findIndex((entry) => entry.id === current.successorStudentId);
+      if (role && studentIndex !== -1) {
+        data.students[studentIndex] = {
+          ...data.students[studentIndex],
+          notifications: [createSuccessionNotification(role), ...data.students[studentIndex].notifications],
+        };
+      }
+    }
+
+    const next = await this.write(data);
+    return next.successorNominations.find((entry) => entry.id === nominationId) ?? null;
+  }
+
+  protected formatDisplayDate(date: Date) {
     return new Intl.DateTimeFormat('en-ZA', {
       day: '2-digit',
       month: 'short',
@@ -2628,6 +2893,8 @@ class FirestoreLmsRepository extends LmsRepository {
       externalTrainingRequests,
       authAccounts,
       passwordResetTokens,
+      successionRoles,
+      successorNominations,
     ] = await Promise.all([
       this.storeDocument.get(),
       this.readCollection('offerings'),
@@ -2641,6 +2908,8 @@ class FirestoreLmsRepository extends LmsRepository {
       this.readCollection('externalTrainingRequests'),
       this.readCollection('authAccounts'),
       this.readCollection('passwordResetTokens'),
+      this.readCollection('successionRoles'),
+      this.readCollection('successorNominations'),
     ]);
 
     const hasStoredCollections = [
@@ -2655,6 +2924,8 @@ class FirestoreLmsRepository extends LmsRepository {
       externalTrainingRequests,
       authAccounts,
       passwordResetTokens,
+      successionRoles,
+      successorNominations,
     ].some((records) => records.length > 0);
 
     if (!storeSnapshot.exists && !hasStoredCollections) {
@@ -2681,6 +2952,8 @@ class FirestoreLmsRepository extends LmsRepository {
       externalTrainingRequests,
       authAccounts,
       passwordResetTokens,
+      successionRoles,
+      successorNominations,
       updatedAt: storeData?.updatedAt ?? defaults.updatedAt,
       currentKpiYear: storeData?.currentKpiYear ?? defaults.currentKpiYear,
       kpiYearsOpened: storeData?.kpiYearsOpened ?? defaults.kpiYearsOpened,
@@ -3142,6 +3415,36 @@ class FirestoreLmsRepository extends LmsRepository {
       notifiedOfferingIds: updatedStudent.notifiedOfferingIds,
       assessmentAttempts: updatedStudent.assessmentAttempts ?? {},
       idpEntries: updatedStudent.idpEntries ?? [],
+      successionStatus: await this.computeSuccessionStatusForStudent(studentId),
+    };
+  }
+
+  // Single equality filter only (successorStudentId), with the status check done in memory —
+  // deliberately avoids a second .where() clause on a different field, which would need a
+  // composite Firestore index that doesn't exist and can't be provisioned from here.
+  private async computeSuccessionStatusForStudent(studentId: string): Promise<StudentSuccessionStatus | null> {
+    const nominationsSnapshot = await this.collection('successorNominations')
+      .where('successorStudentId', '==', studentId)
+      .get();
+
+    const nomination = nominationsSnapshot.docs
+      .map((doc) => doc.data() as SuccessorNominationRecord)
+      .find((entry) => entry.status === 'Active');
+
+    if (!nomination) {
+      return null;
+    }
+
+    const roleSnapshot = await this.collection('successionRoles').doc(nomination.roleId).get();
+    if (!roleSnapshot.exists) {
+      return null;
+    }
+
+    const role = roleSnapshot.data() as SuccessionRoleRecord;
+    return {
+      roleTitle: role.title,
+      readinessRating: nomination.readinessRating,
+      competencyGaps: nomination.competencyGaps,
     };
   }
 
@@ -3246,6 +3549,190 @@ class FirestoreLmsRepository extends LmsRepository {
     await this.collection('quizSubmissions').doc(submission.id).set(this.sanitizeForFirestore(submission));
 
     return { attempt };
+  }
+
+  // Succession roles/nominations are brand-new top-level collections nothing else writes to, so
+  // — unlike patchManagerState's students collection — there's no other concurrent writer to race
+  // against. Even so, these deliberately bypass the inherited read()+write() (which re-syncs
+  // *every* collection in the whole store from one stale snapshot, repository.ts:2691) and touch
+  // only their own document(s) directly, so a succession-catalog edit can never revert a
+  // concurrent, unrelated write elsewhere (a KPI self-score save, a snapshot autosave) the way the
+  // inherited path would.
+  override async createSuccessionRole(input: SuccessionRoleInput) {
+    const title = input.title.trim();
+    const department = input.department.trim();
+    const ownerManagerId = input.ownerManagerId.trim();
+
+    if (!title || !department || !ownerManagerId) {
+      return null;
+    }
+
+    const role: SuccessionRoleRecord = {
+      id: `succession-role-${Date.now()}`,
+      title,
+      department,
+      isBusinessCritical: input.isBusinessCritical === true,
+      ownerManagerId,
+      incumbentStudentId: input.incumbentStudentId?.trim() || undefined,
+      createdOn: this.formatDisplayDate(new Date()),
+    };
+
+    await this.collection('successionRoles').doc(role.id).set(this.sanitizeForFirestore(role));
+    return role;
+  }
+
+  override async updateSuccessionRole(roleId: string, input: SuccessionRoleInput) {
+    const title = input.title.trim();
+    const department = input.department.trim();
+    const ownerManagerId = input.ownerManagerId.trim();
+    if (!title || !department || !ownerManagerId) {
+      return null;
+    }
+
+    const ref = this.collection('successionRoles').doc(roleId);
+    const snapshot = await ref.get();
+    if (!snapshot.exists) {
+      return null;
+    }
+
+    const role: SuccessionRoleRecord = {
+      ...(snapshot.data() as SuccessionRoleRecord),
+      title,
+      department,
+      isBusinessCritical: input.isBusinessCritical === true,
+      ownerManagerId,
+      incumbentStudentId: input.incumbentStudentId?.trim() || undefined,
+    };
+
+    await ref.set(this.sanitizeForFirestore(role));
+    return role;
+  }
+
+  override async deleteSuccessionRole(roleId: string) {
+    const roleRef = this.collection('successionRoles').doc(roleId);
+    const [roleSnapshot, nominationsSnapshot] = await Promise.all([
+      roleRef.get(),
+      this.collection('successorNominations').where('roleId', '==', roleId).get(),
+    ]);
+
+    if (!roleSnapshot.exists) {
+      return false;
+    }
+
+    const batch = this.firestore.batch();
+    batch.delete(roleRef);
+
+    const now = this.formatDisplayDate(new Date());
+    for (const doc of nominationsSnapshot.docs) {
+      const nomination = doc.data() as SuccessorNominationRecord;
+      if (nomination.status !== 'Withdrawn') {
+        batch.update(doc.ref, this.sanitizeForFirestore({ status: 'Withdrawn', withdrawnOn: now, updatedOn: now }));
+      }
+    }
+
+    await batch.commit();
+    return true;
+  }
+
+  override async createSuccessorNomination(input: SuccessorNominationCreateInput, nominatedByManagerId: string) {
+    const roleId = input.roleId.trim();
+    const successorStudentId = input.successorStudentId.trim();
+
+    const [roleSnapshot, studentSnapshot] = await Promise.all([
+      this.collection('successionRoles').doc(roleId).get(),
+      this.collection('students').doc(successorStudentId).get(),
+    ]);
+
+    if (!roleSnapshot.exists || !studentSnapshot.exists) {
+      return null;
+    }
+
+    const now = this.formatDisplayDate(new Date());
+    const nomination: SuccessorNominationRecord = {
+      id: `succession-nomination-${Date.now()}`,
+      roleId,
+      successorStudentId,
+      nominatedByManagerId,
+      readinessRating: input.readinessRating,
+      readinessRationale: input.readinessRationale?.trim() || undefined,
+      competencyGaps: [],
+      status: 'Draft',
+      createdOn: now,
+      updatedOn: now,
+    };
+
+    await this.collection('successorNominations').doc(nomination.id).set(this.sanitizeForFirestore(nomination));
+    return nomination;
+  }
+
+  override async updateSuccessorNomination(nominationId: string, input: SuccessorNominationUpdateInput) {
+    const ref = this.collection('successorNominations').doc(nominationId);
+    const snapshot = await ref.get();
+    if (!snapshot.exists) {
+      return null;
+    }
+
+    const nomination: SuccessorNominationRecord = {
+      ...(snapshot.data() as SuccessorNominationRecord),
+      readinessRating: input.readinessRating,
+      readinessRationale: input.readinessRationale?.trim() || undefined,
+      competencyGaps: input.competencyGaps,
+      updatedOn: this.formatDisplayDate(new Date()),
+    };
+
+    await ref.set(this.sanitizeForFirestore(nomination));
+    return nomination;
+  }
+
+  // Touches the nomination doc and (only on activation) the successor's own student doc — wrapped
+  // in a transaction since those are two different documents that need to move together, and so a
+  // concurrent status change on the very same nomination retries against fresh data rather than
+  // racing (the same reasoning as setKpiEntriesForStudent above).
+  override async setSuccessorNominationStatus(nominationId: string, status: SuccessionNominationStatus) {
+    const nominationRef = this.collection('successorNominations').doc(nominationId);
+
+    return this.firestore.runTransaction(async (transaction) => {
+      const nominationSnapshot = await transaction.get(nominationRef);
+      if (!nominationSnapshot.exists) {
+        return null;
+      }
+
+      const current = nominationSnapshot.data() as SuccessorNominationRecord;
+      if (!LmsRepository.successionStatusTransitions[current.status].includes(status)) {
+        return null;
+      }
+
+      let roleSnapshot: DocumentSnapshot | null = null;
+      let studentRef: DocumentReference | null = null;
+      let studentSnapshot: DocumentSnapshot | null = null;
+      if (status === 'Active') {
+        studentRef = this.collection('students').doc(current.successorStudentId);
+        [roleSnapshot, studentSnapshot] = await Promise.all([
+          transaction.get(this.collection('successionRoles').doc(current.roleId)),
+          transaction.get(studentRef),
+        ]);
+      }
+
+      const now = this.formatDisplayDate(new Date());
+      const nomination: SuccessorNominationRecord = {
+        ...current,
+        status,
+        updatedOn: now,
+        activatedOn: status === 'Active' ? now : current.activatedOn,
+        withdrawnOn: status === 'Withdrawn' ? now : current.withdrawnOn,
+      };
+      transaction.set(nominationRef, this.sanitizeForFirestore(nomination));
+
+      if (status === 'Active' && roleSnapshot?.exists && studentSnapshot?.exists && studentRef) {
+        const role = roleSnapshot.data() as SuccessionRoleRecord;
+        const student = studentSnapshot.data() as StudentRecord;
+        transaction.update(studentRef, this.sanitizeForFirestore({
+          notifications: [createSuccessionNotification(role), ...(student.notifications ?? [])],
+        }));
+      }
+
+      return nomination;
+    });
   }
 }
 

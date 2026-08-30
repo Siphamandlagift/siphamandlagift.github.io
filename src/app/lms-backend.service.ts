@@ -16,6 +16,11 @@ import type {
   MentorshipSubmissionRecord,
   StudentIdpEntry,
   StudentKpiEntry,
+  SuccessionRoleInput,
+  SuccessionRoleRecord,
+  SuccessorNominationCreateInput,
+  SuccessorNominationRecord,
+  SuccessorNominationUpdateInput,
   SystemTrainingManager,
   TrainingOffering,
   TrainingQuestionType,
@@ -33,6 +38,7 @@ import type {
   StudentNotification,
   StudentSettingsData,
   StudentProfileData,
+  StudentSuccessionStatus,
 } from './student-data.service';
 
 export type LmsBrandThemeId = 'ocean' | 'forest' | 'sunrise' | 'purple' | 'black' | 'grey';
@@ -53,6 +59,8 @@ export type LmsBootstrapResponse = {
   mentorshipSubmissions: MentorshipSubmissionRecord[];
   quizSubmissions?: QuizSubmissionRecord[];
   externalTrainingRequests: ExternalTrainingRequestRecord[];
+  successionRoles?: SuccessionRoleRecord[];
+  successorNominations?: SuccessorNominationRecord[];
 };
 
 export type QuizSubmissionAnswer = {
@@ -100,12 +108,16 @@ export type StudentSnapshotResponse = {
   notifiedOfferingIds: string[];
   assessmentAttempts: Record<string, StudentAssessmentAttempt>;
   idpEntries?: StudentIdpEntry[];
+  // Server-computed (see repository.computeSuccessionStatus) — only an Active nomination for this
+  // learner ever surfaces here, never the nominator's or the role's incumbent's identity.
+  successionStatus?: StudentSuccessionStatus | null;
 };
 
 // assessmentAttempts is optional (unlike on StudentSnapshotResponse, which the server still
 // returns it on) — the server ignores it on this path now and writes it exclusively through
-// gradeQuizAttempt, so a snapshot save no longer needs to carry it.
-export type StudentSnapshotUpdate = Omit<StudentSnapshotResponse, 'studentId' | 'assessmentAttempts'> & {
+// gradeQuizAttempt, so a snapshot save no longer needs to carry it. successionStatus is likewise
+// excluded — it's server-computed and never client-writable.
+export type StudentSnapshotUpdate = Omit<StudentSnapshotResponse, 'studentId' | 'assessmentAttempts' | 'successionStatus'> & {
   assessmentAttempts?: Record<string, StudentAssessmentAttempt>;
 };
 
@@ -449,6 +461,30 @@ export class LmsBackendService {
 
   openKpiYear(year: number): Observable<{ currentKpiYear: number; kpiYearsOpened: number[] }> {
     return this.http.post<{ currentKpiYear: number; kpiYearsOpened: number[] }>(`${this.config.baseUrl}/kpi-years/open`, { year });
+  }
+
+  createSuccessionRole(input: SuccessionRoleInput): Observable<SuccessionRoleRecord> {
+    return this.http.post<SuccessionRoleRecord>(`${this.config.baseUrl}/succession/roles`, input);
+  }
+
+  updateSuccessionRole(roleId: string, input: SuccessionRoleInput): Observable<SuccessionRoleRecord> {
+    return this.http.put<SuccessionRoleRecord>(`${this.config.baseUrl}/succession/roles/${roleId}`, input);
+  }
+
+  deleteSuccessionRole(roleId: string): Observable<void> {
+    return this.http.delete<void>(`${this.config.baseUrl}/succession/roles/${roleId}`);
+  }
+
+  createSuccessorNomination(input: SuccessorNominationCreateInput): Observable<SuccessorNominationRecord> {
+    return this.http.post<SuccessorNominationRecord>(`${this.config.baseUrl}/succession/nominations`, input);
+  }
+
+  updateSuccessorNomination(nominationId: string, input: SuccessorNominationUpdateInput): Observable<SuccessorNominationRecord> {
+    return this.http.put<SuccessorNominationRecord>(`${this.config.baseUrl}/succession/nominations/${nominationId}`, input);
+  }
+
+  setSuccessorNominationStatus(nominationId: string, status: SuccessorNominationRecord['status']): Observable<SuccessorNominationRecord> {
+    return this.http.put<SuccessorNominationRecord>(`${this.config.baseUrl}/succession/nominations/${nominationId}/status`, { status });
   }
 
   patchManagerState(patch: ManagerStatePatch): Observable<unknown> {

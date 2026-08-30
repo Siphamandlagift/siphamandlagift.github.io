@@ -78,6 +78,28 @@ export type StudentNotification = {
   dismissed?: boolean;
 };
 
+// Deliberately excludes who nominated the learner and the role's incumbent — see the server's
+// computeSuccessionStatus, the one place that enforces this.
+export type StudentSuccessionDevelopmentAction = {
+  id: string;
+  description: string;
+  status: 'Not Started' | 'In Progress' | 'Completed' | 'On Hold';
+  targetDate?: string;
+};
+
+export type StudentSuccessionCompetencyGap = {
+  id: string;
+  competency: string;
+  notes?: string;
+  developmentActions: StudentSuccessionDevelopmentAction[];
+};
+
+export type StudentSuccessionStatus = {
+  roleTitle: string;
+  readinessRating: 'Ready Now' | 'Ready in 1-2 Years' | 'Ready in 3+ Years';
+  competencyGaps: StudentSuccessionCompetencyGap[];
+};
+
 export type StudentMessage = {
   id: string;
   sender: string;
@@ -224,6 +246,7 @@ type PersistedStudentSnapshot = {
   notifiedOfferingIds: string[];
   assessmentAttempts: Record<string, StudentAssessmentAttempt>;
   engagementState?: StudentEngagementState;
+  successionStatus?: StudentSuccessionStatus | null;
 };
 
 @Injectable({ providedIn: 'root' })
@@ -344,12 +367,17 @@ export class StudentDataService {
     this.initialPersistedStudentSnapshot?.engagementState ?? { streakDays: 0, lastEngagedDate: '' },
   );
 
+  private readonly successionStatusSignal = signal<StudentSuccessionStatus | null>(
+    this.initialPersistedStudentSnapshot?.successionStatus ?? null,
+  );
+
   readonly profile = this.profileSignal.asReadonly();
   readonly settings = this.settingsSignal.asReadonly();
   readonly mentorshipProfile = this.mentorshipProfileSignal.asReadonly();
   readonly mentorshipObjectives = this.mentorshipObjectivesSignal.asReadonly();
   readonly mentorshipProgressReport = this.mentorshipProgressReportSignal.asReadonly();
   readonly notifications = this.notificationsSignal.asReadonly();
+  readonly successionStatus = this.successionStatusSignal.asReadonly();
   readonly messages = this.messagesSignal.asReadonly();
   readonly courses = this.coursesSignal.asReadonly();
   readonly certificatesAndLicences = this.certificatesAndLicencesSignal.asReadonly();
@@ -1173,6 +1201,8 @@ export class StudentDataService {
           assessmentAttempts: snapshot.assessmentAttempts ?? {},
           // Local engagement state is always authoritative — never let a backend refresh overwrite it.
           engagementState: this.engagementSignal(),
+          // Server-computed and read-only — no local merge needed, unlike notifications/messages.
+          successionStatus: snapshot.successionStatus ?? null,
         };
 
         // Discard stale response if the session switched while this request was in-flight.
@@ -1261,6 +1291,7 @@ export class StudentDataService {
     this.persistedEarnedBadgeIdsSignal.set(snapshot.badgeState.earnedBadgeIds);
     this.notifiedOfferingIdsSignal.set(snapshot.notifiedOfferingIds);
     this.engagementSignal.set(snapshot.engagementState ?? { streakDays: 0, lastEngagedDate: '' });
+    this.successionStatusSignal.set(snapshot.successionStatus ?? null);
 
     this.saveMentorshipProfile(snapshot.mentorshipProfile);
     this.saveMentorshipObjectives(snapshot.mentorshipObjectives);
@@ -1284,6 +1315,7 @@ export class StudentDataService {
     this.persistedEarnedBadgeIdsSignal.set(this.loadPersistedBadgeIds());
     this.notifiedOfferingIdsSignal.set(this.loadNotifiedOfferingIds(this.managerData.offerings()));
     this.engagementSignal.set({ streakDays: 0, lastEngagedDate: '' });
+    this.successionStatusSignal.set(null);
   }
 
   private buildPersistedStudentSnapshot(studentId = this.currentSessionStudentId()): PersistedStudentSnapshot {
@@ -1302,6 +1334,7 @@ export class StudentDataService {
       notifiedOfferingIds: this.notifiedOfferingIdsSignal(),
       assessmentAttempts: this.assessmentAttemptsSignal(),
       engagementState: this.engagementSignal(),
+      successionStatus: this.successionStatusSignal(),
     };
   }
 
@@ -2107,6 +2140,7 @@ export class StudentDataService {
         engagementState: parsed.engagementState && typeof parsed.engagementState === 'object'
           ? parsed.engagementState as StudentEngagementState
           : { streakDays: 0, lastEngagedDate: '' },
+        successionStatus: parsed.successionStatus ?? null,
       };
     } catch {
       return null;

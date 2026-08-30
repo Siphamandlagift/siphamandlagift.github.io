@@ -206,6 +206,28 @@ async function isOwnStudentRecord(studentId: string, identity: AuthenticatedIden
   return Boolean(student && student.email.trim().toLowerCase() === identity.email.trim().toLowerCase());
 }
 
+// A training manager may only create/edit nominations for a succession role they own; an
+// administrator may act on any role. resolveManagerIdentity draws from the same pool as the
+// external-training-request approver picker (a trainingManagers roster entry, or an active
+// role==='manager' student account) so a manager logged in via either kind of account is
+// recognized correctly.
+async function isOwnManagedRole(roleId: string, identity: AuthenticatedIdentity): Promise<boolean> {
+  if (identity.role === 'administrator') {
+    return true;
+  }
+
+  if (identity.role !== 'training-manager') {
+    return false;
+  }
+
+  const [role, ownManager] = await Promise.all([
+    repository.getSuccessionRole(roleId),
+    repository.resolveManagerIdentity(identity.email),
+  ]);
+
+  return Boolean(role && ownManager && role.ownerManagerId === ownManager.id);
+}
+
 function readAuthenticatedSessionPayload(request: express.Request) {
   const authHeader = request.headers['authorization'];
   const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
@@ -771,6 +793,47 @@ const kpiGapAnalysisUpdateSchema = z.object({
 
 const openKpiYearSchema = z.object({
   year: z.number().int(),
+});
+
+const successionRoleInputSchema = z.object({
+  title: z.string().min(1),
+  department: z.string().min(1),
+  isBusinessCritical: z.boolean(),
+  ownerManagerId: z.string().min(1),
+  incumbentStudentId: z.string().optional(),
+});
+
+const successionDevelopmentActionSchema = z.object({
+  id: z.string().min(1),
+  description: z.string(),
+  status: z.enum(['Not Started', 'In Progress', 'Completed', 'On Hold']),
+  targetDate: z.string().optional(),
+});
+
+const successionCompetencyGapSchema = z.object({
+  id: z.string().min(1),
+  competency: z.string(),
+  notes: z.string().optional(),
+  developmentActions: z.array(successionDevelopmentActionSchema),
+});
+
+const successionReadinessRatingSchema = z.enum(['Ready Now', 'Ready in 1-2 Years', 'Ready in 3+ Years']);
+
+const successorNominationCreateSchema = z.object({
+  roleId: z.string().min(1),
+  successorStudentId: z.string().min(1),
+  readinessRating: successionReadinessRatingSchema,
+  readinessRationale: z.string().optional(),
+});
+
+const successorNominationUpdateSchema = z.object({
+  readinessRating: successionReadinessRatingSchema,
+  readinessRationale: z.string().optional(),
+  competencyGaps: z.array(successionCompetencyGapSchema),
+});
+
+const successorNominationStatusUpdateSchema = z.object({
+  status: z.enum(['Draft', 'Active', 'Withdrawn']),
 });
 
 const studentNotificationPreferencesSchema = z.object({
@@ -2612,6 +2675,142 @@ app.post('/api/kpi-years/open', async (request, response, next) => {
     const body = openKpiYearSchema.parse(request.body);
     const result = await repository.openKpiYear(body.year);
     response.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Succession-planning role catalog: admin-managed, per the go-live decision that L&D owns which
+// roles exist and who they're assigned to rather than managers self-declaring them.
+app.post('/api/succession/roles', requireAdministrator, async (request, response, next) => {
+  try {
+    const body = successionRoleInputSchema.parse(request.body);
+    const role = await repository.createSuccessionRole(body);
+    if (!role) {
+      response.status(400).json({ message: 'Title, department and owning manager are required.' });
+      return;
+    }
+
+    response.status(201).json(role);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/succession/roles/:roleId', requireAdministrator, async (request, response, next) => {
+  try {
+    const body = successionRoleInputSchema.parse(request.body);
+    const role = await repository.updateSuccessionRole(request.params['roleId'] as string, body);
+    if (!role) {
+      response.status(404).json({ message: 'Succession role not found.' });
+      return;
+    }
+
+    response.json(role);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/succession/roles/:roleId', requireAdministrator, async (request, response, next) => {
+  try {
+    const deleted = await repository.deleteSuccessionRole(request.params['roleId'] as string);
+    if (!deleted) {
+      response.status(404).json({ message: 'Succession role not found.' });
+      return;
+    }
+
+    response.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Successor nominations: only the role's owning manager (or an administrator) may create/edit —
+// see isOwnManagedRole. A learner never reaches these routes at all; their own earmarked status
+// comes read-only through their student snapshot's successionStatus field instead.
+app.post('/api/succession/nominations', requireManagerOrAdministrator, async (request, response, next) => {
+  try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
+    const body = successorNominationCreateSchema.parse(request.body);
+    if (!(await isOwnManagedRole(body.roleId, identity))) {
+      response.status(403).json({ message: 'You can only nominate successors for roles you manage.' });
+      return;
+    }
+
+    const nominatedByManagerId = identity.role === 'administrator'
+      ? (await repository.getSuccessionRole(body.roleId))?.ownerManagerId ?? ''
+      : (await repository.resolveManagerIdentity(identity.email))?.id ?? '';
+
+    const nomination = await repository.createSuccessorNomination(body, nominatedByManagerId);
+    if (!nomination) {
+      response.status(404).json({ message: 'Role or successor employee not found.' });
+      return;
+    }
+
+    response.status(201).json(nomination);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/succession/nominations/:nominationId', requireManagerOrAdministrator, async (request, response, next) => {
+  try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
+    const existing = (await repository.listSuccessorNominations()).find((entry) => entry.id === request.params['nominationId']);
+    if (!existing || !(await isOwnManagedRole(existing.roleId, identity))) {
+      response.status(403).json({ message: 'You can only edit nominations for roles you manage.' });
+      return;
+    }
+
+    const body = successorNominationUpdateSchema.parse(request.body);
+    const nomination = await repository.updateSuccessorNomination(request.params['nominationId'] as string, body);
+    if (!nomination) {
+      response.status(404).json({ message: 'Nomination not found.' });
+      return;
+    }
+
+    response.json(nomination);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Draft -> Active makes the nomination live and visible to the learner (and fires their
+// notification); Active/Draft -> Withdrawn takes it down but never deletes it, preserving audit
+// history — see LmsRepository.successionStatusTransitions for the allowed moves.
+app.put('/api/succession/nominations/:nominationId/status', requireManagerOrAdministrator, async (request, response, next) => {
+  try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
+    const existing = (await repository.listSuccessorNominations()).find((entry) => entry.id === request.params['nominationId']);
+    if (!existing || !(await isOwnManagedRole(existing.roleId, identity))) {
+      response.status(403).json({ message: 'You can only change the status of nominations for roles you manage.' });
+      return;
+    }
+
+    const body = successorNominationStatusUpdateSchema.parse(request.body);
+    const nomination = await repository.setSuccessorNominationStatus(request.params['nominationId'] as string, body.status);
+    if (!nomination) {
+      response.status(409).json({ message: 'This status change is not allowed from the nomination\'s current status.' });
+      return;
+    }
+
+    response.json(nomination);
   } catch (error) {
     next(error);
   }

@@ -19,6 +19,9 @@ import {
   MentorshipSubmissionRecord,
   StudentKpiEntry,
   StudentKpiScore,
+  SuccessionNominationStatus,
+  SuccessionReadinessRating,
+  SuccessorNominationRecord,
   TrainingAssessmentType,
   TrainingManagerDataService,
   TrainingMatchingPair,
@@ -2647,6 +2650,150 @@ type KpiEntryFormGroup = FormGroup<{
                       }
                     </div>
                   </div>
+                </div>
+              }
+            </section>
+          }
+
+          @if (selectedPanel() === 'succession') {
+            <section class="manager-panel">
+              <div class="section-heading-block">
+                <p class="eyebrow">Succession Planning</p>
+                <h1>Business-critical roles you manage</h1>
+              </div>
+
+              @if (!selectedSuccessionRoleId()) {
+                @if (successionRoles().length) {
+                  <div class="idp-member-grid">
+                    @for (role of successionRoles(); track role.id) {
+                      <button type="button" class="idp-member-card" (click)="selectSuccessionRole(role.id)">
+                        <div class="idp-member-info">
+                          <strong class="idp-member-name">{{ role.title }}</strong>
+                          <span class="idp-member-meta">{{ role.department }}</span>
+                        </div>
+                        <div class="idp-member-status">
+                          <span class="idp-program-count">{{ nominationsForRole(role.id).length }} {{ nominationsForRole(role.id).length === 1 ? 'nomination' : 'nominations' }}</span>
+                          <span class="idp-member-chevron" aria-hidden="true">›</span>
+                        </div>
+                      </button>
+                    }
+                  </div>
+                } @else {
+                  <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">
+                    No business-critical roles are assigned to you yet — an administrator manages the role catalog under Settings.
+                  </div>
+                }
+              } @else if (selectedSuccessionRole(); as role) {
+                <div class="idp-detail-header">
+                  <button type="button" class="idp-back-btn" (click)="clearSuccessionRole()">← Back to roles</button>
+                  <div class="idp-detail-identity">
+                    <div>
+                      <h2 class="idp-detail-name">{{ role.title }}</h2>
+                      <span class="idp-detail-meta">{{ role.department }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="activity-card mentorship-review-card">
+                  @if (!nominatingSuccessor()) {
+                    <button type="button" class="idp-program-add" (click)="openNominateForm()">Nominate Successor</button>
+                  } @else {
+                    <div class="idp-program-card">
+                      <div class="idp-program-card-header">
+                        <span class="idp-program-card-title">Nominate a successor</span>
+                      </div>
+                      <div class="idp-program-card-body succession-nominate-form">
+                        <label class="succession-form-field">
+                          <span>Employee</span>
+                          <select [value]="successionFormStudentId()" (change)="successionFormStudentId.set($any($event.target).value)">
+                            <option value="">Select an employee…</option>
+                            @for (student of managerData.students(); track student.id) {
+                              <option [value]="student.id">{{ student.name }} {{ student.surname }} — {{ student.jobTitle || student.department }}</option>
+                            }
+                          </select>
+                        </label>
+                        <label class="succession-form-field">
+                          <span>Readiness</span>
+                          <select [value]="successionFormReadiness()" (change)="successionFormReadiness.set($any($event.target).value)">
+                            <option value="Ready Now">Ready Now</option>
+                            <option value="Ready in 1-2 Years">Ready in 1-2 Years</option>
+                            <option value="Ready in 3+ Years">Ready in 3+ Years</option>
+                          </select>
+                        </label>
+                        <label class="succession-form-field">
+                          <span>Rationale (optional)</span>
+                          <textarea rows="3" [value]="successionFormRationale()" (input)="successionFormRationale.set($any($event.target).value)"></textarea>
+                        </label>
+                        @if (successionFormError()) {
+                          <p class="kpi-year-prompt-error" role="alert">{{ successionFormError() }}</p>
+                        }
+                        <div class="idp-program-actions">
+                          <button type="button" class="idp-save-button" [disabled]="savingSuccession()" (click)="submitNomination(role.id)">{{ savingSuccession() ? 'Saving…' : 'Save as Draft' }}</button>
+                          <button type="button" class="idp-back-btn" (click)="closeNominateForm()">Cancel</button>
+                        </div>
+                      </div>
+                    </div>
+                  }
+
+                  @for (nomination of nominationsForRole(role.id); track nomination.id) {
+                    <div class="idp-program-card succession-nomination-card">
+                      <div class="idp-program-card-header">
+                        <div class="idp-program-card-title-shell">
+                          <span class="idp-program-card-title">{{ successorName(nomination.successorStudentId) }}</span>
+                          <span class="idp-status-badge"
+                            [class.idp-status-in-progress]="nomination.status === 'Draft'"
+                            [class.idp-status-completed]="nomination.status === 'Active'">{{ nomination.status }}</span>
+                        </div>
+                        <span class="succession-readiness-chip">{{ nomination.readinessRating }}</span>
+                      </div>
+
+                      @if (nomination.readinessRationale) {
+                        <p class="idp-detail-meta">{{ nomination.readinessRationale }}</p>
+                      }
+
+                      <div class="idp-program-actions">
+                        @if (nomination.status === 'Draft') {
+                          <button type="button" class="idp-program-add" (click)="setNominationStatus(nomination, 'Active')">Activate</button>
+                          <button type="button" class="idp-back-btn" (click)="setNominationStatus(nomination, 'Withdrawn')">Withdraw</button>
+                        } @else if (nomination.status === 'Active') {
+                          <button type="button" class="idp-back-btn" (click)="setNominationStatus(nomination, 'Withdrawn')">Withdraw</button>
+                        }
+                        <button type="button" class="idp-back-btn" (click)="toggleNominationDetail(nomination.id)">
+                          {{ selectedNominationId() === nomination.id ? 'Hide development plan' : 'Development plan' }}
+                        </button>
+                      </div>
+
+                      @if (selectedNominationId() === nomination.id) {
+                        <div class="succession-gap-editor">
+                          @for (gap of nomination.competencyGaps; track gap.id) {
+                            <div class="succession-gap-card">
+                              <div class="succession-gap-title">{{ gap.competency }}</div>
+                              <ul class="succession-action-list">
+                                @for (action of gap.developmentActions; track action.id) {
+                                  <li class="succession-action-item">
+                                    <span class="succession-action-status" [class.succession-action-done]="action.status === 'Completed'">{{ action.status }}</span>
+                                    <span class="succession-action-description">{{ action.description }}</span>
+                                  </li>
+                                }
+                              </ul>
+                              <div class="succession-form-field succession-action-add-row">
+                                <input type="text" placeholder="Add a development action…"
+                                  [value]="newActionDrafts()[gap.id]"
+                                  (input)="setNewActionDraft(gap.id, $any($event.target).value)" />
+                                <button type="button" class="idp-back-btn" (click)="addDevelopmentAction(nomination, gap.id)">Add</button>
+                              </div>
+                            </div>
+                          }
+                          <div class="succession-form-field succession-action-add-row">
+                            <input type="text" placeholder="Add a competency gap…"
+                              [value]="newGapCompetency()"
+                              (input)="newGapCompetency.set($any($event.target).value)" />
+                            <button type="button" class="idp-back-btn" (click)="addCompetencyGap(nomination)">Add gap</button>
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  }
                 </div>
               }
             </section>
@@ -6184,6 +6331,66 @@ type KpiEntryFormGroup = FormGroup<{
       }
       .idp-cancel-btn:hover { background: #e2e8f0; }
 
+      .succession-nominate-form { display: grid; gap: 0.85rem; }
+      .succession-form-field {
+        display: grid;
+        gap: 0.35rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #334155;
+      }
+      .succession-form-field select,
+      .succession-form-field textarea,
+      .succession-form-field input {
+        border: 1px solid #d7e2ee;
+        border-radius: 10px;
+        padding: 0.6rem 0.75rem;
+        font: inherit;
+        font-weight: 400;
+        color: #14213d;
+        background: #fff;
+      }
+      .succession-readiness-chip {
+        padding: 0.3rem 0.7rem;
+        border-radius: 999px;
+        background: rgba(99, 102, 241, 0.12);
+        color: #4f46e5;
+        font-size: 0.78rem;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .succession-nomination-card { display: grid; gap: 0.6rem; }
+      .succession-gap-editor {
+        display: grid;
+        gap: 0.75rem;
+        margin-top: 0.5rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #e2e8f0;
+      }
+      .succession-gap-card {
+        display: grid;
+        gap: 0.5rem;
+        padding: 0.85rem;
+        border-radius: 12px;
+        background: #f8fafc;
+      }
+      .succession-gap-title { font-weight: 700; color: #14213d; font-size: 0.9rem; }
+      .succession-action-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.4rem; }
+      .succession-action-item { display: flex; align-items: baseline; gap: 0.5rem; font-size: 0.85rem; color: #475569; }
+      .succession-action-status {
+        flex-shrink: 0;
+        padding: 0.12rem 0.5rem;
+        border-radius: 999px;
+        background: #e2e8f0;
+        color: #334155;
+        font-size: 0.7rem;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .succession-action-status.succession-action-done { background: rgba(34, 197, 94, 0.16); color: #15803d; }
+      .succession-action-add-row { display: flex; gap: 0.5rem; align-items: center; }
+      .succession-action-add-row input { flex: 1; }
+
       .idp-detail-header { margin-bottom: 1.25rem; }
       .idp-back-btn {
         background: none;
@@ -6689,6 +6896,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     { label: 'Student Enrollment', value: 'enrollment' },
     { label: 'IDP', value: 'idp' },
     { label: 'Performance', value: 'performance' },
+    { label: 'Succession', value: 'succession' },
     { label: 'Messages', value: 'messages' },
   ];
 
@@ -9503,6 +9711,144 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     const message = `Assigned ${offerings.length} ${offerings.length === 1 ? 'course' : 'courses'} to ${students.length} ${students.length === 1 ? 'student' : 'students'}.`;
     this.closeAssignWizard();
     this.showAssignWizardToast(message);
+  }
+
+  // ── Succession Planning ───────────────────────────────────────────────
+  // successionRoles/successorNominations are already scoped server-side (see getBootstrap) — a
+  // manager only ever receives roles they own, so no further client-side filtering is needed here.
+  readonly successionRoles = this.managerData.successionRoles;
+  readonly selectedSuccessionRoleId = signal<string | null>(null);
+  readonly selectedSuccessionRole = computed(() =>
+    this.successionRoles().find((role) => role.id === this.selectedSuccessionRoleId()) ?? null,
+  );
+  readonly nominatingSuccessor = signal(false);
+  readonly successionFormStudentId = signal('');
+  readonly successionFormReadiness = signal<SuccessionReadinessRating>('Ready in 3+ Years');
+  readonly successionFormRationale = signal('');
+  readonly successionFormError = signal('');
+  readonly savingSuccession = signal(false);
+  readonly selectedNominationId = signal<string | null>(null);
+  readonly newGapCompetency = signal('');
+  readonly newActionDrafts = signal<Record<string, string>>({});
+
+  nominationsForRole(roleId: string) {
+    return this.managerData.successorNominations().filter((nomination) => nomination.roleId === roleId);
+  }
+
+  successorName(studentId: string) {
+    const student = this.managerData.students().find((entry) => entry.id === studentId);
+    return student ? `${student.name} ${student.surname}` : 'Former team member';
+  }
+
+  selectSuccessionRole(roleId: string) {
+    this.selectedSuccessionRoleId.set(roleId);
+    this.nominatingSuccessor.set(false);
+    this.selectedNominationId.set(null);
+  }
+
+  clearSuccessionRole() {
+    this.selectedSuccessionRoleId.set(null);
+    this.nominatingSuccessor.set(false);
+  }
+
+  openNominateForm() {
+    this.successionFormStudentId.set('');
+    this.successionFormReadiness.set('Ready in 3+ Years');
+    this.successionFormRationale.set('');
+    this.successionFormError.set('');
+    this.nominatingSuccessor.set(true);
+  }
+
+  closeNominateForm() {
+    this.nominatingSuccessor.set(false);
+  }
+
+  submitNomination(roleId: string) {
+    const successorStudentId = this.successionFormStudentId();
+    if (!successorStudentId) {
+      this.successionFormError.set('Select an employee to nominate.');
+      return;
+    }
+
+    this.successionFormError.set('');
+    this.savingSuccession.set(true);
+    this.managerData.createSuccessorNomination({
+      roleId,
+      successorStudentId,
+      readinessRating: this.successionFormReadiness(),
+      readinessRationale: this.successionFormRationale().trim() || undefined,
+    }).subscribe({
+      next: () => {
+        this.savingSuccession.set(false);
+        this.nominatingSuccessor.set(false);
+      },
+      error: () => {
+        this.savingSuccession.set(false);
+        this.successionFormError.set('Could not save this nomination. Please try again.');
+      },
+    });
+  }
+
+  setNominationStatus(nomination: SuccessorNominationRecord, status: SuccessionNominationStatus) {
+    this.managerData.setSuccessorNominationStatus(nomination.id, status).subscribe({
+      error: () => {
+        // Keep local state if the API is temporarily unavailable.
+      },
+    });
+  }
+
+  toggleNominationDetail(nominationId: string) {
+    this.selectedNominationId.set(this.selectedNominationId() === nominationId ? null : nominationId);
+  }
+
+  setNewActionDraft(gapId: string, value: string) {
+    this.newActionDrafts.update((drafts) => ({ ...drafts, [gapId]: value }));
+  }
+
+  addCompetencyGap(nomination: SuccessorNominationRecord) {
+    const competency = this.newGapCompetency().trim();
+    if (!competency) {
+      return;
+    }
+
+    const nextGaps = [...nomination.competencyGaps, {
+      id: `gap-${Date.now()}`,
+      competency,
+      developmentActions: [],
+    }];
+    this.newGapCompetency.set('');
+    this.managerData.updateSuccessorNomination(nomination.id, {
+      readinessRating: nomination.readinessRating,
+      readinessRationale: nomination.readinessRationale,
+      competencyGaps: nextGaps,
+    }).subscribe({
+      error: () => {
+        // Keep local state if the API is temporarily unavailable.
+      },
+    });
+  }
+
+  addDevelopmentAction(nomination: SuccessorNominationRecord, gapId: string) {
+    const description = (this.newActionDrafts()[gapId] ?? '').trim();
+    if (!description) {
+      return;
+    }
+
+    const nextGaps = nomination.competencyGaps.map((gap) => (
+      gap.id === gapId
+        ? { ...gap, developmentActions: [...gap.developmentActions, { id: `action-${Date.now()}`, description, status: 'Not Started' as const }] }
+        : gap
+    ));
+    this.setNewActionDraft(gapId, '');
+    this.managerData.updateSuccessorNomination(nomination.id, {
+      readinessRating: nomination.readinessRating,
+      readinessRationale: nomination.readinessRationale,
+      competencyGaps: nextGaps,
+    }).subscribe({
+      error: () => {
+        // Keep local state if the API is temporarily unavailable.
+      },
+    });
   }
 
   // ── IDP ────────────────────────────────────────────────────────────────

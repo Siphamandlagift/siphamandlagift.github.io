@@ -1,10 +1,10 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { firstValueFrom, interval } from 'rxjs';
+import { firstValueFrom, interval, tap, type Observable } from 'rxjs';
 import { LmsBackendService } from './lms-backend.service';
 import { combineDisplayName, readLmsSessionRecord } from './session-auth';
 import type { StudentMessage } from './student-data.service';
 
-export type ManagerPanel = 'dashboard' | 'requested-training' | 'courses' | 'mentorship' | 'enrollment' | 'messages' | 'idp' | 'performance';
+export type ManagerPanel = 'dashboard' | 'requested-training' | 'courses' | 'mentorship' | 'enrollment' | 'messages' | 'idp' | 'performance' | 'succession';
 
 export type ManagerProfile = {
   name: string;
@@ -289,6 +289,69 @@ export type ExternalTrainingRequestDocumentsInput = {
   certificateUrl?: string;
 };
 
+export type SuccessionReadinessRating = 'Ready Now' | 'Ready in 1-2 Years' | 'Ready in 3+ Years';
+export type SuccessionNominationStatus = 'Draft' | 'Active' | 'Withdrawn';
+
+export type SuccessionRoleRecord = {
+  id: string;
+  title: string;
+  department: string;
+  isBusinessCritical: boolean;
+  ownerManagerId: string;
+  incumbentStudentId?: string;
+  createdOn: string;
+};
+
+export type SuccessionRoleInput = {
+  title: string;
+  department: string;
+  isBusinessCritical: boolean;
+  ownerManagerId: string;
+  incumbentStudentId?: string;
+};
+
+export type SuccessionDevelopmentAction = {
+  id: string;
+  description: string;
+  status: TrainingIdpStatus;
+  targetDate?: string;
+};
+
+export type SuccessionCompetencyGap = {
+  id: string;
+  competency: string;
+  notes?: string;
+  developmentActions: SuccessionDevelopmentAction[];
+};
+
+export type SuccessorNominationRecord = {
+  id: string;
+  roleId: string;
+  successorStudentId: string;
+  nominatedByManagerId: string;
+  readinessRating: SuccessionReadinessRating;
+  readinessRationale?: string;
+  competencyGaps: SuccessionCompetencyGap[];
+  status: SuccessionNominationStatus;
+  createdOn: string;
+  updatedOn: string;
+  activatedOn?: string;
+  withdrawnOn?: string;
+};
+
+export type SuccessorNominationCreateInput = {
+  roleId: string;
+  successorStudentId: string;
+  readinessRating: SuccessionReadinessRating;
+  readinessRationale?: string;
+};
+
+export type SuccessorNominationUpdateInput = {
+  readinessRating: SuccessionReadinessRating;
+  readinessRationale?: string;
+  competencyGaps: SuccessionCompetencyGap[];
+};
+
 export type MentorshipAssignmentRecord = {
   id: string;
   menteeId: string;
@@ -380,6 +443,10 @@ export class TrainingManagerDataService {
   private readonly mentorshipSubmissionsSignal = signal<MentorshipSubmissionRecord[]>([]);
   private readonly assignmentSubmissionsSignal = signal<AssignmentSubmissionRecord[]>([]);
   private readonly externalTrainingRequestsSignal = signal<ExternalTrainingRequestRecord[]>([]);
+  // Already scoped server-side (see getBootstrap): an admin gets every role/nomination, a manager
+  // only those for roles they own.
+  private readonly successionRolesSignal = signal<SuccessionRoleRecord[]>([]);
+  private readonly successorNominationsSignal = signal<SuccessorNominationRecord[]>([]);
   private readonly idpEntriesByStudentSignal = signal<Record<string, StudentIdpEntry[]>>({});
   private readonly kpiEntriesByStudentSignal = signal<Record<string, StudentKpiEntry[]>>({});
 
@@ -509,6 +576,8 @@ export class TrainingManagerDataService {
   readonly pendingExternalTrainingRequestsCount = computed(() =>
     this.externalTrainingRequestsForCurrentManager().filter((request) => request.status === 'Pending Review').length,
   );
+  readonly successionRoles = this.successionRolesSignal.asReadonly();
+  readonly successorNominations = this.successorNominationsSignal.asReadonly();
   // Case/whitespace-insensitive match: a manager's login email (session-derived) and their
   // directory email (used as approvingManagerEmail on requests) are meant to be the same value,
   // but an exact === comparison would silently show zero requests if they ever drift apart
@@ -773,6 +842,8 @@ export class TrainingManagerDataService {
         this.mentorshipSubmissionsSignal.set(bootstrap.mentorshipSubmissions);
         this.assignmentSubmissionsSignal.set(this.hydrateAssignmentSubmissions(bootstrap.assignmentSubmissions));
         this.externalTrainingRequestsSignal.set(bootstrap.externalTrainingRequests);
+        this.successionRolesSignal.set(bootstrap.successionRoles ?? []);
+        this.successorNominationsSignal.set(bootstrap.successorNominations ?? []);
         const backendIdpEntriesByStudent = this.normalizeIdpEntriesByStudent(bootstrap.idpEntriesByStudent);
         const mergedIdpEntriesByStudent = {
           ...localIdpEntriesByStudent,
@@ -2521,6 +2592,8 @@ export class TrainingManagerDataService {
           this.externalTrainingRequestsSignal.set(
             this.mergeServerAuthoritative(bootstrap.externalTrainingRequests, this.externalTrainingRequestsSignal()),
           );
+          this.successionRolesSignal.set(bootstrap.successionRoles ?? []);
+          this.successorNominationsSignal.set(bootstrap.successorNominations ?? []);
           this.idpEntriesByStudentSignal.set(
             this.mergeServerAuthoritativeRecord(
               this.normalizeIdpEntriesByStudent(bootstrap.idpEntriesByStudent),
@@ -2656,6 +2729,55 @@ export class TrainingManagerDataService {
         // Keep local state if the API is temporarily unavailable.
       },
     });
+  }
+
+  // Succession planning: unlike the external-training-request flow above, there's no client-side
+  // temporary-id/reconcile dance here — these are deliberate, low-frequency manager/admin actions,
+  // so the caller just waits for the real server record (with its real id) before updating local
+  // state, rather than optimistically rendering a placeholder.
+  createSuccessionRole(input: SuccessionRoleInput): Observable<SuccessionRoleRecord> {
+    return this.backend.createSuccessionRole(input).pipe(
+      tap((role) => this.successionRolesSignal.update((roles) => [...roles, role])),
+    );
+  }
+
+  updateSuccessionRole(roleId: string, input: SuccessionRoleInput): Observable<SuccessionRoleRecord> {
+    return this.backend.updateSuccessionRole(roleId, input).pipe(
+      tap((role) => this.successionRolesSignal.update((roles) => roles.map((entry) => (entry.id === role.id ? role : entry)))),
+    );
+  }
+
+  deleteSuccessionRole(roleId: string): Observable<void> {
+    return this.backend.deleteSuccessionRole(roleId).pipe(
+      tap(() => {
+        this.successionRolesSignal.update((roles) => roles.filter((entry) => entry.id !== roleId));
+        // Mirrors the server's own cascade (LmsRepository.deleteSuccessionRole) — withdraw rather
+        // than drop, so the local list stays consistent with what a refresh would show.
+        this.successorNominationsSignal.update((nominations) => nominations.map((entry) => (
+          entry.roleId === roleId && entry.status !== 'Withdrawn'
+            ? { ...entry, status: 'Withdrawn' as const }
+            : entry
+        )));
+      }),
+    );
+  }
+
+  createSuccessorNomination(input: SuccessorNominationCreateInput): Observable<SuccessorNominationRecord> {
+    return this.backend.createSuccessorNomination(input).pipe(
+      tap((nomination) => this.successorNominationsSignal.update((nominations) => [...nominations, nomination])),
+    );
+  }
+
+  updateSuccessorNomination(nominationId: string, input: SuccessorNominationUpdateInput): Observable<SuccessorNominationRecord> {
+    return this.backend.updateSuccessorNomination(nominationId, input).pipe(
+      tap((nomination) => this.successorNominationsSignal.update((nominations) => nominations.map((entry) => (entry.id === nomination.id ? nomination : entry)))),
+    );
+  }
+
+  setSuccessorNominationStatus(nominationId: string, status: SuccessionNominationStatus): Observable<SuccessorNominationRecord> {
+    return this.backend.setSuccessorNominationStatus(nominationId, status).pipe(
+      tap((nomination) => this.successorNominationsSignal.update((nominations) => nominations.map((entry) => (entry.id === nomination.id ? nomination : entry)))),
+    );
   }
 
   private slugify(value: string) {

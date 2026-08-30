@@ -138,6 +138,29 @@ function relativeTimeLabel(createdAt?: string, fallback = 'Recently'): string {
             <div class="progress-panel-value">{{ studentData.dashboardStats().upcomingTasks }}</div>
           </div>
         </article>
+
+        <!-- Only ever an Active nomination — see StudentDataService.successionStatus / the
+             server's computeSuccessionStatus. Nothing renders here for a Draft/Withdrawn/absent
+             nomination, and the role's owner manager and incumbent are never included at all. -->
+        <article class="dashboard-succession-panel" *ngIf="studentData.successionStatus() as status">
+          <div class="succession-panel-header">
+            <h2 class="succession-panel-title">My Succession Status</h2>
+            <span class="succession-readiness-badge">{{ status.readinessRating }}</span>
+          </div>
+          <p class="succession-role-copy">You've been earmarked for <strong>{{ status.roleTitle }}</strong>.</p>
+
+          <div *ngIf="status.competencyGaps.length" class="succession-gap-list">
+            <div *ngFor="let gap of status.competencyGaps" class="succession-gap-card">
+              <div class="succession-gap-title">{{ gap.competency }}</div>
+              <ul class="succession-action-list">
+                <li *ngFor="let action of gap.developmentActions" class="succession-action-item">
+                  <span class="succession-action-status" [class.succession-action-done]="action.status === 'Completed'">{{ action.status }}</span>
+                  <span class="succession-action-description">{{ action.description }}</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </article>
       </section>
     </section>
   `,
@@ -388,11 +411,99 @@ function relativeTimeLabel(createdAt?: string, fallback = 'Recently'): string {
     }
 
     .dashboard-notifications,
-    .dashboard-progress-panel {
+    .dashboard-progress-panel,
+    .dashboard-succession-panel {
       background: rgba(255, 255, 255, 0.92);
       border-radius: 24px;
       box-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
       padding: 1.5rem;
+    }
+
+    .dashboard-succession-panel {
+      grid-column: 1 / -1;
+      display: grid;
+      gap: 0.9rem;
+    }
+
+    .succession-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .succession-panel-title {
+      margin: 0;
+      color: #14213d;
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+
+    .succession-readiness-badge {
+      padding: 0.35rem 0.8rem;
+      border-radius: 999px;
+      background: rgba(99, 102, 241, 0.12);
+      color: #4f46e5;
+      font-size: 0.82rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .succession-role-copy {
+      margin: 0;
+      color: #475569;
+      font-size: 0.96rem;
+    }
+
+    .succession-gap-list {
+      display: grid;
+      gap: 0.85rem;
+    }
+
+    .succession-gap-card {
+      border-radius: 16px;
+      background: #f8fafc;
+      padding: 0.95rem 1.05rem;
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    .succession-gap-title {
+      color: #14213d;
+      font-weight: 700;
+      font-size: 0.94rem;
+    }
+
+    .succession-action-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 0.45rem;
+    }
+
+    .succession-action-item {
+      display: flex;
+      align-items: baseline;
+      gap: 0.55rem;
+      font-size: 0.9rem;
+      color: #475569;
+    }
+
+    .succession-action-status {
+      flex-shrink: 0;
+      padding: 0.15rem 0.55rem;
+      border-radius: 999px;
+      background: #e2e8f0;
+      color: #334155;
+      font-size: 0.72rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .succession-action-status.succession-action-done {
+      background: rgba(34, 197, 94, 0.16);
+      color: #15803d;
     }
 
     .notifications-header-row {

@@ -382,6 +382,86 @@ export type StudentKpiGapAnalysisUpdateInput = {
   entries: { id: string; gapInitiative: string; gapComments: string; gapTargetDate: string }[];
 };
 
+export type SuccessionReadinessRating = 'Ready Now' | 'Ready in 1-2 Years' | 'Ready in 3+ Years';
+export type SuccessionNominationStatus = 'Draft' | 'Active' | 'Withdrawn';
+
+export type SuccessionRoleRecord = {
+  id: string;
+  title: string;
+  department: string;
+  isBusinessCritical: boolean;
+  // SystemTrainingManagerRecord.id — the only manager who can nominate/edit nominations for this role.
+  ownerManagerId: string;
+  // Display-only; not surfaced to the nominated learner.
+  incumbentStudentId?: string;
+  createdOn: string;
+};
+
+export type SuccessionRoleInput = {
+  title: string;
+  department: string;
+  isBusinessCritical: boolean;
+  ownerManagerId: string;
+  incumbentStudentId?: string;
+};
+
+export type SuccessionDevelopmentAction = {
+  id: string;
+  description: string;
+  status: StudentIdpStatusRecord;
+  targetDate?: string;
+};
+
+export type SuccessionCompetencyGap = {
+  id: string;
+  competency: string;
+  notes?: string;
+  developmentActions: SuccessionDevelopmentAction[];
+};
+
+// Owned by the nomination itself rather than the existing KPI gap-analysis / IDP entries — those
+// have no stable id/linkage to hang a per-gap development plan off today, and this keeps the
+// succession feature self-contained instead of retrofitting the actively-used KPI/IDP system.
+export type SuccessorNominationRecord = {
+  id: string;
+  roleId: string;
+  successorStudentId: string;
+  nominatedByManagerId: string;
+  readinessRating: SuccessionReadinessRating;
+  readinessRationale?: string;
+  competencyGaps: SuccessionCompetencyGap[];
+  status: SuccessionNominationStatus;
+  createdOn: string;
+  updatedOn: string;
+  activatedOn?: string;
+  withdrawnOn?: string;
+};
+
+export type SuccessorNominationCreateInput = {
+  roleId: string;
+  successorStudentId: string;
+  readinessRating: SuccessionReadinessRating;
+  readinessRationale?: string;
+};
+
+export type SuccessorNominationUpdateInput = {
+  readinessRating: SuccessionReadinessRating;
+  readinessRationale?: string;
+  competencyGaps: SuccessionCompetencyGap[];
+};
+
+export type SuccessorNominationStatusUpdateInput = {
+  status: SuccessionNominationStatus;
+};
+
+// What the nominated learner is allowed to see about their own earmarking — role title and their
+// own readiness/development plan only, never who nominated them or the role's incumbent.
+export type StudentSuccessionStatus = {
+  roleTitle: string;
+  readinessRating: SuccessionReadinessRating;
+  competencyGaps: SuccessionCompetencyGap[];
+};
+
 // One KPI table per opened year. Only the org-wide current year (LmsDataStore.currentKpiYear) is
 // ever editable; every other year in this array is a closed, read-only historical record — see
 // openKpiYear in repository.ts, which is the only thing that ever adds a new entry here.
@@ -607,6 +687,8 @@ export type LmsDataStore = {
   externalTrainingRequests: ExternalTrainingRequestRecord[];
   authAccounts: AuthAccountRecord[];
   passwordResetTokens: PasswordResetTokenRecord[];
+  successionRoles: SuccessionRoleRecord[];
+  successorNominations: SuccessorNominationRecord[];
   updatedAt: string;
   // Org-wide KPI review cycle: currentKpiYear is the one year anyone can still edit; every year a
   // manager has ever opened (including the current one) is recorded in kpiYearsOpened so a year
@@ -635,6 +717,11 @@ export type LmsBootstrapResponse = {
   mentorshipSubmissions: MentorshipSubmissionRecord[];
   quizSubmissions: QuizSubmissionRecord[];
   externalTrainingRequests: ExternalTrainingRequestRecord[];
+  // Scoped per caller (see getBootstrap) — an admin gets every role/nomination, a manager only
+  // those for roles they own, and a student gets neither array at all (their view is the single
+  // successionStatus field on their own snapshot instead).
+  successionRoles: SuccessionRoleRecord[];
+  successorNominations: SuccessorNominationRecord[];
 };
 
 export type StudentSnapshotResponse = {
@@ -651,6 +738,9 @@ export type StudentSnapshotResponse = {
   messages: StudentMessageRecord[];
   notifiedOfferingIds: string[];
   assessmentAttempts: Record<string, StudentAssessmentAttemptRecord>;
+  // Only an Active nomination surfaces here — Draft/Withdrawn are never returned to the learner,
+  // and the role's owner manager / incumbent are deliberately omitted (see StudentSuccessionStatus).
+  successionStatus: StudentSuccessionStatus | null;
   idpEntries?: StudentIdpEntryRecord[];
 };
 

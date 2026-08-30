@@ -140,6 +140,8 @@ export function createDefaultData(): LmsDataStore {
     },
     authAccounts: createAuthAccounts(),
     passwordResetTokens: [],
+    successionRoles: [],
+    successorNominations: [],
     updatedAt: new Date().toISOString(),
     currentKpiYear: new Date().getFullYear(),
     kpiYearsOpened: [new Date().getFullYear()],
