@@ -2663,6 +2663,10 @@ type KpiEntryFormGroup = FormGroup<{
                 <h1>Flag critical roles on your team</h1>
               </div>
 
+              @if (successionActionError()) {
+                <p class="kpi-year-prompt-error" role="alert">{{ successionActionError() }}</p>
+              }
+
               @if (!selectedSuccessionRoleId()) {
                 @if (myTeam().length) {
                   <div class="idp-member-grid">
@@ -9777,6 +9781,10 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   readonly newActionDrafts = signal<Record<string, string>>({});
   readonly flaggingRoleForStudentId = signal<string | null>(null);
   readonly unflaggingRole = signal(false);
+  // Shared across flag/unflag/status-change/gap actions in this panel — these all used to fail
+  // silently (button resets, nothing visible happens), which is indistinguishable from the
+  // feature being broken. Surfaces the server's actual rejection reason instead.
+  readonly successionActionError = signal('');
 
   successionRoleForIncumbent(studentId: string) {
     return this.successionRoles().find((role) => role.incumbentStudentId === studentId) ?? null;
@@ -9797,26 +9805,30 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
   flagCriticalRole(incumbentStudentId: string) {
     this.flaggingRoleForStudentId.set(incumbentStudentId);
+    this.successionActionError.set('');
     this.managerData.createSuccessionRole({ incumbentStudentId }).subscribe({
       next: (role) => {
         this.flaggingRoleForStudentId.set(null);
         this.selectSuccessionRole(role.id);
       },
-      error: () => {
+      error: (error) => {
         this.flaggingRoleForStudentId.set(null);
+        this.successionActionError.set(error?.error?.message || 'Could not flag this role. Please try again.');
       },
     });
   }
 
   unflagRole(roleId: string) {
     this.unflaggingRole.set(true);
+    this.successionActionError.set('');
     this.managerData.deleteSuccessionRole(roleId).subscribe({
       next: () => {
         this.unflaggingRole.set(false);
         this.clearSuccessionRole();
       },
-      error: () => {
+      error: (error) => {
         this.unflaggingRole.set(false);
+        this.successionActionError.set(error?.error?.message || 'Could not remove this critical role. Please try again.');
       },
     });
   }
@@ -9825,6 +9837,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.selectedSuccessionRoleId.set(roleId);
     this.nominatingSuccessor.set(false);
     this.selectedNominationId.set(null);
+    this.successionActionError.set('');
   }
 
   clearSuccessionRole() {
@@ -9871,9 +9884,10 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   }
 
   setNominationStatus(nomination: SuccessorNominationRecord, status: SuccessionNominationStatus) {
+    this.successionActionError.set('');
     this.managerData.setSuccessorNominationStatus(nomination.id, status).subscribe({
-      error: () => {
-        // Keep local state if the API is temporarily unavailable.
+      error: (error) => {
+        this.successionActionError.set(error?.error?.message || 'Could not update this nomination. Please try again.');
       },
     });
   }
@@ -9898,13 +9912,14 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       developmentActions: [],
     }];
     this.newGapCompetency.set('');
+    this.successionActionError.set('');
     this.managerData.updateSuccessorNomination(nomination.id, {
       readinessRating: nomination.readinessRating,
       readinessRationale: nomination.readinessRationale,
       competencyGaps: nextGaps,
     }).subscribe({
-      error: () => {
-        // Keep local state if the API is temporarily unavailable.
+      error: (error) => {
+        this.successionActionError.set(error?.error?.message || 'Could not add this competency gap. Please try again.');
       },
     });
   }
@@ -9921,13 +9936,14 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
         : gap
     ));
     this.setNewActionDraft(gapId, '');
+    this.successionActionError.set('');
     this.managerData.updateSuccessorNomination(nomination.id, {
       readinessRating: nomination.readinessRating,
       readinessRationale: nomination.readinessRationale,
       competencyGaps: nextGaps,
     }).subscribe({
-      error: () => {
-        // Keep local state if the API is temporarily unavailable.
+      error: (error) => {
+        this.successionActionError.set(error?.error?.message || 'Could not add this development action. Please try again.');
       },
     });
   }
