@@ -4160,6 +4160,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
       box-shadow: 0 8px 22px rgba(79, 70, 229, 0.22);
       color: #fff;
+      text-align: center;
       transform: translate(-50%, -120%);
       opacity: 0;
       animation: admin-welcome-banner-drop 0.6s cubic-bezier(0.2, 0.9, 0.2, 1) forwards;

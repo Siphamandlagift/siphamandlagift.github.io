@@ -2908,6 +2908,7 @@ type KpiEntryFormGroup = FormGroup<{
       background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
       box-shadow: 0 20px 40px rgba(79, 70, 229, 0.24);
       color: #fff;
+      text-align: center;
       transform: translate(-50%, -120%);
       opacity: 0;
       animation: manager-welcome-banner-drop 0.6s cubic-bezier(0.2, 0.9, 0.2, 1) forwards;
