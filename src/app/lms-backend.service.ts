@@ -467,10 +467,6 @@ export class LmsBackendService {
     return this.http.post<SuccessionRoleRecord>(`${this.config.baseUrl}/succession/roles`, input);
   }
 
-  updateSuccessionRole(roleId: string, input: SuccessionRoleInput): Observable<SuccessionRoleRecord> {
-    return this.http.put<SuccessionRoleRecord>(`${this.config.baseUrl}/succession/roles/${roleId}`, input);
-  }
-
   deleteSuccessionRole(roleId: string): Observable<void> {
     return this.http.delete<void>(`${this.config.baseUrl}/succession/roles/${roleId}`);
   }

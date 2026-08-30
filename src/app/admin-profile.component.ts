@@ -9,8 +9,6 @@ import {
   EnrollmentStudent,
   EnrollmentStudentInput,
   ExternalTrainingRequestRecord,
-  SuccessionRoleInput,
-  SuccessionRoleRecord,
   TrainingManagerDataService,
 } from './training-manager-data.service';
 import { LmsBackendService, type HrIntegrationConfig, type HrIntegrationConfigUpdate, type HrIntegrationSyncSummary, type LoginRole, type ManagedUserCredentialInput, type ResolveRolesEntry } from './lms-backend.service';
@@ -2117,109 +2115,71 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
             <section class="admin-panel">
               <div class="section-heading-block">
                 <p class="eyebrow">Succession Planning</p>
-                <h1>Role catalog &amp; nominations</h1>
+                <h1>Company-wide succession overview</h1>
+                <p class="section-copy">Read-only — each manager flags critical roles on their own team and manages nominations for them directly.</p>
               </div>
 
-              <div class="succession-admin-tabs" role="tablist">
-                <button type="button" class="admin-inline-btn" [class.active]="successionAdminTab() === 'roles'" (click)="successionAdminTab.set('roles')">Role Catalog</button>
-                <button type="button" class="admin-inline-btn" [class.active]="successionAdminTab() === 'nominations'" (click)="successionAdminTab.set('nominations')">All Nominations</button>
-              </div>
-
-              @if (successionAdminTab() === 'roles') {
-                <section class="admin-section-card">
-                  @if (!editingSuccessionRoleId()) {
-                    <div class="admin-settings-item-controls">
-                      <h2>Business-critical roles</h2>
-                      <button type="button" class="admin-inline-btn" (click)="openNewSuccessionRoleForm()">Add role</button>
-                    </div>
-
-                    @if (managerData.successionRoles().length) {
-                      <div class="admin-settings-menu">
+              <section class="admin-section-card">
+                <h2>Critical roles</h2>
+                @if (managerData.successionRoles().length) {
+                  <div class="succession-report-table-wrap">
+                    <table class="succession-report-table">
+                      <thead>
+                        <tr>
+                          <th>Role</th>
+                          <th>Department</th>
+                          <th>Incumbent</th>
+                          <th>Owning manager</th>
+                        </tr>
+                      </thead>
+                      <tbody>
                         @for (role of managerData.successionRoles(); track role.id) {
-                          <button type="button" class="admin-settings-menu-item" (click)="openEditSuccessionRoleForm(role)">
-                            <span class="admin-settings-menu-item-title">
-                              {{ role.title }}
-                              @if (role.isBusinessCritical) {
-                                <span class="succession-critical-badge">Business-critical</span>
-                              }
-                            </span>
-                            <span class="admin-settings-menu-item-copy">{{ role.department }} · Owned by {{ ownerManagerName(role.ownerManagerId) }}</span>
-                          </button>
-                        }
-                      </div>
-                    } @else {
-                      <div class="admin-empty-state">No succession roles have been added yet.</div>
-                    }
-                  } @else {
-                    <button type="button" class="admin-inline-btn admin-settings-back-btn" (click)="closeSuccessionRoleForm()">Back to role catalog</button>
-
-                    <div class="succession-form-field">
-                      <span>Role title</span>
-                      <input type="text" [value]="successionRoleFormTitle()" (input)="successionRoleFormTitle.set($any($event.target).value)" />
-                    </div>
-                    <div class="succession-form-field">
-                      <span>Department</span>
-                      <input type="text" [value]="successionRoleFormDepartment()" (input)="successionRoleFormDepartment.set($any($event.target).value)" />
-                    </div>
-                    <label class="succession-form-checkbox">
-                      <input type="checkbox" [checked]="successionRoleFormCritical()" (change)="successionRoleFormCritical.set($any($event.target).checked)" />
-                      <span>Business-critical role</span>
-                    </label>
-                    <div class="succession-form-field">
-                      <span>Owning manager</span>
-                      <select [value]="successionRoleFormOwnerId()" (change)="successionRoleFormOwnerId.set($any($event.target).value)">
-                        <option value="">Select a manager…</option>
-                        @for (manager of managerData.trainingManagers(); track manager.id) {
-                          <option [value]="manager.id">{{ manager.name }} — {{ manager.team }}</option>
-                        }
-                      </select>
-                    </div>
-
-                    @if (successionRoleFormError()) {
-                      <p class="succession-form-error" role="alert">{{ successionRoleFormError() }}</p>
-                    }
-
-                    <div class="admin-settings-item-controls">
-                      <button type="button" class="admin-inline-btn" [disabled]="savingSuccessionRole()" (click)="saveSuccessionRoleForm()">{{ savingSuccessionRole() ? 'Saving…' : 'Save role' }}</button>
-                      @if (editingSuccessionRoleId() !== 'new') {
-                        <button type="button" class="admin-inline-btn succession-danger-btn" (click)="deleteSuccessionRoleFromForm()">Delete role</button>
-                      }
-                    </div>
-                  }
-                </section>
-              } @else {
-                <section class="admin-section-card">
-                  <h2>All nominations</h2>
-                  @if (managerData.successorNominations().length) {
-                    <div class="succession-report-table-wrap">
-                      <table class="succession-report-table">
-                        <thead>
                           <tr>
-                            <th>Role</th>
-                            <th>Successor</th>
-                            <th>Owning manager</th>
-                            <th>Readiness</th>
-                            <th>Status</th>
+                            <td>{{ role.title }}</td>
+                            <td>{{ role.department }}</td>
+                            <td>{{ successorName(role.incumbentStudentId) }}</td>
+                            <td>{{ ownerManagerName(role.ownerManagerId) }}</td>
                           </tr>
-                        </thead>
-                        <tbody>
-                          @for (nomination of managerData.successorNominations(); track nomination.id) {
-                            <tr>
-                              <td>{{ roleTitle(nomination.roleId) }}</td>
-                              <td>{{ successorName(nomination.successorStudentId) }}</td>
-                              <td>{{ ownerManagerName(nomination.nominatedByManagerId) }}</td>
-                              <td>{{ nomination.readinessRating }}</td>
-                              <td><span class="succession-status-chip" [class.succession-status-active]="nomination.status === 'Active'" [class.succession-status-withdrawn]="nomination.status === 'Withdrawn'">{{ nomination.status }}</span></td>
-                            </tr>
-                          }
-                        </tbody>
-                      </table>
-                    </div>
-                  } @else {
-                    <div class="admin-empty-state">No successor nominations have been created yet.</div>
-                  }
-                </section>
-              }
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                } @else {
+                  <div class="admin-empty-state">No critical roles have been flagged yet.</div>
+                }
+              </section>
+
+              <section class="admin-section-card">
+                <h2>All nominations</h2>
+                @if (managerData.successorNominations().length) {
+                  <div class="succession-report-table-wrap">
+                    <table class="succession-report-table">
+                      <thead>
+                        <tr>
+                          <th>Role</th>
+                          <th>Successor</th>
+                          <th>Owning manager</th>
+                          <th>Readiness</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (nomination of managerData.successorNominations(); track nomination.id) {
+                          <tr>
+                            <td>{{ roleTitle(nomination.roleId) }}</td>
+                            <td>{{ successorName(nomination.successorStudentId) }}</td>
+                            <td>{{ ownerManagerName(nomination.nominatedByManagerId) }}</td>
+                            <td>{{ nomination.readinessRating }}</td>
+                            <td><span class="succession-status-chip" [class.succession-status-active]="nomination.status === 'Active'" [class.succession-status-withdrawn]="nomination.status === 'Withdrawn'">{{ nomination.status }}</span></td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                } @else {
+                  <div class="admin-empty-state">No successor nominations have been created yet.</div>
+                }
+              </section>
             </section>
           }
 
@@ -3536,61 +3496,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       line-height: 1.45;
     }
 
-    .succession-admin-tabs { display: flex; gap: 0.6rem; }
-    .succession-admin-tabs .admin-inline-btn.active {
-      background: var(--admin-primary);
-      color: #fff;
-      border-color: var(--admin-primary);
-    }
-
-    .succession-critical-badge {
-      margin-left: 0.5rem;
-      padding: 0.15rem 0.55rem;
-      border-radius: 999px;
-      background: rgba(220, 38, 38, 0.12);
-      color: #b91c1c;
-      font-size: 0.68rem;
-      font-weight: 700;
-      vertical-align: middle;
-    }
-
-    .succession-form-field {
-      display: grid;
-      gap: 0.35rem;
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: #334155;
-      margin-bottom: 0.85rem;
-    }
-    .succession-form-field select,
-    .succession-form-field input[type="text"] {
-      border: 1px solid rgba(148, 163, 184, 0.4);
-      border-radius: 10px;
-      padding: 0.6rem 0.75rem;
-      font: inherit;
-      font-weight: 400;
-      color: #14213d;
-      background: #fff;
-    }
-
-    .succession-form-checkbox {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 0.88rem;
-      font-weight: 600;
-      color: #334155;
-      margin-bottom: 0.85rem;
-    }
-
-    .succession-form-error { color: #b91c1c; font-size: 0.85rem; }
-
-    .succession-danger-btn {
-      background: #fff;
-      color: #b91c1c;
-      border-color: rgba(220, 38, 38, 0.32);
-    }
-
     .succession-report-table-wrap { overflow-x: auto; }
     .succession-report-table {
       width: 100%;
@@ -4564,105 +4469,22 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     { label: 'LMS Settings', value: 'settings' },
   ];
   // ── Succession Planning ───────────────────────────────────────────────
-  readonly successionAdminTab = signal<'roles' | 'nominations'>('roles');
-  readonly editingSuccessionRoleId = signal<string | null>(null);
-  readonly successionRoleFormTitle = signal('');
-  readonly successionRoleFormDepartment = signal('');
-  readonly successionRoleFormCritical = signal(false);
-  readonly successionRoleFormOwnerId = signal('');
-  readonly successionRoleFormError = signal('');
-  readonly savingSuccessionRole = signal(false);
-
+  // Fully read-only for admin — see server.ts's succession routes, all gated to
+  // requireTrainingManager. ownerManagerId/nominatedByManagerId are the flagging/nominating
+  // manager's own EnrollmentStudentRecord id (their team is students whose lineManagerId matches
+  // it), so both resolve through the student roster rather than trainingManagers.
   ownerManagerName(managerId: string) {
-    const manager = this.managerData.trainingManagers().find((entry) => entry.id === managerId);
-    return manager?.name ?? 'Unassigned';
+    const manager = this.managerData.students().find((entry) => entry.id === managerId);
+    return manager ? `${manager.name} ${manager.surname}` : 'Unassigned';
   }
 
   roleTitle(roleId: string) {
-    return this.managerData.successionRoles().find((role) => role.id === roleId)?.title ?? 'Deleted role';
+    return this.managerData.successionRoles().find((role) => role.id === roleId)?.title ?? 'Removed role';
   }
 
   successorName(studentId: string) {
     const student = this.managerData.students().find((entry) => entry.id === studentId);
     return student ? `${student.name} ${student.surname}` : 'Former team member';
-  }
-
-  openNewSuccessionRoleForm() {
-    this.successionRoleFormTitle.set('');
-    this.successionRoleFormDepartment.set('');
-    this.successionRoleFormCritical.set(false);
-    this.successionRoleFormOwnerId.set('');
-    this.successionRoleFormError.set('');
-    this.editingSuccessionRoleId.set('new');
-  }
-
-  openEditSuccessionRoleForm(role: SuccessionRoleRecord) {
-    this.successionRoleFormTitle.set(role.title);
-    this.successionRoleFormDepartment.set(role.department);
-    this.successionRoleFormCritical.set(role.isBusinessCritical);
-    this.successionRoleFormOwnerId.set(role.ownerManagerId);
-    this.successionRoleFormError.set('');
-    this.editingSuccessionRoleId.set(role.id);
-  }
-
-  closeSuccessionRoleForm() {
-    this.editingSuccessionRoleId.set(null);
-  }
-
-  saveSuccessionRoleForm() {
-    const title = this.successionRoleFormTitle().trim();
-    const department = this.successionRoleFormDepartment().trim();
-    const ownerManagerId = this.successionRoleFormOwnerId();
-
-    if (!title || !department || !ownerManagerId) {
-      this.successionRoleFormError.set('Title, department and an owning manager are all required.');
-      return;
-    }
-
-    const input: SuccessionRoleInput = {
-      title,
-      department,
-      isBusinessCritical: this.successionRoleFormCritical(),
-      ownerManagerId,
-    };
-
-    const editingId = this.editingSuccessionRoleId();
-    this.successionRoleFormError.set('');
-    this.savingSuccessionRole.set(true);
-
-    const request = editingId && editingId !== 'new'
-      ? this.managerData.updateSuccessionRole(editingId, input)
-      : this.managerData.createSuccessionRole(input);
-
-    request.subscribe({
-      next: () => {
-        this.savingSuccessionRole.set(false);
-        this.editingSuccessionRoleId.set(null);
-      },
-      error: () => {
-        this.savingSuccessionRole.set(false);
-        this.successionRoleFormError.set('Could not save this role. Please try again.');
-      },
-    });
-  }
-
-  deleteSuccessionRoleFromForm() {
-    const roleId = this.editingSuccessionRoleId();
-    if (!roleId || roleId === 'new') {
-      return;
-    }
-
-    this.savingSuccessionRole.set(true);
-    this.managerData.deleteSuccessionRole(roleId).subscribe({
-      next: () => {
-        this.savingSuccessionRole.set(false);
-        this.editingSuccessionRoleId.set(null);
-      },
-      error: () => {
-        this.savingSuccessionRole.set(false);
-        this.successionRoleFormError.set('Could not delete this role. Please try again.');
-      },
-    });
   }
 
   readonly selectedPanel = signal<AdminPanel>('dashboard');

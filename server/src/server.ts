@@ -184,6 +184,7 @@ function requireRole(...allowedRoles: string[]) {
 
 const requireAdministrator = requireRole('administrator');
 const requireManagerOrAdministrator = requireRole('administrator', 'training-manager');
+const requireTrainingManager = requireRole('training-manager');
 
 async function isOwnStudentRecord(studentId: string, identity: AuthenticatedIdentity): Promise<boolean> {
   // Prefer the studentId claim: it's the session's actual linked student record, set at login.
@@ -206,26 +207,29 @@ async function isOwnStudentRecord(studentId: string, identity: AuthenticatedIden
   return Boolean(student && student.email.trim().toLowerCase() === identity.email.trim().toLowerCase());
 }
 
-// A training manager may only create/edit nominations for a succession role they own; an
-// administrator may act on any role. resolveManagerIdentity draws from the same pool as the
-// external-training-request approver picker (a trainingManagers roster entry, or an active
-// role==='manager' student account) so a manager logged in via either kind of account is
-// recognized correctly.
-async function isOwnManagedRole(roleId: string, identity: AuthenticatedIdentity): Promise<boolean> {
-  if (identity.role === 'administrator') {
-    return true;
-  }
-
+// A succession role's ownerManagerId is the flagging manager's own EnrollmentStudentRecord id
+// (their team is every student whose lineManagerId points back at that id) — same email-match
+// resolution as the client's currentManagerStudentId (training-manager-data.service.ts) and
+// isOwnStudentRecord's fallback above, not the unrelated trainingManagers/approving-manager pool.
+async function resolveOwnManagerStudentId(identity: AuthenticatedIdentity): Promise<string | null> {
   if (identity.role !== 'training-manager') {
-    return false;
+    return null;
   }
 
-  const [role, ownManager] = await Promise.all([
+  const data = await repository.read();
+  const email = identity.email.trim().toLowerCase();
+  return data.students.find((student) => student.email.trim().toLowerCase() === email)?.id ?? null;
+}
+
+// Admin is fully view-only for succession planning — only the role's own flagging manager may
+// create/edit/withdraw its nominations or unflag it.
+async function isOwnManagedRole(roleId: string, identity: AuthenticatedIdentity): Promise<boolean> {
+  const [role, ownManagerId] = await Promise.all([
     repository.getSuccessionRole(roleId),
-    repository.resolveManagerIdentity(identity.email),
+    resolveOwnManagerStudentId(identity),
   ]);
 
-  return Boolean(role && ownManager && role.ownerManagerId === ownManager.id);
+  return Boolean(role && ownManagerId && role.ownerManagerId === ownManagerId);
 }
 
 function readAuthenticatedSessionPayload(request: express.Request) {
@@ -796,11 +800,7 @@ const openKpiYearSchema = z.object({
 });
 
 const successionRoleInputSchema = z.object({
-  title: z.string().min(1),
-  department: z.string().min(1),
-  isBusinessCritical: z.boolean(),
-  ownerManagerId: z.string().min(1),
-  incumbentStudentId: z.string().optional(),
+  incumbentStudentId: z.string().min(1),
 });
 
 const successionDevelopmentActionSchema = z.object({
@@ -2680,14 +2680,29 @@ app.post('/api/kpi-years/open', async (request, response, next) => {
   }
 });
 
-// Succession-planning role catalog: admin-managed, per the go-live decision that L&D owns which
-// roles exist and who they're assigned to rather than managers self-declaring them.
-app.post('/api/succession/roles', requireAdministrator, async (request, response, next) => {
+// Succession-planning role selection: a manager flags one of their own team's positions as
+// critical (team = every student whose lineManagerId is the manager's own EnrollmentStudentRecord
+// id). There's no admin-managed catalog any more — admin is fully view-only for succession
+// planning (see the GET /api/bootstrap scoping in repository.ts, which already hands an admin
+// caller every role/nomination unfiltered for reporting).
+app.post('/api/succession/roles', requireTrainingManager, async (request, response, next) => {
   try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
+    const ownerManagerId = await resolveOwnManagerStudentId(identity);
+    if (!ownerManagerId) {
+      response.status(403).json({ message: 'Could not resolve your own manager profile.' });
+      return;
+    }
+
     const body = successionRoleInputSchema.parse(request.body);
-    const role = await repository.createSuccessionRole(body);
+    const role = await repository.createSuccessionRole(body, ownerManagerId);
     if (!role) {
-      response.status(400).json({ message: 'Title, department and owning manager are required.' });
+      response.status(400).json({ message: 'That employee is not on your team, or their position is already flagged as a critical role.' });
       return;
     }
 
@@ -2697,23 +2712,19 @@ app.post('/api/succession/roles', requireAdministrator, async (request, response
   }
 });
 
-app.put('/api/succession/roles/:roleId', requireAdministrator, async (request, response, next) => {
+app.delete('/api/succession/roles/:roleId', requireTrainingManager, async (request, response, next) => {
   try {
-    const body = successionRoleInputSchema.parse(request.body);
-    const role = await repository.updateSuccessionRole(request.params['roleId'] as string, body);
-    if (!role) {
-      response.status(404).json({ message: 'Succession role not found.' });
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
 
-    response.json(role);
-  } catch (error) {
-    next(error);
-  }
-});
+    if (!(await isOwnManagedRole(request.params['roleId'] as string, identity))) {
+      response.status(403).json({ message: 'You can only un-flag critical roles on your own team.' });
+      return;
+    }
 
-app.delete('/api/succession/roles/:roleId', requireAdministrator, async (request, response, next) => {
-  try {
     const deleted = await repository.deleteSuccessionRole(request.params['roleId'] as string);
     if (!deleted) {
       response.status(404).json({ message: 'Succession role not found.' });
@@ -2726,10 +2737,10 @@ app.delete('/api/succession/roles/:roleId', requireAdministrator, async (request
   }
 });
 
-// Successor nominations: only the role's owning manager (or an administrator) may create/edit —
-// see isOwnManagedRole. A learner never reaches these routes at all; their own earmarked status
-// comes read-only through their student snapshot's successionStatus field instead.
-app.post('/api/succession/nominations', requireManagerOrAdministrator, async (request, response, next) => {
+// Successor nominations: only the role's own flagging manager may create/edit — see
+// isOwnManagedRole. A learner never reaches these routes at all; their own earmarked status comes
+// read-only through their student snapshot's successionStatus field instead.
+app.post('/api/succession/nominations', requireTrainingManager, async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
     if (!identity) {
@@ -2743,13 +2754,10 @@ app.post('/api/succession/nominations', requireManagerOrAdministrator, async (re
       return;
     }
 
-    const nominatedByManagerId = identity.role === 'administrator'
-      ? (await repository.getSuccessionRole(body.roleId))?.ownerManagerId ?? ''
-      : (await repository.resolveManagerIdentity(identity.email))?.id ?? '';
-
+    const nominatedByManagerId = await resolveOwnManagerStudentId(identity) ?? '';
     const nomination = await repository.createSuccessorNomination(body, nominatedByManagerId);
     if (!nomination) {
-      response.status(404).json({ message: 'Role or successor employee not found.' });
+      response.status(404).json({ message: 'That employee is not eligible as a successor — pick someone from the same team who isn\'t already the incumbent.' });
       return;
     }
 
@@ -2759,7 +2767,7 @@ app.post('/api/succession/nominations', requireManagerOrAdministrator, async (re
   }
 });
 
-app.put('/api/succession/nominations/:nominationId', requireManagerOrAdministrator, async (request, response, next) => {
+app.put('/api/succession/nominations/:nominationId', requireTrainingManager, async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
     if (!identity) {
@@ -2789,7 +2797,7 @@ app.put('/api/succession/nominations/:nominationId', requireManagerOrAdministrat
 // Draft -> Active makes the nomination live and visible to the learner (and fires their
 // notification); Active/Draft -> Withdrawn takes it down but never deletes it, preserving audit
 // history — see LmsRepository.successionStatusTransitions for the allowed moves.
-app.put('/api/succession/nominations/:nominationId/status', requireManagerOrAdministrator, async (request, response, next) => {
+app.put('/api/succession/nominations/:nominationId/status', requireTrainingManager, async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
     if (!identity) {

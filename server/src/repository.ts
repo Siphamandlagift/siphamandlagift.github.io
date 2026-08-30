@@ -1023,14 +1023,15 @@ export class LmsRepository {
     if (isPrivileged) {
       // Unlike every other field in this branch, succession data is sensitive and NOT shared
       // equally between admin and manager — an admin (L&D) sees every role/nomination for
-      // reporting, but a manager must only see roles they own and nominations against those
-      // roles, never another manager's. resolveApprovingManagers covers both a plain
-      // trainingManagers roster entry and a role==='manager' student account, the same set the
-      // admin's owning-manager picker is drawn from.
+      // reporting, but a manager must only see roles they own (their own team's flagged
+      // positions) and nominations against those roles, never another manager's. ownManagerId is
+      // the manager's own EnrollmentStudentRecord id — same email-match resolution as the client's
+      // currentManagerStudentId (training-manager-data.service.ts) and server.ts's
+      // resolveOwnManagerStudentId, not the unrelated trainingManagers/approving-manager pool.
       const isAdministrator = caller?.role === 'administrator';
       const ownManagerId = !isAdministrator && caller
-        ? resolveApprovingManagers(data).find(
-          (manager) => manager.email.trim().toLowerCase() === caller.email.trim().toLowerCase(),
+        ? data.students.find(
+          (student) => student.email.trim().toLowerCase() === caller.email.trim().toLowerCase(),
         )?.id ?? null
         : null;
       const successionRoles = isAdministrator
@@ -2624,67 +2625,35 @@ export class LmsRepository {
     return data.successionRoles.find((role) => role.id === roleId) ?? null;
   }
 
-  // Same pool as resolveApprovingManagers (a trainingManagers roster entry, or an active
-  // role==='manager' student account) — used by isOwnManagedRole in server.ts to resolve which
-  // manager identity the caller actually is.
-  async resolveManagerIdentity(email: string) {
+  // ownerManagerId is the flagging manager's own EnrollmentStudentRecord id — a role only ever
+  // exists because that manager picked one of their own team's positions (lineManagerId ===
+  // ownerManagerId) and flagged it, so title/department are snapshotted from the incumbent
+  // rather than independently supplied.
+  async createSuccessionRole(input: SuccessionRoleInput, ownerManagerId: string) {
     const data = await this.read();
-    const normalizedEmail = email.trim().toLowerCase();
-    return resolveApprovingManagers(data).find(
-      (manager) => manager.email.trim().toLowerCase() === normalizedEmail,
-    ) ?? null;
-  }
+    const incumbentStudentId = input.incumbentStudentId.trim();
+    const incumbent = data.students.find((student) => student.id === incumbentStudentId);
 
-  async createSuccessionRole(input: SuccessionRoleInput) {
-    const data = await this.read();
-    const title = input.title.trim();
-    const department = input.department.trim();
-    const ownerManagerId = input.ownerManagerId.trim();
+    if (!incumbent || incumbent.lineManagerId !== ownerManagerId) {
+      return null;
+    }
 
-    if (!title || !department || !ownerManagerId) {
+    if (data.successionRoles.some((role) => role.incumbentStudentId === incumbentStudentId)) {
       return null;
     }
 
     const role: SuccessionRoleRecord = {
       id: `succession-role-${Date.now()}`,
-      title,
-      department,
-      isBusinessCritical: input.isBusinessCritical === true,
+      title: incumbent.jobTitle,
+      department: incumbent.department,
       ownerManagerId,
-      incumbentStudentId: input.incumbentStudentId?.trim() || undefined,
+      incumbentStudentId,
       createdOn: this.formatDisplayDate(new Date()),
     };
 
     data.successionRoles.push(role);
     await this.write(data);
     return role;
-  }
-
-  async updateSuccessionRole(roleId: string, input: SuccessionRoleInput) {
-    const data = await this.read();
-    const index = data.successionRoles.findIndex((role) => role.id === roleId);
-    if (index === -1) {
-      return null;
-    }
-
-    const title = input.title.trim();
-    const department = input.department.trim();
-    const ownerManagerId = input.ownerManagerId.trim();
-    if (!title || !department || !ownerManagerId) {
-      return null;
-    }
-
-    data.successionRoles[index] = {
-      ...data.successionRoles[index],
-      title,
-      department,
-      isBusinessCritical: input.isBusinessCritical === true,
-      ownerManagerId,
-      incumbentStudentId: input.incumbentStudentId?.trim() || undefined,
-    };
-
-    const next = await this.write(data);
-    return next.successionRoles.find((role) => role.id === roleId) ?? null;
   }
 
   async deleteSuccessionRole(roleId: string) {
@@ -2720,7 +2689,9 @@ export class LmsRepository {
     const role = data.successionRoles.find((entry) => entry.id === roleId);
     const successor = data.students.find((entry) => entry.id === successorStudentId);
 
-    if (!role || !successor) {
+    // The successor must be a real candidate from the same team as the role's incumbent — not
+    // the incumbent themselves, and not someone pulled in from outside that manager's team.
+    if (!role || !successor || successorStudentId === role.incumbentStudentId || successor.lineManagerId !== role.ownerManagerId) {
       return null;
     }
 
@@ -3558,53 +3529,33 @@ class FirestoreLmsRepository extends LmsRepository {
   // only their own document(s) directly, so a succession-catalog edit can never revert a
   // concurrent, unrelated write elsewhere (a KPI self-score save, a snapshot autosave) the way the
   // inherited path would.
-  override async createSuccessionRole(input: SuccessionRoleInput) {
-    const title = input.title.trim();
-    const department = input.department.trim();
-    const ownerManagerId = input.ownerManagerId.trim();
+  override async createSuccessionRole(input: SuccessionRoleInput, ownerManagerId: string) {
+    const incumbentStudentId = input.incumbentStudentId.trim();
 
-    if (!title || !department || !ownerManagerId) {
+    const [incumbentSnapshot, existingRoleForIncumbent] = await Promise.all([
+      this.collection('students').doc(incumbentStudentId).get(),
+      this.collection('successionRoles').where('incumbentStudentId', '==', incumbentStudentId).get(),
+    ]);
+
+    if (!incumbentSnapshot.exists || !existingRoleForIncumbent.empty) {
+      return null;
+    }
+
+    const incumbent = incumbentSnapshot.data() as StudentRecord;
+    if (incumbent.lineManagerId !== ownerManagerId) {
       return null;
     }
 
     const role: SuccessionRoleRecord = {
       id: `succession-role-${Date.now()}`,
-      title,
-      department,
-      isBusinessCritical: input.isBusinessCritical === true,
+      title: incumbent.jobTitle,
+      department: incumbent.department,
       ownerManagerId,
-      incumbentStudentId: input.incumbentStudentId?.trim() || undefined,
+      incumbentStudentId,
       createdOn: this.formatDisplayDate(new Date()),
     };
 
     await this.collection('successionRoles').doc(role.id).set(this.sanitizeForFirestore(role));
-    return role;
-  }
-
-  override async updateSuccessionRole(roleId: string, input: SuccessionRoleInput) {
-    const title = input.title.trim();
-    const department = input.department.trim();
-    const ownerManagerId = input.ownerManagerId.trim();
-    if (!title || !department || !ownerManagerId) {
-      return null;
-    }
-
-    const ref = this.collection('successionRoles').doc(roleId);
-    const snapshot = await ref.get();
-    if (!snapshot.exists) {
-      return null;
-    }
-
-    const role: SuccessionRoleRecord = {
-      ...(snapshot.data() as SuccessionRoleRecord),
-      title,
-      department,
-      isBusinessCritical: input.isBusinessCritical === true,
-      ownerManagerId,
-      incumbentStudentId: input.incumbentStudentId?.trim() || undefined,
-    };
-
-    await ref.set(this.sanitizeForFirestore(role));
     return role;
   }
 
@@ -3644,6 +3595,13 @@ class FirestoreLmsRepository extends LmsRepository {
     ]);
 
     if (!roleSnapshot.exists || !studentSnapshot.exists) {
+      return null;
+    }
+
+    const role = roleSnapshot.data() as SuccessionRoleRecord;
+    const successor = studentSnapshot.data() as StudentRecord;
+    // Same team-only rule as the base-class override — see LmsRepository.createSuccessorNomination.
+    if (successorStudentId === role.incumbentStudentId || successor.lineManagerId !== role.ownerManagerId) {
       return null;
     }
 

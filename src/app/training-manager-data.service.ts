@@ -296,18 +296,13 @@ export type SuccessionRoleRecord = {
   id: string;
   title: string;
   department: string;
-  isBusinessCritical: boolean;
   ownerManagerId: string;
-  incumbentStudentId?: string;
+  incumbentStudentId: string;
   createdOn: string;
 };
 
 export type SuccessionRoleInput = {
-  title: string;
-  department: string;
-  isBusinessCritical: boolean;
-  ownerManagerId: string;
-  incumbentStudentId?: string;
+  incumbentStudentId: string;
 };
 
 export type SuccessionDevelopmentAction = {
@@ -496,8 +491,9 @@ export class TrainingManagerDataService {
   // The mentee's own line manager (a stable id, set by an admin) should always see their
   // mentee's mentorship activity, regardless of whether the student typed the mentor's name
   // correctly in the free-text mentor field. This resolves the current manager's own student
-  // record id so it can be compared against a mentee's lineManagerId.
-  private readonly currentManagerStudentId = computed(() => {
+  // record id so it can be compared against a mentee's lineManagerId. Also reused by succession
+  // planning to build "my team" (every student whose lineManagerId equals this).
+  readonly currentManagerStudentId = computed(() => {
     const currentManagerEmail = this.profile().email.trim().toLowerCase();
     if (!currentManagerEmail) {
       return null;
@@ -2738,12 +2734,6 @@ export class TrainingManagerDataService {
   createSuccessionRole(input: SuccessionRoleInput): Observable<SuccessionRoleRecord> {
     return this.backend.createSuccessionRole(input).pipe(
       tap((role) => this.successionRolesSignal.update((roles) => [...roles, role])),
-    );
-  }
-
-  updateSuccessionRole(roleId: string, input: SuccessionRoleInput): Observable<SuccessionRoleRecord> {
-    return this.backend.updateSuccessionRole(roleId, input).pipe(
-      tap((role) => this.successionRolesSignal.update((roles) => roles.map((entry) => (entry.id === role.id ? role : entry)))),
     );
   }
 

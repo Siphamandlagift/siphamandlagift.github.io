@@ -385,24 +385,24 @@ export type StudentKpiGapAnalysisUpdateInput = {
 export type SuccessionReadinessRating = 'Ready Now' | 'Ready in 1-2 Years' | 'Ready in 3+ Years';
 export type SuccessionNominationStatus = 'Draft' | 'Active' | 'Withdrawn';
 
+// A role only ever exists because a manager flagged one of their own team's positions as
+// critical — there's no separate role-naming/admin-assignment step, so title/department are
+// snapshotted from the incumbent at flagging time rather than independently settable.
 export type SuccessionRoleRecord = {
   id: string;
   title: string;
   department: string;
-  isBusinessCritical: boolean;
-  // SystemTrainingManagerRecord.id — the only manager who can nominate/edit nominations for this role.
+  // The flagging manager's own EnrollmentStudentRecord id — their team is every student whose
+  // lineManagerId equals this.
   ownerManagerId: string;
-  // Display-only; not surfaced to the nominated learner.
-  incumbentStudentId?: string;
+  // Required: the team member whose position was flagged. Display-only to the L&D admin report;
+  // never surfaced to the nominated successor (see StudentSuccessionStatus).
+  incumbentStudentId: string;
   createdOn: string;
 };
 
 export type SuccessionRoleInput = {
-  title: string;
-  department: string;
-  isBusinessCritical: boolean;
-  ownerManagerId: string;
-  incumbentStudentId?: string;
+  incumbentStudentId: string;
 };
 
 export type SuccessionDevelopmentAction = {

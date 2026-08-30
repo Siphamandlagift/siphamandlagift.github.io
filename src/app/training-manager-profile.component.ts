@@ -21,6 +21,7 @@ import {
   StudentKpiScore,
   SuccessionNominationStatus,
   SuccessionReadinessRating,
+  SuccessionRoleRecord,
   SuccessorNominationRecord,
   TrainingAssessmentType,
   TrainingManagerDataService,
@@ -2659,42 +2660,61 @@ type KpiEntryFormGroup = FormGroup<{
             <section class="manager-panel">
               <div class="section-heading-block">
                 <p class="eyebrow">Succession Planning</p>
-                <h1>Business-critical roles you manage</h1>
+                <h1>Flag critical roles on your team</h1>
               </div>
 
               @if (!selectedSuccessionRoleId()) {
-                @if (successionRoles().length) {
+                @if (myTeam().length) {
                   <div class="idp-member-grid">
-                    @for (role of successionRoles(); track role.id) {
-                      <button type="button" class="idp-member-card" (click)="selectSuccessionRole(role.id)">
-                        <div class="idp-member-info">
-                          <strong class="idp-member-name">{{ role.title }}</strong>
-                          <span class="idp-member-meta">{{ role.department }}</span>
+                    @for (member of myTeam(); track member.id) {
+                      @if (successionRoleForIncumbent(member.id); as role) {
+                        <button type="button" class="idp-member-card" (click)="selectSuccessionRole(role.id)">
+                          <div class="idp-member-info">
+                            <strong class="idp-member-name">{{ member.name }} {{ member.surname }}</strong>
+                            <span class="idp-member-meta">{{ member.jobTitle || member.department }}</span>
+                          </div>
+                          <div class="idp-member-status">
+                            <span class="succession-critical-chip">Critical role</span>
+                            <span class="idp-program-count">{{ nominationsForRole(role.id).length }} {{ nominationsForRole(role.id).length === 1 ? 'nomination' : 'nominations' }}</span>
+                            <span class="idp-member-chevron" aria-hidden="true">›</span>
+                          </div>
+                        </button>
+                      } @else {
+                        <div class="idp-member-card succession-team-card">
+                          <div class="idp-member-info">
+                            <strong class="idp-member-name">{{ member.name }} {{ member.surname }}</strong>
+                            <span class="idp-member-meta">{{ member.jobTitle || member.department }}</span>
+                          </div>
+                          <button type="button" class="idp-program-add" [disabled]="flaggingRoleForStudentId() === member.id" (click)="flagCriticalRole(member.id)">
+                            {{ flaggingRoleForStudentId() === member.id ? 'Flagging…' : 'Flag as critical role' }}
+                          </button>
                         </div>
-                        <div class="idp-member-status">
-                          <span class="idp-program-count">{{ nominationsForRole(role.id).length }} {{ nominationsForRole(role.id).length === 1 ? 'nomination' : 'nominations' }}</span>
-                          <span class="idp-member-chevron" aria-hidden="true">›</span>
-                        </div>
-                      </button>
+                      }
                     }
                   </div>
                 } @else {
                   <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">
-                    No business-critical roles are assigned to you yet — an administrator manages the role catalog under Settings.
+                    No team members are assigned to you yet — an administrator sets each employee's Line Manager under User Management.
                   </div>
                 }
               } @else if (selectedSuccessionRole(); as role) {
                 <div class="idp-detail-header">
-                  <button type="button" class="idp-back-btn" (click)="clearSuccessionRole()">← Back to roles</button>
+                  <button type="button" class="idp-back-btn" (click)="clearSuccessionRole()">← Back to team</button>
                   <div class="idp-detail-identity">
                     <div>
                       <h2 class="idp-detail-name">{{ role.title }}</h2>
-                      <span class="idp-detail-meta">{{ role.department }}</span>
+                      <span class="idp-detail-meta">{{ role.department }} · {{ successorName(role.incumbentStudentId) }}</span>
                     </div>
                   </div>
                 </div>
 
                 <div class="activity-card mentorship-review-card">
+                  <div class="idp-program-actions succession-unflag-row">
+                    <button type="button" class="idp-back-btn succession-danger-btn" [disabled]="unflaggingRole()" (click)="unflagRole(role.id)">
+                      {{ unflaggingRole() ? 'Removing…' : 'This is no longer a critical role' }}
+                    </button>
+                  </div>
+
                   @if (!nominatingSuccessor()) {
                     <button type="button" class="idp-program-add" (click)="openNominateForm()">Nominate Successor</button>
                   } @else {
@@ -2704,10 +2724,10 @@ type KpiEntryFormGroup = FormGroup<{
                       </div>
                       <div class="idp-program-card-body succession-nominate-form">
                         <label class="succession-form-field">
-                          <span>Employee</span>
+                          <span>Employee (from your team)</span>
                           <select [value]="successionFormStudentId()" (change)="successionFormStudentId.set($any($event.target).value)">
                             <option value="">Select an employee…</option>
-                            @for (student of managerData.students(); track student.id) {
+                            @for (student of teamCandidatesForRole(role); track student.id) {
                               <option [value]="student.id">{{ student.name }} {{ student.surname }} — {{ student.jobTitle || student.department }}</option>
                             }
                           </select>
@@ -6390,6 +6410,23 @@ type KpiEntryFormGroup = FormGroup<{
       .succession-action-status.succession-action-done { background: rgba(34, 197, 94, 0.16); color: #15803d; }
       .succession-action-add-row { display: flex; gap: 0.5rem; align-items: center; }
       .succession-action-add-row input { flex: 1; }
+      .succession-critical-chip {
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        background: rgba(220, 38, 38, 0.12);
+        color: #b91c1c;
+        font-size: 0.72rem;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .succession-team-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+      .succession-unflag-row { justify-content: flex-end; margin-bottom: 0.5rem; }
+      .succession-danger-btn { color: #b91c1c; }
 
       .idp-detail-header { margin-bottom: 1.25rem; }
       .idp-back-btn {
@@ -9717,6 +9754,14 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   // successionRoles/successorNominations are already scoped server-side (see getBootstrap) — a
   // manager only ever receives roles they own, so no further client-side filtering is needed here.
   readonly successionRoles = this.managerData.successionRoles;
+  // "My team" = every student whose lineManagerId points at this manager's own record — the same
+  // relationship training-manager-data.service.ts already uses for mentee/manager linkage
+  // (currentManagerStudentId), now reused so succession planning is scoped to real reports rather
+  // than the whole roster.
+  readonly myTeam = computed(() => {
+    const ownId = this.managerData.currentManagerStudentId();
+    return ownId ? this.managerData.students().filter((student) => student.lineManagerId === ownId) : [];
+  });
   readonly selectedSuccessionRoleId = signal<string | null>(null);
   readonly selectedSuccessionRole = computed(() =>
     this.successionRoles().find((role) => role.id === this.selectedSuccessionRoleId()) ?? null,
@@ -9730,6 +9775,16 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   readonly selectedNominationId = signal<string | null>(null);
   readonly newGapCompetency = signal('');
   readonly newActionDrafts = signal<Record<string, string>>({});
+  readonly flaggingRoleForStudentId = signal<string | null>(null);
+  readonly unflaggingRole = signal(false);
+
+  successionRoleForIncumbent(studentId: string) {
+    return this.successionRoles().find((role) => role.incumbentStudentId === studentId) ?? null;
+  }
+
+  teamCandidatesForRole(role: SuccessionRoleRecord) {
+    return this.myTeam().filter((member) => member.id !== role.incumbentStudentId);
+  }
 
   nominationsForRole(roleId: string) {
     return this.managerData.successorNominations().filter((nomination) => nomination.roleId === roleId);
@@ -9738,6 +9793,32 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   successorName(studentId: string) {
     const student = this.managerData.students().find((entry) => entry.id === studentId);
     return student ? `${student.name} ${student.surname}` : 'Former team member';
+  }
+
+  flagCriticalRole(incumbentStudentId: string) {
+    this.flaggingRoleForStudentId.set(incumbentStudentId);
+    this.managerData.createSuccessionRole({ incumbentStudentId }).subscribe({
+      next: (role) => {
+        this.flaggingRoleForStudentId.set(null);
+        this.selectSuccessionRole(role.id);
+      },
+      error: () => {
+        this.flaggingRoleForStudentId.set(null);
+      },
+    });
+  }
+
+  unflagRole(roleId: string) {
+    this.unflaggingRole.set(true);
+    this.managerData.deleteSuccessionRole(roleId).subscribe({
+      next: () => {
+        this.unflaggingRole.set(false);
+        this.clearSuccessionRole();
+      },
+      error: () => {
+        this.unflaggingRole.set(false);
+      },
+    });
   }
 
   selectSuccessionRole(roleId: string) {
