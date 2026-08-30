@@ -220,6 +220,30 @@ function createSuccessionNotification(role: SuccessionRoleRecord): StudentNotifi
   };
 }
 
+function createSuccessionIncumbentNotification(role: SuccessionRoleRecord): StudentNotificationRecord {
+  return {
+    id: `succession-incumbent-${role.id}`,
+    badge: 'Succession',
+    title: 'Your role has been flagged as business-critical',
+    body: `Your manager has identified your position (${role.title}) as a critical role for succession planning. A development entry has been added to your IDP.`,
+    dateLabel: 'Just now',
+    unread: true,
+  };
+}
+
+// A lightweight placeholder — the manager fills in plannedAction/supportRequired/targetDate
+// afterward through the normal IDP screen, same as any other IDP entry.
+function createSuccessionIdpEntry(developmentNeed: string, dateCaptured: string): StudentIdpEntryRecord {
+  return {
+    developmentNeed,
+    plannedAction: '',
+    supportRequired: '',
+    dateCaptured,
+    targetDate: '',
+    status: 'Not Started',
+  };
+}
+
 // Only ever returns an Active nomination — Draft/Withdrawn must never reach the learner — and
 // deliberately omits nominatedByManagerId / the role's incumbent, per the access rules.
 function computeSuccessionStatus(data: LmsDataStore, studentId: string): StudentSuccessionStatus | null {
@@ -2642,16 +2666,33 @@ export class LmsRepository {
       return null;
     }
 
+    const now = this.formatDisplayDate(new Date());
     const role: SuccessionRoleRecord = {
       id: `succession-role-${Date.now()}`,
       title: incumbent.jobTitle,
       department: incumbent.department,
       ownerManagerId,
       incumbentStudentId,
-      createdOn: this.formatDisplayDate(new Date()),
+      createdOn: now,
     };
 
     data.successionRoles.push(role);
+
+    // Flagging someone's position as a critical role notifies them and seeds an IDP entry for
+    // their development as the incumbent of a role the business now needs continuity planning
+    // for — see createSuccessionIdpEntry/createSuccessionIncumbentNotification above.
+    const incumbentIndex = data.students.findIndex((student) => student.id === incumbentStudentId);
+    if (incumbentIndex !== -1) {
+      data.students[incumbentIndex] = {
+        ...data.students[incumbentIndex],
+        notifications: [createSuccessionIncumbentNotification(role), ...data.students[incumbentIndex].notifications],
+        idpEntries: [
+          ...(data.students[incumbentIndex].idpEntries ?? []),
+          createSuccessionIdpEntry(`Succession: your role (${role.title}) has been flagged as business-critical`, now),
+        ],
+      };
+    }
+
     await this.write(data);
     return role;
   }
@@ -2763,6 +2804,10 @@ export class LmsRepository {
         data.students[studentIndex] = {
           ...data.students[studentIndex],
           notifications: [createSuccessionNotification(role), ...data.students[studentIndex].notifications],
+          idpEntries: [
+            ...(data.students[studentIndex].idpEntries ?? []),
+            createSuccessionIdpEntry(`Succession: earmarked as successor for ${role.title}`, now),
+          ],
         };
       }
     }
@@ -3546,16 +3591,29 @@ class FirestoreLmsRepository extends LmsRepository {
       return null;
     }
 
+    const now = this.formatDisplayDate(new Date());
     const role: SuccessionRoleRecord = {
       id: `succession-role-${Date.now()}`,
       title: incumbent.jobTitle,
       department: incumbent.department,
       ownerManagerId,
       incumbentStudentId,
-      createdOn: this.formatDisplayDate(new Date()),
+      createdOn: now,
     };
 
     await this.collection('successionRoles').doc(role.id).set(this.sanitizeForFirestore(role));
+
+    // Best-effort, outside the role write — same convention as syncLinkedAuthAccountForStudent
+    // below. Notifies the incumbent and seeds an IDP entry for their development in a role the
+    // business now needs continuity planning for.
+    await this.collection('students').doc(incumbentStudentId).update(this.sanitizeForFirestore({
+      notifications: [createSuccessionIncumbentNotification(role), ...incumbent.notifications],
+      idpEntries: [
+        ...(incumbent.idpEntries ?? []),
+        createSuccessionIdpEntry(`Succession: your role (${role.title}) has been flagged as business-critical`, now),
+      ],
+    }));
+
     return role;
   }
 
@@ -3686,6 +3744,10 @@ class FirestoreLmsRepository extends LmsRepository {
         const student = studentSnapshot.data() as StudentRecord;
         transaction.update(studentRef, this.sanitizeForFirestore({
           notifications: [createSuccessionNotification(role), ...(student.notifications ?? [])],
+          idpEntries: [
+            ...(student.idpEntries ?? []),
+            createSuccessionIdpEntry(`Succession: earmarked as successor for ${role.title}`, now),
+          ],
         }));
       }
 
