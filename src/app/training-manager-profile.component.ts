@@ -2661,7 +2661,8 @@ type KpiEntryFormGroup = FormGroup<{
             <section class="manager-panel succession-hq">
               <div class="section-heading-block">
                 <p class="eyebrow">Succession Planning</p>
-                <h1>Flag critical roles on your team</h1>
+                <h1>Succession plan</h1>
+                <p class="section-copy">Key positions &amp; leadership pipeline for your team.</p>
               </div>
 
               @if (successionActionError()) {
@@ -2670,40 +2671,115 @@ type KpiEntryFormGroup = FormGroup<{
 
               @if (!selectedSuccessionRoleId()) {
                 @if (myTeam().length) {
-                  <div class="idp-member-grid">
-                    @for (member of myTeam(); track member.id) {
-                      @if (successionRoleForIncumbent(member.id); as role) {
-                        <button type="button" class="idp-member-card succession-role-card" (click)="selectSuccessionRole(role.id)">
-                          <div class="succession-avatar succession-avatar-critical" aria-hidden="true">{{ member.name[0] }}{{ member.surname[0] }}</div>
-                          <div class="idp-member-info">
-                            <strong class="idp-member-name">{{ member.name }} {{ member.surname }}</strong>
-                            <span class="idp-member-meta">{{ member.jobTitle || member.department }}</span>
+                  <div class="succession-stats-row">
+                    <div class="succession-stat-card">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h13A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5v-9Z" stroke="currentColor" stroke-width="1.8"/><path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7" stroke="currentColor" stroke-width="1.8"/></svg>
+                      <span class="succession-stat-value">{{ successionStats().keyPositions }}</span>
+                      <span class="succession-stat-label">Key positions</span>
+                    </div>
+                    <div class="succession-stat-card succession-stat-card-good">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 22c5.5-4 8-7.7 8-12A8 8 0 1 0 4 10c0 4.3 2.5 8 8 12Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      <span class="succession-stat-value">{{ successionStats().readySuccessors }}</span>
+                      <span class="succession-stat-label">Ready successors</span>
+                    </div>
+                    <div class="succession-stat-card succession-stat-card-warn">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.9L2.7 17.5A1.5 1.5 0 0 0 4 20h16a1.5 1.5 0 0 0 1.3-2.5L13.7 3.9a1.5 1.5 0 0 0-2.6 0Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                      <span class="succession-stat-value">{{ successionStats().needsSuccessor }}</span>
+                      <span class="succession-stat-label">Needs successor</span>
+                    </div>
+                    <div class="succession-stat-card">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20V10M12 20V4M20 20v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                      <span class="succession-stat-value">{{ successionStats().avgSuccessors }}</span>
+                      <span class="succession-stat-label">Avg. successors</span>
+                    </div>
+                  </div>
+
+                  <div class="succession-filter-tabs" role="tablist">
+                    <button type="button" class="succession-filter-tab" [class.active]="successionFilterTab() === 'all'" (click)="successionFilterTab.set('all')">All positions</button>
+                    <button type="button" class="succession-filter-tab" [class.active]="successionFilterTab() === 'ready-now'" (click)="successionFilterTab.set('ready-now')">Ready now</button>
+                    <button type="button" class="succession-filter-tab" [class.active]="successionFilterTab() === '1-2-years'" (click)="successionFilterTab.set('1-2-years')">1-2 years</button>
+                    <button type="button" class="succession-filter-tab" [class.active]="successionFilterTab() === '3-plus-years'" (click)="successionFilterTab.set('3-plus-years')">3+ years</button>
+                    <button type="button" class="succession-filter-tab" [class.active]="successionFilterTab() === 'needs-successor'" (click)="successionFilterTab.set('needs-successor')">Needs successor</button>
+                  </div>
+
+                  @if (filteredSuccessionRoles().length) {
+                    <div class="succession-position-grid">
+                      @for (role of filteredSuccessionRoles(); track role.id) {
+                        <button type="button" class="succession-position-card" (click)="selectSuccessionRole(role.id)">
+                          <div class="succession-position-header">
+                            <div class="succession-avatar succession-avatar-critical" aria-hidden="true">{{ successorInitials(role.incumbentStudentId) }}</div>
+                            <div class="succession-position-title-group">
+                              <strong class="succession-position-title">{{ role.title }}</strong>
+                              <span class="succession-position-meta">{{ successorName(role.incumbentStudentId) }} · {{ role.department }}</span>
+                            </div>
+                            @if (bestReadinessForRole(role.id); as bestRating) {
+                              <span class="succession-readiness-pill" [class]="'succession-readiness-pill-' + readinessSlug(bestRating)">{{ bestRating }}</span>
+                            } @else {
+                              <span class="succession-readiness-pill succession-readiness-pill-none">No successor</span>
+                            }
                           </div>
-                          <div class="idp-member-status">
-                            <span class="succession-critical-chip">
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2Z" fill="currentColor"/></svg>
-                              Critical role
-                            </span>
-                            <span class="succession-count-chip">
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M17 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M10 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8 10v-2a4 4 0 0 0-3-3.87M15 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                              {{ nominationsForRole(role.id).length }} {{ nominationsForRole(role.id).length === 1 ? 'nomination' : 'nominations' }}
-                            </span>
-                            <span class="idp-member-chevron" aria-hidden="true">›</span>
+
+                          <div class="succession-card-section">
+                            <span class="succession-card-section-label">Successors</span>
+                            @if (nominationsForRole(role.id).length) {
+                              <ul class="succession-successor-list">
+                                @for (nomination of nominationsForRole(role.id); track nomination.id) {
+                                  <li class="succession-successor-row">
+                                    <span class="succession-successor-name">{{ successorName(nomination.successorStudentId) }}</span>
+                                    <span class="succession-readiness-pill succession-readiness-pill-sm" [class]="'succession-readiness-pill-' + readinessSlug(nomination.readinessRating)">{{ nomination.readinessRating }}</span>
+                                  </li>
+                                }
+                              </ul>
+                            } @else {
+                              <span class="succession-card-empty">No successor nominated yet</span>
+                            }
+                          </div>
+
+                          <div class="succession-card-section">
+                            <span class="succession-card-section-label">Development actions</span>
+                            @if (developmentActionChipsForRole(role.id).length) {
+                              <div class="succession-chip-row">
+                                @for (action of developmentActionChipsForRole(role.id); track action) {
+                                  <span class="succession-action-chip">{{ action }}</span>
+                                }
+                              </div>
+                            } @else {
+                              <span class="succession-card-empty">No development actions yet</span>
+                            }
                           </div>
                         </button>
-                      } @else {
-                        <div class="idp-member-card succession-team-card">
-                          <div class="succession-avatar" aria-hidden="true">{{ member.name[0] }}{{ member.surname[0] }}</div>
-                          <div class="idp-member-info">
-                            <strong class="idp-member-name">{{ member.name }} {{ member.surname }}</strong>
-                            <span class="idp-member-meta">{{ member.jobTitle || member.department }}</span>
-                          </div>
-                          <button type="button" class="succession-flag-btn" [disabled]="flaggingRoleForStudentId() === member.id" (click)="flagCriticalRole(member.id)">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 21V4a1 1 0 0 1 1-1h11.2a1 1 0 0 1 .8 1.6l-3 4 3 4a1 1 0 0 1-.8 1.6H6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                            {{ flaggingRoleForStudentId() === member.id ? 'Flagging…' : 'Flag as critical role' }}
-                          </button>
-                        </div>
                       }
+                    </div>
+                  } @else {
+                    <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">
+                      No critical roles match this filter.
+                    </div>
+                  }
+
+                  <div class="succession-add-position-block">
+                    @if (unflaggedTeamMembers().length) {
+                      <button type="button" class="succession-add-position-toggle" (click)="addingKeyPosition.set(!addingKeyPosition())">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                        {{ addingKeyPosition() ? 'Hide the rest of your team' : 'Add key position' }}
+                      </button>
+                    }
+
+                    @if (addingKeyPosition()) {
+                      <div class="idp-member-grid">
+                        @for (member of unflaggedTeamMembers(); track member.id) {
+                          <div class="idp-member-card succession-team-card">
+                            <div class="succession-avatar" aria-hidden="true">{{ member.name[0] }}{{ member.surname[0] }}</div>
+                            <div class="idp-member-info">
+                              <strong class="idp-member-name">{{ member.name }} {{ member.surname }}</strong>
+                              <span class="idp-member-meta">{{ member.jobTitle || member.department }}</span>
+                            </div>
+                            <button type="button" class="succession-flag-btn" [disabled]="flaggingRoleForStudentId() === member.id" (click)="flagCriticalRole(member.id)">
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 21V4a1 1 0 0 1 1-1h11.2a1 1 0 0 1 .8 1.6l-3 4 3 4a1 1 0 0 1-.8 1.6H6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                              {{ flaggingRoleForStudentId() === member.id ? 'Flagging…' : 'Flag as critical role' }}
+                            </button>
+                          </div>
+                        }
+                      </div>
                     }
                   </div>
                 } @else {
@@ -6645,6 +6721,151 @@ type KpiEntryFormGroup = FormGroup<{
       .succession-unflag-row { justify-content: flex-end; margin-bottom: 0.5rem; }
       .succession-danger-btn { display: inline-flex; align-items: center; gap: 0.35rem; color: #b91c1c; }
 
+      .succession-stats-row {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.85rem;
+      }
+      .succession-stat-card {
+        display: grid;
+        justify-items: start;
+        gap: 0.3rem;
+        padding: 0.95rem 1.05rem;
+        border-radius: 16px;
+        background: #fff;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+      }
+      .succession-stat-card svg { color: var(--succ-primary, #4f46e5); }
+      .succession-stat-card-good svg { color: #16a34a; }
+      .succession-stat-card-warn svg { color: #d97706; }
+      .succession-stat-value { font-size: 1.5rem; font-weight: 800; color: #14213d; line-height: 1; }
+      .succession-stat-label { font-size: 0.76rem; color: #64748b; font-weight: 600; }
+
+      .succession-filter-tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+      .succession-filter-tab {
+        border: 1px solid rgba(148, 163, 184, 0.32);
+        background: #fff;
+        color: #475569;
+        border-radius: 999px;
+        padding: 0.45rem 0.95rem;
+        font: inherit;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+      }
+      .succession-filter-tab:hover { border-color: rgba(79, 70, 229, 0.4); }
+      .succession-filter-tab.active {
+        background: linear-gradient(135deg, var(--succ-primary, #4f46e5), var(--succ-cyan, #06b6d4));
+        border-color: transparent;
+        color: #fff;
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.28);
+      }
+
+      .succession-position-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+      }
+      .succession-position-card {
+        display: grid;
+        gap: 0.85rem;
+        align-content: start;
+        text-align: left;
+        padding: 1.1rem 1.15rem;
+        border-radius: 18px;
+        background: #fff;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+        cursor: pointer;
+        font: inherit;
+        color: inherit;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+        position: relative;
+        overflow: hidden;
+      }
+      .succession-position-card::before {
+        content: '';
+        position: absolute;
+        inset: 0 0 auto 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--succ-critical, #dc2626), #f97316, var(--succ-primary, #4f46e5), var(--succ-cyan, #06b6d4));
+        background-size: 300% 100%;
+        animation: successionScanline 5s linear infinite;
+      }
+      .succession-position-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(79, 70, 229, 0.3);
+        box-shadow: 0 10px 24px rgba(79, 70, 229, 0.14);
+      }
+      .succession-position-header { display: flex; align-items: flex-start; gap: 0.75rem; }
+      .succession-position-title-group { display: grid; gap: 0.15rem; flex: 1; min-width: 0; }
+      .succession-position-title { font-size: 0.98rem; font-weight: 800; color: #14213d; }
+      .succession-position-meta { font-size: 0.8rem; color: #64748b; }
+
+      .succession-readiness-pill {
+        flex-shrink: 0;
+        padding: 0.25rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .succession-readiness-pill-sm { padding: 0.16rem 0.55rem; font-size: 0.68rem; }
+      .succession-readiness-pill-ready-now { background: rgba(34, 197, 94, 0.16); color: #15803d; }
+      .succession-readiness-pill-1-2-years { background: #eff6ff; color: #1d4ed8; }
+      .succession-readiness-pill-3-plus-years { background: rgba(147, 51, 234, 0.12); color: #7e22ce; }
+      .succession-readiness-pill-none { background: #f1f5f9; color: #64748b; }
+
+      .succession-card-section { display: grid; gap: 0.4rem; }
+      .succession-card-section-label {
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #94a3b8;
+      }
+      .succession-card-empty { font-size: 0.82rem; color: #94a3b8; font-style: italic; }
+      .succession-successor-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.35rem; }
+      .succession-successor-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.85rem; color: #334155; }
+      .succession-successor-name { font-weight: 600; }
+      .succession-chip-row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+      .succession-action-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.22rem 0.6rem;
+        border-radius: 8px;
+        background: #f1f5f9;
+        color: #475569;
+        font-size: 0.76rem;
+        font-weight: 600;
+      }
+
+      .succession-add-position-block { display: grid; gap: 0.85rem; }
+      .succession-add-position-toggle {
+        justify-self: start;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        border: 1px dashed rgba(79, 70, 229, 0.4);
+        background: rgba(79, 70, 229, 0.05);
+        color: #4338ca;
+        border-radius: 999px;
+        padding: 0.55rem 1rem;
+        font: inherit;
+        font-size: 0.84rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background 0.15s ease;
+      }
+      .succession-add-position-toggle:hover { background: rgba(79, 70, 229, 0.1); }
+
+      @media (max-width: 900px) {
+        .succession-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .succession-position-grid { grid-template-columns: 1fr; }
+      }
+
       .idp-detail-header { margin-bottom: 1.25rem; }
       .idp-back-btn {
         background: none;
@@ -9998,6 +10219,8 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   // silently (button resets, nothing visible happens), which is indistinguishable from the
   // feature being broken. Surfaces the server's actual rejection reason instead.
   readonly successionActionError = signal('');
+  readonly successionFilterTab = signal<'all' | 'ready-now' | '1-2-years' | '3-plus-years' | 'needs-successor'>('all');
+  readonly addingKeyPosition = signal(false);
 
   successionRoleForIncumbent(studentId: string) {
     return this.successionRoles().find((role) => role.incumbentStudentId === studentId) ?? null;
@@ -10005,6 +10228,82 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
   teamCandidatesForRole(role: SuccessionRoleRecord) {
     return this.myTeam().filter((member) => member.id !== role.incumbentStudentId);
+  }
+
+  readonly unflaggedTeamMembers = computed(() => {
+    const flaggedIds = new Set(this.successionRoles().map((role) => role.incumbentStudentId));
+    return this.myTeam().filter((member) => !flaggedIds.has(member.id));
+  });
+
+  // Dashboard-style summary for the manager's own succession pipeline — deliberately mirrors what
+  // the underlying data already tracks (readiness, nomination coverage) rather than introducing a
+  // new field like "flight risk" that nothing else in the app captures.
+  readonly successionStats = computed(() => {
+    const roles = this.successionRoles();
+    const nominations = roles.flatMap((role) => this.nominationsForRole(role.id));
+    const readySuccessors = nominations.filter((nomination) => nomination.readinessRating === 'Ready Now').length;
+    const needsSuccessor = roles.filter((role) => this.nominationsForRole(role.id).length === 0).length;
+    const avgSuccessors = roles.length ? Math.round((nominations.length / roles.length) * 10) / 10 : 0;
+
+    return {
+      keyPositions: roles.length,
+      readySuccessors,
+      needsSuccessor,
+      avgSuccessors,
+    };
+  });
+
+  private static readonly readinessOrder: SuccessionReadinessRating[] = ['Ready Now', 'Ready in 1-2 Years', 'Ready in 3+ Years'];
+
+  readonly filteredSuccessionRoles = computed(() => {
+    const tab = this.successionFilterTab();
+    const roles = this.successionRoles();
+
+    if (tab === 'all') {
+      return roles;
+    }
+
+    if (tab === 'needs-successor') {
+      return roles.filter((role) => this.nominationsForRole(role.id).length === 0);
+    }
+
+    const targetRating = tab === 'ready-now' ? 'Ready Now' : tab === '1-2-years' ? 'Ready in 1-2 Years' : 'Ready in 3+ Years';
+    return roles.filter((role) => this.nominationsForRole(role.id).some((nomination) => nomination.readinessRating === targetRating));
+  });
+
+  // The Active nomination's readiness if one exists (that's the real successor plan), otherwise
+  // the most-ready Draft candidate, otherwise null (no successor pipeline started yet).
+  bestReadinessForRole(roleId: string): SuccessionReadinessRating | null {
+    const nominations = this.nominationsForRole(roleId);
+    if (!nominations.length) {
+      return null;
+    }
+
+    const active = nominations.find((nomination) => nomination.status === 'Active');
+    if (active) {
+      return active.readinessRating;
+    }
+
+    return [...nominations].sort((left, right) =>
+      TrainingManagerProfileComponent.readinessOrder.indexOf(left.readinessRating)
+      - TrainingManagerProfileComponent.readinessOrder.indexOf(right.readinessRating),
+    )[0].readinessRating;
+  }
+
+  readinessSlug(rating: SuccessionReadinessRating) {
+    if (rating === 'Ready Now') return 'ready-now';
+    if (rating === 'Ready in 1-2 Years') return '1-2-years';
+    return '3-plus-years';
+  }
+
+  // Flattened across every nomination's competency gaps for this role, deduped — a role-level
+  // "what's being worked on" summary rather than the full per-successor breakdown (see the
+  // detail view's development-plan editor for that).
+  developmentActionChipsForRole(roleId: string) {
+    const descriptions = this.nominationsForRole(roleId)
+      .flatMap((nomination) => nomination.competencyGaps.flatMap((gap) => gap.developmentActions.map((action) => action.description)))
+      .filter((description) => description.trim().length > 0);
+    return Array.from(new Set(descriptions));
   }
 
   nominationsForRole(roleId: string) {
