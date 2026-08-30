@@ -20,6 +20,7 @@ import { ExternalTrainingRequestRecord, StudentIdpEntry, StudentKpiEntry, Studen
 import { LmsBackendService, type LoginRole } from './lms-backend.service';
 import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service';
 import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLmsSessionRecord } from './session-auth';
+import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component';
 
 @Component({
   selector: 'student-profile',
@@ -33,6 +34,7 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
     StudentCalendarComponent,
     StudentMessagesComponent,
     StudentProfileSettingsComponent,
+    LogoutConfirmDialogComponent,
   ],
   template: `
     <div
@@ -1504,6 +1506,12 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
           <student-profile-settings *ngIf="selectedPanel() === 'profile'"></student-profile-settings>
         </main>
       </div>
+
+      <logout-confirm-dialog
+        [open]="showLogoutDialog()"
+        [stage]="logoutDialogStage()"
+        (confirmed)="confirmLogout()"
+        (cancelled)="cancelLogout()"></logout-confirm-dialog>
     </div>
   `,
   styles: [`
@@ -6118,10 +6126,26 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     });
   }
 
+  readonly showLogoutDialog = signal(false);
+  readonly logoutDialogStage = signal<'confirm' | 'success'>('confirm');
+
   logout() {
-    if (window.confirm('Are you sure you want to log out?')) {
-      clearLmsAuthSession();
+    this.logoutDialogStage.set('confirm');
+    this.showLogoutDialog.set(true);
+  }
+
+  cancelLogout() {
+    this.showLogoutDialog.set(false);
+  }
+
+  confirmLogout() {
+    this.logoutDialogStage.set('success');
+    clearLmsAuthSession();
+    // Briefly shows the "logged out successfully" state before navigating away — the profile
+    // component (and this dialog along with it) is destroyed the instant navigation happens, so
+    // there's no later point at which a confirmation could be shown instead.
+    setTimeout(() => {
       this.router.navigate(['/']);
-    }
+    }, 1200);
   }
 }

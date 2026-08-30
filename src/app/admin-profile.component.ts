@@ -10,6 +10,7 @@ import { LmsBackendService, type HrIntegrationConfig, type HrIntegrationConfigUp
 import { LmsBrandThemeId, LmsBrandingService } from './lms-branding.service';
 import type { StudentCertificateLicence, StudentCertificateStatus, StudentCourse } from './student-data.service';
 import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLmsSessionRecord } from './session-auth';
+import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component';
 
 type AdminPanel = 'dashboard' | 'users' | 'reports' | 'settings';
 
@@ -302,7 +303,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
 @Component({
   selector: 'admin-profile',
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, LogoutConfirmDialogComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
 
@@ -2306,6 +2307,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
             </section>
           }
         <!-- removed extra closing main tag to fix template structure -->
+
+      <logout-confirm-dialog
+        [open]="showLogoutDialog()"
+        [stage]="logoutDialogStage()"
+        (confirmed)="confirmLogout()"
+        (cancelled)="cancelLogout()"></logout-confirm-dialog>
   `,
   styles: [`
     :host {
@@ -7785,9 +7792,24 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     });
   }
 
+  readonly showLogoutDialog = signal(false);
+  readonly logoutDialogStage = signal<'confirm' | 'success'>('confirm');
+
   logout() {
+    this.logoutDialogStage.set('confirm');
+    this.showLogoutDialog.set(true);
+  }
+
+  cancelLogout() {
+    this.showLogoutDialog.set(false);
+  }
+
+  confirmLogout() {
+    this.logoutDialogStage.set('success');
     clearLmsAuthSession();
-    this.router.navigate(['/']);
+    setTimeout(() => {
+      this.router.navigate(['/']);
+    }, 1200);
   }
 
   private percentage(part: number, whole: number) {

@@ -30,6 +30,7 @@ import { LmsBrandingService } from './lms-branding.service';
 import { LmsBackendService, type LoginRole, type ResolveRolesEntry } from './lms-backend.service';
 import type { StudentCourse } from './student-data.service';
 import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLmsSessionRecord } from './session-auth';
+import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component';
 
 type CoursesPanelView = 'create' | 'created' | 'submissions';
 type AssignmentSubmissionFilter = 'All' | 'Pending Review' | 'Approved' | 'Needs Revision';
@@ -143,7 +144,7 @@ type KpiEntryFormGroup = FormGroup<{
   host: {
     '(document:keydown.escape)': 'handleOverlayEscape()',
   },
-  imports: [CommonModule, ReactiveFormsModule, PublishedOfferingCardComponent, PublishedOfferingDetailComponent, PowerPointWindowComponent],
+  imports: [CommonModule, ReactiveFormsModule, PublishedOfferingCardComponent, PublishedOfferingDetailComponent, PowerPointWindowComponent, LogoutConfirmDialogComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
@@ -2836,6 +2837,12 @@ type KpiEntryFormGroup = FormGroup<{
           }
         </main>
       </div>
+
+      <logout-confirm-dialog
+        [open]="showLogoutDialog()"
+        [stage]="logoutDialogStage()"
+        (confirmed)="confirmLogout()"
+        (cancelled)="cancelLogout()"></logout-confirm-dialog>
     </div>
   `,
   styles: [`
@@ -7928,9 +7935,24 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.backend.updateMyProfileImage({ profileImageUrl: null, profileImageDataUrl: null }).subscribe();
   }
 
+  readonly showLogoutDialog = signal(false);
+  readonly logoutDialogStage = signal<'confirm' | 'success'>('confirm');
+
   logout() {
+    this.logoutDialogStage.set('confirm');
+    this.showLogoutDialog.set(true);
+  }
+
+  cancelLogout() {
+    this.showLogoutDialog.set(false);
+  }
+
+  confirmLogout() {
+    this.logoutDialogStage.set('success');
     clearLmsAuthSession();
-    this.router.navigate(['/']);
+    setTimeout(() => {
+      this.router.navigate(['/']);
+    }, 1200);
   }
 
   activityWidth(activity: LearningActivityItem) {
