@@ -57,7 +57,13 @@ const dataDirectory = configuredDataDirectory
 const dataFilePath = path.join(dataDirectory, 'lms-data.json');
 const backupDataFilePath = path.join(dataDirectory, 'lms-data.backup.json');
 const tempDataFilePath = path.join(dataDirectory, 'lms-data.json.tmp');
-const defaultCourseImage = 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=400&q=80';
+// Self-contained inline SVG (base64, since the client concatenates this into an unquoted CSS
+// url(...) token — see the matching defaultCourseImage() in student-data.service.ts) rather than
+// an external images.unsplash.com URL. That external dependency made a course's thumbnail fail to
+// load whenever that third-party host was unreachable from a given user's network (a firewall
+// block, an outage) for any course without its own uploaded image — while courses with a real
+// thumbnail loaded fine right alongside them, showing up as "some courses just don't load right."
+const defaultCourseImage = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPSc0MDAnIGhlaWdodD0nMjI1Jz48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9J2cnIHgxPScwJyB5MT0nMCcgeDI9JzEnIHkyPScxJz48c3RvcCBvZmZzZXQ9JzAnIHN0b3AtY29sb3I9JyM2MzY2ZjEnLz48c3RvcCBvZmZzZXQ9JzEnIHN0b3AtY29sb3I9JyMzOGJkZjgnLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48cmVjdCB3aWR0aD0nNDAwJyBoZWlnaHQ9JzIyNScgZmlsbD0ndXJsKCNnKScvPjwvc3ZnPg==';
 const passwordResetLifetimeMs = 60 * 60 * 1000;
 const defaultStudentTemplate = createDefaultStudentTemplate();
 const firestoreCollectionNames = [

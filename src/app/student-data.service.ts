@@ -2147,7 +2147,20 @@ export class StudentDataService {
     return new Date(now.getFullYear(), now.getMonth(), now.getDate());
   }
 
+  // A self-contained inline SVG (same indigo-to-sky-blue gradient already used as the offering
+  // card's own no-thumbnail fallback in published-offering-card.component.ts) rather than an
+  // external images.unsplash.com URL — that external dependency is exactly what made "some
+  // courses just don't load their thumbnail" reproducible for any course without its own uploaded
+  // image whenever that third-party host was unreachable (a network/firewall block, an outage) for
+  // a given user, while courses with a real uploaded thumbnail loaded fine right next to them. A
+  // data: URI needs no network request at all, so it can't fail to load this way.
   private defaultCourseImage() {
-    return 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=400&q=80';
+    // Base64 (rather than a percent-encoded plain data: URI) specifically because this value gets
+    // concatenated into an *unquoted* CSS url(...) token in the template
+    // ([style.background-image]="'url(' + course.image + ')'") — an unquoted url() token breaks on
+    // a literal '(', ')', or whitespace, which the raw SVG markup (e.g. `fill='url(#g)'`) contains.
+    // Base64 output is alphanumeric plus +/=, none of which are special to url(), so it can't run
+    // into that regardless of what the SVG source itself contains.
+    return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPSc0MDAnIGhlaWdodD0nMjI1Jz48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9J2cnIHgxPScwJyB5MT0nMCcgeDI9JzEnIHkyPScxJz48c3RvcCBvZmZzZXQ9JzAnIHN0b3AtY29sb3I9JyM2MzY2ZjEnLz48c3RvcCBvZmZzZXQ9JzEnIHN0b3AtY29sb3I9JyMzOGJkZjgnLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48cmVjdCB3aWR0aD0nNDAwJyBoZWlnaHQ9JzIyNScgZmlsbD0ndXJsKCNnKScvPjwvc3ZnPg==';
   }
 }
