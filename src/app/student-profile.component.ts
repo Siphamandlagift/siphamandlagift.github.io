@@ -1298,7 +1298,7 @@ import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component'
 
                 <div class="mentorship-form-actions external-training-request-actions">
                   <p *ngIf="externalTrainingRequestSubmitted()" class="mentorship-form-status external-training-request-status" role="status" aria-live="polite">Training request submitted successfully.</p>
-                  <button type="submit" class="mentorship-save-button external-training-request-submit" [disabled]="externalTrainingRequestForm.invalid || externalTrainingInvoiceUploading() || externalTrainingBrochureUploading()">{{ externalTrainingRequestSubmitLabel() }}</button>
+                  <button type="submit" class="mentorship-save-button external-training-request-submit" [disabled]="externalTrainingRequestForm.invalid || externalTrainingInvoiceUploading() || externalTrainingBrochureUploading() || savingExternalTrainingRequest()">{{ externalTrainingRequestSubmitLabel() }}</button>
                 </div>
               </form>
             </div>
@@ -5110,6 +5110,7 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
   readonly externalTrainingStatusDialogOpen = computed(() => this._externalTrainingStatusDialogOpen());
   private readonly _externalTrainingRequestSubmitted = signal(false);
   readonly externalTrainingRequestSubmitted = computed(() => this._externalTrainingRequestSubmitted());
+  readonly savingExternalTrainingRequest = signal(false);
   private readonly _externalTrainingSuccessPopupVisible = signal(false);
   readonly externalTrainingSuccessPopupVisible = computed(() => this._externalTrainingSuccessPopupVisible());
   private readonly _externalTrainingSuccessPopupLeaving = signal(false);
@@ -5138,9 +5139,13 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
       ? 'Update the returned request and resubmit it for manager review. Required fields are marked with'
       : 'Fill in all required fields marked with',
   );
-  readonly externalTrainingRequestSubmitLabel = computed(() =>
-    this._editingExternalTrainingRequestId() ? 'Resubmit Training Request' : 'Submit Training Request',
-  );
+  readonly externalTrainingRequestSubmitLabel = computed(() => {
+    if (this.savingExternalTrainingRequest()) {
+      return this._editingExternalTrainingRequestId() ? 'Resubmitting…' : 'Submitting…';
+    }
+
+    return this._editingExternalTrainingRequestId() ? 'Resubmit Training Request' : 'Submit Training Request';
+  });
   readonly availableTrainingManagers = computed(() => this.managerData.trainingManagers());
   readonly learnerExternalTrainingRequests = computed(() =>
     this.managerData.externalTrainingRequests().filter((request) => request.studentEmail === this.studentData.profile().email),
@@ -5603,21 +5608,34 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     };
     const editingRequestId = this._editingExternalTrainingRequestId();
 
-    if (editingRequestId) {
-      this.managerData.updateExternalTrainingRequest({
-        requestId: editingRequestId,
-        ...requestPayload,
-      });
-      this._externalTrainingSuccessPopupMode.set('update');
-    } else {
-      this.managerData.submitExternalTrainingRequest(requestPayload);
-      this._externalTrainingSuccessPopupMode.set('create');
+    // Only ever shows the "submitted" popup, closes the dialog, and clears the draft once the
+    // server has actually confirmed it — previously this fired unconditionally the instant the
+    // request was queued, so a failed submission (dropped connection, expired session, etc.)
+    // looked exactly like a successful one: the student saw "submitted", closed the dialog, and
+    // had no way to know the approving manager never received anything.
+    const result = editingRequestId
+      ? this.managerData.updateExternalTrainingRequest({ requestId: editingRequestId, ...requestPayload })
+      : this.managerData.submitExternalTrainingRequest(requestPayload);
+
+    if (!result) {
+      return;
     }
 
-    this._externalTrainingRequestSubmitted.set(true);
-    this._externalTrainingRequestDialogOpen.set(false);
-    this.resetExternalTrainingRequestDraft();
-    this.startExternalTrainingSuccessPopupSequence();
+    this.savingExternalTrainingRequest.set(true);
+    result.subscribe({
+      next: () => {
+        this.savingExternalTrainingRequest.set(false);
+        this._externalTrainingSuccessPopupMode.set(editingRequestId ? 'update' : 'create');
+        this._externalTrainingRequestSubmitted.set(true);
+        this._externalTrainingRequestDialogOpen.set(false);
+        this.resetExternalTrainingRequestDraft();
+        this.startExternalTrainingSuccessPopupSequence();
+      },
+      error: () => {
+        this.savingExternalTrainingRequest.set(false);
+        alert('Could not submit this training request — please check your connection and try again.');
+      },
+    });
   }
 
   openExternalTrainingSupportingDocument(dataUrl: string) {

@@ -1,5 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { firstValueFrom, interval, tap, type Observable } from 'rxjs';
+import { firstValueFrom, interval, tap, throwError, type Observable } from 'rxjs';
 import { LmsBackendService } from './lms-backend.service';
 import { combineDisplayName, readLmsSessionRecord } from './session-auth';
 import type { StudentMessage } from './student-data.service';
@@ -2243,7 +2243,11 @@ export class TrainingManagerDataService {
     this.persistMentorshipSubmissions();
   }
 
-  submitExternalTrainingRequest(input: ExternalTrainingRequestCreateInput) {
+  // Returns null only for a client-side validation failure the caller should already have caught
+  // via its own form validators — every other outcome (including a failed server round-trip) is
+  // reported through the Observable so the caller can tell the difference between "submitted" and
+  // "looked submitted locally but the manager will never see it" (see persistExternalTrainingRequestCreate).
+  submitExternalTrainingRequest(input: ExternalTrainingRequestCreateInput): Observable<ExternalTrainingRequestRecord> | null {
     const studentId = input.studentId.trim();
     const studentName = input.studentName.trim();
     const studentEmail = input.studentEmail.trim();
@@ -2261,11 +2265,11 @@ export class TrainingManagerDataService {
     const approvingManager = this.trainingManagers().find((manager) => manager.id === input.approvingManagerId.trim());
 
     if (!studentName || !studentEmail || !courseName || !provider || !trainingStartDate || !trainingEndDate || !courseCost || !approvingManager) {
-      return;
+      return null;
     }
 
     if (additionalCostRequired === 'Yes' && (!travelCost || !examCost || !accommodationCost)) {
-      return;
+      return null;
     }
 
     const temporaryRequestId = `external-training-request-${Date.now()}`;
@@ -2304,7 +2308,7 @@ export class TrainingManagerDataService {
     };
 
     this.externalTrainingRequestsSignal.update((requests) => [nextRequest, ...requests]);
-    this.persistExternalTrainingRequestCreate(temporaryRequestId, {
+    return this.persistExternalTrainingRequestCreate(temporaryRequestId, {
       studentId,
       studentName,
       studentEmail,
@@ -2327,7 +2331,7 @@ export class TrainingManagerDataService {
     });
   }
 
-  updateExternalTrainingRequest(input: ExternalTrainingRequestUpdateInput) {
+  updateExternalTrainingRequest(input: ExternalTrainingRequestUpdateInput): Observable<ExternalTrainingRequestRecord> | null {
     const requestId = input.requestId.trim();
     const existingRequest = this.externalTrainingRequestsSignal().find((request) => request.id === requestId);
     const studentName = input.studentName.trim();
@@ -2358,11 +2362,11 @@ export class TrainingManagerDataService {
       || !courseCost
       || !approvingManager
     ) {
-      return;
+      return null;
     }
 
     if (additionalCostRequired === 'Yes' && (!travelCost || !examCost || !accommodationCost)) {
-      return;
+      return null;
     }
 
     const nextRequest: ExternalTrainingRequestRecord = {
@@ -2397,7 +2401,7 @@ export class TrainingManagerDataService {
     this.externalTrainingRequestsSignal.update((requests) =>
       requests.map((request) => request.id === requestId ? nextRequest : request),
     );
-    this.persistExternalTrainingRequestUpdate({
+    return this.persistExternalTrainingRequestUpdate(existingRequest, {
       requestId,
       studentId: existingRequest.studentId,
       studentName,
@@ -2659,38 +2663,61 @@ export class TrainingManagerDataService {
     });
   }
 
-  private persistExternalTrainingRequestCreate(temporaryRequestId: string, input: ExternalTrainingRequestCreateInput) {
+  // Returns the actual server round-trip so the caller (the student's submission form) can tell a
+  // real success apart from a failure — previously this subscribed internally and swallowed
+  // errors, leaving the optimistic local record in place forever on failure. That made a failed
+  // submission look identical to a successful one client-side: the student saw their own "request
+  // submitted" state while the approving manager, reading fresh from the server in their own
+  // session, never received anything at all.
+  private persistExternalTrainingRequestCreate(temporaryRequestId: string, input: ExternalTrainingRequestCreateInput): Observable<ExternalTrainingRequestRecord> {
     if (!this.backendHydrated) {
-      return;
+      this.externalTrainingRequestsSignal.update((requests) => requests.filter((request) => request.id !== temporaryRequestId));
+      return throwError(() => new Error('Not connected to the server yet.'));
     }
 
-    this.backend.createExternalTrainingRequest(input).subscribe({
-      next: (savedRequest) => {
-        this.externalTrainingRequestsSignal.update((requests) =>
-          requests.map((request) => request.id === temporaryRequestId ? savedRequest : request),
-        );
-      },
-      error: () => {
-        // Keep local state if the API is temporarily unavailable.
-      },
-    });
+    return this.backend.createExternalTrainingRequest(input).pipe(
+      tap({
+        next: (savedRequest) => {
+          this.externalTrainingRequestsSignal.update((requests) =>
+            requests.map((request) => request.id === temporaryRequestId ? savedRequest : request),
+          );
+        },
+        error: () => {
+          // Roll back the optimistic record — it never reached the server, so leaving it in place
+          // would keep showing the student a "submitted" request the approving manager can't see.
+          this.externalTrainingRequestsSignal.update((requests) => requests.filter((request) => request.id !== temporaryRequestId));
+        },
+      }),
+    );
   }
 
-  private persistExternalTrainingRequestUpdate(input: ExternalTrainingRequestUpdateInput) {
+  // previousRequest is the pre-edit record — on failure the optimistic edit is rolled back to it
+  // instead of being left in place, same reasoning as persistExternalTrainingRequestCreate above.
+  // This path matters most for a resubmission after "Needs Revision": a silently-failed
+  // resubmission previously looked identical to a real one, so the approving manager never saw it
+  // come back.
+  private persistExternalTrainingRequestUpdate(previousRequest: ExternalTrainingRequestRecord, input: ExternalTrainingRequestUpdateInput): Observable<ExternalTrainingRequestRecord> {
     if (!this.backendHydrated) {
-      return;
+      this.externalTrainingRequestsSignal.update((requests) =>
+        requests.map((request) => request.id === previousRequest.id ? previousRequest : request),
+      );
+      return throwError(() => new Error('Not connected to the server yet.'));
     }
 
-    this.backend.updateExternalTrainingRequest(input).subscribe({
-      next: (savedRequest) => {
-        this.externalTrainingRequestsSignal.update((requests) =>
-          requests.map((request) => request.id === savedRequest.id ? savedRequest : request),
-        );
-      },
-      error: () => {
-        // Keep local state if the API is temporarily unavailable.
-      },
-    });
+    return this.backend.updateExternalTrainingRequest(input).pipe(
+      tap({
+        next: (savedRequest) => {
+          this.externalTrainingRequestsSignal.update((requests) =>
+            requests.map((request) => request.id === savedRequest.id ? savedRequest : request),
+          );
+        },
+        error: () => {
+          this.externalTrainingRequestsSignal.update((requests) =>
+            requests.map((request) => request.id === previousRequest.id ? previousRequest : request),
+          );
+        },
+      }),
+    );
   }
 
   private persistExternalTrainingRequestReview(input: ExternalTrainingRequestReviewInput) {
