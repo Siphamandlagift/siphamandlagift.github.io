@@ -9,6 +9,7 @@ import {
   EnrollmentStudent,
   EnrollmentStudentInput,
   ExternalTrainingRequestRecord,
+  SystemTrainingManager,
   TrainingManagerDataService,
 } from './training-manager-data.service';
 import { LmsBackendService, type HrIntegrationConfig, type HrIntegrationConfigUpdate, type HrIntegrationSyncSummary, type LoginRole, type ManagedUserCredentialInput, type ResolveRolesEntry } from './lms-backend.service';
@@ -24,7 +25,7 @@ type BulkUploadIssue = {
   message: string;
 };
 
-type AdminSettingsSection = 'profile-picture' | 'company-logo' | 'theme' | 'hr-integration';
+type AdminSettingsSection = 'profile-picture' | 'company-logo' | 'theme' | 'hr-integration' | 'approval-settings';
 type ReportDownloadFormat = 'CSV' | 'XLSX';
 type AdminReportView = 'annual-training' | 'idp-report' | 'performance-report' | 'certificate-licence-report' | 'seta-report';
 type TrainingReportSource = 'All' | 'LMS' | 'External';
@@ -2208,6 +2209,11 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       <span class="admin-settings-menu-item-copy">Pull roster data automatically from an external HR system's API.</span>
                       <span class="admin-settings-menu-item-status">{{ hrIntegrationConfig()?.enabled ? 'Enabled' : 'Not connected' }}</span>
                     </button>
+                    <button type="button" class="admin-settings-menu-item" role="listitem" (click)="selectSettingsSection('approval-settings')">
+                      <span class="admin-settings-menu-item-title">Approval settings</span>
+                      <span class="admin-settings-menu-item-copy">Manage who students can select as an approving manager for external training requests.</span>
+                      <span class="admin-settings-menu-item-status">{{ managerData.explicitTrainingManagers().length }} approving {{ managerData.explicitTrainingManagers().length === 1 ? 'manager' : 'managers' }}</span>
+                    </button>
                   </div>
                 }
 
@@ -2378,6 +2384,68 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         }
                       }
                     </div>
+                  </div>
+                }
+
+                @if (selectedSettingsSection() === 'approval-settings') {
+                  <div class="admin-settings-section-detail">
+                    <div class="admin-section-card-header">
+                      <h2>Approval settings</h2>
+                      <span>{{ managerData.explicitTrainingManagers().length }} approving {{ managerData.explicitTrainingManagers().length === 1 ? 'manager' : 'managers' }}</span>
+                    </div>
+
+                    <p class="admin-settings-hint">
+                      This is the list a student picks from when they submit an external training request for approval. Any employee marked as a Manager under User Management is automatically available too, alongside anyone added here.
+                    </p>
+
+                    @if (!editingApprovingManagerId()) {
+                      <div class="admin-settings-item-controls">
+                        <button type="button" class="admin-inline-btn" (click)="openNewApprovingManagerForm()">Add approving manager</button>
+                      </div>
+
+                      @if (managerData.explicitTrainingManagers().length) {
+                        <div class="admin-settings-menu">
+                          @for (manager of managerData.explicitTrainingManagers(); track manager.id) {
+                            <button type="button" class="admin-settings-menu-item" (click)="openEditApprovingManagerForm(manager)">
+                              <span class="admin-settings-menu-item-title">{{ manager.name }}</span>
+                              <span class="admin-settings-menu-item-copy">{{ manager.role }} · {{ manager.team }} · {{ manager.email }}</span>
+                            </button>
+                          }
+                        </div>
+                      } @else {
+                        <div class="admin-empty-state">No approving managers have been added yet.</div>
+                      }
+                    } @else {
+                      <button type="button" class="admin-inline-btn admin-settings-back-btn" (click)="closeApprovingManagerForm()">Back to approval settings</button>
+
+                      <label class="admin-settings-field">
+                        <span>Full name</span>
+                        <input type="text" [value]="approvingManagerFormName()" (input)="approvingManagerFormName.set($any($event.target).value)" />
+                      </label>
+                      <label class="admin-settings-field">
+                        <span>Title</span>
+                        <input type="text" [value]="approvingManagerFormRole()" (input)="approvingManagerFormRole.set($any($event.target).value)" placeholder="e.g. Training Manager" />
+                      </label>
+                      <label class="admin-settings-field">
+                        <span>Team</span>
+                        <input type="text" [value]="approvingManagerFormTeam()" (input)="approvingManagerFormTeam.set($any($event.target).value)" />
+                      </label>
+                      <label class="admin-settings-field">
+                        <span>Email</span>
+                        <input type="email" [value]="approvingManagerFormEmail()" (input)="approvingManagerFormEmail.set($any($event.target).value)" />
+                      </label>
+
+                      @if (approvingManagerFormError()) {
+                        <div class="admin-upload-feedback admin-upload-feedback-error" role="status" aria-live="polite">{{ approvingManagerFormError() }}</div>
+                      }
+
+                      <div class="admin-settings-item-controls">
+                        <button type="button" class="admin-primary-btn" (click)="saveApprovingManagerForm()">Save</button>
+                        @if (editingApprovingManagerId() !== 'new') {
+                          <button type="button" class="admin-inline-btn admin-inline-btn-danger" (click)="deleteApprovingManagerFromForm()">Remove</button>
+                        }
+                      </div>
+                    }
                   </div>
                 }
               </section>
@@ -5465,6 +5533,68 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   clearSettingsSection() {
     this.selectedSettingsSection.set(null);
+  }
+
+  // ── Approval settings ─────────────────────────────────────────────────
+  // The trainingManagers collection (patched via the existing PUT /api/manager-state — see
+  // TrainingManagerDataService.upsertApprovingManager/deleteApprovingManager) is the admin-managed
+  // pool a student picks from when choosing who should approve an external training request. It
+  // had no management UI anywhere before this.
+  readonly editingApprovingManagerId = signal<string | null>(null);
+  readonly approvingManagerFormName = signal('');
+  readonly approvingManagerFormRole = signal('');
+  readonly approvingManagerFormTeam = signal('');
+  readonly approvingManagerFormEmail = signal('');
+  readonly approvingManagerFormError = signal('');
+
+  openNewApprovingManagerForm() {
+    this.approvingManagerFormName.set('');
+    this.approvingManagerFormRole.set('');
+    this.approvingManagerFormTeam.set('');
+    this.approvingManagerFormEmail.set('');
+    this.approvingManagerFormError.set('');
+    this.editingApprovingManagerId.set('new');
+  }
+
+  openEditApprovingManagerForm(manager: SystemTrainingManager) {
+    this.approvingManagerFormName.set(manager.name);
+    this.approvingManagerFormRole.set(manager.role);
+    this.approvingManagerFormTeam.set(manager.team);
+    this.approvingManagerFormEmail.set(manager.email);
+    this.approvingManagerFormError.set('');
+    this.editingApprovingManagerId.set(manager.id);
+  }
+
+  closeApprovingManagerForm() {
+    this.editingApprovingManagerId.set(null);
+  }
+
+  saveApprovingManagerForm() {
+    const name = this.approvingManagerFormName().trim();
+    const role = this.approvingManagerFormRole().trim();
+    const team = this.approvingManagerFormTeam().trim();
+    const email = this.approvingManagerFormEmail().trim();
+
+    if (!name || !role || !team || !email) {
+      this.approvingManagerFormError.set('Name, title, team and email are all required.');
+      return;
+    }
+
+    const editingId = this.editingApprovingManagerId();
+    const id = editingId && editingId !== 'new' ? editingId : `training-manager-${Date.now()}`;
+
+    this.managerData.upsertApprovingManager({ id, name, role, team, email });
+    this.editingApprovingManagerId.set(null);
+  }
+
+  deleteApprovingManagerFromForm() {
+    const managerId = this.editingApprovingManagerId();
+    if (!managerId || managerId === 'new') {
+      return;
+    }
+
+    this.managerData.deleteApprovingManager(managerId);
+    this.editingApprovingManagerId.set(null);
   }
 
   private async loadHrIntegrationConfig() {

@@ -475,6 +475,10 @@ export class TrainingManagerDataService {
   readonly profile = this.profileSignal.asReadonly();
   readonly offerings = this.offeringsSignal.asReadonly();
   readonly trainingManagers = computed(() => this.buildTrainingManagers());
+  // The raw, admin-managed entries only — trainingManagers() above also folds in one synthesized
+  // per role==='manager' student (see buildTrainingManagerFromStudent), which isn't a real record
+  // that can be edited/deleted from here (editing one of those means editing the student instead).
+  readonly explicitTrainingManagers = this.trainingManagersSignal.asReadonly();
   readonly managerMessages = this.managerMessagesSignal.asReadonly();
   readonly unreadManagerMessagesCount = computed(() => this.managerMessages().filter((message) => message.unread).length);
   readonly managerMessageRecipients = computed(() =>
@@ -2895,6 +2899,36 @@ export class TrainingManagerDataService {
       team: student.department.trim() || 'Learning Operations',
       email: student.email.trim(),
     };
+  }
+
+  // Admin-facing approving-manager management (Settings > Approval settings) — adds/edits/removes
+  // an explicit trainingManagers entry. Uses the same full-array-replace PUT /api/manager-state
+  // path every other collection here already persists through (see persistStudents et al.), rather
+  // than adding a dedicated endpoint for a rarely-written admin list.
+  upsertApprovingManager(manager: SystemTrainingManager) {
+    this.trainingManagersSignal.update((managers) => (
+      managers.some((entry) => entry.id === manager.id)
+        ? managers.map((entry) => (entry.id === manager.id ? manager : entry))
+        : [...managers, manager]
+    ));
+    this.persistTrainingManagers();
+  }
+
+  deleteApprovingManager(managerId: string) {
+    this.trainingManagersSignal.update((managers) => managers.filter((entry) => entry.id !== managerId));
+    this.persistTrainingManagers();
+  }
+
+  private persistTrainingManagers() {
+    if (!this.backendHydrated) {
+      return;
+    }
+
+    this.backend.patchManagerState({ trainingManagers: this.trainingManagersSignal() }).subscribe({
+      error: () => {
+        // Keep local state if the API is temporarily unavailable.
+      },
+    });
   }
 
   private createUniqueStudentId(input: EnrollmentStudentInput, usedIds: Set<string>) {
