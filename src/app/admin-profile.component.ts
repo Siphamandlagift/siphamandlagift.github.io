@@ -2437,11 +2437,28 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       }
 
                       @if (managerData.explicitTrainingManagers().length) {
-                        <div class="admin-settings-menu">
+                        <div class="admin-approver-grid">
                           @for (manager of managerData.explicitTrainingManagers(); track manager.id) {
-                            <button type="button" class="admin-settings-menu-item" (click)="openEditApprovingManagerForm(manager)">
-                              <span class="admin-settings-menu-item-title">{{ manager.name }}</span>
-                              <span class="admin-settings-menu-item-copy">{{ manager.role }} · {{ manager.team }} · {{ manager.email }}</span>
+                            <button type="button" class="admin-approver-row" (click)="openEditApprovingManagerForm(manager)">
+                              <span class="admin-approver-avatar" aria-hidden="true">{{ approverInitials(manager.name) }}</span>
+                              <span class="admin-approver-info">
+                                <strong class="admin-approver-name">{{ manager.name }}</strong>
+                                <span class="admin-approver-chip-row">
+                                  <span class="admin-approver-chip">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h13A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5v-9Z" stroke="currentColor" stroke-width="1.8"/><path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7" stroke="currentColor" stroke-width="1.8"/></svg>
+                                    {{ manager.role }}
+                                  </span>
+                                  <span class="admin-approver-chip">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M17 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M10 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8 10v-2a4 4 0 0 0-3-3.87M15 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    {{ manager.team }}
+                                  </span>
+                                </span>
+                                <span class="admin-approver-email">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5v-11Z" stroke="currentColor" stroke-width="1.6"/><path d="m5 7 7 5.5L19 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                  {{ manager.email }}
+                                </span>
+                              </span>
+                              <span class="admin-approver-chevron" aria-hidden="true">›</span>
                             </button>
                           }
                         </div>
@@ -2451,20 +2468,40 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     } @else {
                       <button type="button" class="admin-inline-btn admin-settings-back-btn" (click)="closeApprovingManagerForm()">Back to approval settings</button>
 
+                      <div class="admin-approver-form-header">
+                        <span class="admin-approver-avatar admin-approver-avatar-lg" aria-hidden="true">{{ approverInitials(approvingManagerFormName()) }}</span>
+                        <div>
+                          <strong>{{ approvingManagerFormName() || 'New approving manager' }}</strong>
+                          <span>{{ approvingManagerFormRole() || 'Their title will show here' }}</span>
+                        </div>
+                      </div>
+
                       <label class="admin-settings-field">
-                        <span>Full name</span>
+                        <span class="admin-approver-field-label">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M17 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M10 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                          Full name
+                        </span>
                         <input type="text" [value]="approvingManagerFormName()" (input)="approvingManagerFormName.set($any($event.target).value)" placeholder="e.g. Jane Doe" />
                       </label>
                       <label class="admin-settings-field">
-                        <span>Title</span>
+                        <span class="admin-approver-field-label">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h13A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5v-9Z" stroke="currentColor" stroke-width="1.8"/><path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7" stroke="currentColor" stroke-width="1.8"/></svg>
+                          Title
+                        </span>
                         <input type="text" [value]="approvingManagerFormRole()" (input)="approvingManagerFormRole.set($any($event.target).value)" placeholder="e.g. Training Manager" />
                       </label>
                       <label class="admin-settings-field">
-                        <span>Team</span>
+                        <span class="admin-approver-field-label">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M17 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M10 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8 10v-2a4 4 0 0 0-3-3.87M15 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                          Team
+                        </span>
                         <input type="text" [value]="approvingManagerFormTeam()" (input)="approvingManagerFormTeam.set($any($event.target).value)" placeholder="e.g. Learning & Development" />
                       </label>
                       <label class="admin-settings-field">
-                        <span>Email</span>
+                        <span class="admin-approver-field-label">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5v-11Z" stroke="currentColor" stroke-width="1.8"/><path d="m5 7 7 5.5L19 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                          Email
+                        </span>
                         <input type="email" [value]="approvingManagerFormEmail()" (input)="approvingManagerFormEmail.set($any($event.target).value)" placeholder="e.g. jane.doe@example.com" />
                       </label>
 
@@ -3595,6 +3632,90 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       color: #64748b;
       font-size: 0.88rem;
       line-height: 1.45;
+    }
+
+    .admin-approver-grid { display: grid; gap: 0.6rem; }
+    .admin-approver-row {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      width: 100%;
+      padding: 0.85rem 1rem;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 14px;
+      background: #ffffff;
+      text-align: left;
+      cursor: pointer;
+      font: inherit;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+    .admin-approver-row:hover,
+    .admin-approver-row:focus-visible {
+      border-color: var(--admin-secondary);
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+      transform: translateX(2px);
+      outline: none;
+    }
+
+    .admin-approver-avatar {
+      flex-shrink: 0;
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 800;
+      color: #fff;
+      background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.14);
+    }
+    .admin-approver-avatar-lg { width: 3rem; height: 3rem; font-size: 1rem; }
+
+    .admin-approver-info { display: grid; gap: 0.3rem; flex: 1; min-width: 0; }
+    .admin-approver-name { color: #14213d; font-size: 0.95rem; }
+    .admin-approver-chip-row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .admin-approver-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.15rem 0.55rem;
+      border-radius: 999px;
+      background: #f1f5f9;
+      color: #475569;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .admin-approver-email {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      color: #64748b;
+      font-size: 0.8rem;
+    }
+    .admin-approver-chevron { flex-shrink: 0; color: #94a3b8; font-size: 1.1rem; }
+
+    .admin-approver-form-header {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      padding: 0.9rem 1rem;
+      margin-bottom: 1rem;
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(56, 189, 248, 0.06), rgba(255, 255, 255, 0));
+      border: 1px solid rgba(148, 163, 184, 0.22);
+    }
+    .admin-approver-form-header div { display: grid; gap: 0.15rem; }
+    .admin-approver-form-header strong { color: #14213d; font-size: 0.98rem; }
+    .admin-approver-form-header span { color: #64748b; font-size: 0.8rem; }
+
+    .admin-approver-field-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--admin-primary);
     }
 
     .succession-report-table-wrap { overflow-x: auto; }
@@ -5583,6 +5704,15 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly managerBulkUploadMessage = signal('');
   readonly managerBulkUploadTone = signal<'success' | 'error'>('success');
   readonly managerBulkUploadIssues = signal<BulkUploadIssue[]>([]);
+
+  approverInitials(name: string) {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) {
+      return '?';
+    }
+
+    return parts.length === 1 ? parts[0][0].toUpperCase() : `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  }
 
   openNewApprovingManagerForm() {
     this.approvingManagerFormName.set('');
