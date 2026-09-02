@@ -2919,6 +2919,49 @@ export class TrainingManagerDataService {
     this.persistTrainingManagers();
   }
 
+  // Matched/deduped by email (case-insensitive), same as bulkUpsertStudents above — a row whose
+  // email matches an existing approving manager updates that record in place (keeping its id)
+  // rather than creating a duplicate entry.
+  bulkUpsertApprovingManagers(inputs: Omit<SystemTrainingManager, 'id'>[]) {
+    if (!inputs.length) {
+      return { added: 0, updated: 0 };
+    }
+
+    let added = 0;
+    let updated = 0;
+
+    this.trainingManagersSignal.update((managers) => {
+      const nextManagers = [...managers];
+      const managersByEmail = new Map(nextManagers.map((manager) => [manager.email.toLowerCase(), manager]));
+
+      for (const input of inputs) {
+        const emailKey = input.email.toLowerCase();
+        const existing = managersByEmail.get(emailKey);
+
+        if (existing) {
+          const existingIndex = nextManagers.findIndex((manager) => manager.id === existing.id);
+          if (existingIndex >= 0) {
+            nextManagers[existingIndex] = { ...existing, ...input };
+            managersByEmail.set(emailKey, nextManagers[existingIndex]);
+            updated += 1;
+          }
+
+          continue;
+        }
+
+        const newManager: SystemTrainingManager = { id: `training-manager-${Date.now()}-${added + updated}`, ...input };
+        nextManagers.push(newManager);
+        managersByEmail.set(emailKey, newManager);
+        added += 1;
+      }
+
+      return nextManagers;
+    });
+
+    this.persistTrainingManagers();
+    return { added, updated };
+  }
+
   private persistTrainingManagers() {
     if (!this.backendHydrated) {
       return;

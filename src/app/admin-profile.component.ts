@@ -2399,9 +2399,42 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     </p>
 
                     @if (!editingApprovingManagerId()) {
-                      <div class="admin-settings-item-controls">
-                        <button type="button" class="admin-inline-btn" (click)="openNewApprovingManagerForm()">Add approving manager</button>
+                      <div class="admin-bulk-upload-panel">
+                        <div class="admin-bulk-upload-actions">
+                          <label class="admin-settings-field admin-report-download-field admin-bulk-upload-template-field">
+                            <span>Template format</span>
+                            <select [value]="selectedManagerBulkUploadTemplateFormat()" (change)="selectedManagerBulkUploadTemplateFormat.set($any($event.target).value)">
+                              <option value="CSV">Download CSV template</option>
+                              <option value="XLSX">Download XLSX template</option>
+                            </select>
+                          </label>
+                          <button type="button" class="admin-secondary-btn" (click)="downloadApprovingManagerUploadTemplate()">Download template</button>
+                          <label class="admin-upload-btn">
+                            <span>Upload approving managers file</span>
+                            <input type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" (change)="handleApprovingManagerBulkUpload($event)" />
+                          </label>
+                          <button type="button" class="admin-inline-btn" (click)="openNewApprovingManagerForm()">Add approving manager</button>
+                          <span class="admin-chip">CSV or XLSX</span>
+                        </div>
                       </div>
+
+                      @if (managerBulkUploadMessage(); as message) {
+                        <div class="admin-upload-feedback" [class.admin-upload-feedback-error]="managerBulkUploadTone() === 'error'" role="status" aria-live="polite">
+                          {{ message }}
+                        </div>
+                      }
+
+                      @if (managerBulkUploadIssues().length) {
+                        <div class="admin-upload-issues" role="alert" aria-live="assertive">
+                          <div class="admin-upload-issues-title">Upload issues</div>
+                          <div class="admin-upload-issues-copy">Fix the rows below and upload the file again.</div>
+                          <ul class="admin-upload-issues-list">
+                            @for (issue of managerBulkUploadIssues(); track issue.lineNumber + issue.message) {
+                              <li>Row {{ issue.lineNumber }}: {{ issue.message }}</li>
+                            }
+                          </ul>
+                        </div>
+                      }
 
                       @if (managerData.explicitTrainingManagers().length) {
                         <div class="admin-settings-menu">
@@ -2420,7 +2453,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
                       <label class="admin-settings-field">
                         <span>Full name</span>
-                        <input type="text" [value]="approvingManagerFormName()" (input)="approvingManagerFormName.set($any($event.target).value)" />
+                        <input type="text" [value]="approvingManagerFormName()" (input)="approvingManagerFormName.set($any($event.target).value)" placeholder="e.g. Jane Doe" />
                       </label>
                       <label class="admin-settings-field">
                         <span>Title</span>
@@ -2428,11 +2461,11 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       </label>
                       <label class="admin-settings-field">
                         <span>Team</span>
-                        <input type="text" [value]="approvingManagerFormTeam()" (input)="approvingManagerFormTeam.set($any($event.target).value)" />
+                        <input type="text" [value]="approvingManagerFormTeam()" (input)="approvingManagerFormTeam.set($any($event.target).value)" placeholder="e.g. Learning & Development" />
                       </label>
                       <label class="admin-settings-field">
                         <span>Email</span>
-                        <input type="email" [value]="approvingManagerFormEmail()" (input)="approvingManagerFormEmail.set($any($event.target).value)" />
+                        <input type="email" [value]="approvingManagerFormEmail()" (input)="approvingManagerFormEmail.set($any($event.target).value)" placeholder="e.g. jane.doe@example.com" />
                       </label>
 
                       @if (approvingManagerFormError()) {
@@ -5546,6 +5579,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly approvingManagerFormTeam = signal('');
   readonly approvingManagerFormEmail = signal('');
   readonly approvingManagerFormError = signal('');
+  readonly selectedManagerBulkUploadTemplateFormat = signal<ReportDownloadFormat>('CSV');
+  readonly managerBulkUploadMessage = signal('');
+  readonly managerBulkUploadTone = signal<'success' | 'error'>('success');
+  readonly managerBulkUploadIssues = signal<BulkUploadIssue[]>([]);
 
   openNewApprovingManagerForm() {
     this.approvingManagerFormName.set('');
@@ -5573,15 +5610,29 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     const name = this.approvingManagerFormName().trim();
     const role = this.approvingManagerFormRole().trim();
     const team = this.approvingManagerFormTeam().trim();
-    const email = this.approvingManagerFormEmail().trim();
+    const email = this.approvingManagerFormEmail().trim().toLowerCase();
 
     if (!name || !role || !team || !email) {
       this.approvingManagerFormError.set('Name, title, team and email are all required.');
       return;
     }
 
+    if (!this.isValidEmail(email)) {
+      this.approvingManagerFormError.set('Enter a valid email address.');
+      return;
+    }
+
     const editingId = this.editingApprovingManagerId();
-    const id = editingId && editingId !== 'new' ? editingId : `training-manager-${Date.now()}`;
+    const isNew = !editingId || editingId === 'new';
+    const emailTaken = this.managerData.explicitTrainingManagers().some(
+      (manager) => manager.email.trim().toLowerCase() === email && (isNew || manager.id !== editingId),
+    );
+    if (emailTaken) {
+      this.approvingManagerFormError.set('Another approving manager already uses this email address.');
+      return;
+    }
+
+    const id = isNew ? `training-manager-${Date.now()}` : editingId;
 
     this.managerData.upsertApprovingManager({ id, name, role, team, email });
     this.editingApprovingManagerId.set(null);
@@ -5595,6 +5646,174 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
     this.managerData.deleteApprovingManager(managerId);
     this.editingApprovingManagerId.set(null);
+  }
+
+  private getApprovingManagerUploadTemplateRows() {
+    return [
+      ['Name', 'Title', 'Team', 'Email'],
+      ['Jane Doe', 'Training Manager', 'Learning & Development', 'jane.doe@example.com'],
+    ];
+  }
+
+  downloadApprovingManagerUploadTemplate() {
+    if (this.selectedManagerBulkUploadTemplateFormat() === 'XLSX') {
+      void this.downloadApprovingManagerUploadTemplateXlsx();
+      return;
+    }
+
+    this.downloadApprovingManagerUploadTemplateCsv();
+  }
+
+  downloadApprovingManagerUploadTemplateCsv() {
+    const csv = this.getApprovingManagerUploadTemplateRows()
+      .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+
+    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), 'LMS-Approving-Managers-Template.csv');
+  }
+
+  async downloadApprovingManagerUploadTemplateXlsx() {
+    const xlsx = await import('xlsx');
+    const workbook = xlsx.utils.book_new();
+    const worksheet = xlsx.utils.aoa_to_sheet(this.getApprovingManagerUploadTemplateRows());
+
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Approving Managers');
+    const workbookArray = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
+    this.triggerDownload(new Blob([workbookArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'LMS-Approving-Managers-Template.xlsx');
+  }
+
+  async handleApprovingManagerBulkUpload(event: Event) {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0] ?? null;
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      this.managerBulkUploadIssues.set([]);
+      const parsedUpload = await this.parseApprovingManagerUploadFile(file);
+      this.managerBulkUploadIssues.set(parsedUpload.issues);
+
+      if (!parsedUpload.rows.length) {
+        this.managerBulkUploadTone.set('error');
+        this.managerBulkUploadMessage.set(
+          parsedUpload.issues.length ? 'No valid rows were found. Review the upload issues below.' : 'No valid rows were found in the uploaded file.',
+        );
+        return;
+      }
+
+      const result = this.managerData.bulkUpsertApprovingManagers(parsedUpload.rows);
+      this.managerBulkUploadTone.set(parsedUpload.issues.length ? 'error' : 'success');
+      this.managerBulkUploadMessage.set(
+        `Bulk upload complete. ${result.added} added, ${result.updated} updated.${parsedUpload.issues.length ? ` ${parsedUpload.issues.length} row issue(s) need attention.` : ''}`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Bulk upload failed.';
+      this.managerBulkUploadTone.set('error');
+      this.managerBulkUploadMessage.set(message);
+      this.managerBulkUploadIssues.set([]);
+    } finally {
+      if (input) {
+        input.value = '';
+      }
+    }
+  }
+
+  private async parseApprovingManagerUploadFile(file: File): Promise<{ rows: Omit<SystemTrainingManager, 'id'>[]; issues: BulkUploadIssue[] }> {
+    const extension = file.name.split('.').pop()?.toLowerCase();
+
+    if (extension === 'xlsx') {
+      const xlsx = await import('xlsx');
+      const fileBuffer = await file.arrayBuffer();
+      const workbook = xlsx.read(fileBuffer, { type: 'array', cellDates: true });
+      const firstSheetName = workbook.SheetNames[0];
+
+      if (!firstSheetName) {
+        return { rows: [], issues: [] };
+      }
+
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rawRows = xlsx.utils.sheet_to_json<(string | number | boolean | Date)[]>(worksheet, {
+        header: 1,
+        raw: false,
+        defval: '',
+        blankrows: true,
+      });
+
+      return this.parseApprovingManagerUploadRows(rawRows.map((row) => row.map((value) => String(value ?? ''))));
+    }
+
+    const csvText = await file.text();
+    const rawRows = csvText
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .map((line) => (line ? this.parseCsvLine(line) : []));
+
+    return this.parseApprovingManagerUploadRows(rawRows);
+  }
+
+  private parseApprovingManagerUploadRows(rawRows: string[][]): { rows: Omit<SystemTrainingManager, 'id'>[]; issues: BulkUploadIssue[] } {
+    if (rawRows.length < 2) {
+      return { rows: [], issues: [] };
+    }
+
+    const headers = rawRows[0].map((header) => this.normalizeCsvHeader(header));
+    const requiredHeaders = ['name', 'title', 'team', 'email'];
+
+    if (requiredHeaders.some((header) => !headers.includes(header))) {
+      throw new Error('The upload file is missing one or more required fields: Name, Title, Team, Email.');
+    }
+
+    const rows: Omit<SystemTrainingManager, 'id'>[] = [];
+    const issues: BulkUploadIssue[] = [];
+    const seenEmails = new Set<string>();
+
+    rawRows.slice(1).forEach((values, rowIndex) => {
+      const lineNumber = rowIndex + 2;
+
+      if (values.length === 0 || values.every((value) => !value?.trim())) {
+        return;
+      }
+
+      const record = new Map<string, string>();
+      headers.forEach((header, index) => {
+        record.set(header, values[index]?.trim() ?? '');
+      });
+
+      const row = this.buildApprovingManagerUploadRow(record, lineNumber, seenEmails);
+
+      if ('message' in row) {
+        issues.push(row);
+        return;
+      }
+
+      rows.push(row);
+    });
+
+    return { rows, issues };
+  }
+
+  private buildApprovingManagerUploadRow(record: Map<string, string>, lineNumber: number, seenEmails: Set<string>): Omit<SystemTrainingManager, 'id'> | BulkUploadIssue {
+    const name = (record.get('name') ?? '').trim();
+    const role = (record.get('title') ?? '').trim();
+    const team = (record.get('team') ?? '').trim();
+    const email = (record.get('email') ?? '').trim().toLowerCase();
+
+    if (!name || !role || !team || !email) {
+      return { lineNumber, message: 'Name, title, team and email are all required.' };
+    }
+
+    if (!this.isValidEmail(email)) {
+      return { lineNumber, message: 'Email address is invalid.' };
+    }
+
+    if (seenEmails.has(email)) {
+      return { lineNumber, message: 'Email is duplicated in this file.' };
+    }
+
+    seenEmails.add(email);
+    return { name, role, team, email };
   }
 
   private async loadHrIntegrationConfig() {
