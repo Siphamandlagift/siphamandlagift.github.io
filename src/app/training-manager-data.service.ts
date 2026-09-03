@@ -1,5 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { firstValueFrom, interval, tap, throwError, type Observable } from 'rxjs';
+import { finalize, firstValueFrom, interval, tap, throwError, type Observable } from 'rxjs';
 import { LmsBackendService } from './lms-backend.service';
 import { combineDisplayName, readLmsSessionRecord } from './session-auth';
 import type { StudentMessage } from './student-data.service';
@@ -471,6 +471,15 @@ export class TrainingManagerDataService {
   // always PUTs the *entire* current students() array, the next unrelated roster edit re-sends
   // that reverted state and erases the original edit server-side too.
   private studentsDirtyAt: number | null = null;
+  // studentsDirtyAt alone only protects against a poll whose *request* started before this
+  // timestamp — it says nothing about a poll that started later but whose response still lands
+  // before an in-flight student write actually settles server-side (two independent HTTP
+  // round-trips have no guaranteed relative completion order). That gap let setStudentOfferingAssignment's
+  // own success reconciliation "fix" a course a stale poll had just made vanish — a visible
+  // disappear-then-reappear flicker instead of the original permanent loss. This counter closes
+  // it: while any student write this counter tracks is outstanding, a poll's students merge is
+  // skipped entirely for that cycle, no matter when the poll's request started.
+  private pendingStudentWriteCount = 0;
 
   readonly profile = this.profileSignal.asReadonly();
   readonly offerings = this.offeringsSignal.asReadonly();
@@ -1264,7 +1273,12 @@ export class TrainingManagerDataService {
       return;
     }
 
-    this.backend.setStudentOfferingAssignment(studentId, offeringId, assigned).subscribe({
+    this.pendingStudentWriteCount += 1;
+    this.backend.setStudentOfferingAssignment(studentId, offeringId, assigned).pipe(
+      finalize(() => {
+        this.pendingStudentWriteCount = Math.max(0, this.pendingStudentWriteCount - 1);
+      }),
+    ).subscribe({
       next: (savedStudent) => {
         this.studentsSignal.update((students) => students.map((student) => (student.id === savedStudent.id ? savedStudent : student)));
         this.saveStudents(this.students());
@@ -2613,8 +2627,13 @@ export class TrainingManagerDataService {
           // A local roster write that started after this particular fetch did can't possibly be
           // reflected in bootstrap.students yet, so it wins outright this cycle instead of being
           // clobbered by this (now-stale) response — see studentsDirtyAt above. The next poll,
-          // started after that write, will pick up the confirmed server state normally.
-          const isStudentsStale = this.studentsDirtyAt !== null && this.studentsDirtyAt >= requestStartedAt;
+          // started after that write, will pick up the confirmed server state normally. That
+          // alone doesn't cover a write that started *before* this fetch but hasn't settled
+          // server-side yet (two independent requests race with no guaranteed completion order) —
+          // pendingStudentWriteCount closes that gap, so this cycle backs off entirely while any
+          // tracked student write is still outstanding rather than risking a stale merge.
+          const isStudentsStale = this.pendingStudentWriteCount > 0
+            || (this.studentsDirtyAt !== null && this.studentsDirtyAt >= requestStartedAt);
           this.studentsSignal.set(isStudentsStale ? this.studentsSignal() : this.mergeServerAuthoritative(bootstrap.students, this.studentsSignal()));
           this.trainingManagersSignal.set(bootstrap.trainingManagers);
           this.mentorshipAssignmentsSignal.set(this.mergeServerAuthoritative(bootstrap.mentorshipAssignments, this.mentorshipAssignmentsSignal()));
