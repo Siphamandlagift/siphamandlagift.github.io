@@ -380,6 +380,13 @@ export class LmsBackendService {
     return this.http.delete<void>(`${this.config.baseUrl}/offerings/${offeringId}`);
   }
 
+  // A true add/remove on the student's assignedOfferingIds, not a full roster patch — see
+  // TrainingManagerDataService.assignStudentToOffering/removeStudentFromOffering for why this
+  // exists as its own endpoint instead of going through patchManagerState.
+  setStudentOfferingAssignment(studentId: string, offeringId: string, assigned: boolean): Observable<EnrollmentStudent> {
+    return this.http.put<EnrollmentStudent>(`${this.config.baseUrl}/students/${studentId}/offering-assignment`, { offeringId, assigned });
+  }
+
   uploadFile(file: File, folder: string): Observable<{ url: string; path: string }> {
     return this.firebaseStorage.upload(file, folder);
   }

@@ -799,6 +799,11 @@ const openKpiYearSchema = z.object({
   year: z.number().int(),
 });
 
+const studentOfferingAssignmentSchema = z.object({
+  offeringId: z.string().min(1),
+  assigned: z.boolean(),
+});
+
 const successionRoleInputSchema = z.object({
   incumbentStudentId: z.string().min(1),
 });
@@ -2418,6 +2423,27 @@ app.delete('/api/offerings/:offeringId', requireManagerOrAdministrator, async (r
     }
 
     response.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Applies as a true add/remove on the student's assignedOfferingIds, deliberately not routed
+// through PUT /api/manager-state — that endpoint replaces a manager's *entire* patched student
+// record, and a manager's local roster snapshot going stale for a student they didn't just edit
+// (a second manager's concurrent assignment, most commonly) would otherwise silently revert it.
+// See LmsRepository.setStudentOfferingAssignment / its Firestore override for the actual fix.
+app.put('/api/students/:studentId/offering-assignment', requireManagerOrAdministrator, async (request, response, next) => {
+  try {
+    const body = studentOfferingAssignmentSchema.parse(request.body);
+    const student = await repository.setStudentOfferingAssignment(request.params['studentId'] as string, body.offeringId, body.assigned);
+
+    if (!student) {
+      response.status(404).json({ message: 'Student or offering not found.' });
+      return;
+    }
+
+    response.json(student);
   } catch (error) {
     next(error);
   }

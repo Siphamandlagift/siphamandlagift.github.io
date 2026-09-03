@@ -1204,6 +1204,7 @@ export class TrainingManagerDataService {
 
   assignStudentToOffering(studentId: string, offeringId: string) {
     const assignedOffering = this.offerings().find((offering) => offering.id === offeringId);
+    const previousStudents = this.studentsSignal();
 
     this.studentsSignal.update((students) =>
       students.map((student) => {
@@ -1220,11 +1221,12 @@ export class TrainingManagerDataService {
       }),
     );
 
-    this.persistStudents();
+    this.persistStudentOfferingAssignment(studentId, offeringId, true, previousStudents);
   }
 
   removeStudentFromOffering(studentId: string, offeringId: string) {
     let removedCount = 0;
+    const previousStudents = this.studentsSignal();
 
     this.studentsSignal.update((students) =>
       students.map((student) => {
@@ -1242,9 +1244,36 @@ export class TrainingManagerDataService {
       }),
     );
 
-    this.persistStudents();
+    this.persistStudentOfferingAssignment(studentId, offeringId, false, previousStudents);
 
     return removedCount;
+  }
+
+  // Scoped to just this one student's assignedOfferingIds via a dedicated endpoint instead of
+  // persistStudents' full-roster patch — a manager's local roster snapshot can be stale for
+  // students they didn't just touch (most commonly: another manager's concurrent assignment to a
+  // *different* student), and patchManagerState's merge would otherwise let that staleness
+  // silently revert it. On success the server's authoritative record replaces the local optimistic
+  // one; on failure this rolls back to the pre-change snapshot instead of leaving a phantom local
+  // change that the server (and everyone else) never actually saw.
+  private persistStudentOfferingAssignment(studentId: string, offeringId: string, assigned: boolean, previousStudents: EnrollmentStudent[]) {
+    this.studentsDirtyAt = Date.now();
+    this.saveStudents(this.students());
+
+    if (!this.backendHydrated) {
+      return;
+    }
+
+    this.backend.setStudentOfferingAssignment(studentId, offeringId, assigned).subscribe({
+      next: (savedStudent) => {
+        this.studentsSignal.update((students) => students.map((student) => (student.id === savedStudent.id ? savedStudent : student)));
+        this.saveStudents(this.students());
+      },
+      error: () => {
+        this.studentsSignal.set(previousStudents);
+        this.saveStudents(this.students());
+      },
+    });
   }
 
   updateStudent(studentId: string, input: EnrollmentStudentInput) {

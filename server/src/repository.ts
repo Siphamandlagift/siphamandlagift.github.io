@@ -831,6 +831,46 @@ function pruneStaleAssessmentAttemptsOnReassignment(student: StudentRecord, prev
   return { ...student, assessmentAttempts: nextAssessmentAttempts };
 }
 
+// Mirrors resolveAssignmentState in training-manager-data.service.ts exactly (same
+// deadline-max-across-assigned-offerings precedence, same Active/Inactive and
+// Not-Started-to-In-Progress rules) so a server-side assignment change and the client's own
+// optimistic local update never disagree about what deadlineDate/activeStatus/status should be.
+// latestAssignedDeadline, when given (assign only — see setStudentOfferingAssignment below),
+// takes precedence over the computed max, matching the client's own precedence.
+function resolveStudentAssignmentFields(
+  student: Pick<EnrollmentStudentRecord, 'deadlineDate' | 'status'>,
+  nextAssignedOfferingIds: string[],
+  assignedOfferings: TrainingOffering[],
+  latestAssignedDeadline?: string,
+): Pick<EnrollmentStudentRecord, 'assignedOfferingIds' | 'deadlineDate' | 'activeStatus' | 'status'> {
+  const resolvedDeadline = latestAssignedDeadline
+    ?? assignedOfferings.map((offering) => offering.completionDeadline).filter(Boolean).sort().at(-1)
+    ?? student.deadlineDate;
+
+  if (!nextAssignedOfferingIds.length) {
+    return {
+      assignedOfferingIds: nextAssignedOfferingIds,
+      deadlineDate: resolvedDeadline,
+      activeStatus: 'Inactive',
+      status: 'Not Yet Started',
+    };
+  }
+
+  return {
+    assignedOfferingIds: nextAssignedOfferingIds,
+    deadlineDate: resolvedDeadline,
+    activeStatus: 'Active',
+    status: student.status === 'Not Yet Started' ? 'In Progress' : student.status,
+  };
+}
+
+// Same trimmed projection getBootstrap already builds its students list from — avoids sending an
+// assignment-toggle response bloated with the student's full courses/notifications/messages/etc.
+function toEnrollmentStudentRecord(student: StudentRecord): EnrollmentStudentRecord {
+  const { courses, notifications, messages, notifiedOfferingIds, idpEntries, kpiYears, ...enrollmentStudent } = student;
+  return enrollmentStudent;
+}
+
 function normalizeData(data: LmsDataStore): LmsDataStore {
   const defaults = createDefaultData();
   const offerings = data.offerings ?? defaults.offerings;
@@ -1657,21 +1697,11 @@ export class LmsRepository {
       }
 
       const assignedOfferingIds = student.assignedOfferingIds.filter((assignedId) => assignedId !== offeringId);
-      const resolvedDeadline = data.offerings
-        .filter((offering) => assignedOfferingIds.includes(offering.id))
-        .map((offering) => offering.completionDeadline)
-        .filter(Boolean)
-        .sort()
-        .at(-1) ?? student.deadlineDate;
+      const assignedOfferings = data.offerings.filter((offering) => assignedOfferingIds.includes(offering.id));
 
       return {
         ...student,
-        assignedOfferingIds,
-        deadlineDate: resolvedDeadline,
-        activeStatus: assignedOfferingIds.length ? 'Active' : 'Inactive',
-        status: assignedOfferingIds.length
-          ? (student.status === 'Not Yet Started' ? 'In Progress' : student.status)
-          : 'Not Yet Started',
+        ...resolveStudentAssignmentFields(student, assignedOfferingIds, assignedOfferings),
       };
     });
     data.assignmentSubmissions = data.assignmentSubmissions.filter((submission) => submission.offeringId !== offeringId);
@@ -1680,6 +1710,43 @@ export class LmsRepository {
 
     await this.write(data);
     return true;
+  }
+
+  // Applies assignment as a true add/remove against the CURRENT stored assignedOfferingIds,
+  // never a full-array replace — see the FirestoreLmsRepository override below for why this
+  // matters: a manager's patchManagerState call carries their entire local roster snapshot, which
+  // can be stale for students they didn't just edit, and mergeEnrollmentStudentRecord's
+  // {...existing, ...student} spread would otherwise let that stale assignedOfferingIds silently
+  // overwrite a concurrent assignment from another manager.
+  async setStudentOfferingAssignment(studentId: string, offeringId: string, assigned: boolean) {
+    const data = await this.read();
+    const studentIndex = data.students.findIndex((entry) => entry.id === studentId);
+    if (studentIndex === -1) {
+      return null;
+    }
+
+    const student = data.students[studentIndex];
+    const targetOffering = data.offerings.find((offering) => offering.id === offeringId);
+    if (assigned && !targetOffering) {
+      return null;
+    }
+
+    const nextAssignedOfferingIds = assigned
+      ? (student.assignedOfferingIds.includes(offeringId) ? student.assignedOfferingIds : [...student.assignedOfferingIds, offeringId])
+      : student.assignedOfferingIds.filter((id) => id !== offeringId);
+
+    const assignedOfferings = data.offerings.filter((offering) => nextAssignedOfferingIds.includes(offering.id));
+    const nextStudent = pruneStaleAssessmentAttemptsOnReassignment(
+      {
+        ...student,
+        ...resolveStudentAssignmentFields(student, nextAssignedOfferingIds, assignedOfferings, assigned ? targetOffering?.completionDeadline : undefined),
+      },
+      student.assignedOfferingIds,
+    );
+
+    data.students[studentIndex] = nextStudent;
+    await this.write(data);
+    return toEnrollmentStudentRecord(nextStudent);
   }
 
   async listAssignmentSubmissions() {
@@ -3462,6 +3529,68 @@ class FirestoreLmsRepository extends LmsRepository {
       readinessRating: nomination.readinessRating,
       competencyGaps: nomination.competencyGaps,
     };
+  }
+
+  // Same reasoning as updateStudentSnapshot above, applied to course assignment specifically: this
+  // touches only the one student document (plus, read-only, the small set of offering documents
+  // needed to resolve deadlineDate) via a true add/remove on assignedOfferingIds — never the
+  // inherited read()+write() full-store path, and never a full-array replace supplied by the
+  // caller, so a manager's stale local roster snapshot can never silently revert another manager's
+  // concurrent assignment. See the base LmsRepository implementation above for why this matters.
+  override async setStudentOfferingAssignment(studentId: string, offeringId: string, assigned: boolean) {
+    const ref = this.collection('students').doc(studentId);
+
+    return this.firestore.runTransaction(async (transaction) => {
+      const studentSnapshot = await transaction.get(ref);
+      if (!studentSnapshot.exists) {
+        return null;
+      }
+
+      const student = studentSnapshot.data() as StudentRecord;
+
+      let targetOfferingSnapshot: DocumentSnapshot | null = null;
+      if (assigned) {
+        targetOfferingSnapshot = await transaction.get(this.collection('offerings').doc(offeringId));
+        if (!targetOfferingSnapshot.exists) {
+          return null;
+        }
+      }
+
+      const nextAssignedOfferingIds = assigned
+        ? (student.assignedOfferingIds.includes(offeringId) ? student.assignedOfferingIds : [...student.assignedOfferingIds, offeringId])
+        : student.assignedOfferingIds.filter((id) => id !== offeringId);
+
+      // Bounded by how many courses this one student has, not the whole offering catalog — needed
+      // to resolve deadlineDate the same way resolveStudentAssignmentFields/resolveAssignmentState
+      // (client-side) do: the max completionDeadline across every currently-assigned offering.
+      const assignedOfferingSnapshots = await Promise.all(
+        nextAssignedOfferingIds
+          .filter((id) => id !== offeringId)
+          .map((id) => transaction.get(this.collection('offerings').doc(id))),
+      );
+      const assignedOfferings = assignedOfferingSnapshots
+        .filter((snapshot) => snapshot.exists)
+        .map((snapshot) => snapshot.data() as TrainingOffering);
+      if (targetOfferingSnapshot?.exists) {
+        assignedOfferings.push(targetOfferingSnapshot.data() as TrainingOffering);
+      }
+
+      const nextStudent = pruneStaleAssessmentAttemptsOnReassignment(
+        {
+          ...student,
+          ...resolveStudentAssignmentFields(
+            student,
+            nextAssignedOfferingIds,
+            assignedOfferings,
+            assigned ? (targetOfferingSnapshot!.data() as TrainingOffering).completionDeadline : undefined,
+          ),
+        },
+        student.assignedOfferingIds,
+      );
+
+      transaction.set(ref, this.sanitizeForFirestore(nextStudent));
+      return toEnrollmentStudentRecord(nextStudent);
+    });
   }
 
   private async syncLinkedAuthAccountForStudent(student: StudentRecord) {

@@ -2243,11 +2243,21 @@ export class StudentCoursesComponent {
   readonly assignmentDocumentSubmissions = signal<Record<string, AssignmentDocumentSubmission>>({});
   readonly mentorshipSubmissions = signal<Record<string, MentorshipSubmission>>({});
   readonly matchingAssignments = signal<Record<string, Record<string, string>>>({});
+  // openedDocumentAcknowledgements deliberately stays session-only — it just gates whether the
+  // "Acknowledge Read" button is enabled *this viewing*, not a completion record, so requiring the
+  // document be reopened after a refresh before re-acknowledging is intentional, not a bug.
   readonly openedDocumentAcknowledgements = signal<Record<string, boolean>>({});
-  readonly acknowledgedDocuments = signal<Record<string, boolean>>({});
+  // completedCourseSteps/acknowledgedDocuments ARE the actual completion record for non-Assessment
+  // steps (see isStepCompleted below) and drive the course's progress % — without persisting them
+  // the same way scormRuntime already does, a student who finishes some steps, closes the browser,
+  // then finishes the rest in a later session would have the earlier steps silently forgotten:
+  // calculateCourseProgress recomputes from scratch each load, and syncCourseProgress's Math.max
+  // floor only stops progress from visibly dropping, it can't make the course reach 100% once a
+  // step's own completion memory is gone.
+  readonly acknowledgedDocuments = signal<Record<string, boolean>>(this.loadPersistedCourseProgressState().acknowledgedDocuments);
   readonly scormRuntime = signal<Record<string, ScormRuntimeState>>(this.loadPersistedScormRuntime());
   readonly loadedVideoDurations = signal<Record<string, string>>({});
-  readonly completedCourseSteps = signal<Record<string, boolean>>({});
+  readonly completedCourseSteps = signal<Record<string, boolean>>(this.loadPersistedCourseProgressState().completedCourseSteps);
   readonly draggedMatchingAnswer = signal('');
   readonly pickedMatchingAnswer = signal('');
   readonly selectedCourseStepId = signal('');
@@ -3829,6 +3839,7 @@ export class StudentCoursesComponent {
       ...current,
       [key]: true,
     }));
+    this.persistCourseProgressState();
 
     this.markSelectedStepComplete();
   }
@@ -3853,6 +3864,60 @@ export class StudentCoursesComponent {
       location: '',
       suspendData: '',
     };
+  }
+
+  // Scoped per student (unlike scormRuntimeStorageKey's flat key) so two different students
+  // logging into the same browser/device don't inherit each other's completion state.
+  private courseProgressStorageKey(studentId: string) {
+    return `lms-student-course-progress.${studentId}`;
+  }
+
+  private loadPersistedCourseProgressState(): { completedCourseSteps: Record<string, boolean>; acknowledgedDocuments: Record<string, boolean> } {
+    const empty: { completedCourseSteps: Record<string, boolean>; acknowledgedDocuments: Record<string, boolean> } = { completedCourseSteps: {}, acknowledgedDocuments: {} };
+
+    if (typeof localStorage === 'undefined') {
+      return empty;
+    }
+
+    const studentId = readLmsSessionRecord()?.studentId?.trim();
+    if (!studentId) {
+      return empty;
+    }
+
+    try {
+      const raw = localStorage.getItem(this.courseProgressStorageKey(studentId));
+      if (!raw) {
+        return empty;
+      }
+
+      const parsed = JSON.parse(raw) as Partial<typeof empty>;
+      return {
+        completedCourseSteps: parsed?.completedCourseSteps && typeof parsed.completedCourseSteps === 'object' ? parsed.completedCourseSteps : {},
+        acknowledgedDocuments: parsed?.acknowledgedDocuments && typeof parsed.acknowledgedDocuments === 'object' ? parsed.acknowledgedDocuments : {},
+      };
+    } catch {
+      return empty;
+    }
+  }
+
+  private persistCourseProgressState() {
+    if (typeof localStorage === 'undefined') {
+      return;
+    }
+
+    const studentId = readLmsSessionRecord()?.studentId?.trim();
+    if (!studentId) {
+      return;
+    }
+
+    try {
+      localStorage.setItem(this.courseProgressStorageKey(studentId), JSON.stringify({
+        completedCourseSteps: this.completedCourseSteps(),
+        acknowledgedDocuments: this.acknowledgedDocuments(),
+      }));
+    } catch {
+      // Ignore storage write failures (e.g. quota) — the in-memory state still works this session.
+    }
   }
 
   private loadPersistedScormRuntime() {
@@ -4474,6 +4539,7 @@ export class StudentCoursesComponent {
       ...current,
       [stepKey]: true,
     }));
+    this.persistCourseProgressState();
   }
 
   private courseStepKey(courseName: string, stepId: string) {
