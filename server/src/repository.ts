@@ -3544,6 +3544,58 @@ class FirestoreLmsRepository extends LmsRepository {
     };
   }
 
+  // The inherited createOffering/updateOffering (base LmsRepository, above) read the *entire*
+  // store once and finish with this.write(data) — which, on this Firestore backend, re-syncs
+  // EVERY collection (queueCollectionSync below batch.set()s every document in every collection
+  // from that one stale snapshot, deleting any document not present in it). That's fine for the
+  // dev-mode JSON backend the base class also serves, but on Firestore it means editing a course —
+  // routine, frequent activity while actively building one out — silently reverts *any* other
+  // concurrent write across the whole store made between this call's own read() and write(),
+  // students' course assignments very much included. A manager creating a course and immediately
+  // assigning it to students via the wizard, then continuing to tweak it, is exactly this
+  // collision: setStudentOfferingAssignment's own transaction commits the assignment correctly,
+  // but the next updateOffering call's write() then overwrites the whole students collection with
+  // its own earlier, pre-assignment snapshot — the assignment silently vanishes. These overrides
+  // touch only the one offering document instead, the same scoping already applied to student
+  // writes above.
+  override async createOffering(offering: TrainingOffering) {
+    const ref = this.collection('offerings').doc(offering.id);
+    const existing = await ref.get();
+    if (existing.exists) {
+      return null;
+    }
+
+    await ref.set(this.sanitizeForFirestore(offering));
+    return offering;
+  }
+
+  override async updateOffering(update: TrainingOfferingUpdate) {
+    const ref = this.collection('offerings').doc(update.id);
+
+    return this.firestore.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(ref);
+      if (!snapshot.exists) {
+        return null;
+      }
+
+      const existing = snapshot.data() as TrainingOffering;
+      const nextOffering: TrainingOffering = {
+        ...existing,
+        title: update.title,
+        type: update.type,
+        category: update.category,
+        description: update.description,
+        completionDeadline: update.completionDeadline,
+        status: update.status,
+        thumbnailDataUrl: update.thumbnailDataUrl,
+        contentItems: update.contentItems ?? existing.contentItems,
+      };
+
+      transaction.set(ref, this.sanitizeForFirestore(nextOffering));
+      return nextOffering;
+    });
+  }
+
   // Same reasoning as updateStudentSnapshot above, applied to course assignment specifically: this
   // touches only the one student document (plus, read-only, the small set of offering documents
   // needed to resolve deadlineDate) via a true add/remove on assignedOfferingIds — never the

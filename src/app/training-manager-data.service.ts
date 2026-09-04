@@ -480,6 +480,15 @@ export class TrainingManagerDataService {
   // it: while any student write this counter tracks is outstanding, a poll's students merge is
   // skipped entirely for that cycle, no matter when the poll's request started.
   private pendingStudentWriteCount = 0;
+  // Same gap as pendingStudentWriteCount, but offeringsSignal had no staleness guard at all before
+  // this — every poll merged bootstrap.offerings in unconditionally. A brand-new offering itself is
+  // safe (mergeServerAuthoritative keeps a purely-local id the server doesn't know about yet), but
+  // an offering already created and still being actively edited (adding content items, setting a
+  // deadline, publishing) is a *known* id to the server, so a stale poll response landing mid-edit
+  // would silently win over a just-applied change — including status, which is how a freshly-built
+  // course could flip back to looking unpublished and vanish from every assigned student's course
+  // list, since only Published offerings sync into a student's courses (student-data.service.ts).
+  private pendingOfferingWriteCount = 0;
 
   readonly profile = this.profileSignal.asReadonly();
   readonly offerings = this.offeringsSignal.asReadonly();
@@ -982,7 +991,12 @@ export class TrainingManagerDataService {
     this.offeringsSignal.update((items) => [newOffering, ...items]);
     this.saveOfferings(this.offerings());
 
-    this.backend.createOffering(newOffering).subscribe({
+    this.pendingOfferingWriteCount += 1;
+    this.backend.createOffering(newOffering).pipe(
+      finalize(() => {
+        this.pendingOfferingWriteCount = Math.max(0, this.pendingOfferingWriteCount - 1);
+      }),
+    ).subscribe({
       next: (savedOffering) => {
         this.offeringsSignal.update((items) =>
           items.map((item) => {
@@ -1001,6 +1015,43 @@ export class TrainingManagerDataService {
     return newOffering;
   }
 
+  // Applies this call's own fields against whatever the offering *currently* is, never against a
+  // stale response — see the identical reasoning on applyOfferingAssignmentLocally. Reused for
+  // both the initial optimistic update and the success reconciliation below, so two updateOffering
+  // calls for the SAME offering landing close together (e.g. the assign wizard's deadline update
+  // right before assignStudentToOffering, or a manager rapidly saving title/content/status edits
+  // while actively building out a brand-new course) can never have the later-arriving response
+  // wholesale-overwrite fields a different, already-applied concurrent edit had just changed —
+  // which is how a just-created course's status could silently flip back to Draft (making it
+  // vanish from every assigned student, since only Published offerings sync into their courses)
+  // even though every individual edit, taken on its own, set status: 'Published' correctly.
+  private applyOfferingUpdateLocally(input: TrainingOfferingUpdate, normalizedContentItems: TrainingContentItem[] | undefined): TrainingOffering | null {
+    let updatedOffering: TrainingOffering | null = null;
+
+    this.offeringsSignal.update((items) =>
+      items.map((item) => {
+        if (item.id !== input.id) {
+          return item;
+        }
+
+        updatedOffering = {
+          ...item,
+          title: input.title,
+          type: input.type,
+          category: input.category,
+          description: input.description,
+          completionDeadline: input.completionDeadline,
+          status: input.status,
+          thumbnailDataUrl: input.thumbnailDataUrl,
+          contentItems: normalizedContentItems ?? item.contentItems,
+        };
+        return updatedOffering;
+      }),
+    );
+
+    return updatedOffering;
+  }
+
   updateOffering(input: TrainingOfferingUpdate) {
     const normalizedTitle = input.title.trim();
     const normalizedCategory = input.category.trim();
@@ -1011,42 +1062,24 @@ export class TrainingManagerDataService {
       return null;
     }
 
-    let updatedOffering: TrainingOffering | null = null;
-    this.offeringsSignal.update((items) =>
-      items.map((item) =>
-        item.id === input.id
-          ? {
-              ...item,
-              title: normalizedTitle,
-              type: input.type,
-              category: normalizedCategory,
-              description: normalizedDescription,
-              completionDeadline: input.completionDeadline,
-              status: input.status,
-              thumbnailDataUrl: input.thumbnailDataUrl,
-              contentItems: normalizedContentItems ?? item.contentItems,
-            }
-          : item,
-      ),
-    );
-    updatedOffering = this.offerings().find((item) => item.id === input.id) ?? null;
-    this.saveOfferings(this.offerings());
-
-    this.backend.updateOffering({
+    const normalizedInput: TrainingOfferingUpdate = {
       ...input,
       title: normalizedTitle,
       category: normalizedCategory,
       description: normalizedDescription,
-      contentItems: normalizedContentItems,
-    }).subscribe({
-      next: (savedOffering) => {
-        this.offeringsSignal.update((items) =>
-          items.map((item) => {
-            if (item.id !== savedOffering.id) return item;
-            // Preserve local content data (data URLs) not stored in the backend
-            return { ...savedOffering, contentItems: item.contentItems, thumbnailDataUrl: item.thumbnailDataUrl ?? savedOffering.thumbnailDataUrl };
-          }),
-        );
+    };
+
+    const updatedOffering = this.applyOfferingUpdateLocally(normalizedInput, normalizedContentItems);
+    this.saveOfferings(this.offerings());
+
+    this.pendingOfferingWriteCount += 1;
+    this.backend.updateOffering({ ...normalizedInput, contentItems: normalizedContentItems }).pipe(
+      finalize(() => {
+        this.pendingOfferingWriteCount = Math.max(0, this.pendingOfferingWriteCount - 1);
+      }),
+    ).subscribe({
+      next: () => {
+        this.applyOfferingUpdateLocally(normalizedInput, normalizedContentItems);
         this.saveOfferings(this.offerings());
       },
       error: () => {
@@ -2635,7 +2668,11 @@ export class TrainingManagerDataService {
     return new Promise<void>((resolve) => {
       this.backend.getBootstrap().subscribe({
         next: (bootstrap) => {
-          this.offeringsSignal.set(this.mergeServerAuthoritative(bootstrap.offerings, this.offeringsSignal()));
+          this.offeringsSignal.set(
+            this.pendingOfferingWriteCount > 0
+              ? this.offeringsSignal()
+              : this.mergeServerAuthoritative(bootstrap.offerings, this.offeringsSignal()),
+          );
           // A local roster write that started after this particular fetch did can't possibly be
           // reflected in bootstrap.students yet, so it wins outright this cycle instead of being
           // clobbered by this (now-stale) response — see studentsDirtyAt above. The next poll,
