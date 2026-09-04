@@ -300,6 +300,17 @@ export class StudentDataService {
   private readonly coursesSignal = signal<StudentCourse[]>(
     this.filterLegacySeedCourses(this.initialPersistedStudentSnapshot?.courses ?? []),
   );
+  // Offering ids (or, for legacy title-matched courses, `title:<name>`) that
+  // syncPublishedOfferingsToLearnerCourses saw as no longer published/assigned on the *previous*
+  // run but held back rather than removing immediately. offerings()/students() are two
+  // independently-polled signals (see pendingOfferingWriteCount/pendingStudentWriteCount in
+  // training-manager-data.service.ts) that don't always land in the same tick, so a single sync
+  // where a course's offering is momentarily missing from one of them is expected, routine timing
+  // skew, not a real unassignment. The bug this guards against: this function's caller persists its
+  // result to the server immediately afterward (persistStudentSnapshot, right below in the same
+  // effect), so without this a single glitchy tick could permanently wipe a student's course. Real
+  // removals still take effect, just one sync cycle later once the condition is confirmed twice.
+  private readonly pendingCourseRemovalKeys = new Set<string>();
   private readonly certificatesAndLicencesSignal = signal<StudentCertificateLicence[]>(
     this.initialPersistedStudentSnapshot?.certificatesAndLicences ?? [],
   );
@@ -1265,6 +1276,7 @@ export class StudentDataService {
   }
 
   private applyPersistedStudentStateForCurrentSession() {
+    this.pendingCourseRemovalKeys.clear();
     const persistedSnapshot = this.loadPersistedStudentSnapshot();
 
     if (persistedSnapshot) {
@@ -1494,11 +1506,33 @@ export class StudentDataService {
     this.coursesSignal.update((courses) => {
       const publishedOfferingIds = new Set(publishedOfferings.map((offering) => offering.id));
       const publishedOfferingTitles = new Set(publishedOfferings.map((offering) => offering.title));
-      const retainedCourses = courses.filter((course) =>
-        course.offeringId
+      const stillSeenKeys = new Set<string>();
+      const retainedCourses = courses.filter((course) => {
+        const isStillValid = course.offeringId
           ? publishedOfferingIds.has(course.offeringId)
-          : publishedOfferingTitles.has(course.name),
-      );
+          : publishedOfferingTitles.has(course.name);
+        const key = course.offeringId ?? `title:${course.name}`;
+
+        if (isStillValid) {
+          stillSeenKeys.add(key);
+          return true;
+        }
+
+        // First time this course looks unassigned/unpublished — hold off on removing it in case
+        // this is just poll timing skew, and check again on the next sync.
+        if (!this.pendingCourseRemovalKeys.has(key)) {
+          this.pendingCourseRemovalKeys.add(key);
+          return true;
+        }
+
+        // Confirmed missing on two consecutive syncs — treat as a genuine removal.
+        return false;
+      });
+
+      // Clear pending-removal marks for anything that came back as valid this cycle.
+      for (const key of stillSeenKeys) {
+        this.pendingCourseRemovalKeys.delete(key);
+      }
       const courseByOfferingId = new Map(retainedCourses.filter((course) => course.offeringId).map((course) => [course.offeringId!, course]));
       const courseByName = new Map(retainedCourses.map((course) => [course.name, course]));
       const newCourses: StudentCourse[] = [];
