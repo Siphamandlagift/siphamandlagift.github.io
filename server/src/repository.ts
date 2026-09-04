@@ -795,6 +795,19 @@ function mergeEnrollmentStudentRecord(existing: StudentRecord | undefined, stude
   return {
     ...existing,
     ...student,
+    // assignedOfferingIds/status are exclusively owned by setStudentOfferingAssignment now (course
+    // assignment) and the course-completion logic elsewhere — no caller that reaches this generic
+    // merge (updateStudent, bulk upload, group edits, HR sync, patchManagerState's roster patch)
+    // ever *intends* to change them. EnrollmentStudentInput explicitly omits both for exactly this
+    // reason. They only ride along in `student` because the caller's own local snapshot still
+    // carries whatever these fields happened to be — which, for assignedOfferingIds especially, is
+    // routinely stale within seconds of an assignment, since it changes far more often than any
+    // other roster field. Always keeping the freshly-read `existing` value instead of trusting the
+    // patch is what actually closes the "course vanishes sometime after being assigned" bug: any
+    // unrelated edit to this student (or a completely different manager's stale roster save
+    // touching a batch that happens to include them) can no longer silently revert it.
+    assignedOfferingIds: existing.assignedOfferingIds,
+    status: existing.status,
     role: normalizeEnrollmentRole(student.role),
     profile: {
       ...existing.profile,
