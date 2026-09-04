@@ -1212,60 +1212,72 @@ export class TrainingManagerDataService {
   }
 
   assignStudentToOffering(studentId: string, offeringId: string) {
-    const assignedOffering = this.offerings().find((offering) => offering.id === offeringId);
-    const previousStudents = this.studentsSignal();
-
-    this.studentsSignal.update((students) =>
-      students.map((student) => {
-        if (student.id !== studentId || student.assignedOfferingIds.includes(offeringId)) {
-          return student;
-        }
-
-        const assignedOfferingIds = [...student.assignedOfferingIds, offeringId];
-
-        return {
-          ...student,
-          ...this.resolveAssignmentState(student, assignedOfferingIds, assignedOffering?.completionDeadline),
-        };
-      }),
-    );
-
-    this.persistStudentOfferingAssignment(studentId, offeringId, true, previousStudents);
+    this.applyOfferingAssignmentLocally(studentId, offeringId, true);
+    this.persistStudentOfferingAssignment(studentId, offeringId, true);
   }
 
   removeStudentFromOffering(studentId: string, offeringId: string) {
-    let removedCount = 0;
-    const previousStudents = this.studentsSignal();
+    const changed = this.applyOfferingAssignmentLocally(studentId, offeringId, false);
+    this.persistStudentOfferingAssignment(studentId, offeringId, false);
+
+    return changed ? 1 : 0;
+  }
+
+  // Applies the add/remove against whatever assignedOfferingIds *currently* is, never against a
+  // captured-earlier snapshot — critical when several offerings are being assigned to the same
+  // student back-to-back (the assign wizard's bulk loop does exactly this): each call's own
+  // network response only reflects that one call's own commit, so re-deriving from the latest
+  // local state here (both for the initial optimistic update AND for reconciling a successful
+  // response, see persistStudentOfferingAssignment) keeps multiple concurrent assignments to the
+  // same student from stepping on each other. Returns whether anything actually changed.
+  private applyOfferingAssignmentLocally(studentId: string, offeringId: string, assigned: boolean): boolean {
+    const assignedOffering = assigned ? this.offerings().find((offering) => offering.id === offeringId) : undefined;
+    let changed = false;
 
     this.studentsSignal.update((students) =>
       students.map((student) => {
-        if (student.id !== studentId || !student.assignedOfferingIds.includes(offeringId)) {
+        if (student.id !== studentId) {
           return student;
         }
 
-        removedCount += 1;
-        const assignedOfferingIds = student.assignedOfferingIds.filter((assignedId) => assignedId !== offeringId);
+        const isCurrentlyAssigned = student.assignedOfferingIds.includes(offeringId);
+        if (assigned === isCurrentlyAssigned) {
+          return student;
+        }
+
+        changed = true;
+        const nextAssignedOfferingIds = assigned
+          ? [...student.assignedOfferingIds, offeringId]
+          : student.assignedOfferingIds.filter((assignedId) => assignedId !== offeringId);
 
         return {
           ...student,
-          ...this.resolveAssignmentState(student, assignedOfferingIds),
+          ...this.resolveAssignmentState(student, nextAssignedOfferingIds, assigned ? assignedOffering?.completionDeadline : undefined),
         };
       }),
     );
 
-    this.persistStudentOfferingAssignment(studentId, offeringId, false, previousStudents);
-
-    return removedCount;
+    return changed;
   }
 
   // Scoped to just this one student's assignedOfferingIds via a dedicated endpoint instead of
   // persistStudents' full-roster patch — a manager's local roster snapshot can be stale for
   // students they didn't just touch (most commonly: another manager's concurrent assignment to a
   // *different* student), and patchManagerState's merge would otherwise let that staleness
-  // silently revert it. On success the server's authoritative record replaces the local optimistic
-  // one; on failure this rolls back to the pre-change snapshot instead of leaving a phantom local
-  // change that the server (and everyone else) never actually saw.
-  private persistStudentOfferingAssignment(studentId: string, offeringId: string, assigned: boolean, previousStudents: EnrollmentStudent[]) {
+  // silently revert it.
+  //
+  // Neither the success nor the error path touches anything but this ONE offeringId, deliberately.
+  // An earlier version reconciled success by adopting the response record wholesale, and rolled
+  // back failure to a snapshot captured before this call's own optimistic update — both looked
+  // correct for a single assignment in isolation, but broke as soon as several offerings were
+  // assigned to the *same* student back-to-back (exactly what the assign wizard's bulk loop does
+  // when setting a student up with their initial courses): each call's response/rollback only
+  // knows about its own commit, so whichever one settled last would silently overwrite whatever
+  // the other concurrent calls had already added — a freshly-assigned course vanishing right after
+  // being set up. Using the same idempotent add/remove (applyOfferingAssignmentLocally) for
+  // confirmation *and* rollback means every call can only ever affect its own offeringId, so
+  // concurrent calls for the same student can never step on each other regardless of arrival order.
+  private persistStudentOfferingAssignment(studentId: string, offeringId: string, assigned: boolean) {
     this.studentsDirtyAt = Date.now();
     this.saveStudents(this.students());
 
@@ -1279,12 +1291,12 @@ export class TrainingManagerDataService {
         this.pendingStudentWriteCount = Math.max(0, this.pendingStudentWriteCount - 1);
       }),
     ).subscribe({
-      next: (savedStudent) => {
-        this.studentsSignal.update((students) => students.map((student) => (student.id === savedStudent.id ? savedStudent : student)));
+      next: () => {
+        this.applyOfferingAssignmentLocally(studentId, offeringId, assigned);
         this.saveStudents(this.students());
       },
       error: () => {
-        this.studentsSignal.set(previousStudents);
+        this.applyOfferingAssignmentLocally(studentId, offeringId, !assigned);
         this.saveStudents(this.students());
       },
     });
