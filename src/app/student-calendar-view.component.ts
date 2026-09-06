@@ -97,7 +97,7 @@ type CalendarDay = {
             @if (selectedDayEvents().length) {
               <ul class="event-list">
                 @for (event of selectedDayEvents(); track event.id) {
-                  <li class="event-item" [class]="'event-item-' + eventUrgency(event)" [class.event-item-clickable]="!!event.actionLabel">
+                  <li class="event-item" [class]="'event-item-' + eventUrgency(event)" [class.event-item-clickable]="!!event.actionLabel" [title]="eventTooltip(event)">
                     <span class="event-icon" [class.event-icon-assignment]="event.kind === 'assignment'" aria-hidden="true">
                       @if (event.kind === 'assignment') {
                         <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
@@ -129,7 +129,7 @@ type CalendarDay = {
             @if (upcomingEvents().length) {
               <ul class="event-list">
                 @for (event of upcomingEvents(); track event.id) {
-                  <li class="event-item" [class]="'event-item-' + eventUrgency(event)" [class.event-item-clickable]="!!event.actionLabel">
+                  <li class="event-item" [class]="'event-item-' + eventUrgency(event)" [class.event-item-clickable]="!!event.actionLabel" [title]="eventTooltip(event)">
                     <span class="event-icon" [class.event-icon-assignment]="event.kind === 'assignment'" aria-hidden="true">
                       @if (event.kind === 'assignment') {
                         <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
@@ -513,6 +513,17 @@ type CalendarDay = {
       stroke-linejoin: round;
     }
 
+    /* Single-line, ellipsis-truncated — the full title/course still reaches the student via the
+       native title-attribute tooltip on the row (see eventTooltip()), so a long name can't grow a
+       card past this compact height. */
+    .event-title,
+    .event-course {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
+    }
+
     .event-title {
       color: #14213d;
       font-weight: 700;
@@ -561,6 +572,10 @@ type CalendarDay = {
 
     .event-title-link {
       align-self: flex-start;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
       padding: 0;
       border: 0;
       background: transparent;
@@ -791,6 +806,15 @@ export class StudentCalendarComponent {
 
   openEvent(event: StudentCalendarEvent) {
     this.studentData.openCalendarEvent(event);
+  }
+
+  // The card itself only shows a single-line, ellipsis-truncated title/course so a long name
+  // can't push a row (or the whole compact sidebar list) taller — this is where the untruncated
+  // text actually lives, surfaced as a native tooltip on hover/focus instead.
+  eventTooltip(event: StudentCalendarEvent): string {
+    return event.kind === 'assignment' && event.courseName
+      ? `${event.title} — ${event.courseName}`
+      : event.title;
   }
 
   private urgencyForDaysUntil(days: number): 'past' | 'today' | 'soon' | 'normal' {
