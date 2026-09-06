@@ -19,6 +19,7 @@ import { LmsBrandThemeId, LmsBrandingService } from './lms-branding.service';
 import type { StudentCertificateLicence, StudentCertificateStatus, StudentCourse } from './student-data.service';
 import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLmsSessionRecord } from './session-auth';
 import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component';
+import { LoadingSpinnerComponent } from './loading-spinner.component';
 
 type AdminPanel = 'dashboard' | 'users' | 'reports' | 'succession' | 'settings';
 
@@ -313,7 +314,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
 @Component({
   selector: 'admin-profile',
-  imports: [CommonModule, ReactiveFormsModule, LogoutConfirmDialogComponent],
+  imports: [CommonModule, ReactiveFormsModule, LogoutConfirmDialogComponent, LoadingSpinnerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
 
@@ -2419,7 +2420,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     </p>
 
                     @if (hrIntegrationLoading()) {
-                      <div class="admin-upload-feedback" role="status" aria-live="polite">Loading…</div>
+                      <div class="admin-upload-feedback" aria-live="polite"><loading-spinner label="Loading…" /></div>
                     }
 
                     @if (hrIntegrationSaveError()) {
