@@ -1218,37 +1218,51 @@ type KpiEntryFormGroup = FormGroup<{
                     </div>
                   </div>
 
-                  <div class="mentorship-list-table" role="table" aria-label="Mentorship assignment list">
-                    <div class="mentorship-list-head" role="row">
-                      <span role="columnheader">Mentee Name</span>
-                      <span role="columnheader">Surname</span>
-                      <span role="columnheader">Mentorship Start Date</span>
-                      <span role="columnheader">Job Title</span>
-                      <span role="columnheader">Mentor Name and Surname</span>
-                      <span role="columnheader">Profile Form</span>
+                  <div class="roster-table-wrap">
+                    <div class="roster-table roster-table-mentorship-list roster-table-head" aria-hidden="true">
+                      <span>Mentee</span>
+                      <span>Job Title</span>
+                      <span>Start Date</span>
+                      <span>Mentor</span>
+                      <span>Profile Form</span>
                     </div>
 
-                    @for (assignment of mentorshipAssignments(); track assignment.id) {
-                      <article class="mentorship-list-item" role="row">
-                        <span class="mentorship-list-cell mentorship-list-cell-strong" role="cell">{{ assignment.menteeName }}</span>
-                        <span class="mentorship-list-cell" role="cell">{{ assignment.menteeSurname }}</span>
-                        <span class="mentorship-list-cell" role="cell">{{ assignment.mentorshipStartDate }}</span>
-                        <span class="mentorship-list-cell" role="cell">{{ assignment.jobTitle }}</span>
-                        <span class="mentorship-list-cell" role="cell">{{ formatMentorshipMentorDisplay(assignment) }}</span>
-                        <div class="mentorship-list-actions" role="cell">
-                          @if (mentorshipProfileSubmissionByMenteeId().get(assignment.menteeId); as profileSub) {
-                            <span class="mentorship-review-status-pill" [class.mentorship-review-status-pill-approved]="profileSub.status === 'Approved'" [class.mentorship-review-status-pill-revision]="profileSub.status === 'Needs Revision'">{{ profileSub.status }}</span>
-                            <button type="button" class="edit-btn" (click)="viewMentorshipListSubmission(profileSub.id)">View</button>
-                          } @else {
-                            <span class="mentorship-review-status-pill">Not submitted</span>
-                          }
-                        </div>
-                      </article>
-                    }
+                    <div class="roster-list" role="table" aria-label="Mentorship assignment list">
+                      @for (assignment of mentorshipAssignments(); track assignment.id) {
+                        <article class="roster-table roster-table-mentorship-list roster-row" role="row">
+                          <div class="roster-cell roster-primary" role="cell">
+                            <span class="roster-avatar" aria-hidden="true">{{ assignment.menteeName[0] }}{{ assignment.menteeSurname[0] }}</span>
+                            <div class="roster-identity">
+                              <div class="roster-name">{{ assignment.menteeName }} {{ assignment.menteeSurname }}</div>
+                            </div>
+                          </div>
+                          <div class="roster-cell" role="cell">
+                            <div class="roster-field-label">Job Title</div>
+                            <span>{{ assignment.jobTitle }}</span>
+                          </div>
+                          <div class="roster-cell" role="cell">
+                            <div class="roster-field-label">Start Date</div>
+                            <span>{{ assignment.mentorshipStartDate }}</span>
+                          </div>
+                          <div class="roster-cell" role="cell">
+                            <div class="roster-field-label">Mentor</div>
+                            <span>{{ formatMentorshipMentorDisplay(assignment) }}</span>
+                          </div>
+                          <div class="roster-cell roster-actions" role="cell">
+                            @if (mentorshipProfileSubmissionByMenteeId().get(assignment.menteeId); as profileSub) {
+                              <span class="mentorship-review-status-pill" [class.mentorship-review-status-pill-approved]="profileSub.status === 'Approved'" [class.mentorship-review-status-pill-revision]="profileSub.status === 'Needs Revision'">{{ profileSub.status }}</span>
+                              <button type="button" class="edit-btn" (click)="viewMentorshipListSubmission(profileSub.id)">View</button>
+                            } @else {
+                              <span class="mentorship-review-status-pill">Not submitted</span>
+                            }
+                          </div>
+                        </article>
+                      }
 
-                    @if (!mentorshipAssignments().length) {
-                      <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">No mentorship assignments have been set up yet.</div>
-                    }
+                      @if (!mentorshipAssignments().length) {
+                        <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">No mentorship assignments have been set up yet.</div>
+                      }
+                    </div>
                   </div>
                 </section>
               } @else if (selectedMentorshipSection() === 'submissions') {
@@ -1261,23 +1275,33 @@ type KpiEntryFormGroup = FormGroup<{
                   </div>
 
                   @if (managerData.mentorshipSubmissionsForCurrentManager().length) {
-                    <div class="mentorship-list-table" role="table" aria-label="Mentorship submission list">
-                      <div class="mentorship-list-head" role="row" [style.gridTemplateColumns]="'minmax(200px, 1.2fr) minmax(200px, 1.2fr) minmax(120px, 0.55fr)'" [style.minWidth]="'720px'">
-                        <span role="columnheader">Mentee Name and Surname</span>
-                        <span role="columnheader">Mentor Name and Surname</span>
-                        <span role="columnheader">Submitted Form</span>
+                    <div class="roster-table-wrap">
+                      <div class="roster-table roster-table-mentorship-submissions roster-table-head" aria-hidden="true">
+                        <span>Mentee</span>
+                        <span>Mentor</span>
+                        <span>Submitted Form</span>
                       </div>
 
-                      @for (submission of managerData.mentorshipSubmissionsForCurrentManager(); track submission.id) {
-                        <article class="mentorship-list-item" role="row" [style.gridTemplateColumns]="'minmax(200px, 1.2fr) minmax(200px, 1.2fr) minmax(120px, 0.55fr)'" [style.minWidth]="'720px'">
-                          <span class="mentorship-list-cell mentorship-list-cell-strong" role="cell">{{ submission.studentName }}</span>
-                          <span class="mentorship-list-cell" role="cell">{{ submission.mentorName }}</span>
-                          <div class="mentorship-list-actions" role="cell">
-                            <span class="mentorship-list-cell">{{ submission.assessmentTitle }}</span>
-                            <button type="button" class="edit-btn" (click)="openMentorshipReview(submission.id)">View</button>
-                          </div>
-                        </article>
-                      }
+                      <div class="roster-list" role="table" aria-label="Mentorship submission list">
+                        @for (submission of managerData.mentorshipSubmissionsForCurrentManager(); track submission.id) {
+                          <article class="roster-table roster-table-mentorship-submissions roster-row" role="row">
+                            <div class="roster-cell roster-primary" role="cell">
+                              <span class="roster-avatar" aria-hidden="true">{{ submission.studentName[0] }}</span>
+                              <div class="roster-identity">
+                                <div class="roster-name">{{ submission.studentName }}</div>
+                              </div>
+                            </div>
+                            <div class="roster-cell" role="cell">
+                              <div class="roster-field-label">Mentor</div>
+                              <span>{{ submission.mentorName }}</span>
+                            </div>
+                            <div class="roster-cell roster-actions" role="cell">
+                              <span>{{ submission.assessmentTitle }}</span>
+                              <button type="button" class="edit-btn" (click)="openMentorshipReview(submission.id)">View</button>
+                            </div>
+                          </article>
+                        }
+                      </div>
                     </div>
 
                     @if (selectedMentorshipReviewId() && selectedMentorshipReview(); as activeReview) {
@@ -1553,8 +1577,8 @@ type KpiEntryFormGroup = FormGroup<{
               </div>
 
               @if (selectedEnrollmentView() === 'students') {
-                <div class="enrollment-user-table-wrap">
-                  <div class="enrollment-user-table enrollment-user-table-head" aria-hidden="true">
+                <div class="roster-table-wrap">
+                  <div class="roster-table roster-table-enrollment roster-table-head" aria-hidden="true">
                     <span>Student</span>
                     <span>Group</span>
                     <span>Enrollment</span>
@@ -1563,33 +1587,33 @@ type KpiEntryFormGroup = FormGroup<{
                     <span>Actions</span>
                   </div>
 
-                  <div class="enrollment-user-list" role="table" aria-label="Student enrollment list">
+                  <div class="roster-list" role="table" aria-label="Student enrollment list">
                     @for (student of filteredEnrollmentStudents(); track student.id) {
-                      <article class="enrollment-user-table enrollment-user-row" role="row">
-                        <div class="enrollment-user-cell enrollment-user-primary" role="cell">
-                          <span class="enrollment-user-avatar" aria-hidden="true">{{ student.name[0] }}{{ student.surname[0] }}</span>
-                          <div class="enrollment-user-identity">
-                            <div class="enrollment-user-fullname">{{ student.name }} {{ student.surname }}</div>
-                            <div class="enrollment-user-email">{{ student.email }}</div>
+                      <article class="roster-table roster-table-enrollment roster-row" role="row">
+                        <div class="roster-cell roster-primary" role="cell">
+                          <span class="roster-avatar" aria-hidden="true">{{ student.name[0] }}{{ student.surname[0] }}</span>
+                          <div class="roster-identity">
+                            <div class="roster-name">{{ student.name }} {{ student.surname }}</div>
+                            <div class="roster-secondary">{{ student.email }}</div>
                           </div>
                         </div>
-                        <div class="enrollment-user-cell" role="cell">
-                          <div class="enrollment-user-field-label">Group</div>
+                        <div class="roster-cell" role="cell">
+                          <div class="roster-field-label">Group</div>
                           <span>{{ student.group }}</span>
                         </div>
-                        <div class="enrollment-user-cell enrollment-user-dates" role="cell">
-                          <div class="enrollment-user-date-row"><span class="enrollment-user-field-label enrollment-user-field-label-inline">Enrolled</span> {{ student.dateEnrolled }}</div>
-                          <div class="enrollment-user-date-row"><span class="enrollment-user-field-label enrollment-user-field-label-inline">Deadline</span> {{ student.deadlineDate }}</div>
+                        <div class="roster-cell roster-dates" role="cell">
+                          <div class="roster-date-row"><span class="roster-field-label roster-field-label-inline">Enrolled</span> {{ student.dateEnrolled }}</div>
+                          <div class="roster-date-row"><span class="roster-field-label roster-field-label-inline">Deadline</span> {{ student.deadlineDate }}</div>
                         </div>
-                        <div class="enrollment-user-cell" role="cell">
-                          <div class="enrollment-user-field-label">Status</div>
+                        <div class="roster-cell" role="cell">
+                          <div class="roster-field-label">Status</div>
                           <span class="student-active-pill" [class.student-active-pill-inactive]="student.activeStatus === 'Inactive'">{{ student.activeStatus }}</span>
                         </div>
-                        <div class="enrollment-user-cell" role="cell">
-                          <div class="enrollment-user-field-label">Department</div>
+                        <div class="roster-cell" role="cell">
+                          <div class="roster-field-label">Department</div>
                           <span>{{ student.department }}</span>
                         </div>
-                        <div class="enrollment-user-cell enrollment-user-actions" role="cell">
+                        <div class="roster-cell roster-actions" role="cell">
                           <button type="button" class="courses-btn" (click)="openManageEnrollmentStudent(student)">Courses ({{ managerData.offeringsForStudent(student).length }})</button>
                         </div>
                       </article>
@@ -2126,16 +2150,15 @@ type KpiEntryFormGroup = FormGroup<{
                   <span class="student-search-count">{{ filteredIdpMembers().length }} shown</span>
                 </div>
 
-                <div class="idp-member-grid">
+                <div class="roster-picker-list">
                   @for (student of filteredIdpMembers(); track student.id) {
-                    <button type="button" class="idp-member-card" (click)="selectIdpStudent(student.id)">
-                      <div class="idp-member-avatar" aria-hidden="true">{{ student.name[0] }}{{ student.surname[0] }}</div>
-                      <div class="idp-member-info">
-                        <strong class="idp-member-name">{{ student.name }} {{ student.surname }}</strong>
-                        <span class="idp-member-meta">{{ student.jobTitle || student.group }}</span>
-                        <span class="idp-member-dept">{{ student.department }}</span>
+                    <button type="button" class="roster-row roster-picker-row" (click)="selectIdpStudent(student.id)">
+                      <span class="roster-avatar" aria-hidden="true">{{ student.name[0] }}{{ student.surname[0] }}</span>
+                      <div class="roster-identity">
+                        <div class="roster-name">{{ student.name }} {{ student.surname }}</div>
+                        <div class="roster-secondary">{{ student.jobTitle || student.group }} · {{ student.department }}</div>
                       </div>
-                      <div class="idp-member-status">
+                      <div class="roster-picker-status">
                         @if (idpEntryCountForStudent(student.id) > 0) {
                           <span class="idp-program-count">{{ idpEntryCountForStudent(student.id) }} {{ idpEntryCountForStudent(student.id) === 1 ? 'entry' : 'entries' }}</span>
                         } @else {
@@ -2346,16 +2369,15 @@ type KpiEntryFormGroup = FormGroup<{
                   <span class="student-search-count">{{ filteredKpiMembers().length }} shown</span>
                 </div>
 
-                <div class="idp-member-grid">
+                <div class="roster-picker-list">
                   @for (student of filteredKpiMembers(); track student.id) {
-                    <button type="button" class="idp-member-card" (click)="selectKpiStudent(student.id)">
-                      <div class="idp-member-avatar" aria-hidden="true">{{ student.name[0] }}{{ student.surname[0] }}</div>
-                      <div class="idp-member-info">
-                        <strong class="idp-member-name">{{ student.name }} {{ student.surname }}</strong>
-                        <span class="idp-member-meta">{{ student.jobTitle || student.group }}</span>
-                        <span class="idp-member-dept">{{ student.department }}</span>
+                    <button type="button" class="roster-row roster-picker-row" (click)="selectKpiStudent(student.id)">
+                      <span class="roster-avatar" aria-hidden="true">{{ student.name[0] }}{{ student.surname[0] }}</span>
+                      <div class="roster-identity">
+                        <div class="roster-name">{{ student.name }} {{ student.surname }}</div>
+                        <div class="roster-secondary">{{ student.jobTitle || student.group }} · {{ student.department }}</div>
                       </div>
-                      <div class="idp-member-status">
+                      <div class="roster-picker-status">
                         @if (kpiEntryCountForStudent(student.id) > 0) {
                           <span class="idp-program-count">{{ kpiEntryCountForStudent(student.id) }} {{ kpiEntryCountForStudent(student.id) === 1 ? 'KPI' : 'KPIs' }}</span>
                         } @else {
@@ -4844,20 +4866,24 @@ type KpiEntryFormGroup = FormGroup<{
       gap: 0.9rem;
     }
 
-    /* Compact roster list — replaces the old 9-column table (name/surname split into two
-       columns, no avatar, min-width: 68rem forcing horizontal scroll on most screens) with a
-       6-column layout that combines name+email into one identifiable cell, so a manager with a
-       large team (up to 50 direct reports) can scan it without scrolling sideways. */
-    .enrollment-user-table-wrap { display: grid; gap: 0.6rem; }
+    /* Shared compact-list system — one visual language (avatar-led primary cell, labeled
+       secondary cells, row hover) reused across every roster-style list in the manager view
+       (Student Enrollment, Mentorship, and the IDP/Performance team-member pickers below) instead
+       of each screen inventing its own table. Column count/proportions vary per screen via the
+       roster-table-* modifiers; everything else (padding, hover, avatar, labels) is shared. */
+    .roster-table-wrap { display: grid; gap: 0.6rem; }
+    .roster-list { display: grid; gap: 0.6rem; }
 
-    .enrollment-user-table {
+    .roster-table {
       display: grid;
-      grid-template-columns: minmax(0, 1.8fr) minmax(0, 0.9fr) minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1.2fr);
       gap: 0.75rem;
       align-items: center;
     }
+    .roster-table-enrollment { grid-template-columns: minmax(0, 1.8fr) minmax(0, 0.9fr) minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1.2fr); }
+    .roster-table-mentorship-list { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1.3fr); }
+    .roster-table-mentorship-submissions { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.7fr) minmax(0, 1.6fr); }
 
-    .enrollment-user-table-head {
+    .roster-table-head {
       padding: 0 0.9rem;
       color: #64748b;
       font-size: 0.72rem;
@@ -4866,9 +4892,7 @@ type KpiEntryFormGroup = FormGroup<{
       text-transform: uppercase;
     }
 
-    .enrollment-user-list { display: grid; gap: 0.6rem; }
-
-    .enrollment-user-row {
+    .roster-row {
       padding: 0.65rem 0.9rem;
       border: 1px solid rgba(15, 23, 42, 0.07);
       border-radius: 10px;
@@ -4877,19 +4901,19 @@ type KpiEntryFormGroup = FormGroup<{
       transition: box-shadow 0.15s ease, border-color 0.15s ease;
     }
 
-    .enrollment-user-row:hover,
-    .enrollment-user-row:focus-within {
+    .roster-row:hover,
+    .roster-row:focus-within {
       border-color: var(--brand-tint);
       box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
     }
 
-    .enrollment-user-cell {
+    .roster-cell {
       min-width: 0;
       font-size: 0.86rem;
       color: #173446;
     }
 
-    .enrollment-user-field-label {
+    .roster-field-label {
       display: none;
       font-size: 0.68rem;
       font-weight: 800;
@@ -4899,8 +4923,8 @@ type KpiEntryFormGroup = FormGroup<{
       margin-bottom: 0.2rem;
     }
 
-    .enrollment-user-primary { display: flex; align-items: center; gap: 0.65rem; }
-    .enrollment-user-avatar {
+    .roster-primary { display: flex; align-items: center; gap: 0.65rem; }
+    .roster-avatar {
       flex: 0 0 auto;
       width: 2.3rem;
       height: 2.3rem;
@@ -4913,28 +4937,49 @@ type KpiEntryFormGroup = FormGroup<{
       font-weight: 800;
       font-size: 0.78rem;
     }
-    .enrollment-user-identity { min-width: 0; }
-    .enrollment-user-fullname {
+    .roster-identity { min-width: 0; }
+    .roster-name {
       font-weight: 700;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .enrollment-user-email {
+    .roster-secondary {
       font-size: 0.8rem;
       color: #64748b;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
       overflow-wrap: anywhere;
     }
 
-    .enrollment-user-dates { display: grid; gap: 0.2rem; }
-    .enrollment-user-date-row { font-size: 0.84rem; }
-    .enrollment-user-field-label-inline {
+    .roster-dates { display: grid; gap: 0.2rem; }
+    .roster-date-row { font-size: 0.84rem; }
+    .roster-field-label-inline {
       display: inline;
       margin-bottom: 0;
       margin-right: 0.35rem;
     }
 
-    .enrollment-user-actions { display: flex; justify-content: flex-end; }
+    .roster-actions { display: flex; justify-content: flex-end; align-items: center; gap: 0.5rem; }
+
+    /* Team-member pickers (IDP, Performance) — a simpler flex row (avatar + name/meta on the
+       left, a count badge and chevron on the right) since these are single clickable rows with no
+       header row to align columns against, unlike the table-style lists above. Reuses
+       roster-row/roster-avatar/roster-identity/roster-name/roster-secondary for the same look. */
+    .roster-picker-list { display: grid; gap: 0.5rem; }
+    .roster-picker-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      width: 100%;
+      text-align: left;
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+    }
+    .roster-picker-row .roster-identity { flex: 1; }
+    .roster-picker-status { flex: 0 0 auto; display: flex; align-items: center; gap: 0.5rem; }
 
     .student-active-pill {
       display: inline-flex;
@@ -4953,65 +4998,11 @@ type KpiEntryFormGroup = FormGroup<{
       color: #475569;
     }
 
-    .mentorship-list-table,
     .enrollment-groups-list {
       display: grid;
       gap: 0.6rem;
       overflow-x: auto;
       padding-bottom: 0.25rem;
-    }
-
-    .mentorship-list-head,
-    .mentorship-list-item {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr 1fr 1.2fr 1fr;
-      gap: 0.6rem;
-      align-items: center;
-      min-width: 52rem;
-    }
-
-    .mentorship-list-head {
-      padding: 0 0.9rem;
-      color: #64748b;
-      font-size: 0.72rem;
-      font-weight: 800;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-    }
-
-    .mentorship-list-item {
-      padding: 0.65rem 0.9rem;
-      border: 1px solid rgba(15, 23, 42, 0.07);
-      border-radius: 10px;
-      background: #ffffff;
-      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
-      transition: box-shadow 0.15s ease, border-color 0.15s ease;
-    }
-
-    .mentorship-list-item:hover,
-    .mentorship-list-item:focus-within {
-      border-color: var(--brand-tint);
-      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
-    }
-
-    .mentorship-list-cell {
-      min-width: 0;
-      font-size: 0.86rem;
-      color: #173446;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .mentorship-list-cell-strong {
-      font-weight: 700;
-    }
-
-    .mentorship-list-actions {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      justify-content: flex-end;
     }
 
     .enrollment-groups-head,
@@ -6049,21 +6040,25 @@ type KpiEntryFormGroup = FormGroup<{
         grid-template-columns: 1fr;
       }
 
-      .enrollment-user-table-head {
+      .roster-table-head {
         display: none;
       }
 
-      .enrollment-user-table {
+      .roster-table {
         grid-template-columns: 1fr;
         gap: 0.35rem;
       }
 
-      .enrollment-user-field-label {
+      .roster-field-label {
         display: block;
       }
 
-      .enrollment-user-actions {
+      .roster-actions {
         justify-content: flex-start;
+      }
+
+      .roster-picker-row {
+        flex-wrap: wrap;
       }
 
       .form-section-header,
@@ -6471,17 +6466,6 @@ type KpiEntryFormGroup = FormGroup<{
       .idp-member-meta {
         font-size: 0.8rem;
         color: #475569;
-      }
-      .idp-member-dept {
-        font-size: 0.75rem;
-        color: #94a3b8;
-      }
-      .idp-member-status {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        gap: 0.25rem;
-        flex-shrink: 0;
       }
       .idp-member-no-entries {
         font-size: 0.72rem;
