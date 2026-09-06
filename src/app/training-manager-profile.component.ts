@@ -10866,18 +10866,36 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   // wants to see the actual development plans, not just a headcount. Triggers a background fetch
   // for any non-current year not yet cached; idpEntriesForStudentYear reads the signal that fetch
   // populates, so this recomputes on its own once it lands (same pattern as the admin IDP report).
+  // Also carries each student's overall KPI-weighted performance rating for the *same* year
+  // number (via computeKpiOverallWeightedRating/formatKpiOverallRating, the identical calculation
+  // shown on the KPI table itself) — reusing the year the IDP report is already scoped to, rather
+  // than always the live KPI year, so a past IDP year's report shows that year's rating, not the
+  // current one's.
   readonly idpTeamReportRows = computed(() => {
     const year = this.idpReportYear();
-    const isCurrentYear = year === this.managerData.currentIdpYear();
-    const rows: { student: EnrollmentStudent; entry: StudentIdpEntry }[] = [];
+    const isCurrentIdpYear = year === this.managerData.currentIdpYear();
+    const isCurrentKpiYear = year === this.managerData.currentKpiYear();
+    const rows: { student: EnrollmentStudent; entry: StudentIdpEntry; overallRatingLabel: string }[] = [];
 
     for (const student of this.myTeam()) {
-      if (!isCurrentYear) {
+      if (!isCurrentIdpYear) {
         void this.managerData.fetchIdpEntriesForStudentYear(student.id, year);
       }
 
-      for (const entry of this.managerData.idpEntriesForStudentYear(student.id, year)) {
-        rows.push({ student, entry });
+      const idpEntries = this.managerData.idpEntriesForStudentYear(student.id, year);
+      if (!idpEntries.length) {
+        continue;
+      }
+
+      if (!isCurrentKpiYear) {
+        void this.managerData.fetchKpiEntriesForStudentYear(student.id, year);
+      }
+
+      const kpiEntries = this.managerData.kpiEntriesForStudentYear(student.id, year);
+      const overallRatingLabel = this.formatKpiOverallRating(this.computeKpiOverallWeightedRating(kpiEntries));
+
+      for (const entry of idpEntries) {
+        rows.push({ student, entry, overallRatingLabel });
       }
     }
 
@@ -10899,12 +10917,13 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   }
 
   private buildIdpTeamReportExportRows() {
-    const columns = ['Name', 'Surname', 'Job Title', 'Department', 'Development Need', 'Planned Action', 'Support Required', 'Date Captured', 'Target Date', 'Status'];
-    const rows = this.idpTeamReportRows().map(({ student, entry }) => [
+    const columns = ['Name', 'Surname', 'Job Title', 'Department', 'Overall Performance Rating', 'Development Need', 'Planned Action', 'Support Required', 'Date Captured', 'Target Date', 'Status'];
+    const rows = this.idpTeamReportRows().map(({ student, entry, overallRatingLabel }) => [
       student.name,
       student.surname,
       student.jobTitle || 'Not provided',
       student.department || 'Not provided',
+      overallRatingLabel,
       entry.developmentNeed || 'Not provided',
       entry.plannedAction || 'Not provided',
       entry.supportRequired || 'Not provided',
