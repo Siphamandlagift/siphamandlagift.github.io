@@ -2703,53 +2703,27 @@ type KpiEntryFormGroup = FormGroup<{
                   </div>
 
                   @if (filteredSuccessionRoles().length) {
-                    <div class="succession-position-grid">
+                    <ul class="succession-position-list">
                       @for (role of filteredSuccessionRoles(); track role.id) {
-                        <button type="button" class="succession-position-card" (click)="selectSuccessionRole(role.id)">
-                          <div class="succession-position-header">
-                            <div class="succession-avatar succession-avatar-critical" aria-hidden="true">{{ successorInitials(role.incumbentStudentId) }}</div>
-                            <div class="succession-position-title-group">
-                              <strong class="succession-position-title">{{ role.title }}</strong>
-                              <span class="succession-position-meta">{{ successorName(role.incumbentStudentId) }} · {{ role.department }}</span>
-                            </div>
-                            @if (bestReadinessForRole(role.id); as bestRating) {
-                              <span class="succession-readiness-pill" [class]="'succession-readiness-pill-' + readinessSlug(bestRating)">{{ bestRating }}</span>
-                            } @else {
-                              <span class="succession-readiness-pill succession-readiness-pill-none">No successor</span>
-                            }
+                        <li class="succession-position-row">
+                          <div class="succession-avatar succession-avatar-critical succession-avatar-sm" aria-hidden="true">{{ successorInitials(role.incumbentStudentId) }}</div>
+                          <div class="succession-position-title-group">
+                            <strong class="succession-position-title">{{ role.title }}</strong>
+                            <span class="succession-position-meta">{{ successorName(role.incumbentStudentId) }} · {{ role.department }}</span>
                           </div>
-
-                          <div class="succession-card-section">
-                            <span class="succession-card-section-label">Successors</span>
-                            @if (nominationsForRole(role.id).length) {
-                              <ul class="succession-successor-list">
-                                @for (nomination of nominationsForRole(role.id); track nomination.id) {
-                                  <li class="succession-successor-row">
-                                    <span class="succession-successor-name">{{ successorName(nomination.successorStudentId) }}</span>
-                                    <span class="succession-readiness-pill succession-readiness-pill-sm" [class]="'succession-readiness-pill-' + readinessSlug(nomination.readinessRating)">{{ nomination.readinessRating }}</span>
-                                  </li>
-                                }
-                              </ul>
-                            } @else {
-                              <span class="succession-card-empty">No successor nominated yet</span>
-                            }
+                          <span class="succession-position-row-count">{{ nominationsForRole(role.id).length }} successor{{ nominationsForRole(role.id).length === 1 ? '' : 's' }}</span>
+                          @if (bestReadinessForRole(role.id); as bestRating) {
+                            <span class="succession-readiness-pill" [class]="'succession-readiness-pill-' + readinessSlug(bestRating)">{{ bestRating }}</span>
+                          } @else {
+                            <span class="succession-readiness-pill succession-readiness-pill-none">No successor</span>
+                          }
+                          <div class="succession-position-row-actions">
+                            <button type="button" class="succession-row-btn" (click)="selectSuccessionRole(role.id)">View</button>
+                            <button type="button" class="succession-row-btn succession-row-btn-primary" (click)="viewAndEditPosition(role)">Edit</button>
                           </div>
-
-                          <div class="succession-card-section">
-                            <span class="succession-card-section-label">Development actions</span>
-                            @if (developmentActionChipsForRole(role.id).length) {
-                              <div class="succession-chip-row">
-                                @for (action of developmentActionChipsForRole(role.id); track action) {
-                                  <span class="succession-action-chip">{{ action }}</span>
-                                }
-                              </div>
-                            } @else {
-                              <span class="succession-card-empty">No development actions yet</span>
-                            }
-                          </div>
-                        </button>
+                        </li>
                       }
-                    </div>
+                    </ul>
                   } @else {
                     <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">
                       No critical roles match this filter.
@@ -6800,46 +6774,51 @@ type KpiEntryFormGroup = FormGroup<{
         box-shadow: 0 4px 12px rgba(79, 70, 229, 0.28);
       }
 
-      .succession-position-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 1rem;
-      }
-      .succession-position-card {
-        display: grid;
-        gap: 0.85rem;
-        align-content: start;
-        text-align: left;
-        padding: 1.1rem 1.15rem;
-        border-radius: 18px;
+      /* Compact list of critical roles — a card grid didn't scale for a manager with a large team
+         (up to 50 direct reports could mean 50 rows here), so each position is one dense row with
+         View/Edit actions instead of a full multi-section card. The detail view (opened via View
+         or Edit) still shows the full successor/development-plan breakdown. */
+      .succession-position-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+      .succession-position-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.65rem 0.9rem;
+        border-radius: 12px;
         background: #fff;
         border: 1px solid rgba(148, 163, 184, 0.22);
-        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
-        cursor: pointer;
-        font: inherit;
-        color: inherit;
-        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-        position: relative;
-        overflow: hidden;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
       }
-      .succession-position-card::before {
-        content: '';
-        position: absolute;
-        inset: 0 0 auto 0;
-        height: 3px;
-        background: linear-gradient(90deg, var(--succ-critical, #dc2626), #f97316, var(--succ-primary, #4f46e5), var(--succ-cyan, #06b6d4));
-        background-size: 300% 100%;
-        animation: successionScanline 5s linear infinite;
-      }
-      .succession-position-card:hover {
-        transform: translateY(-2px);
-        border-color: rgba(79, 70, 229, 0.3);
-        box-shadow: 0 10px 24px rgba(79, 70, 229, 0.14);
-      }
-      .succession-position-header { display: flex; align-items: flex-start; gap: 0.75rem; }
       .succession-position-title-group { display: grid; gap: 0.15rem; flex: 1; min-width: 0; }
-      .succession-position-title { font-size: 0.98rem; font-weight: 800; color: #14213d; }
-      .succession-position-meta { font-size: 0.8rem; color: #64748b; }
+      .succession-position-title { font-size: 0.92rem; font-weight: 800; color: #14213d; }
+      .succession-position-meta {
+        font-size: 0.78rem;
+        color: #64748b;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .succession-position-row-count { flex-shrink: 0; font-size: 0.78rem; color: #64748b; font-weight: 600; white-space: nowrap; }
+      .succession-position-row-actions { flex-shrink: 0; display: flex; gap: 0.4rem; }
+      .succession-row-btn {
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        background: #fff;
+        color: #334155;
+        border-radius: 8px;
+        padding: 0.4rem 0.85rem;
+        font: inherit;
+        font-size: 0.8rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background 0.15s ease, border-color 0.15s ease;
+      }
+      .succession-row-btn:hover { border-color: rgba(79, 70, 229, 0.4); }
+      .succession-row-btn-primary {
+        background: linear-gradient(135deg, var(--succ-primary, #4f46e5), var(--succ-cyan, #06b6d4));
+        border-color: transparent;
+        color: #fff;
+      }
+      .succession-row-btn-primary:hover { opacity: 0.92; }
 
       .succession-readiness-pill {
         flex-shrink: 0;
@@ -6854,30 +6833,6 @@ type KpiEntryFormGroup = FormGroup<{
       .succession-readiness-pill-1-2-years { background: #eff6ff; color: #1d4ed8; }
       .succession-readiness-pill-3-plus-years { background: rgba(147, 51, 234, 0.12); color: #7e22ce; }
       .succession-readiness-pill-none { background: #f1f5f9; color: #64748b; }
-
-      .succession-card-section { display: grid; gap: 0.4rem; }
-      .succession-card-section-label {
-        font-size: 0.68rem;
-        font-weight: 800;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: #94a3b8;
-      }
-      .succession-card-empty { font-size: 0.82rem; color: #94a3b8; font-style: italic; }
-      .succession-successor-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.35rem; }
-      .succession-successor-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.85rem; color: #334155; }
-      .succession-successor-name { font-weight: 600; }
-      .succession-chip-row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-      .succession-action-chip {
-        display: inline-flex;
-        align-items: center;
-        padding: 0.22rem 0.6rem;
-        border-radius: 8px;
-        background: #f1f5f9;
-        color: #475569;
-        font-size: 0.76rem;
-        font-weight: 600;
-      }
 
       .succession-add-position-block { display: grid; gap: 0.85rem; }
       .succession-add-position-toggle {
@@ -6900,7 +6855,8 @@ type KpiEntryFormGroup = FormGroup<{
 
       @media (max-width: 900px) {
         .succession-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .succession-position-grid { grid-template-columns: 1fr; }
+        .succession-position-row { flex-wrap: wrap; }
+        .succession-position-row-actions { margin-left: auto; }
       }
 
       .idp-detail-header { margin-bottom: 1.25rem; }
@@ -10350,16 +10306,6 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     return '3-plus-years';
   }
 
-  // Flattened across every nomination's competency gaps for this role, deduped — a role-level
-  // "what's being worked on" summary rather than the full per-successor breakdown (see the
-  // detail view's development-plan editor for that).
-  developmentActionChipsForRole(roleId: string) {
-    const descriptions = this.nominationsForRole(roleId)
-      .flatMap((nomination) => nomination.competencyGaps.flatMap((gap) => gap.developmentActions.map((action) => action.description)))
-      .filter((description) => description.trim().length > 0);
-    return Array.from(new Set(descriptions));
-  }
-
   nominationsForRole(roleId: string) {
     return this.managerData.successorNominations().filter((nomination) => nomination.roleId === roleId);
   }
@@ -10439,6 +10385,13 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.selectedSuccessionRoleId.set(null);
     this.nominatingSuccessor.set(false);
     this.editingPosition.set(false);
+  }
+
+  // The compact position list's "Edit" action — jumps straight to the role's detail view with
+  // the edit-position form already open, instead of making the manager click through twice.
+  viewAndEditPosition(role: SuccessionRoleRecord) {
+    this.selectSuccessionRole(role.id);
+    this.openEditPosition(role);
   }
 
   openEditPosition(role: SuccessionRoleRecord) {
