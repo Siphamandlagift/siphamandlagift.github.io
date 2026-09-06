@@ -779,29 +779,10 @@ export class StudentCalendarComponent {
     return this.urgencyForDaysUntil(this.daysUntil(event.date));
   }
 
-  // "Overdue by N days"/"Due today"/"Due tomorrow"/"Due in N days" for anything within the next
-  // week, since a relative count is more immediately useful there than a calendar date is — past
-  // a week out the exact date reads better than "Due in 11 days", so it falls back to that instead.
+  // Just the calendar date the card is due — no "Due in N days"/"Overdue by N days" phrasing, the
+  // badge's colour (see eventUrgency/event-due-badge-*) already carries the urgency signal.
   dueLabel(event: StudentCalendarEvent): string {
-    const days = this.daysUntil(event.date);
-    if (days < 0) {
-      const overdueBy = Math.abs(days);
-      return `Overdue by ${overdueBy} ${overdueBy === 1 ? 'day' : 'days'}`;
-    }
-
-    if (days === 0) {
-      return 'Due today';
-    }
-
-    if (days === 1) {
-      return 'Due tomorrow';
-    }
-
-    if (days <= 7) {
-      return `Due in ${days} days`;
-    }
-
-    return `Due ${this.formatShortDate(event.date)}`;
+    return this.formatShortDate(event.date);
   }
 
   openEvent(event: StudentCalendarEvent) {

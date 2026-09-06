@@ -1702,7 +1702,7 @@ export class StudentDataService {
       const courseEvent: StudentCalendarEvent = {
         id: `${offering.id}-course-deadline`,
         date: deadline,
-        title: `Course due: ${offering.title}`,
+        title: offering.title,
         kind: 'course',
         courseName: course.name,
         offeringId: offering.id,
@@ -1718,7 +1718,7 @@ export class StudentDataService {
         return [{
           id: `${offering.id}-${item.id || `assignment-${itemIndex + 1}`}-deadline`,
           date: deadline,
-          title: `Assignment due: ${title}`,
+          title,
           kind: 'assignment',
           courseName: course.name,
           offeringId: offering.id,
