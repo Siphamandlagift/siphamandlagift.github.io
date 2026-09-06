@@ -37,6 +37,7 @@ import {
   QuizSubmissionRecord,
   StudentAssessmentAttemptRecord,
   StudentIdpEntryRecord,
+  StudentIdpYearRecord,
   StudentKpiEntryRecord,
   StudentKpiScoreRecord,
   StudentKpiYearRecord,
@@ -90,7 +91,7 @@ const firestoreCollectionNames = [
   'successorNominations',
 ] as const satisfies readonly FirestoreCollectionName[];
 
-type FirestoreCollectionName = Exclude<keyof LmsDataStore, 'branding' | 'updatedAt' | 'currentKpiYear' | 'kpiYearsOpened' | 'hrIntegration'>;
+type FirestoreCollectionName = Exclude<keyof LmsDataStore, 'branding' | 'updatedAt' | 'currentKpiYear' | 'kpiYearsOpened' | 'currentIdpYear' | 'idpYearsOpened' | 'hrIntegration'>;
 type FirestoreCollectionRecord<Name extends FirestoreCollectionName> = LmsDataStore[Name] extends Array<infer Item>
   ? Item & { id: string }
   : never;
@@ -591,6 +592,42 @@ function withKpiYearEntries(
   return next.sort((left, right) => left.year - right.year);
 }
 
+// Same migrate-on-read convention as normalizeStudentKpiYears above, for IDP. Unlike KPI, an IDP
+// entry has no id and opening a new year never carries anything forward (see StudentIdpYearRecord),
+// so there's no per-row logic to mirror here — just the legacy-flat-array-to-year-bucket migration.
+function normalizeStudentIdpYears(
+  student: { idpYears?: unknown; idpEntries?: unknown },
+  currentIdpYear: number,
+): StudentIdpYearRecord[] {
+  if (Array.isArray(student.idpYears)) {
+    return student.idpYears.map((candidate) => {
+      const yearRecord = candidate as Partial<StudentIdpYearRecord>;
+      const year = typeof yearRecord.year === 'number' && Number.isFinite(yearRecord.year) ? yearRecord.year : currentIdpYear;
+      return { year, entries: normalizeStudentIdpEntries(yearRecord.entries) };
+    });
+  }
+
+  if (Array.isArray(student.idpEntries) && student.idpEntries.length > 0) {
+    return [{ year: currentIdpYear, entries: normalizeStudentIdpEntries(student.idpEntries) }];
+  }
+
+  return [];
+}
+
+function findIdpYearEntries(idpYears: StudentIdpYearRecord[], year: number): StudentIdpEntryRecord[] {
+  return idpYears.find((yearRecord) => yearRecord.year === year)?.entries ?? [];
+}
+
+function withIdpYearEntries(
+  idpYears: StudentIdpYearRecord[],
+  year: number,
+  entries: StudentIdpEntryRecord[],
+): StudentIdpYearRecord[] {
+  const next = idpYears.filter((yearRecord) => yearRecord.year !== year);
+  next.push({ year, entries });
+  return next.sort((left, right) => left.year - right.year);
+}
+
 function createStudentRecordFromEnrollment(student: EnrollmentStudentRecord): StudentRecord {
   return {
     ...student,
@@ -614,7 +651,7 @@ function createStudentRecordFromEnrollment(student: EnrollmentStudentRecord): St
     messages: [],
     notifiedOfferingIds: [],
     assessmentAttempts: {},
-    idpEntries: [],
+    idpYears: [],
     kpiYears: [],
   };
 }
@@ -881,7 +918,7 @@ function resolveStudentAssignmentFields(
 // Same trimmed projection getBootstrap already builds its students list from — avoids sending an
 // assignment-toggle response bloated with the student's full courses/notifications/messages/etc.
 function toEnrollmentStudentRecord(student: StudentRecord): EnrollmentStudentRecord {
-  const { courses, notifications, messages, notifiedOfferingIds, idpEntries, kpiYears, ...enrollmentStudent } = student;
+  const { courses, notifications, messages, notifiedOfferingIds, idpEntries, idpYears, kpiYears, ...enrollmentStudent } = student;
   return enrollmentStudent;
 }
 
@@ -894,6 +931,12 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
   const kpiYearsOpened = Array.isArray(data.kpiYearsOpened) && data.kpiYearsOpened.length > 0
     ? Array.from(new Set(data.kpiYearsOpened.filter((year) => typeof year === 'number' && Number.isFinite(year)))).sort((left, right) => left - right)
     : [currentKpiYear];
+  const currentIdpYear = typeof data.currentIdpYear === 'number' && Number.isFinite(data.currentIdpYear)
+    ? data.currentIdpYear
+    : defaults.currentIdpYear;
+  const idpYearsOpened = Array.isArray(data.idpYearsOpened) && data.idpYearsOpened.length > 0
+    ? Array.from(new Set(data.idpYearsOpened.filter((year) => typeof year === 'number' && Number.isFinite(year)))).sort((left, right) => left - right)
+    : [currentIdpYear];
   const students = data.students.map((student) => {
     const rawRole = (student.role ?? defaultStudentTemplate.role ?? 'student') as EnrollmentStudentRecord['role'] | LoginRole | 'admin';
     // Legacy migration: 'admin'/'administrator' used to be a base role. It's now the isAdmin flag
@@ -910,17 +953,17 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
     const notifiedOfferingIds = student.notifiedOfferingIds ?? defaultStudentTemplate.notifiedOfferingIds ?? [];
     const notifications = student.notifications ?? defaultStudentTemplate.notifications ?? [];
     const messages = student.messages ?? defaultStudentTemplate.messages ?? [];
-    const idpEntries = normalizeStudentIdpEntries(student.idpEntries ?? defaultStudentTemplate.idpEntries ?? []);
+    const idpYears = normalizeStudentIdpYears(student, currentIdpYear);
     const kpiYears = normalizeStudentKpiYears(student, currentKpiYear);
 
-    // Drops the legacy flat kpiEntries field once and for all now that it's been folded into
-    // kpiYears above — otherwise it lingers forever in storage (and every future write) as dead
-    // weight nothing reads anymore.
-    const { kpiEntries: _legacyKpiEntries, ...studentWithoutLegacyKpiEntries } = student as StudentRecord & { kpiEntries?: unknown };
+    // Drops the legacy flat kpiEntries/idpEntries fields once and for all now that they've been
+    // folded into kpiYears/idpYears above — otherwise they linger forever in storage (and every
+    // future write) as dead weight nothing reads anymore.
+    const { kpiEntries: _legacyKpiEntries, idpEntries: _legacyIdpEntries, ...studentWithoutLegacyFields } = student as StudentRecord & { kpiEntries?: unknown };
 
     return {
       ...defaultStudentTemplate,
-      ...studentWithoutLegacyKpiEntries,
+      ...studentWithoutLegacyFields,
       role,
       isAdmin,
       settings,
@@ -929,7 +972,7 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
       courses,
       notifications,
       messages,
-      idpEntries,
+      idpYears,
       kpiYears,
       notifiedOfferingIds,
     } satisfies StudentRecord;
@@ -954,6 +997,8 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
     updatedAt: data.updatedAt || new Date().toISOString(),
     currentKpiYear,
     kpiYearsOpened,
+    currentIdpYear,
+    idpYearsOpened,
     hrIntegration: data.hrIntegration ?? defaults.hrIntegration,
   });
 
@@ -1086,16 +1131,16 @@ export class LmsRepository {
   // all `.find()`/filter down to the caller's own id or email after receiving the response).
   async getBootstrap(caller?: { role: string; studentId: string | null; email: string } | null) {
     const data = await this.read();
-    const idpEntriesByStudent = Object.fromEntries(
-      data.students.map((student) => [student.id, student.idpEntries ?? []]),
-    );
     // Only the current year's entries ride along in bootstrap — a past year is fetched on demand
-    // (getKpiEntriesForStudentYear) once a year selector actually picks one, so bootstrap doesn't
-    // grow with every student's full KPI history as more years get opened.
+    // (getIdpEntriesForStudentYear/getKpiEntriesForStudentYear) once a year selector actually picks
+    // one, so bootstrap doesn't grow with every student's full IDP/KPI history as more years open.
+    const idpEntriesByStudent = Object.fromEntries(
+      data.students.map((student) => [student.id, findIdpYearEntries(student.idpYears ?? [], data.currentIdpYear)]),
+    );
     const kpiEntriesByStudent = Object.fromEntries(
       data.students.map((student) => [student.id, findKpiYearEntries(student.kpiYears ?? [], data.currentKpiYear)]),
     );
-    const students = data.students.map(({ courses, notifications, messages, notifiedOfferingIds, idpEntries, kpiYears, ...student }) => student);
+    const students = data.students.map(({ courses, notifications, messages, notifiedOfferingIds, idpYears, kpiYears, ...student }) => student);
 
     const isPrivileged = caller?.role === 'administrator' || caller?.role === 'training-manager';
     if (isPrivileged) {
@@ -1125,6 +1170,8 @@ export class LmsRepository {
         branding: data.branding,
         students,
         idpEntriesByStudent,
+        currentIdpYear: data.currentIdpYear,
+        idpYearsOpened: data.idpYearsOpened,
         kpiEntriesByStudent,
         currentKpiYear: data.currentKpiYear,
         kpiYearsOpened: data.kpiYearsOpened,
@@ -1157,6 +1204,8 @@ export class LmsRepository {
       branding: data.branding,
       students: ownStudent ? [ownStudent] : [],
       idpEntriesByStudent: ownStudentId ? { [ownStudentId]: idpEntriesByStudent[ownStudentId] ?? [] } : {},
+      currentIdpYear: data.currentIdpYear,
+      idpYearsOpened: data.idpYearsOpened,
       kpiEntriesByStudent: ownStudentId ? { [ownStudentId]: kpiEntriesByStudent[ownStudentId] ?? [] } : {},
       currentKpiYear: data.currentKpiYear,
       kpiYearsOpened: data.kpiYearsOpened,
@@ -1255,6 +1304,71 @@ export class LmsRepository {
     return { currentKpiYear: next.currentKpiYear, kpiYearsOpened: next.kpiYearsOpened };
   }
 
+  // Lazily fetches one past (or current) year's IDP table for a single student — used when a
+  // year selector picks something other than the current year, which bootstrap doesn't include.
+  async getIdpEntriesForStudentYear(studentId: string, year: number) {
+    const data = await this.read();
+    const student = data.students.find((entry) => entry.id === studentId);
+    if (!student) {
+      return null;
+    }
+
+    return findIdpYearEntries(student.idpYears ?? [], year);
+  }
+
+  // The manager-facing "open a new IDP year" action. Unlike openKpiYear, nothing carries forward —
+  // every student's new year starts as a blank table, since an IDP entry has no stable definition
+  // vs. outcome split to carry the "definition" half of (see StudentIdpYearRecord). idpYears only
+  // ever gains entries here, never loses or edits an existing one, which is what makes every past
+  // year a permanent, read-only record once it's no longer current.
+  async openIdpYear(year: number) {
+    const data = await this.read();
+    if (!Number.isInteger(year)) {
+      throw new Error('Year must be a whole number.');
+    }
+
+    if (data.idpYearsOpened.includes(year)) {
+      throw new Error(`IDP year ${year} has already been opened.`);
+    }
+
+    if (year <= data.currentIdpYear) {
+      throw new Error(`New IDP year must be after the current year (${data.currentIdpYear}).`);
+    }
+
+    data.students = data.students.map((student) => ({
+      ...student,
+      idpYears: withIdpYearEntries(student.idpYears ?? [], year, []),
+    }));
+
+    data.currentIdpYear = year;
+    data.idpYearsOpened = [...data.idpYearsOpened, year].sort((left, right) => left - right);
+
+    const next = await this.write(data);
+    return { currentIdpYear: next.currentIdpYear, idpYearsOpened: next.idpYearsOpened };
+  }
+
+  // Full replace of a student's IDP table for the CURRENT year — only a training manager or
+  // administrator may call this (enforced in server.ts). Every other year in idpYears is a
+  // closed, read-only record this never touches.
+  async setIdpEntriesForStudent(studentId: string, entries: StudentIdpEntryRecord[]) {
+    const data = await this.read();
+    const studentIndex = data.students.findIndex((entry) => entry.id === studentId);
+
+    if (studentIndex === -1) {
+      return null;
+    }
+
+    const idpYears = data.students[studentIndex].idpYears ?? [];
+    const nextEntries = normalizeStudentIdpEntries(entries);
+    data.students[studentIndex] = {
+      ...data.students[studentIndex],
+      idpYears: withIdpYearEntries(idpYears, data.currentIdpYear, nextEntries),
+    };
+
+    const next = await this.write(data);
+    return findIdpYearEntries(next.students.find((entry) => entry.id === studentId)?.idpYears ?? [], next.currentIdpYear);
+  }
+
   async getStudentSnapshot(studentId: string) {
     const data = await this.read();
     const student = data.students.find((entry) => entry.id === studentId);
@@ -1278,7 +1392,6 @@ export class LmsRepository {
           messages: student.messages,
           notifiedOfferingIds: student.notifiedOfferingIds,
           assessmentAttempts: student.assessmentAttempts ?? {},
-          idpEntries: student.idpEntries ?? [],
           successionStatus: computeSuccessionStatus(data, studentId),
         }
       : null;
@@ -1339,7 +1452,6 @@ export class LmsRepository {
       // overwrite this field wholesale, which is exactly what let a direct API call declare any
       // quiz "passed" with any score, bypassing the quiz UI entirely.
       assessmentAttempts: data.students[studentIndex].assessmentAttempts,
-      idpEntries: normalizeStudentIdpEntries(snapshot.idpEntries ?? data.students[studentIndex].idpEntries ?? []),
     };
 
     syncLinkedAuthAccounts(data);
@@ -1361,7 +1473,6 @@ export class LmsRepository {
           messages: student.messages,
           notifiedOfferingIds: student.notifiedOfferingIds,
           assessmentAttempts: student.assessmentAttempts ?? {},
-          idpEntries: student.idpEntries ?? [],
           successionStatus: computeSuccessionStatus(next, studentId),
         }
       : null;
@@ -2764,13 +2875,15 @@ export class LmsRepository {
     // for — see createSuccessionIdpEntry/createSuccessionIncumbentNotification above.
     const incumbentIndex = data.students.findIndex((student) => student.id === incumbentStudentId);
     if (incumbentIndex !== -1) {
+      const idpYears = data.students[incumbentIndex].idpYears ?? [];
+      const currentYearEntries = findIdpYearEntries(idpYears, data.currentIdpYear);
       data.students[incumbentIndex] = {
         ...data.students[incumbentIndex],
         notifications: [createSuccessionIncumbentNotification(role), ...data.students[incumbentIndex].notifications],
-        idpEntries: [
-          ...(data.students[incumbentIndex].idpEntries ?? []),
+        idpYears: withIdpYearEntries(idpYears, data.currentIdpYear, [
+          ...currentYearEntries,
           createSuccessionIdpEntry(`Succession: your role (${role.title}) has been flagged as business-critical`, now),
-        ],
+        ]),
       };
     }
 
@@ -2914,13 +3027,15 @@ export class LmsRepository {
       const role = data.successionRoles.find((entry) => entry.id === current.roleId);
       const studentIndex = data.students.findIndex((entry) => entry.id === current.successorStudentId);
       if (role && studentIndex !== -1) {
+        const idpYears = data.students[studentIndex].idpYears ?? [];
+        const currentYearEntries = findIdpYearEntries(idpYears, data.currentIdpYear);
         data.students[studentIndex] = {
           ...data.students[studentIndex],
           notifications: [createSuccessionNotification(role), ...data.students[studentIndex].notifications],
-          idpEntries: [
-            ...(data.students[studentIndex].idpEntries ?? []),
+          idpYears: withIdpYearEntries(idpYears, data.currentIdpYear, [
+            ...currentYearEntries,
             createSuccessionIdpEntry(`Succession: earmarked as successor for ${role.title}`, now),
-          ],
+          ]),
         };
       }
     }
@@ -3065,7 +3180,7 @@ class FirestoreLmsRepository extends LmsRepository {
 
     const defaults = normalizeData(createDefaultData());
     const storeData = storeSnapshot.exists
-      ? (storeSnapshot.data() as Partial<Pick<LmsDataStore, 'branding' | 'updatedAt' | 'currentKpiYear' | 'kpiYearsOpened' | 'hrIntegration'>>)
+      ? (storeSnapshot.data() as Partial<Pick<LmsDataStore, 'branding' | 'updatedAt' | 'currentKpiYear' | 'kpiYearsOpened' | 'currentIdpYear' | 'idpYearsOpened' | 'hrIntegration'>>)
       : undefined;
 
     return normalizeData({
@@ -3086,6 +3201,8 @@ class FirestoreLmsRepository extends LmsRepository {
       updatedAt: storeData?.updatedAt ?? defaults.updatedAt,
       currentKpiYear: storeData?.currentKpiYear ?? defaults.currentKpiYear,
       kpiYearsOpened: storeData?.kpiYearsOpened ?? defaults.kpiYearsOpened,
+      currentIdpYear: storeData?.currentIdpYear ?? defaults.currentIdpYear,
+      idpYearsOpened: storeData?.idpYearsOpened ?? defaults.idpYearsOpened,
       hrIntegration: storeData?.hrIntegration ?? defaults.hrIntegration,
     });
   }
@@ -3112,6 +3229,8 @@ class FirestoreLmsRepository extends LmsRepository {
             updatedAt: nextData.updatedAt,
             currentKpiYear: nextData.currentKpiYear,
             kpiYearsOpened: nextData.kpiYearsOpened,
+            currentIdpYear: nextData.currentIdpYear,
+            idpYearsOpened: nextData.idpYearsOpened,
             hrIntegration: nextData.hrIntegration,
           }));
         },
@@ -3330,6 +3449,99 @@ class FirestoreLmsRepository extends LmsRepository {
     return resultPromise;
   }
 
+  // currentIdpYear lives on the root store document; falls back to the same default the rest of
+  // normalizeData uses if the store document hasn't been created yet or predates the year feature.
+  private readCurrentIdpYear(storeSnapshot: DocumentSnapshot): number {
+    const stored = storeSnapshot.exists ? (storeSnapshot.data() as Partial<LmsDataStore>)?.currentIdpYear : undefined;
+    return typeof stored === 'number' && Number.isFinite(stored) ? stored : new Date().getFullYear();
+  }
+
+  // Scoped, transactional override — same reasoning as setKpiEntriesForStudent above (the
+  // inherited read()+write() path would re-batch-set every document in the store for a single
+  // student's IDP save). No preserveEmployeeScoringOnFullReplace equivalent here — IDP entries
+  // have no protected sub-fields another endpoint owns.
+  override async setIdpEntriesForStudent(studentId: string, entries: StudentIdpEntryRecord[]) {
+    const ref = this.collection('students').doc(studentId);
+    return this.firestore.runTransaction(async (transaction) => {
+      const [snapshot, storeSnapshot] = await Promise.all([transaction.get(ref), transaction.get(this.storeDocument)]);
+      if (!snapshot.exists) {
+        return null;
+      }
+
+      const currentIdpYear = this.readCurrentIdpYear(storeSnapshot);
+      // A raw transaction snapshot never goes through normalizeData, so a document a student
+      // still has under the pre-year-feature shape (idpEntries, no idpYears yet) has to be
+      // migrated right here too — otherwise this write would treat their IDP history as empty
+      // and silently orphan it the instant this transaction actually commits an idpYears field.
+      const rawData = snapshot.data() as { idpYears?: unknown; idpEntries?: unknown };
+      const idpYears = normalizeStudentIdpYears(rawData, currentIdpYear);
+      const nextEntries = normalizeStudentIdpEntries(entries);
+      transaction.update(ref, {
+        idpYears: this.sanitizeForFirestore(withIdpYearEntries(idpYears, currentIdpYear, nextEntries)),
+        // Once a legacy document has been migrated into idpYears above, the old flat field is
+        // dead weight — left in place it would keep getting read by normalizeStudentIdpYears'
+        // Array.isArray(idpYears) branch forever ignoring it, but never actually cleaned up,
+        // since this is a merge (update), not a full-document replace like the generic write()
+        // path that normally strips it.
+        ...('idpEntries' in rawData ? { idpEntries: FieldValue.delete() } : {}),
+      });
+      return nextEntries;
+    });
+  }
+
+  // Scoped override of the org-wide "open a new IDP year" action — same reasoning and structure
+  // as openKpiYear above, just simpler: every student's new year starts as an empty bucket rather
+  // than a carried-forward/reset one, so there's no per-row mapping to do.
+  override async openIdpYear(year: number) {
+    if (!Number.isInteger(year)) {
+      throw new Error('Year must be a whole number.');
+    }
+
+    const resultPromise = this.firestoreWriteQueue.catch(() => {}).then(async () => {
+      const storeSnapshot = await this.storeDocument.get();
+      const storeData = storeSnapshot.exists ? (storeSnapshot.data() as Partial<LmsDataStore>) : undefined;
+      const currentIdpYear = this.readCurrentIdpYear(storeSnapshot);
+      const idpYearsOpened = Array.isArray(storeData?.idpYearsOpened) ? storeData.idpYearsOpened : [currentIdpYear];
+
+      if (idpYearsOpened.includes(year)) {
+        throw new Error(`IDP year ${year} has already been opened.`);
+      }
+
+      if (year <= currentIdpYear) {
+        throw new Error(`New IDP year must be after the current year (${currentIdpYear}).`);
+      }
+
+      const studentDocuments = await this.collection('students').get();
+
+      // Each student's rollover runs as its own Firestore transaction, same reasoning as
+      // openKpiYear above — a per-student transaction reads and writes that document together and
+      // retries automatically if it loses a race against a concurrent write to the same document.
+      await Promise.all(studentDocuments.docs.map((document) => this.firestore.runTransaction(async (transaction) => {
+        const ref = document.ref;
+        const snapshot = await transaction.get(ref);
+        if (!snapshot.exists) {
+          return;
+        }
+
+        const rawData = snapshot.data() as { idpYears?: unknown; idpEntries?: unknown };
+        const idpYears = normalizeStudentIdpYears(rawData, currentIdpYear);
+        const nextIdpYears = this.sanitizeForFirestore(withIdpYearEntries(idpYears, year, []));
+        transaction.update(ref, {
+          idpYears: nextIdpYears,
+          ...('idpEntries' in rawData ? { idpEntries: FieldValue.delete() } : {}),
+        });
+      })));
+
+      const nextIdpYearsOpened = [...idpYearsOpened, year].sort((left, right) => left - right);
+      await this.storeDocument.set({ currentIdpYear: year, idpYearsOpened: nextIdpYearsOpened }, { merge: true });
+
+      return { currentIdpYear: year, idpYearsOpened: nextIdpYearsOpened };
+    });
+
+    this.firestoreWriteQueue = resultPromise.then(() => {}, () => {});
+    return resultPromise;
+  }
+
   // Scoped override of the same shape as the KPI methods above. The inherited read()+write()
   // path (base class, above) merges patch.students into a single in-memory array and hands the
   // whole thing to write(), which batch.set()s *every* student document from that one snapshot —
@@ -3507,9 +3719,11 @@ class FirestoreLmsRepository extends LmsRepository {
         messages: snapshot.messages,
         notifiedOfferingIds: snapshot.notifiedOfferingIds,
         // Same reasoning as the inherited base-class path above: quiz results are graded and
-        // written exclusively by gradeQuizAttempt now, never taken from a snapshot save.
+        // written exclusively by gradeQuizAttempt now, never taken from a snapshot save. IDP
+        // entries are likewise untouched here — they have their own dedicated, year-scoped
+        // endpoints (setIdpEntriesForStudent/openIdpYear) — so idpYears/idpEntries just pass
+        // through unchanged via the ...existing spread above.
         assessmentAttempts: existing.assessmentAttempts,
-        idpEntries: normalizeStudentIdpEntries(snapshot.idpEntries ?? existing.idpEntries ?? []),
       };
 
       transaction.update(ref, this.sanitizeForFirestore(nextStudent));
@@ -3543,7 +3757,6 @@ class FirestoreLmsRepository extends LmsRepository {
       messages: updatedStudent.messages,
       notifiedOfferingIds: updatedStudent.notifiedOfferingIds,
       assessmentAttempts: updatedStudent.assessmentAttempts ?? {},
-      idpEntries: updatedStudent.idpEntries ?? [],
       successionStatus: await this.computeSuccessionStatusForStudent(studentId),
     };
   }
@@ -3804,9 +4017,10 @@ class FirestoreLmsRepository extends LmsRepository {
   override async createSuccessionRole(input: SuccessionRoleInput, ownerManagerId: string) {
     const incumbentStudentId = input.incumbentStudentId.trim();
 
-    const [incumbentSnapshot, existingRoleForIncumbent] = await Promise.all([
+    const [incumbentSnapshot, existingRoleForIncumbent, storeSnapshot] = await Promise.all([
       this.collection('students').doc(incumbentStudentId).get(),
       this.collection('successionRoles').where('incumbentStudentId', '==', incumbentStudentId).get(),
+      this.storeDocument.get(),
     ]);
 
     if (!incumbentSnapshot.exists || !existingRoleForIncumbent.empty) {
@@ -3833,12 +4047,15 @@ class FirestoreLmsRepository extends LmsRepository {
     // Best-effort, outside the role write — same convention as syncLinkedAuthAccountForStudent
     // below. Notifies the incumbent and seeds an IDP entry for their development in a role the
     // business now needs continuity planning for.
+    const currentIdpYear = this.readCurrentIdpYear(storeSnapshot);
+    const idpYears = normalizeStudentIdpYears(incumbent, currentIdpYear);
+    const currentYearIdpEntries = findIdpYearEntries(idpYears, currentIdpYear);
     await this.collection('students').doc(incumbentStudentId).update(this.sanitizeForFirestore({
       notifications: [createSuccessionIncumbentNotification(role), ...incumbent.notifications],
-      idpEntries: [
-        ...(incumbent.idpEntries ?? []),
+      idpYears: withIdpYearEntries(idpYears, currentIdpYear, [
+        ...currentYearIdpEntries,
         createSuccessionIdpEntry(`Succession: your role (${role.title}) has been flagged as business-critical`, now),
-      ],
+      ]),
     }));
 
     return role;
@@ -3991,11 +4208,13 @@ class FirestoreLmsRepository extends LmsRepository {
       let roleSnapshot: DocumentSnapshot | null = null;
       let studentRef: DocumentReference | null = null;
       let studentSnapshot: DocumentSnapshot | null = null;
+      let storeSnapshot: DocumentSnapshot | null = null;
       if (status === 'Active') {
         studentRef = this.collection('students').doc(current.successorStudentId);
-        [roleSnapshot, studentSnapshot] = await Promise.all([
+        [roleSnapshot, studentSnapshot, storeSnapshot] = await Promise.all([
           transaction.get(this.collection('successionRoles').doc(current.roleId)),
           transaction.get(studentRef),
+          transaction.get(this.storeDocument),
         ]);
       }
 
@@ -4009,15 +4228,18 @@ class FirestoreLmsRepository extends LmsRepository {
       };
       transaction.set(nominationRef, this.sanitizeForFirestore(nomination));
 
-      if (status === 'Active' && roleSnapshot?.exists && studentSnapshot?.exists && studentRef) {
+      if (status === 'Active' && roleSnapshot?.exists && studentSnapshot?.exists && studentRef && storeSnapshot) {
         const role = roleSnapshot.data() as SuccessionRoleRecord;
         const student = studentSnapshot.data() as StudentRecord;
+        const currentIdpYear = this.readCurrentIdpYear(storeSnapshot);
+        const idpYears = normalizeStudentIdpYears(student, currentIdpYear);
+        const currentYearIdpEntries = findIdpYearEntries(idpYears, currentIdpYear);
         transaction.update(studentRef, this.sanitizeForFirestore({
           notifications: [createSuccessionNotification(role), ...(student.notifications ?? [])],
-          idpEntries: [
-            ...(student.idpEntries ?? []),
+          idpYears: withIdpYearEntries(idpYears, currentIdpYear, [
+            ...currentYearIdpEntries,
             createSuccessionIdpEntry(`Succession: earmarked as successor for ${role.title}`, now),
-          ],
+          ]),
         }));
       }
 

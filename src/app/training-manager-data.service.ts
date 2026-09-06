@@ -451,6 +451,13 @@ export class TrainingManagerDataService {
   private readonly idpEntriesByStudentSignal = signal<Record<string, StudentIdpEntry[]>>({});
   private readonly kpiEntriesByStudentSignal = signal<Record<string, StudentKpiEntry[]>>({});
 
+  // The org-wide IDP review cycle — same shape as the KPI one below, just for IDPs. See
+  // openIdpYear for what "opening a year" actually does (unlike KPI, nothing carries forward).
+  private readonly currentIdpYearSignal = signal<number>(new Date().getFullYear());
+  private readonly idpYearsOpenedSignal = signal<number[]>([new Date().getFullYear()]);
+  private readonly idpYearEntriesCacheSignal = signal<Record<string, Record<number, StudentIdpEntry[]>>>({});
+  private readonly idpYearFetchesInFlight = new Set<string>();
+
   // The org-wide KPI review cycle: currentKpiYear is the only year anyone can edit; every year a
   // manager has ever opened (including the current one) is listed in kpiYearsOpened for building
   // a year selector. kpiEntriesByStudent above only ever holds the current year's entries — a
@@ -592,6 +599,8 @@ export class TrainingManagerDataService {
   );
   readonly idpEntriesByStudent = this.idpEntriesByStudentSignal.asReadonly();
   readonly kpiEntriesByStudent = this.kpiEntriesByStudentSignal.asReadonly();
+  readonly currentIdpYear = this.currentIdpYearSignal.asReadonly();
+  readonly idpYearsOpened = this.idpYearsOpenedSignal.asReadonly();
   readonly currentKpiYear = this.currentKpiYearSignal.asReadonly();
   readonly kpiYearsOpened = this.kpiYearsOpenedSignal.asReadonly();
   readonly externalTrainingRequests = computed(() =>
@@ -663,6 +672,10 @@ export class TrainingManagerDataService {
     ];
   });
 
+  // Manager-facing: full replace of a student's IDP table for the CURRENT year (add/remove
+  // entries, edit every field). Has its own dedicated endpoint (see server.ts) rather than
+  // riding along on the general student snapshot — same reasoning as setKpiEntriesForStudent
+  // below, which was pulled out of the snapshot endpoint for exactly this reason.
   setIdpEntriesForStudent(studentId: string, entries: StudentIdpEntry[]) {
     const normalizedStudentId = studentId.trim();
     if (!normalizedStudentId) {
@@ -684,6 +697,67 @@ export class TrainingManagerDataService {
 
   idpEntriesForStudent(studentId: string): StudentIdpEntry[] {
     return this.idpEntriesByStudentSignal()[studentId] ?? [];
+  }
+
+  // The current year is always live (idpEntriesByStudent, kept fresh by the periodic bootstrap
+  // refresh); a past year is read-only and, once fetched, never changes again — so it's cached
+  // indefinitely here rather than re-fetched every time a year selector lands back on it.
+  idpEntriesForStudentYear(studentId: string, year: number): StudentIdpEntry[] {
+    if (year === this.currentIdpYearSignal()) {
+      return this.idpEntriesForStudent(studentId);
+    }
+
+    return this.idpYearEntriesCacheSignal()[studentId]?.[year] ?? [];
+  }
+
+  // Populates the cache idpEntriesForStudentYear reads from for a past year. Safe to call
+  // whenever a year selector lands on a non-current year — no-ops if already cached or already
+  // in flight, so a component doesn't need to track that itself.
+  async fetchIdpEntriesForStudentYear(studentId: string, year: number): Promise<void> {
+    if (year === this.currentIdpYearSignal()) {
+      return;
+    }
+
+    if (this.idpYearEntriesCacheSignal()[studentId]?.[year] !== undefined) {
+      return;
+    }
+
+    const key = `${studentId}::${year}`;
+    if (this.idpYearFetchesInFlight.has(key)) {
+      return;
+    }
+
+    this.idpYearFetchesInFlight.add(key);
+    try {
+      const entries = await firstValueFrom(this.backend.getIdpEntriesForYear(studentId, year));
+      this.idpYearEntriesCacheSignal.update((current) => ({
+        ...current,
+        [studentId]: { ...(current[studentId] ?? {}), [year]: entries },
+      }));
+    } catch {
+      // Leave uncached — the component can just re-select the year to retry.
+    } finally {
+      this.idpYearFetchesInFlight.delete(key);
+    }
+  }
+
+  // The manager-facing "open a new IDP year" action — org-wide, so this affects every student at
+  // once. Unlike openKpiYear, nothing carries forward: every student's plan starts blank under
+  // the new year (see repository.openIdpYear). Same "await refreshBootstrapState before
+  // returning" pattern as openKpiYear below, for the identical reason — it stops a manager who
+  // opens a year then immediately opens a student's IDP before the background refresh lands from
+  // seeing/resaving stale pre-open data under the new year label.
+  async openIdpYear(year: number): Promise<{ success: true } | { success: false; message: string }> {
+    try {
+      await firstValueFrom(this.backend.openIdpYear(year));
+      await this.refreshBootstrapState();
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Object && 'error' in error && (error as { error?: { message?: string } }).error?.message
+        ? (error as { error: { message: string } }).error.message
+        : 'Failed to open the new IDP year.';
+      return { success: false, message };
+    }
   }
 
   // Manager-facing: full replace of a student's KPI table (add/remove rows, edit every field).
@@ -875,6 +949,12 @@ export class TrainingManagerDataService {
         };
         this.idpEntriesByStudentSignal.set(mergedIdpEntriesByStudent);
         this.saveIdpEntriesByStudent(mergedIdpEntriesByStudent);
+        if (typeof bootstrap.currentIdpYear === 'number') {
+          this.currentIdpYearSignal.set(bootstrap.currentIdpYear);
+        }
+        if (bootstrap.idpYearsOpened?.length) {
+          this.idpYearsOpenedSignal.set(bootstrap.idpYearsOpened);
+        }
         const backendKpiEntriesByStudent = this.normalizeKpiEntriesByStudent(bootstrap.kpiEntriesByStudent);
         const mergedKpiEntriesByStudent = {
           ...localKpiEntriesByStudent,
@@ -2701,19 +2781,33 @@ export class TrainingManagerDataService {
           );
           this.successionRolesSignal.set(bootstrap.successionRoles ?? []);
           this.successorNominationsSignal.set(bootstrap.successorNominations ?? []);
-          this.idpEntriesByStudentSignal.set(
-            this.mergeServerAuthoritativeRecord(
-              this.normalizeIdpEntriesByStudent(bootstrap.idpEntriesByStudent),
-              this.idpEntriesByStudentSignal(),
-              this.idpEntriesDirtyAt,
-              requestStartedAt,
-            ),
-          );
           // A year the local cache's dirty timestamps were recorded against isn't comparable to a
-          // *different* year's server data once someone opens a new KPI year mid-session — the
+          // *different* year's server data once someone opens a new IDP year mid-session — the
           // dirty-merge logic assumes "local" and "server" are the same logical table, which is no
           // longer true across a year boundary. Just take the server's fresh (new-year) data
           // outright in that case, and drop the now-irrelevant dirty timestamps from the old year.
+          if (typeof bootstrap.currentIdpYear === 'number' && bootstrap.currentIdpYear !== this.currentIdpYearSignal()) {
+            this.idpEntriesByStudentSignal.set(this.normalizeIdpEntriesByStudent(bootstrap.idpEntriesByStudent));
+            for (const key of Object.keys(this.idpEntriesDirtyAt)) {
+              delete this.idpEntriesDirtyAt[key];
+            }
+          } else {
+            this.idpEntriesByStudentSignal.set(
+              this.mergeServerAuthoritativeRecord(
+                this.normalizeIdpEntriesByStudent(bootstrap.idpEntriesByStudent),
+                this.idpEntriesByStudentSignal(),
+                this.idpEntriesDirtyAt,
+                requestStartedAt,
+              ),
+            );
+          }
+          if (typeof bootstrap.currentIdpYear === 'number') {
+            this.currentIdpYearSignal.set(bootstrap.currentIdpYear);
+          }
+          if (bootstrap.idpYearsOpened?.length) {
+            this.idpYearsOpenedSignal.set(bootstrap.idpYearsOpened);
+          }
+          // Same year-boundary reasoning as IDP above, for KPI.
           if (typeof bootstrap.currentKpiYear === 'number' && bootstrap.currentKpiYear !== this.currentKpiYearSignal()) {
             this.kpiEntriesByStudentSignal.set(this.normalizeKpiEntriesByStudent(bootstrap.kpiEntriesByStudent));
             for (const key of Object.keys(this.kpiEntriesDirtyAt)) {
@@ -3390,26 +3484,26 @@ export class TrainingManagerDataService {
     return normalized;
   }
 
+  // IDP entries have their own dedicated, year-scoped endpoint (see server.ts) rather than riding
+  // along on the general student snapshot — this used to round-trip through
+  // getStudentSnapshot/updateStudentSnapshot, the same generic endpoint that caused a documented
+  // KPI lost-update race before KPI was pulled out of it (see repository.updateStudentSnapshot).
   private persistIdpEntriesToBackend(studentId: string) {
     if (!this.backendHydrated) {
       return;
     }
 
     const idpEntries = this.idpEntriesForStudent(studentId);
-    this.backend.getStudentSnapshot(studentId).subscribe({
-      next: (snapshot) => {
-        const { studentId: _studentId, ...snapshotUpdate } = snapshot;
-        this.backend.updateStudentSnapshot({
-          ...snapshotUpdate,
-          idpEntries,
-        }, studentId).subscribe({
-          error: () => {
-            // Keep local IDP state if backend persistence is temporarily unavailable.
-          },
+    this.backend.setIdpEntries(studentId, idpEntries).subscribe({
+      next: (entries) => {
+        this.idpEntriesByStudentSignal.update((current) => {
+          const next = { ...current, [studentId]: entries };
+          this.saveIdpEntriesByStudent(next);
+          return next;
         });
       },
       error: () => {
-        // Ignore backend sync failures and preserve local IDP entries.
+        // Keep local IDP state if backend persistence is temporarily unavailable.
       },
     });
   }
@@ -3508,9 +3602,9 @@ export class TrainingManagerDataService {
     return normalized;
   }
 
-  // Unlike IDP entries, KPI entries have their own dedicated endpoint (see server.ts) rather
-  // than riding along on the general student snapshot — that's what lets the server enforce the
-  // full-table-vs-scoped write split described on setKpiEntriesForStudent / updateKpiGapAnalysis.
+  // KPI entries have their own dedicated endpoint (see server.ts) rather than riding along on the
+  // general student snapshot — that's what lets the server enforce the full-table-vs-scoped write
+  // split described on setKpiEntriesForStudent / updateKpiGapAnalysis.
   private persistKpiEntriesToBackend(studentId: string) {
     if (!this.backendHydrated) {
       return;

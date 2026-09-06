@@ -2137,6 +2137,28 @@ type KpiEntryFormGroup = FormGroup<{
                 <h1>IDP Management</h1>
               </div>
 
+              <div class="kpi-year-banner">
+                <span class="kpi-year-banner-label">Current IDP year: <strong>{{ managerData.currentIdpYear() }}</strong></span>
+                @if (!idpYearPromptOpen()) {
+                  <button type="button" class="idp-program-add" (click)="openIdpYearPromptDialog()">Open new IDP year</button>
+                } @else {
+                  <div class="kpi-year-prompt">
+                    <label class="kpi-year-prompt-field">
+                      <span>New year</span>
+                      <input type="number" [value]="idpYearPromptValue()" (input)="idpYearPromptValue.set(+$any($event.target).value)" />
+                    </label>
+                    <button type="button" class="idp-program-add" [disabled]="idpYearOpening()" (click)="confirmOpenIdpYear()">{{ idpYearOpening() ? 'Opening…' : 'Confirm' }}</button>
+                    <button type="button" class="idp-cancel-btn" [disabled]="idpYearOpening()" (click)="closeIdpYearPromptDialog()">Cancel</button>
+                  </div>
+                }
+                @if (idpYearOpenError()) {
+                  <p class="kpi-year-prompt-error" role="alert">{{ idpYearOpenError() }}</p>
+                }
+              </div>
+              <p class="kpi-year-banner-hint">
+                Opening a new year starts every team member's IDP blank and permanently closes {{ managerData.currentIdpYear() }} as a read-only record.
+              </p>
+
               @if (!selectedIdpStudentId()) {
                 <!-- Team member list -->
                 <div class="student-search-row">
@@ -2185,6 +2207,21 @@ type KpiEntryFormGroup = FormGroup<{
                       <span class="idp-detail-meta">{{ student.jobTitle }} · {{ student.department }}</span>
                     </div>
                   </div>
+                </div>
+
+                <div class="kpi-year-selector-row">
+                  <span class="kpi-year-selector-label">IDP year</span>
+                  <select
+                    class="kpi-year-selector"
+                    [value]="selectedIdpYear()"
+                    (change)="selectIdpYear(+$any($event.target).value)">
+                    @for (year of managerData.idpYearsOpened(); track year) {
+                      <option [value]="year">{{ year }}{{ year === managerData.currentIdpYear() ? ' (current)' : '' }}</option>
+                    }
+                  </select>
+                  @if (!isViewingCurrentIdpYear()) {
+                    <span class="kpi-year-readonly-badge">Read-only — past year</span>
+                  }
                 </div>
 
                 <div class="activity-card mentorship-review-card">
@@ -10560,10 +10597,17 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
   // ── IDP ────────────────────────────────────────────────────────────────
   readonly selectedIdpStudentId = signal<string | null>(null);
+  readonly selectedIdpYear = signal<number | null>(null);
+  readonly isViewingCurrentIdpYear = computed(() => this.selectedIdpYear() === this.managerData.currentIdpYear());
   readonly idpSaved = signal(false);
   readonly idpEditMode = signal(false);
   readonly idpMemberSearchTerm = signal('');
   private readonly idpEntriesByStudent = this.managerData.idpEntriesByStudent;
+
+  readonly idpYearPromptOpen = signal(false);
+  readonly idpYearPromptValue = signal(new Date().getFullYear() + 1);
+  readonly idpYearOpening = signal(false);
+  readonly idpYearOpenError = signal<string | null>(null);
 
   readonly filteredIdpMembers = computed(() => {
     const query = this.idpMemberSearchTerm().trim().toLowerCase();
@@ -10586,7 +10630,12 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
   readonly savedIdpEntries = computed(() => {
     const id = this.selectedIdpStudentId();
-    return id ? (this.idpEntriesByStudent()[id] ?? []) : [];
+    const year = this.selectedIdpYear();
+    if (!id || year === null) {
+      return [];
+    }
+
+    return this.managerData.idpEntriesForStudentYear(id, year);
   });
 
   readonly idpHasSavedEntries = computed(() => this.savedIdpEntries().length > 0);
@@ -10642,6 +10691,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
   selectIdpStudent(studentId: string) {
     this.selectedIdpStudentId.set(studentId);
+    this.selectedIdpYear.set(this.managerData.currentIdpYear());
     this.loadIdpFormForStudent(studentId);
     // start in read-only if entries already saved, else jump straight to form
     const hasSaved = (this.idpEntriesByStudent()[studentId]?.length ?? 0) > 0;
@@ -10651,11 +10701,67 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
   clearIdpStudent() {
     this.selectedIdpStudentId.set(null);
+    this.selectedIdpYear.set(null);
     this.idpEditMode.set(false);
     this.idpSaved.set(false);
   }
 
+  // Switches which year's IDP is on screen for the selected student. Always drops out of edit
+  // mode — editing only ever applies to the current year, and re-entering it after landing back
+  // on the current year should be a deliberate "Edit form" click, not implicit from browsing.
+  selectIdpYear(year: number) {
+    this.selectedIdpYear.set(year);
+    this.idpEditMode.set(false);
+    this.idpSaved.set(false);
+
+    const studentId = this.selectedIdpStudentId();
+    if (studentId) {
+      void this.managerData.fetchIdpEntriesForStudentYear(studentId, year);
+    }
+  }
+
+  openIdpYearPromptDialog() {
+    this.idpYearPromptValue.set(this.managerData.currentIdpYear() + 1);
+    this.idpYearOpenError.set(null);
+    this.idpYearPromptOpen.set(true);
+  }
+
+  closeIdpYearPromptDialog() {
+    this.idpYearPromptOpen.set(false);
+  }
+
+  async confirmOpenIdpYear() {
+    const year = this.idpYearPromptValue();
+    const currentYear = this.managerData.currentIdpYear();
+    if (!Number.isInteger(year) || year <= currentYear) {
+      this.idpYearOpenError.set(`Year must be a whole number after ${currentYear}.`);
+      return;
+    }
+
+    this.idpYearOpening.set(true);
+    const result = await this.managerData.openIdpYear(year);
+    this.idpYearOpening.set(false);
+
+    if (result.success) {
+      this.idpYearPromptOpen.set(false);
+      // The selected student's IDP just moved to a new (blank) current year — reload it so the
+      // on-screen form reflects that instead of stale pre-open data.
+      const studentId = this.selectedIdpStudentId();
+      if (studentId) {
+        this.selectedIdpYear.set(year);
+        this.idpEditMode.set(false);
+        this.loadIdpFormForStudent(studentId);
+      }
+    } else {
+      this.idpYearOpenError.set(result.message);
+    }
+  }
+
   openIdpEdit() {
+    if (!this.isViewingCurrentIdpYear()) {
+      return;
+    }
+
     const id = this.selectedIdpStudentId();
     if (id) this.loadIdpFormForStudent(id);
     this.idpEditMode.set(true);

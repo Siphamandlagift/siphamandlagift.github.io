@@ -344,6 +344,14 @@ export type StudentIdpEntryRecord = {
   status: StudentIdpStatusRecord;
 };
 
+// One IDP table per opened year — mirrors StudentKpiYearRecord below. Unlike KPI rows, IDP entries
+// have no stable id and never need one: opening a new year always starts blank (no carry-forward),
+// so every write to the current year's table is a full, unconditional replace of that year's array.
+export type StudentIdpYearRecord = {
+  year: number;
+  entries: StudentIdpEntryRecord[];
+};
+
 export type StudentKpiScoreRecord = 1 | 2 | 3 | 4 | 5;
 
 export type StudentKpiEntryRecord = {
@@ -508,7 +516,11 @@ export type StudentRecord = EnrollmentStudentRecord & {
   messages: StudentMessageRecord[];
   notifiedOfferingIds: string[];
   assessmentAttempts?: Record<string, StudentAssessmentAttemptRecord>;
+  // Legacy: one flat, un-yeared IDP table. Migrated into idpYears on first read once the year
+  // feature is live (see normalizeStudentIdpYears in repository.ts) — never written again after
+  // that.
   idpEntries?: StudentIdpEntryRecord[];
+  idpYears?: StudentIdpYearRecord[];
   kpiYears?: StudentKpiYearRecord[];
 };
 
@@ -706,6 +718,9 @@ export type LmsDataStore = {
   // default-data.ts; migrated in from legacy per-student kpiEntries in normalizeData if missing.
   currentKpiYear: number;
   kpiYearsOpened: number[];
+  // Same shape as the KPI review cycle above, for IDPs — see StudentIdpYearRecord.
+  currentIdpYear: number;
+  idpYearsOpened: number[];
   hrIntegration: HrIntegrationConfigRecord;
 };
 
@@ -713,7 +728,11 @@ export type LmsBootstrapResponse = {
   offerings: TrainingOffering[];
   branding: BrandingSettingsRecord;
   students: EnrollmentStudentRecord[];
+  // Only the current year's entries — same "fetch a past year on demand" convention as
+  // kpiEntriesByStudent below (GET /students/:studentId/idp-entries/:year).
   idpEntriesByStudent: Record<string, StudentIdpEntryRecord[]>;
+  currentIdpYear: number;
+  idpYearsOpened: number[];
   // Only the current year's entries — enough for the table everyone actually edits without
   // bloating bootstrap with every student's full KPI history. A past year's entries are fetched
   // on demand (GET /students/:studentId/kpi-entries/:year) only when a year selector picks one.
@@ -751,7 +770,6 @@ export type StudentSnapshotResponse = {
   // Only an Active nomination surfaces here — Draft/Withdrawn are never returned to the learner,
   // and the role's owner manager / incumbent are deliberately omitted (see StudentSuccessionStatus).
   successionStatus: StudentSuccessionStatus | null;
-  idpEntries?: StudentIdpEntryRecord[];
 };
 
 export type StudentSnapshotUpdate = {
@@ -771,7 +789,11 @@ export type StudentSnapshotUpdate = {
   // save. Kept optional (rather than removed) only so an older client mid-rollout can still
   // include it without the request being rejected.
   assessmentAttempts?: Record<string, StudentAssessmentAttemptRecord>;
-  idpEntries?: StudentIdpEntryRecord[];
+  // IDP entries have their own dedicated, year-scoped endpoints (setIdpEntriesForStudent /
+  // getIdpEntriesForStudentYear / openIdpYear) rather than riding along here — see the KPI
+  // fields' absence from this same type for the identical reasoning (repository.ts's
+  // updateStudentSnapshot comment documents the lost-update race this generic endpoint caused
+  // before KPI was pulled out of it).
 };
 
 export type ManagerStatePatch = {

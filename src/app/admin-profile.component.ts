@@ -9,6 +9,7 @@ import {
   EnrollmentStudent,
   EnrollmentStudentInput,
   ExternalTrainingRequestRecord,
+  StudentIdpEntry,
   SuccessionReadinessRating,
   SuccessionRoleRecord,
   SystemTrainingManager,
@@ -5332,6 +5333,23 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
     return rows.sort((left, right) => right.dateValue.localeCompare(left.dateValue));
   });
+  // Reports flatten a student's IDP history across every opened year — unlike the manager/student
+  // UI, which only ever shows one year at a time, a compliance-style report should keep including
+  // everything ever captured, not narrow to just the current year. A past year's entries aren't
+  // eagerly loaded (see idpEntriesForStudentYear's caching), so this also kicks off a best-effort
+  // background fetch for any year not yet cached — idpEntriesForStudentYear reads a signal that
+  // fetch populates, so this computed re-runs on its own once the fetch lands, no extra plumbing
+  // needed. fetchIdpEntriesForStudentYear already no-ops for the current year and for anything
+  // already cached or in flight, so calling it here on every recompute is harmless.
+  private allIdpEntriesForStudent(studentId: string): StudentIdpEntry[] {
+    const years = this.managerData.idpYearsOpened();
+    for (const year of years) {
+      void this.managerData.fetchIdpEntriesForStudentYear(studentId, year);
+    }
+
+    return years.flatMap((year) => this.managerData.idpEntriesForStudentYear(studentId, year));
+  }
+
   readonly idpReportRows = computed<IdpReportRow[]>(() => {
     const managerNamesById = this.reportManagerNamesById();
 
@@ -5344,7 +5362,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
           || student.lineManager?.trim()
           || 'Not provided';
 
-        return this.managerData.idpEntriesForStudent(student.id).map((entry, index) => ({
+        return this.allIdpEntriesForStudent(student.id).map((entry, index) => ({
           id: `${student.id}::${index}`,
           name: student.name,
           surname: student.surname,
@@ -5813,7 +5831,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         });
       }
 
-      for (const entry of this.managerData.idpEntriesForStudent(student.id)) {
+      for (const entry of this.allIdpEntriesForStudent(student.id)) {
         const developmentNeed = entry.developmentNeed?.trim();
         if (!developmentNeed || entry.status === 'Completed') {
           continue;

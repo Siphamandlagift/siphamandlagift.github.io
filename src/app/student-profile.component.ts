@@ -1447,6 +1447,14 @@ import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component'
               <h1>My IDP</h1>
             </div>
 
+            <div class="kpi-year-selector-row" *ngIf="managerData.idpYearsOpened().length > 1">
+              <span class="kpi-year-selector-label">IDP year</span>
+              <select class="kpi-year-selector" [value]="selectedIdpYear()" (change)="selectIdpYear(+$any($event.target).value)">
+                <option *ngFor="let year of managerData.idpYearsOpened()" [value]="year">{{ year }}{{ year === managerData.currentIdpYear() ? ' (current)' : '' }}</option>
+              </select>
+              <span class="kpi-year-readonly-badge" *ngIf="!isViewingCurrentIdpYear()">Read-only — past year</span>
+            </div>
+
             <div class="idp-program-card" *ngIf="managerIdpEntries().length > 0; else noIdpEntries">
               <div class="idp-program-card-header">
                 <div class="idp-program-card-title-shell">
@@ -4883,22 +4891,41 @@ import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component'
   `],
 })
 export class StudentProfileComponent implements OnInit, OnDestroy {
-  // Manager-entered IDP entries shown in the student view as read-only.
-  readonly managerIdpEntries = computed<StudentIdpEntry[]>(() => {
-    const studentEmail = this.studentData.profile().email.trim().toLocaleLowerCase();
-    if (!studentEmail) {
-      return [];
+  // Which IDP year is on screen — same "follow the current year until manually overridden"
+  // pattern as selectedKpiYear/kpiYearFollowEffect below (see that comment for why this is a
+  // follow, not a one-time init).
+  readonly selectedIdpYear = signal<number | null>(null);
+  private hasManuallySelectedIdpYear = false;
+  private readonly idpYearFollowEffect = effect(() => {
+    const currentYear = this.managerData.currentIdpYear();
+    if (!this.hasManuallySelectedIdpYear) {
+      this.selectedIdpYear.set(currentYear);
     }
-
-    const matchedStudent = this.managerData.students().find(
-      (student) => student.email.trim().toLocaleLowerCase() === studentEmail,
-    );
-    if (!matchedStudent) {
-      return [];
-    }
-
-    return this.managerData.idpEntriesByStudent()[matchedStudent.id] ?? [];
   });
+  readonly isViewingCurrentIdpYear = computed(() => this.selectedIdpYear() === this.managerData.currentIdpYear());
+
+  // Manager-entered IDP entries for the selected year, shown in the student view as read-only.
+  // matchedKpiStudentId (below) is identity resolution only, not KPI-specific, despite the name —
+  // reused here rather than duplicating that same email/session-claim matching logic.
+  readonly managerIdpEntries = computed<StudentIdpEntry[]>(() => {
+    const id = this.matchedKpiStudentId();
+    const year = this.selectedIdpYear();
+    if (!id || year === null) {
+      return [];
+    }
+
+    return this.managerData.idpEntriesForStudentYear(id, year);
+  });
+
+  selectIdpYear(year: number) {
+    this.hasManuallySelectedIdpYear = true;
+    this.selectedIdpYear.set(year);
+
+    const id = this.matchedKpiStudentId();
+    if (id) {
+      void this.managerData.fetchIdpEntriesForStudentYear(id, year);
+    }
+  }
 
   // Manager-entered KPI table shown in the student view — every field, including Final Rating, is
   // read-only here; only a manager or admin can edit it (see training-manager-profile.

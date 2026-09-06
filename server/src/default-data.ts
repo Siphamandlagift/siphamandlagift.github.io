@@ -145,6 +145,8 @@ export function createDefaultData(): LmsDataStore {
     updatedAt: new Date().toISOString(),
     currentKpiYear: new Date().getFullYear(),
     kpiYearsOpened: [new Date().getFullYear()],
+    currentIdpYear: new Date().getFullYear(),
+    idpYearsOpened: [new Date().getFullYear()],
     hrIntegration: {
       enabled: false,
       baseUrl: '',

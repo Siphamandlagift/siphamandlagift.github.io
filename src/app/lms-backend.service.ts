@@ -48,7 +48,10 @@ export type LmsBootstrapResponse = {
   offerings: TrainingOffering[];
   branding: BrandingSettings;
   students: EnrollmentStudent[];
+  // Current year's entries only — a past year is fetched on demand via getIdpEntriesForYear.
   idpEntriesByStudent?: Record<string, StudentIdpEntry[]>;
+  currentIdpYear?: number;
+  idpYearsOpened?: number[];
   // Current year's entries only — a past year is fetched on demand via getKpiEntriesForYear.
   kpiEntriesByStudent?: Record<string, StudentKpiEntry[]>;
   currentKpiYear?: number;
@@ -108,7 +111,6 @@ export type StudentSnapshotResponse = {
   messages: StudentMessage[];
   notifiedOfferingIds: string[];
   assessmentAttempts: Record<string, StudentAssessmentAttempt>;
-  idpEntries?: StudentIdpEntry[];
   // Server-computed (see repository.computeSuccessionStatus) — only an Active nomination for this
   // learner ever surfaces here, never the nominator's or the role's incumbent's identity.
   successionStatus?: StudentSuccessionStatus | null;
@@ -445,6 +447,22 @@ export class LmsBackendService {
 
   updateStudentSnapshot(snapshot: StudentSnapshotUpdate, studentId = this.config.defaultStudentId): Observable<StudentSnapshotResponse> {
     return this.http.put<StudentSnapshotResponse>(`${this.config.baseUrl}/students/${studentId}/snapshot`, snapshot);
+  }
+
+  setIdpEntries(studentId: string, entries: StudentIdpEntry[]): Observable<StudentIdpEntry[]> {
+    return this.http.put<{ entries: StudentIdpEntry[] }>(`${this.config.baseUrl}/students/${studentId}/idp-entries`, { entries })
+      .pipe(map((response) => response.entries));
+  }
+
+  // Bootstrap only carries the current year's entries — this fetches any other (or the current)
+  // year on demand, e.g. when a year selector picks a past year to browse.
+  getIdpEntriesForYear(studentId: string, year: number): Observable<StudentIdpEntry[]> {
+    return this.http.get<{ entries: StudentIdpEntry[] }>(`${this.config.baseUrl}/students/${studentId}/idp-entries/${year}`)
+      .pipe(map((response) => response.entries));
+  }
+
+  openIdpYear(year: number): Observable<{ currentIdpYear: number; idpYearsOpened: number[] }> {
+    return this.http.post<{ currentIdpYear: number; idpYearsOpened: number[] }>(`${this.config.baseUrl}/idp-years/open`, { year });
   }
 
   setKpiEntries(studentId: string, entries: StudentKpiEntry[]): Observable<StudentKpiEntry[]> {

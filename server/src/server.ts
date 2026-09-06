@@ -779,6 +779,10 @@ const kpiEntriesReplaceSchema = z.object({
   entries: z.array(studentKpiEntrySchema),
 });
 
+const idpEntriesReplaceSchema = z.object({
+  entries: z.array(studentIdpEntrySchema),
+});
+
 const kpiEmployeeScoringUpdateSchema = z.object({
   entries: z.array(z.object({
     id: z.string().min(1),
@@ -796,6 +800,10 @@ const kpiGapAnalysisUpdateSchema = z.object({
 });
 
 const openKpiYearSchema = z.object({
+  year: z.number().int(),
+});
+
+const openIdpYearSchema = z.object({
   year: z.number().int(),
 });
 
@@ -898,7 +906,6 @@ const studentSnapshotUpdateSchema = z.object({
   // Optional and ignored (see repository.updateStudentSnapshot) — accepted rather than rejected
   // only to tolerate an older client mid-deploy still sending it on an unrelated autosave.
   assessmentAttempts: z.record(z.string(), studentAssessmentAttemptSchema).optional(),
-  idpEntries: z.array(studentIdpEntrySchema).optional(),
 });
 
 const managerStatePatchSchema = z.object({
@@ -2517,6 +2524,36 @@ app.put('/api/students/:studentId/snapshot', async (request, response, next) => 
 // on every row, but a student may only fill in Employee scoring on rows that already exist. Two
 // endpoints below enforce that split at the schema level rather than by trusting the client to
 // only send the field it's allowed to.
+// Full replace of a student's IDP table for the current IDP year — see repository.
+// setIdpEntriesForStudent. Same permission gate as the KPI equivalent below, minus the
+// weight-sum validation (IDP rows have no weight field).
+app.put('/api/students/:studentId/idp-entries', async (request, response, next) => {
+  try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
+    if (identity.role !== 'administrator' && identity.role !== 'training-manager') {
+      response.status(403).json({ message: 'Only a training manager or administrator can edit an IDP table.' });
+      return;
+    }
+
+    const body = idpEntriesReplaceSchema.parse(request.body);
+    const entries = await repository.setIdpEntriesForStudent(request.params.studentId, body.entries);
+
+    if (entries === null) {
+      response.status(404).json({ message: 'Student not found.' });
+      return;
+    }
+
+    response.json({ entries });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.put('/api/students/:studentId/kpi-entries', async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
@@ -2654,6 +2691,66 @@ app.put('/api/students/:studentId/kpi-entries/gap-analysis', async (request, res
 // from growing with every year opened; a year selector fetches a past (or current) year here on
 // demand instead. Same access rule as scoring a student's table: a student may only see their
 // own KPI history, managers/admins may see any student's.
+// Bootstrap only carries the current IDP year — this fetches any other (or the current) year on
+// demand, e.g. when a year selector picks a past year to browse. Manager/admin, or the student
+// themselves for their own record.
+app.get('/api/students/:studentId/idp-entries/:year', async (request, response, next) => {
+  try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
+    const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
+    if (!isPrivileged && !(await isOwnStudentRecord(request.params.studentId, identity))) {
+      response.status(403).json({ message: 'You do not have permission to view this student.' });
+      return;
+    }
+
+    const year = Number(request.params.year);
+    if (!Number.isInteger(year)) {
+      response.status(400).json({ message: 'Year must be a whole number.' });
+      return;
+    }
+
+    const entries = await repository.getIdpEntriesForStudentYear(request.params.studentId, year);
+    if (entries === null) {
+      response.status(404).json({ message: 'Student not found.' });
+      return;
+    }
+
+    response.json({ entries });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// The manager-facing "open a new IDP year" action — org-wide, so only a training manager or
+// administrator may call it. See repository.openIdpYear: unlike KPI, nothing carries forward —
+// every student's plan starts blank under the new year, the year being closed is left exactly as
+// it was, and currentIdpYear moves forward to the new year.
+app.post('/api/idp-years/open', async (request, response, next) => {
+  try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
+    if (identity.role !== 'administrator' && identity.role !== 'training-manager') {
+      response.status(403).json({ message: 'Only a training manager or administrator can open a new IDP year.' });
+      return;
+    }
+
+    const body = openIdpYearSchema.parse(request.body);
+    const result = await repository.openIdpYear(body.year);
+    response.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get('/api/students/:studentId/kpi-entries/:year', async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
