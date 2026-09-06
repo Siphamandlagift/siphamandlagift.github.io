@@ -17,6 +17,7 @@ import {
   ManagerPanel,
   MentorshipAssignmentRecord,
   MentorshipSubmissionRecord,
+  StudentIdpEntry,
   StudentKpiEntry,
   StudentKpiScore,
   SuccessionCompetencyGap,
@@ -44,6 +45,7 @@ type AssignWizardStep = 1 | 2 | 3;
 type CreateCourseSection = 'basics' | 'content';
 type ManagerMessageSection = 'compose' | 'inbox' | null;
 type MentorshipWorkspaceSection = 'list' | 'submissions';
+type ReportDownloadFormat = 'CSV' | 'XLSX';
 
 type EnrollmentGroupSummary = {
   name: string;
@@ -2159,6 +2161,29 @@ type KpiEntryFormGroup = FormGroup<{
                 Opening a new year starts every team member's IDP blank and permanently closes {{ managerData.currentIdpYear() }} as a read-only record.
               </p>
 
+              <div class="kpi-year-banner">
+                <span class="kpi-year-banner-label">Download team IDP report</span>
+                <label class="kpi-year-prompt-field">
+                  <span>Year</span>
+                  <select class="kpi-year-selector" [value]="idpReportYear()" (change)="updateIdpReportYear($event)">
+                    @for (year of idpYearsDescending(); track year) {
+                      <option [value]="year">{{ year }}{{ year === managerData.currentIdpYear() ? ' (current)' : '' }}</option>
+                    }
+                  </select>
+                </label>
+                <label class="kpi-year-prompt-field">
+                  <span>Format</span>
+                  <select class="kpi-year-selector" [value]="idpReportFormat()" (change)="updateIdpReportFormat($event)">
+                    <option value="CSV">CSV</option>
+                    <option value="XLSX">XLSX</option>
+                  </select>
+                </label>
+                <button type="button" class="idp-program-add" [disabled]="!idpTeamReportRows().length" (click)="downloadIdpTeamReport()">Download report</button>
+              </div>
+              <p class="kpi-year-banner-hint">
+                {{ idpTeamReportRows().length }} {{ idpTeamReportRows().length === 1 ? 'entry' : 'entries' }} across your team for {{ idpReportYear() }}.
+              </p>
+
               @if (!selectedIdpStudentId()) {
                 <!-- Team member list -->
                 <div class="student-search-row">
@@ -2391,6 +2416,29 @@ type KpiEntryFormGroup = FormGroup<{
               </div>
               <p class="kpi-year-banner-hint">
                 Opening a new year carries every team member's current KPI definitions forward with all scores cleared, and permanently closes {{ managerData.currentKpiYear() }} as a read-only record.
+              </p>
+
+              <div class="kpi-year-banner">
+                <span class="kpi-year-banner-label">Download team KPI report</span>
+                <label class="kpi-year-prompt-field">
+                  <span>Year</span>
+                  <select class="kpi-year-selector" [value]="kpiReportYear()" (change)="updateKpiReportYear($event)">
+                    @for (year of kpiYearsDescending(); track year) {
+                      <option [value]="year">{{ year }}{{ year === managerData.currentKpiYear() ? ' (current)' : '' }}</option>
+                    }
+                  </select>
+                </label>
+                <label class="kpi-year-prompt-field">
+                  <span>Format</span>
+                  <select class="kpi-year-selector" [value]="kpiReportFormat()" (change)="updateKpiReportFormat($event)">
+                    <option value="CSV">CSV</option>
+                    <option value="XLSX">XLSX</option>
+                  </select>
+                </label>
+                <button type="button" class="idp-program-add" [disabled]="!kpiTeamReportRows().length" (click)="downloadKpiTeamReport()">Download report</button>
+              </div>
+              <p class="kpi-year-banner-hint">
+                {{ kpiTeamReportRows().length }} {{ kpiTeamReportRows().length === 1 ? 'entry' : 'entries' }} across your team for {{ kpiReportYear() }}.
               </p>
 
               @if (!selectedKpiStudentId()) {
@@ -10801,6 +10849,152 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     setTimeout(() => this.idpSaved.set(false), 3000);
   }
 
+  // ── IDP team report (download) ──────────────────────────────────────────
+  readonly idpReportYear = signal(new Date().getFullYear());
+  readonly idpReportFormat = signal<ReportDownloadFormat>('CSV');
+  private hasManuallySetIdpReportYear = false;
+  private readonly idpReportYearFollowEffect = effect(() => {
+    const currentYear = this.managerData.currentIdpYear();
+    if (!this.hasManuallySetIdpReportYear) {
+      this.idpReportYear.set(currentYear);
+    }
+  });
+
+  readonly idpYearsDescending = computed(() => [...this.managerData.idpYearsOpened()].reverse());
+
+  // One row per IDP entry (not per team member) for the selected year — a manager reviewing this
+  // wants to see the actual development plans, not just a headcount. Triggers a background fetch
+  // for any non-current year not yet cached; idpEntriesForStudentYear reads the signal that fetch
+  // populates, so this recomputes on its own once it lands (same pattern as the admin IDP report).
+  readonly idpTeamReportRows = computed(() => {
+    const year = this.idpReportYear();
+    const isCurrentYear = year === this.managerData.currentIdpYear();
+    const rows: { student: EnrollmentStudent; entry: StudentIdpEntry }[] = [];
+
+    for (const student of this.myTeam()) {
+      if (!isCurrentYear) {
+        void this.managerData.fetchIdpEntriesForStudentYear(student.id, year);
+      }
+
+      for (const entry of this.managerData.idpEntriesForStudentYear(student.id, year)) {
+        rows.push({ student, entry });
+      }
+    }
+
+    return rows;
+  });
+
+  updateIdpReportYear(event: Event) {
+    this.hasManuallySetIdpReportYear = true;
+    const input = event.target as HTMLSelectElement | null;
+    const year = Number(input?.value);
+    if (Number.isInteger(year)) {
+      this.idpReportYear.set(year);
+    }
+  }
+
+  updateIdpReportFormat(event: Event) {
+    const input = event.target as HTMLSelectElement | null;
+    this.idpReportFormat.set(input?.value === 'XLSX' ? 'XLSX' : 'CSV');
+  }
+
+  private buildIdpTeamReportExportRows() {
+    const columns = ['Name', 'Surname', 'Job Title', 'Department', 'Development Need', 'Planned Action', 'Support Required', 'Date Captured', 'Target Date', 'Status'];
+    const rows = this.idpTeamReportRows().map(({ student, entry }) => [
+      student.name,
+      student.surname,
+      student.jobTitle || 'Not provided',
+      student.department || 'Not provided',
+      entry.developmentNeed || 'Not provided',
+      entry.plannedAction || 'Not provided',
+      entry.supportRequired || 'Not provided',
+      entry.dateCaptured || 'Not provided',
+      entry.targetDate || 'Not provided',
+      entry.status,
+    ]);
+
+    return { columns, rows };
+  }
+
+  downloadIdpTeamReportCsv() {
+    const { columns, rows } = this.buildIdpTeamReportExportRows();
+    if (!rows.length) {
+      return;
+    }
+
+    const year = this.idpReportYear();
+    const lines = [
+      ['Report', 'Team IDP Report'],
+      ['Manager', this.managerData.profile().name],
+      ['Year', String(year)],
+      ['Generated On', this.reportGeneratedOnLabel()],
+      ['Rows Included', String(rows.length)],
+      [],
+      columns,
+      ...rows,
+    ];
+
+    const csv = lines
+      .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+
+    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `Team-IDP-Report-${year}.csv`);
+  }
+
+  async downloadIdpTeamReportXlsx() {
+    const { columns, rows } = this.buildIdpTeamReportExportRows();
+    if (!rows.length) {
+      return;
+    }
+
+    const year = this.idpReportYear();
+    const xlsx = await import('xlsx');
+    const workbook = xlsx.utils.book_new();
+    const worksheetRows = [
+      ['Report', 'Team IDP Report'],
+      ['Manager', this.managerData.profile().name],
+      ['Year', String(year)],
+      ['Generated On', this.reportGeneratedOnLabel()],
+      ['Rows Included', String(rows.length)],
+      [],
+      columns,
+      ...rows,
+    ];
+    const worksheet = xlsx.utils.aoa_to_sheet(worksheetRows);
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Team IDP Report');
+    const workbookArray = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
+    this.triggerDownload(
+      new Blob([workbookArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      `Team-IDP-Report-${year}.xlsx`,
+    );
+  }
+
+  downloadIdpTeamReport() {
+    if (this.idpReportFormat() === 'XLSX') {
+      void this.downloadIdpTeamReportXlsx();
+      return;
+    }
+
+    this.downloadIdpTeamReportCsv();
+  }
+
+  private reportGeneratedOnLabel() {
+    return new Intl.DateTimeFormat('en-ZA', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).format(new Date());
+  }
+
+  private triggerDownload(blob: Blob, filename: string) {
+    const downloadUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = downloadUrl;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(downloadUrl);
+  }
+
   // ── Performance / KPI ─────────────────────────────────────────────────
   readonly kpiScoreOptions: ReadonlyArray<{ value: StudentKpiScore; label: string }> = [
     { value: 1, label: '1 - Unsatisfactory' },
@@ -11201,5 +11395,133 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     if (year !== null) {
       this.loadGapAnalysisDraft(studentId, year);
     }
+  }
+
+  // ── KPI team report (download) ──────────────────────────────────────────
+  readonly kpiReportYear = signal(new Date().getFullYear());
+  readonly kpiReportFormat = signal<ReportDownloadFormat>('CSV');
+  private hasManuallySetKpiReportYear = false;
+  private readonly kpiReportYearFollowEffect = effect(() => {
+    const currentYear = this.managerData.currentKpiYear();
+    if (!this.hasManuallySetKpiReportYear) {
+      this.kpiReportYear.set(currentYear);
+    }
+  });
+
+  readonly kpiYearsDescending = computed(() => [...this.managerData.kpiYearsOpened()].reverse());
+
+  // One row per KPI entry (not per team member) for the selected year — same reasoning as
+  // idpTeamReportRows above, including the background-fetch-on-recompute for a non-current year.
+  readonly kpiTeamReportRows = computed(() => {
+    const year = this.kpiReportYear();
+    const isCurrentYear = year === this.managerData.currentKpiYear();
+    const rows: { student: EnrollmentStudent; entry: StudentKpiEntry }[] = [];
+
+    for (const student of this.myTeam()) {
+      if (!isCurrentYear) {
+        void this.managerData.fetchKpiEntriesForStudentYear(student.id, year);
+      }
+
+      for (const entry of this.managerData.kpiEntriesForStudentYear(student.id, year)) {
+        rows.push({ student, entry });
+      }
+    }
+
+    return rows;
+  });
+
+  updateKpiReportYear(event: Event) {
+    this.hasManuallySetKpiReportYear = true;
+    const input = event.target as HTMLSelectElement | null;
+    const year = Number(input?.value);
+    if (Number.isInteger(year)) {
+      this.kpiReportYear.set(year);
+    }
+  }
+
+  updateKpiReportFormat(event: Event) {
+    const input = event.target as HTMLSelectElement | null;
+    this.kpiReportFormat.set(input?.value === 'XLSX' ? 'XLSX' : 'CSV');
+  }
+
+  private buildKpiTeamReportExportRows() {
+    const columns = ['Name', 'Surname', 'Job Title', 'Department', 'Key Result Area', 'Key Performance Indicator', 'Weight of KPI', 'Target', 'Actual', 'Final Rating', 'Comments'];
+    const rows = this.kpiTeamReportRows().map(({ student, entry }) => [
+      student.name,
+      student.surname,
+      student.jobTitle || 'Not provided',
+      student.department || 'Not provided',
+      entry.keyResultArea || 'Not provided',
+      entry.kpi || 'Not provided',
+      `${entry.weight}%`,
+      entry.target || 'Not provided',
+      entry.actual || 'Not provided',
+      this.kpiScoreLabel(entry.overallScoring),
+      entry.comments || 'Not provided',
+    ]);
+
+    return { columns, rows };
+  }
+
+  downloadKpiTeamReportCsv() {
+    const { columns, rows } = this.buildKpiTeamReportExportRows();
+    if (!rows.length) {
+      return;
+    }
+
+    const year = this.kpiReportYear();
+    const lines = [
+      ['Report', 'Team KPI Report'],
+      ['Manager', this.managerData.profile().name],
+      ['Year', String(year)],
+      ['Generated On', this.reportGeneratedOnLabel()],
+      ['Rows Included', String(rows.length)],
+      [],
+      columns,
+      ...rows,
+    ];
+
+    const csv = lines
+      .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+
+    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `Team-KPI-Report-${year}.csv`);
+  }
+
+  async downloadKpiTeamReportXlsx() {
+    const { columns, rows } = this.buildKpiTeamReportExportRows();
+    if (!rows.length) {
+      return;
+    }
+
+    const year = this.kpiReportYear();
+    const xlsx = await import('xlsx');
+    const workbook = xlsx.utils.book_new();
+    const worksheetRows = [
+      ['Report', 'Team KPI Report'],
+      ['Manager', this.managerData.profile().name],
+      ['Year', String(year)],
+      ['Generated On', this.reportGeneratedOnLabel()],
+      ['Rows Included', String(rows.length)],
+      [],
+      columns,
+      ...rows,
+    ];
+    const worksheet = xlsx.utils.aoa_to_sheet(worksheetRows);
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Team KPI Report');
+    const workbookArray = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
+    this.triggerDownload(
+      new Blob([workbookArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      `Team-KPI-Report-${year}.xlsx`,
+    );
+  }
+
+  downloadKpiTeamReport() {
+    if (this.kpiReportFormat() === 'XLSX') {
+      void this.downloadKpiTeamReportXlsx();
+      return;
+    }
+
+    this.downloadKpiTeamReportCsv();
   }
 }
