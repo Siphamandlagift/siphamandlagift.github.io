@@ -9,6 +9,8 @@ import {
   EnrollmentStudent,
   EnrollmentStudentInput,
   ExternalTrainingRequestRecord,
+  SuccessionReadinessRating,
+  SuccessionRoleRecord,
   SystemTrainingManager,
   TrainingManagerDataService,
 } from './training-manager-data.service';
@@ -19,6 +21,8 @@ import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLm
 import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component';
 
 type AdminPanel = 'dashboard' | 'users' | 'reports' | 'succession' | 'settings';
+
+type SuccessionOrgNode = { role: SuccessionRoleRecord; children: SuccessionOrgNode[] };
 
 type BulkUploadIssue = {
   lineNumber: number;
@@ -2120,6 +2124,80 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                 <p class="section-copy">Read-only — each manager flags critical roles on their own team and manages nominations for them directly.</p>
               </div>
 
+              <div class="admin-report-actions succession-org-view-tabs">
+                <button type="button" [class]="selectedSuccessionAdminView() === 'overview' ? 'admin-primary-btn' : 'admin-secondary-btn'" (click)="selectedSuccessionAdminView.set('overview')">Overview</button>
+                <button type="button" [class]="selectedSuccessionAdminView() === 'organogram' ? 'admin-primary-btn' : 'admin-secondary-btn'" (click)="selectedSuccessionAdminView.set('organogram')">Organogram</button>
+              </div>
+
+              @if (selectedSuccessionAdminView() === 'organogram') {
+                <section class="admin-section-card">
+                  <div class="admin-section-card-header">
+                    <h2>Succession organogram</h2>
+                    <span>{{ managerData.successionRoles().length }} critical roles</span>
+                  </div>
+                  <p class="admin-report-note admin-report-note-compact">Each box is a critical role, nested under the role of the manager who owns it wherever that manager is themselves flagged. The colour bar shows the best successor readiness in that role's pipeline.</p>
+
+                  @if (successionOrgTree().length) {
+                    <div class="org-chart-scroll">
+                      <ul class="org-chart-root">
+                        @for (node of successionOrgTree(); track node.role.id) {
+                          <ng-container [ngTemplateOutlet]="orgNodeTpl" [ngTemplateOutletContext]="{ $implicit: node }"></ng-container>
+                        }
+                      </ul>
+                    </div>
+
+                    <div class="org-chart-legend">
+                      <span class="org-chart-legend-item"><span class="org-chart-legend-swatch org-chart-legend-swatch-ready-now"></span>Ready now</span>
+                      <span class="org-chart-legend-item"><span class="org-chart-legend-swatch org-chart-legend-swatch-1-2-years"></span>1-2 years</span>
+                      <span class="org-chart-legend-item"><span class="org-chart-legend-swatch org-chart-legend-swatch-3-plus-years"></span>3+ years</span>
+                      <span class="org-chart-legend-item"><span class="org-chart-legend-swatch org-chart-legend-swatch-none"></span>No successor</span>
+                    </div>
+
+                    <ng-template #orgNodeTpl let-node>
+                      <li class="org-chart-node">
+                        <div class="org-chart-card" [class]="'org-chart-card-' + orgCardStatusSlug(node.role.id)">
+                          <div class="org-chart-card-top">
+                            <div class="org-chart-avatar" aria-hidden="true">{{ successorInitials(node.role.incumbentStudentId) }}</div>
+                            <div class="org-chart-card-title-group">
+                              <strong class="org-chart-card-title">{{ node.role.title }}</strong>
+                              <span class="org-chart-card-meta">{{ successorName(node.role.incumbentStudentId) }} · {{ node.role.department }}</span>
+                            </div>
+                          </div>
+
+                          @if (bestReadinessForRole(node.role.id); as bestRating) {
+                            <span class="org-chart-readiness-pill" [class]="'org-chart-readiness-pill-' + readinessSlug(bestRating)">{{ bestRating }}</span>
+                          } @else {
+                            <span class="org-chart-readiness-pill org-chart-readiness-pill-none">No successor</span>
+                          }
+
+                          @if (nominationsForRole(node.role.id).length) {
+                            <ul class="org-chart-successor-list">
+                              @for (nomination of nominationsForRole(node.role.id); track nomination.id) {
+                                <li>
+                                  <span>{{ successorName(nomination.successorStudentId) }}</span>
+                                  <span class="org-chart-readiness-pill org-chart-readiness-pill-sm" [class]="'org-chart-readiness-pill-' + readinessSlug(nomination.readinessRating)">{{ nomination.readinessRating }}</span>
+                                </li>
+                              }
+                            </ul>
+                          }
+                        </div>
+
+                        @if (node.children.length) {
+                          <ul class="org-chart-children">
+                            @for (child of node.children; track child.role.id) {
+                              <ng-container [ngTemplateOutlet]="orgNodeTpl" [ngTemplateOutletContext]="{ $implicit: child }"></ng-container>
+                            }
+                          </ul>
+                        }
+                      </li>
+                    </ng-template>
+                  } @else {
+                    <div class="admin-empty-state">No critical roles have been flagged yet.</div>
+                  }
+                </section>
+              }
+
+              @if (selectedSuccessionAdminView() === 'overview') {
               <section class="admin-section-card">
                 <div class="admin-section-card-header">
                   <h2>Download report</h2>
@@ -2199,6 +2277,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                   <div class="admin-empty-state">No successor nominations have been created yet.</div>
                 }
               </section>
+              }
             </section>
           }
 
@@ -3768,6 +3847,157 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .succession-status-chip.succession-status-active { background: rgba(34, 197, 94, 0.16); color: #15803d; }
     .succession-status-chip.succession-status-withdrawn { background: rgba(148, 163, 184, 0.24); color: #475569; }
 
+    .succession-org-view-tabs { margin-bottom: 0.25rem; }
+
+    /* Pure-CSS org chart: each li draws its own elbow connector up to its siblings/parent via
+       ::before/::after, and each ul (nested inside a parent li) draws the vertical drop from that
+       parent down to its row of children. Root-level nodes opt out of the elbow since they have no
+       shared parent to connect to. */
+    .org-chart-scroll { overflow-x: auto; padding: 0.5rem 0 1rem; }
+    .org-chart-root,
+    .org-chart-children {
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      padding-top: 28px;
+      position: relative;
+      list-style: none;
+      margin: 0;
+      min-width: max-content;
+    }
+    .org-chart-root { padding-top: 0; }
+    .org-chart-children { position: relative; }
+    .org-chart-children::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: 0;
+      height: 28px;
+      border-left: 2px solid #cbd5e1;
+    }
+    .org-chart-node {
+      position: relative;
+      padding: 28px 14px 0 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .org-chart-root > .org-chart-node { padding-top: 0; }
+    .org-chart-node::before,
+    .org-chart-node::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 50%;
+      width: 50%;
+      height: 28px;
+      border-top: 2px solid #cbd5e1;
+    }
+    .org-chart-node::after { right: auto; left: 50%; border-left: 2px solid #cbd5e1; }
+    .org-chart-node:first-child::before { border: 0 none; }
+    .org-chart-node:last-child::after { border: 0 none; }
+    .org-chart-node:last-child::before { border-right: 2px solid #cbd5e1; border-radius: 0 6px 0 0; }
+    .org-chart-node:first-child::after { border-radius: 6px 0 0 0; }
+    .org-chart-node:only-child::before,
+    .org-chart-node:only-child::after { border: 0 none; }
+    .org-chart-node:only-child { padding-top: 28px; }
+    .org-chart-root > .org-chart-node::before,
+    .org-chart-root > .org-chart-node::after { display: none; }
+
+    .org-chart-card {
+      background: #fff;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-top: 4px solid #cbd5e1;
+      border-radius: 12px;
+      padding: 0.85rem 1rem;
+      width: 240px;
+      text-align: left;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    }
+    .org-chart-card-ready-now { border-top-color: #22c55e; }
+    .org-chart-card-1-2-years { border-top-color: #f59e0b; }
+    .org-chart-card-3-plus-years { border-top-color: #38bdf8; }
+    .org-chart-card-none { border-top-color: #ef4444; }
+
+    .org-chart-card-top { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; }
+    .org-chart-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--admin-primary);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.76rem;
+      flex-shrink: 0;
+    }
+    .org-chart-card-title-group { display: flex; flex-direction: column; min-width: 0; }
+    .org-chart-card-title { font-size: 0.9rem; color: #0f172a; }
+    .org-chart-card-meta {
+      font-size: 0.76rem;
+      color: #64748b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .org-chart-readiness-pill {
+      display: inline-block;
+      padding: 0.18rem 0.55rem;
+      border-radius: 999px;
+      background: #fee2e2;
+      color: #b91c1c;
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+    .org-chart-readiness-pill-ready-now { background: rgba(34, 197, 94, 0.16); color: #15803d; }
+    .org-chart-readiness-pill-1-2-years { background: rgba(245, 158, 11, 0.18); color: #b45309; }
+    .org-chart-readiness-pill-3-plus-years { background: rgba(56, 189, 248, 0.18); color: #0369a1; }
+    .org-chart-readiness-pill-none { background: #fee2e2; color: #b91c1c; }
+    .org-chart-readiness-pill-sm { font-size: 0.68rem; padding: 0.12rem 0.45rem; }
+
+    .org-chart-successor-list {
+      list-style: none;
+      margin: 0.6rem 0 0;
+      padding: 0.55rem 0 0;
+      border-top: 1px dashed rgba(148, 163, 184, 0.4);
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .org-chart-successor-list li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      font-size: 0.78rem;
+      color: #334155;
+    }
+
+    .org-chart-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid rgba(148, 163, 184, 0.24);
+    }
+    .org-chart-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.78rem;
+      color: #475569;
+    }
+    .org-chart-legend-swatch { width: 10px; height: 10px; border-radius: 3px; }
+    .org-chart-legend-swatch-ready-now { background: #22c55e; }
+    .org-chart-legend-swatch-1-2-years { background: #f59e0b; }
+    .org-chart-legend-swatch-3-plus-years { background: #38bdf8; }
+    .org-chart-legend-swatch-none { background: #ef4444; }
+
     .admin-settings-menu-item-status {
       color: #173446;
       font-size: 0.82rem;
@@ -4727,9 +4957,88 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     return student ? `${student.name} ${student.surname}` : 'Former team member';
   }
 
+  successorInitials(studentId: string) {
+    const student = this.managerData.students().find((entry) => entry.id === studentId);
+    return student ? `${student.name[0] ?? ''}${student.surname[0] ?? ''}` : '?';
+  }
+
   readonly canDownloadSuccessionReport = computed(() =>
     this.managerData.successionRoles().length > 0 || this.managerData.successorNominations().length > 0,
   );
+
+  readonly selectedSuccessionAdminView = signal<'overview' | 'organogram'>('overview');
+
+  nominationsForRole(roleId: string) {
+    return this.managerData.successorNominations().filter((nomination) => nomination.roleId === roleId);
+  }
+
+  private static readonly orgReadinessOrder: SuccessionReadinessRating[] = ['Ready Now', 'Ready in 1-2 Years', 'Ready in 3+ Years'];
+
+  // The Active nomination's readiness if one exists, otherwise the most-ready Draft candidate,
+  // otherwise null — mirrors bestReadinessForRole in training-manager-profile.component.ts so the
+  // organogram's "best readiness" pill agrees with what the flagging manager themselves sees.
+  bestReadinessForRole(roleId: string): SuccessionReadinessRating | null {
+    const nominations = this.nominationsForRole(roleId);
+    if (!nominations.length) {
+      return null;
+    }
+
+    const active = nominations.find((nomination) => nomination.status === 'Active');
+    if (active) {
+      return active.readinessRating;
+    }
+
+    return [...nominations].sort((left, right) =>
+      AdminProfileComponent.orgReadinessOrder.indexOf(left.readinessRating)
+      - AdminProfileComponent.orgReadinessOrder.indexOf(right.readinessRating),
+    )[0].readinessRating;
+  }
+
+  readinessSlug(rating: SuccessionReadinessRating) {
+    if (rating === 'Ready Now') return 'ready-now';
+    if (rating === 'Ready in 1-2 Years') return '1-2-years';
+    return '3-plus-years';
+  }
+
+  orgCardStatusSlug(roleId: string) {
+    const bestRating = this.bestReadinessForRole(roleId);
+    return bestRating ? this.readinessSlug(bestRating) : 'none';
+  }
+
+  // The organogram nests a critical role under another critical role wherever this role's owning
+  // manager is themselves the incumbent of one — i.e. the succession plan mirrors the real
+  // reporting line one level up. A role whose owning manager isn't flagged anywhere becomes a root
+  // (the common case: most flagged roles won't chain into another flagged role above them). The
+  // `visited` set defensively breaks any cycle a corrupt lineManagerId chain could otherwise cause
+  // (a real org hierarchy can't cycle, but recursive rendering would hang the tab if one existed).
+  readonly successionOrgTree = computed<SuccessionOrgNode[]>(() => {
+    const roles = this.managerData.successionRoles();
+    const incumbentIds = new Set(roles.map((role) => role.incumbentStudentId));
+    const childrenByOwnerId = new Map<string, SuccessionRoleRecord[]>();
+
+    for (const role of roles) {
+      const siblings = childrenByOwnerId.get(role.ownerManagerId);
+      if (siblings) {
+        siblings.push(role);
+      } else {
+        childrenByOwnerId.set(role.ownerManagerId, [role]);
+      }
+    }
+
+    const buildNode = (role: SuccessionRoleRecord, visited: ReadonlySet<string>): SuccessionOrgNode => {
+      if (visited.has(role.id)) {
+        return { role, children: [] };
+      }
+
+      const nextVisited = new Set(visited).add(role.id);
+      const children = (childrenByOwnerId.get(role.incumbentStudentId) ?? []).map((child) => buildNode(child, nextVisited));
+      return { role, children };
+    };
+
+    return roles
+      .filter((role) => !incumbentIds.has(role.ownerManagerId))
+      .map((role) => buildNode(role, new Set()));
+  });
 
   readonly selectedPanel = signal<AdminPanel>('dashboard');
   readonly adminSidebarCollapsed = signal(false);
