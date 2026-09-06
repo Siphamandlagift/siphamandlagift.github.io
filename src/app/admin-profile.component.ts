@@ -5304,21 +5304,30 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       }));
   });
   readonly beneficiariesCompletedTrainingRows = computed<BeneficiariesCompletedTrainingRow[]>(() => {
-    const groups = new Map<string, { sample: CompletedTrainingEvent; demographics: BeneficiaryDemographicCounts[]; totalCost: number }>();
+    const groups = new Map<string, { sample: CompletedTrainingEvent; demographics: BeneficiaryDemographicCounts[]; totalCost: number; countedBeneficiaryKeys: Set<string> }>();
 
     for (const event of this.completedTrainingEvents()) {
       const ofoOccupation = event.student?.ofoCode || 'Not captured';
       const municipality = event.student?.municipality || 'Not captured';
       const groupKey = [ofoOccupation, municipality, event.request.courseName].join('::');
+      // SETA's guidance for this table: a beneficiary is counted once per intervention, not once
+      // per approval — so if the same person has more than one approved request for the exact
+      // same programme (a duplicate submission, or a repeat session of the same course), only the
+      // first contributes to this row's demographic headcount. A different programme still starts
+      // its own row/group above, so the same person legitimately appears once per distinct course.
+      const beneficiaryKey = event.request.studentId || event.request.studentEmail.toLowerCase();
       const existing = groups.get(groupKey);
       const cost = Number(event.request.courseCost) || 0;
-      const demographics = event.student ? this.resolveBeneficiaryDemographics(event.student) : this.resolveBeneficiaryDemographics({ race: undefined, gender: undefined, idNumber: '', dateOfBirth: undefined });
 
       if (existing) {
-        existing.demographics.push(demographics);
         existing.totalCost += cost;
+        if (!existing.countedBeneficiaryKeys.has(beneficiaryKey)) {
+          existing.countedBeneficiaryKeys.add(beneficiaryKey);
+          existing.demographics.push(event.student ? this.resolveBeneficiaryDemographics(event.student) : this.resolveBeneficiaryDemographics({ race: undefined, gender: undefined, idNumber: '', dateOfBirth: undefined }));
+        }
       } else {
-        groups.set(groupKey, { sample: event, demographics: [demographics], totalCost: cost });
+        const demographics = event.student ? this.resolveBeneficiaryDemographics(event.student) : this.resolveBeneficiaryDemographics({ race: undefined, gender: undefined, idNumber: '', dateOfBirth: undefined });
+        groups.set(groupKey, { sample: event, demographics: [demographics], totalCost: cost, countedBeneficiaryKeys: new Set([beneficiaryKey]) });
       }
     }
 
