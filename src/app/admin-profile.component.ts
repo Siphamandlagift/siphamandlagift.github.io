@@ -2914,7 +2914,10 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       overflow: auto;
       padding: calc(0.6rem * var(--ui-scale));
       border-radius: calc(14px * var(--ui-scale));
-      background: linear-gradient(180deg, #181d40 0%, #12152f 100%);
+      /* Tinted by the chosen theme rather than a flat fixed navy — color-mix keeps the sidebar
+         dark enough for white text/icons to stay legible across every theme (including light
+         theme colours like Sunrise's orange) while still visibly reflecting the pick. */
+      background: linear-gradient(180deg, color-mix(in srgb, var(--admin-primary) 32%, #12152f) 0%, color-mix(in srgb, var(--admin-primary) 16%, #12152f) 100%);
       border: 1px solid rgba(255, 255, 255, 0.06);
       box-shadow: 0 20px 45px rgba(8, 10, 26, 0.35);
       scrollbar-width: none;
