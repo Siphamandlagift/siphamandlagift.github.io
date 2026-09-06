@@ -233,6 +233,28 @@ function createSuccessionIncumbentNotification(role: SuccessionRoleRecord): Stud
   };
 }
 
+function createKpiYearOpenedNotification(year: number): StudentNotificationRecord {
+  return {
+    id: `kpi-year-${year}`,
+    badge: 'Performance',
+    title: 'New KPI year started',
+    body: `A new KPI year (${year}) has started. Your manager will set up your KPI table for this year.`,
+    dateLabel: 'Just now',
+    unread: true,
+  };
+}
+
+function createIdpYearOpenedNotification(year: number): StudentNotificationRecord {
+  return {
+    id: `idp-year-${year}`,
+    badge: 'IDP',
+    title: 'New IDP year started',
+    body: `A new IDP year (${year}) has started. Your manager will set up your Individual Development Plan for this year.`,
+    dateLabel: 'Just now',
+    unread: true,
+  };
+}
+
 // A lightweight placeholder — the manager fills in plannedAction/supportRequired/targetDate
 // afterward through the normal IDP screen, same as any other IDP entry.
 function createSuccessionIdpEntry(developmentNeed: string, dateCaptured: string): StudentIdpEntryRecord {
@@ -1294,6 +1316,7 @@ export class LmsRepository {
       return {
         ...student,
         kpiYears: withKpiYearEntries(kpiYears, year, carriedForwardEntries),
+        notifications: [createKpiYearOpenedNotification(year), ...student.notifications],
       };
     });
 
@@ -1338,6 +1361,7 @@ export class LmsRepository {
     data.students = data.students.map((student) => ({
       ...student,
       idpYears: withIdpYearEntries(student.idpYears ?? [], year, []),
+      notifications: [createIdpYearOpenedNotification(year), ...student.notifications],
     }));
 
     data.currentIdpYear = year;
@@ -3411,7 +3435,7 @@ class FirestoreLmsRepository extends LmsRepository {
           return;
         }
 
-        const rawData = snapshot.data() as { kpiYears?: unknown; kpiEntries?: unknown };
+        const rawData = snapshot.data() as { kpiYears?: unknown; kpiEntries?: unknown; notifications?: StudentNotificationRecord[] };
         const kpiYears = normalizeStudentKpiYears(rawData, currentKpiYear);
         const currentYearEntries = findKpiYearEntries(kpiYears, currentKpiYear);
         const carriedForwardEntries: StudentKpiEntryRecord[] = currentYearEntries.map((entry) => ({
@@ -3435,6 +3459,7 @@ class FirestoreLmsRepository extends LmsRepository {
         const nextKpiYears = this.sanitizeForFirestore(withKpiYearEntries(kpiYears, year, carriedForwardEntries));
         transaction.update(ref, {
           kpiYears: nextKpiYears,
+          notifications: this.sanitizeForFirestore([createKpiYearOpenedNotification(year), ...(rawData.notifications ?? [])]),
           ...('kpiEntries' in rawData ? { kpiEntries: FieldValue.delete() } : {}),
         });
       })));
@@ -3523,11 +3548,12 @@ class FirestoreLmsRepository extends LmsRepository {
           return;
         }
 
-        const rawData = snapshot.data() as { idpYears?: unknown; idpEntries?: unknown };
+        const rawData = snapshot.data() as { idpYears?: unknown; idpEntries?: unknown; notifications?: StudentNotificationRecord[] };
         const idpYears = normalizeStudentIdpYears(rawData, currentIdpYear);
         const nextIdpYears = this.sanitizeForFirestore(withIdpYearEntries(idpYears, year, []));
         transaction.update(ref, {
           idpYears: nextIdpYears,
+          notifications: this.sanitizeForFirestore([createIdpYearOpenedNotification(year), ...(rawData.notifications ?? [])]),
           ...('idpEntries' in rawData ? { idpEntries: FieldValue.delete() } : {}),
         });
       })));
