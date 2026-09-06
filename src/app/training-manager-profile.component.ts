@@ -2801,11 +2801,48 @@ type KpiEntryFormGroup = FormGroup<{
 
                 <div class="activity-card mentorship-review-card">
                   <div class="idp-program-actions succession-unflag-row">
+                    <button type="button" class="idp-back-btn" [disabled]="editingPosition()" (click)="openEditPosition(role)">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      Edit position
+                    </button>
                     <button type="button" class="idp-back-btn succession-danger-btn" [disabled]="unflaggingRole()" (click)="unflagRole(role.id)">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                       {{ unflaggingRole() ? 'Removing…' : 'This is no longer a critical role' }}
                     </button>
                   </div>
+
+                  @if (editingPosition()) {
+                    <div class="idp-program-card succession-glow-card">
+                      <div class="idp-program-card-header">
+                        <span class="idp-program-card-title">Edit position</span>
+                      </div>
+                      <div class="idp-program-card-body succession-nominate-form">
+                        <label class="succession-form-field">
+                          <span class="succession-field-label">Position name</span>
+                          <input type="text" [value]="editPositionTitle()" (input)="editPositionTitle.set($any($event.target).value)" />
+                        </label>
+                        <label class="succession-form-field">
+                          <span class="succession-field-label">Department</span>
+                          <input type="text" [value]="editPositionDepartment()" (input)="editPositionDepartment.set($any($event.target).value)" />
+                        </label>
+                        <label class="succession-form-field">
+                          <span class="succession-field-label">Incumbent (current holder)</span>
+                          <select [value]="editPositionIncumbentStudentId()" (change)="editPositionIncumbentStudentId.set($any($event.target).value)">
+                            @for (student of teamCandidatesForRoleEdit(role); track student.id) {
+                              <option [value]="student.id">{{ student.name }} {{ student.surname }} — {{ student.jobTitle || student.department }}</option>
+                            }
+                          </select>
+                        </label>
+                        @if (positionEditError()) {
+                          <p class="kpi-year-prompt-error" role="alert">{{ positionEditError() }}</p>
+                        }
+                        <div class="idp-program-actions">
+                          <button type="button" class="idp-save-button" [disabled]="savingPositionEdit()" (click)="submitPositionEdit(role.id)">{{ savingPositionEdit() ? 'Saving…' : 'Save' }}</button>
+                          <button type="button" class="idp-back-btn" (click)="closeEditPosition()">Cancel</button>
+                        </div>
+                      </div>
+                    </div>
+                  }
 
                   @if (!nominatingSuccessor()) {
                     <button type="button" class="succession-nominate-btn" (click)="openNominateForm()">
@@ -10215,6 +10252,12 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   readonly newActionDrafts = signal<Record<string, string>>({});
   readonly flaggingRoleForStudentId = signal<string | null>(null);
   readonly unflaggingRole = signal(false);
+  readonly editingPosition = signal(false);
+  readonly editPositionTitle = signal('');
+  readonly editPositionDepartment = signal('');
+  readonly editPositionIncumbentStudentId = signal('');
+  readonly positionEditError = signal('');
+  readonly savingPositionEdit = signal(false);
   // Shared across flag/unflag/status-change/gap actions in this panel — these all used to fail
   // silently (button resets, nothing visible happens), which is indistinguishable from the
   // feature being broken. Surfaces the server's actual rejection reason instead.
@@ -10228,6 +10271,17 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
   teamCandidatesForRole(role: SuccessionRoleRecord) {
     return this.myTeam().filter((member) => member.id !== role.incumbentStudentId);
+  }
+
+  // For the incumbent picker on the edit-position form: unlike teamCandidatesForRole above (which
+  // excludes the incumbent because it's listing *successor* candidates), here the current
+  // incumbent must stay selectable — plus anyone else on the team not already the incumbent of a
+  // *different* critical role.
+  teamCandidatesForRoleEdit(role: SuccessionRoleRecord) {
+    const flaggedElsewhere = new Set(
+      this.successionRoles().filter((entry) => entry.id !== role.id).map((entry) => entry.incumbentStudentId),
+    );
+    return this.myTeam().filter((member) => member.id === role.incumbentStudentId || !flaggedElsewhere.has(member.id));
   }
 
   readonly unflaggedTeamMembers = computed(() => {
@@ -10376,6 +10430,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   selectSuccessionRole(roleId: string) {
     this.selectedSuccessionRoleId.set(roleId);
     this.nominatingSuccessor.set(false);
+    this.editingPosition.set(false);
     this.selectedNominationId.set(null);
     this.successionActionError.set('');
   }
@@ -10383,6 +10438,43 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   clearSuccessionRole() {
     this.selectedSuccessionRoleId.set(null);
     this.nominatingSuccessor.set(false);
+    this.editingPosition.set(false);
+  }
+
+  openEditPosition(role: SuccessionRoleRecord) {
+    this.editPositionTitle.set(role.title);
+    this.editPositionDepartment.set(role.department);
+    this.editPositionIncumbentStudentId.set(role.incumbentStudentId);
+    this.positionEditError.set('');
+    this.editingPosition.set(true);
+  }
+
+  closeEditPosition() {
+    this.editingPosition.set(false);
+  }
+
+  submitPositionEdit(roleId: string) {
+    const title = this.editPositionTitle().trim();
+    const department = this.editPositionDepartment().trim();
+    const incumbentStudentId = this.editPositionIncumbentStudentId();
+
+    if (!title || !department || !incumbentStudentId) {
+      this.positionEditError.set('Position name, department and incumbent are all required.');
+      return;
+    }
+
+    this.positionEditError.set('');
+    this.savingPositionEdit.set(true);
+    this.managerData.updateSuccessionRole(roleId, { title, department, incumbentStudentId }).subscribe({
+      next: () => {
+        this.savingPositionEdit.set(false);
+        this.editingPosition.set(false);
+      },
+      error: (error) => {
+        this.savingPositionEdit.set(false);
+        this.positionEditError.set(error?.error?.message || 'Could not save these changes. Please try again.');
+      },
+    });
   }
 
   openNominateForm() {

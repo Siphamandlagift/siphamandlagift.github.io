@@ -405,6 +405,16 @@ export type SuccessionRoleInput = {
   incumbentStudentId: string;
 };
 
+// Lets the flagging manager correct the role's basics after the fact — e.g. the incumbent's own
+// jobTitle string snapshotted at flagging time isn't the name they'd want on the succession board,
+// or the position needs to move to a different team member. Incumbent must still be a real member
+// of the manager's own team, same as at creation.
+export type SuccessionRoleUpdateInput = {
+  title: string;
+  department: string;
+  incumbentStudentId: string;
+};
+
 export type SuccessionDevelopmentAction = {
   id: string;
   description: string;

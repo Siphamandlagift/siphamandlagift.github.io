@@ -808,6 +808,12 @@ const successionRoleInputSchema = z.object({
   incumbentStudentId: z.string().min(1),
 });
 
+const successionRoleUpdateSchema = z.object({
+  title: z.string().min(1),
+  department: z.string().min(1),
+  incumbentStudentId: z.string().min(1),
+});
+
 const successionDevelopmentActionSchema = z.object({
   id: z.string().min(1),
   description: z.string(),
@@ -2733,6 +2739,33 @@ app.post('/api/succession/roles', requireTrainingManager, async (request, respon
     }
 
     response.status(201).json(role);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/succession/roles/:roleId', requireTrainingManager, async (request, response, next) => {
+  try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
+    const roleId = request.params['roleId'] as string;
+    if (!(await isOwnManagedRole(roleId, identity))) {
+      response.status(403).json({ message: 'You can only edit critical roles on your own team.' });
+      return;
+    }
+
+    const body = successionRoleUpdateSchema.parse(request.body);
+    const role = await repository.updateSuccessionRole(roleId, body);
+    if (!role) {
+      response.status(400).json({ message: 'That employee is not on your team, or their position is already flagged as a different critical role.' });
+      return;
+    }
+
+    response.json(role);
   } catch (error) {
     next(error);
   }

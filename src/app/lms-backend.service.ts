@@ -18,6 +18,7 @@ import type {
   StudentKpiEntry,
   SuccessionRoleInput,
   SuccessionRoleRecord,
+  SuccessionRoleUpdateInput,
   SuccessorNominationCreateInput,
   SuccessorNominationRecord,
   SuccessorNominationUpdateInput,
@@ -472,6 +473,10 @@ export class LmsBackendService {
 
   createSuccessionRole(input: SuccessionRoleInput): Observable<SuccessionRoleRecord> {
     return this.http.post<SuccessionRoleRecord>(`${this.config.baseUrl}/succession/roles`, input);
+  }
+
+  updateSuccessionRole(roleId: string, input: SuccessionRoleUpdateInput): Observable<SuccessionRoleRecord> {
+    return this.http.put<SuccessionRoleRecord>(`${this.config.baseUrl}/succession/roles/${roleId}`, input);
   }
 
   deleteSuccessionRole(roleId: string): Observable<void> {

@@ -47,6 +47,7 @@ import {
   SuccessionNominationStatus,
   SuccessionRoleInput,
   SuccessionRoleRecord,
+  SuccessionRoleUpdateInput,
   SuccessorNominationCreateInput,
   SuccessorNominationRecord,
   SuccessorNominationUpdateInput,
@@ -2777,6 +2778,38 @@ export class LmsRepository {
     return role;
   }
 
+  async updateSuccessionRole(roleId: string, input: SuccessionRoleUpdateInput) {
+    const data = await this.read();
+    const roleIndex = data.successionRoles.findIndex((role) => role.id === roleId);
+    if (roleIndex === -1) {
+      return null;
+    }
+
+    const role = data.successionRoles[roleIndex];
+    const title = input.title.trim();
+    const department = input.department.trim();
+    const incumbentStudentId = input.incumbentStudentId.trim();
+    if (!title || !department) {
+      return null;
+    }
+
+    const incumbent = data.students.find((student) => student.id === incumbentStudentId);
+    if (!incumbent || incumbent.lineManagerId !== role.ownerManagerId) {
+      return null;
+    }
+
+    // Someone else's role can't claim this incumbent — but the role's own existing incumbent
+    // (i.e. unchanged) is fine.
+    if (data.successionRoles.some((entry) => entry.id !== roleId && entry.incumbentStudentId === incumbentStudentId)) {
+      return null;
+    }
+
+    const updatedRole: SuccessionRoleRecord = { ...role, title, department, incumbentStudentId };
+    data.successionRoles[roleIndex] = updatedRole;
+    await this.write(data);
+    return updatedRole;
+  }
+
   async deleteSuccessionRole(roleId: string) {
     const data = await this.read();
     if (!data.successionRoles.some((role) => role.id === roleId)) {
@@ -3809,6 +3842,49 @@ class FirestoreLmsRepository extends LmsRepository {
     }));
 
     return role;
+  }
+
+  // Scoped the same way as createSuccessionRole above — only touches the successionRoles
+  // collection (plus a read of the incumbent's own student doc for the team/uniqueness checks),
+  // never the inherited read()+write() full-store path.
+  override async updateSuccessionRole(roleId: string, input: SuccessionRoleUpdateInput) {
+    const roleRef = this.collection('successionRoles').doc(roleId);
+    const roleSnapshot = await roleRef.get();
+    if (!roleSnapshot.exists) {
+      return null;
+    }
+
+    const role = roleSnapshot.data() as SuccessionRoleRecord;
+    const title = input.title.trim();
+    const department = input.department.trim();
+    const incumbentStudentId = input.incumbentStudentId.trim();
+    if (!title || !department) {
+      return null;
+    }
+
+    const [incumbentSnapshot, conflictingRolesSnapshot] = await Promise.all([
+      this.collection('students').doc(incumbentStudentId).get(),
+      this.collection('successionRoles').where('incumbentStudentId', '==', incumbentStudentId).get(),
+    ]);
+
+    if (!incumbentSnapshot.exists) {
+      return null;
+    }
+
+    const incumbent = incumbentSnapshot.data() as StudentRecord;
+    if (incumbent.lineManagerId !== role.ownerManagerId) {
+      return null;
+    }
+
+    // Someone else's role can't claim this incumbent — but the role's own existing incumbent
+    // (i.e. unchanged) is fine.
+    if (conflictingRolesSnapshot.docs.some((doc) => doc.id !== roleId)) {
+      return null;
+    }
+
+    const updatedRole: SuccessionRoleRecord = { ...role, title, department, incumbentStudentId };
+    await roleRef.set(this.sanitizeForFirestore(updatedRole));
+    return updatedRole;
   }
 
   override async deleteSuccessionRole(roleId: string) {

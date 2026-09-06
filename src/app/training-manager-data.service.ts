@@ -305,6 +305,12 @@ export type SuccessionRoleInput = {
   incumbentStudentId: string;
 };
 
+export type SuccessionRoleUpdateInput = {
+  title: string;
+  department: string;
+  incumbentStudentId: string;
+};
+
 export type SuccessionDevelopmentAction = {
   id: string;
   description: string;
@@ -2862,6 +2868,12 @@ export class TrainingManagerDataService {
   createSuccessionRole(input: SuccessionRoleInput): Observable<SuccessionRoleRecord> {
     return this.backend.createSuccessionRole(input).pipe(
       tap((role) => this.successionRolesSignal.update((roles) => [...roles, role])),
+    );
+  }
+
+  updateSuccessionRole(roleId: string, input: SuccessionRoleUpdateInput): Observable<SuccessionRoleRecord> {
+    return this.backend.updateSuccessionRole(roleId, input).pipe(
+      tap((role) => this.successionRolesSignal.update((roles) => roles.map((entry) => (entry.id === role.id ? role : entry)))),
     );
   }
 
