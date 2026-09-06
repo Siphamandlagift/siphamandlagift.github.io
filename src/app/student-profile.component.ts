@@ -970,9 +970,17 @@ import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component'
 
             <div class="kpi-year-selector-row" *ngIf="managerData.kpiYearsOpened().length > 1">
               <span class="kpi-year-selector-label">KPI year</span>
-              <select class="kpi-year-selector" [value]="selectedKpiYear()" (change)="selectKpiYear(+$any($event.target).value)">
-                <option *ngFor="let year of managerData.kpiYearsOpened()" [value]="year">{{ year }}{{ year === managerData.currentKpiYear() ? ' (current)' : '' }}</option>
-              </select>
+              <div class="kpi-year-chip-row">
+                <button
+                  type="button"
+                  *ngFor="let year of kpiYearsMostRecentFirst()"
+                  class="kpi-year-chip"
+                  [class.kpi-year-chip-active]="year === selectedKpiYear()"
+                  (click)="selectKpiYear(year)">
+                  {{ year }}
+                  <span class="kpi-year-chip-tag" *ngIf="year === managerData.currentKpiYear()">Current</span>
+                </button>
+              </div>
               <span class="kpi-year-readonly-badge" *ngIf="!isViewingCurrentKpiYear()">Read-only — past year</span>
             </div>
 
@@ -1449,9 +1457,17 @@ import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component'
 
             <div class="kpi-year-selector-row" *ngIf="managerData.idpYearsOpened().length > 1">
               <span class="kpi-year-selector-label">IDP year</span>
-              <select class="kpi-year-selector" [value]="selectedIdpYear()" (change)="selectIdpYear(+$any($event.target).value)">
-                <option *ngFor="let year of managerData.idpYearsOpened()" [value]="year">{{ year }}{{ year === managerData.currentIdpYear() ? ' (current)' : '' }}</option>
-              </select>
+              <div class="kpi-year-chip-row">
+                <button
+                  type="button"
+                  *ngFor="let year of idpYearsMostRecentFirst()"
+                  class="kpi-year-chip"
+                  [class.kpi-year-chip-active]="year === selectedIdpYear()"
+                  (click)="selectIdpYear(year)">
+                  {{ year }}
+                  <span class="kpi-year-chip-tag" *ngIf="year === managerData.currentIdpYear()">Current</span>
+                </button>
+              </div>
               <span class="kpi-year-readonly-badge" *ngIf="!isViewingCurrentIdpYear()">Read-only — past year</span>
             </div>
 
@@ -2778,6 +2794,7 @@ import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component'
 
     .kpi-year-selector-row {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: 0.6rem;
       margin-bottom: 0.85rem;
@@ -2791,13 +2808,57 @@ import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component'
       color: #64748b;
     }
 
-    .kpi-year-selector {
-      padding: 0.4rem 0.7rem;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      font: inherit;
-      color: #0f172a;
+    .kpi-year-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+
+    /* A clickable year "chip" replaces the old plain <select> — every opened year is visible at a
+       glance (most recent first) instead of hidden inside a dropdown, and the currently viewed
+       year is unmistakable without needing to read its option text. */
+    .kpi-year-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.4rem 0.85rem;
+      border: 1px solid #dbe1ea;
+      border-radius: 999px;
       background: #fff;
+      color: #334155;
+      font: inherit;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+
+    .kpi-year-chip:hover {
+      border-color: var(--brand-primary);
+      transform: translateY(-1px);
+    }
+
+    .kpi-year-chip-active {
+      background: var(--brand-primary);
+      border-color: var(--brand-primary);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+    }
+
+    .kpi-year-chip-tag {
+      font-size: 0.6rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding: 0.08rem 0.4rem;
+      border-radius: 999px;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+
+    .kpi-year-chip-active .kpi-year-chip-tag {
+      background: rgba(255, 255, 255, 0.25);
+      color: #fff;
     }
 
     .kpi-year-readonly-badge {
@@ -4907,6 +4968,8 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     }
   });
   readonly isViewingCurrentIdpYear = computed(() => this.selectedIdpYear() === this.managerData.currentIdpYear());
+  // Most-recent-first for the year chip row — see kpiYearsMostRecentFirst for why.
+  readonly idpYearsMostRecentFirst = computed(() => [...this.managerData.idpYearsOpened()].reverse());
 
   // Manager-entered IDP entries for the selected year, shown in the student view as read-only.
   // matchedKpiStudentId (below) is identity resolution only, not KPI-specific, despite the name —
@@ -4988,6 +5051,10 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     }
   });
   readonly isViewingCurrentKpiYear = computed(() => this.selectedKpiYear() === this.managerData.currentKpiYear());
+  // Most-recent-first for the year chip row — kpiYearsOpened itself is stored oldest-first, but a
+  // student looking for "this year" (or the one just before it) shouldn't have to scan past every
+  // older year to find it.
+  readonly kpiYearsMostRecentFirst = computed(() => [...this.managerData.kpiYearsOpened()].reverse());
 
   readonly myKpiEntries = computed<StudentKpiEntry[]>(() => {
     const id = this.matchedKpiStudentId();
