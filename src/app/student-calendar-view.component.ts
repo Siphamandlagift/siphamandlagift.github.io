@@ -97,7 +97,14 @@ type CalendarDay = {
             @if (selectedDayEvents().length) {
               <ul class="event-list">
                 @for (event of selectedDayEvents(); track event.id) {
-                  <li class="event-item">
+                  <li class="event-item" [class]="'event-item-' + eventUrgency(event)" [class.event-item-clickable]="!!event.actionLabel">
+                    <span class="event-icon" [class.event-icon-assignment]="event.kind === 'assignment'" aria-hidden="true">
+                      @if (event.kind === 'assignment') {
+                        <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+                      } @else {
+                        <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15Z" /></svg>
+                      }
+                    </span>
                     <div class="event-copy">
                       @if (event.actionLabel) {
                         <button type="button" class="event-title-link" (click)="openEvent(event)">{{ event.title }}</button>
@@ -122,7 +129,14 @@ type CalendarDay = {
             @if (upcomingEvents().length) {
               <ul class="event-list">
                 @for (event of upcomingEvents(); track event.id) {
-                  <li class="event-item">
+                  <li class="event-item" [class]="'event-item-' + eventUrgency(event)" [class.event-item-clickable]="!!event.actionLabel">
+                    <span class="event-icon" [class.event-icon-assignment]="event.kind === 'assignment'" aria-hidden="true">
+                      @if (event.kind === 'assignment') {
+                        <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+                      } @else {
+                        <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15Z" /></svg>
+                      }
+                    </span>
                     <div class="event-copy">
                       @if (event.actionLabel) {
                         <button type="button" class="event-title-link" (click)="openEvent(event)">{{ event.title }}</button>
@@ -446,30 +460,74 @@ type CalendarDay = {
       border-radius: 999px;
     }
 
+    /* A slim urgency-coloured left edge plus a matching soft-tint background is the main "slick"
+       cue here — it reads at a glance without adding any width, which matters since this list has
+       to stay compact in an 18-19rem sidebar. Same urgency palette as the calendar-grid dots
+       (event-indicator-*) so the grid and this list always agree. */
     .event-item {
       display: flex;
       align-items: center;
-      gap: 0.65rem;
-      padding: 0.65rem 0.8rem;
+      gap: 0.55rem;
+      padding: 0.5rem 0.65rem;
       background: #f8fafc;
       border: 1px solid #ecf0f7;
-      border-radius: 14px;
+      border-left: 3px solid #cbd5e1;
+      border-radius: 10px;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+
+    .event-item-clickable:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+    }
+
+    .event-item-today { border-left-color: #4f46e5; background: #eef2ff; }
+    .event-item-soon { border-left-color: #d97706; background: #fffbeb; }
+    .event-item-past { border-left-color: #94a3b8; background: #f4f5f7; }
+    .event-item-normal { border-left-color: #2563eb; background: #f8fafc; }
+
+    .event-icon {
+      flex: 0 0 auto;
+      width: 1.65rem;
+      height: 1.65rem;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(37, 99, 235, 0.12);
+      color: #2563eb;
+    }
+
+    .event-icon-assignment {
+      background: rgba(217, 119, 6, 0.14);
+      color: #b45309;
+    }
+
+    .event-icon svg {
+      width: 0.85rem;
+      height: 0.85rem;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .event-title {
       color: #14213d;
       font-weight: 700;
+      font-size: 0.86rem;
     }
 
     .event-course {
       color: #64748b;
-      font-size: 0.78rem;
+      font-size: 0.74rem;
     }
 
     .event-copy {
       display: flex;
       flex-direction: column;
-      gap: 0.2rem;
+      gap: 0.1rem;
       min-width: 0;
       flex: 1 1 auto;
     }
@@ -477,27 +535,27 @@ type CalendarDay = {
     .event-due-badge {
       flex: 0 0 auto;
       align-self: center;
-      padding: 0.28rem 0.6rem;
+      padding: 0.22rem 0.55rem;
       border-radius: 999px;
       background: #eff6ff;
       color: #1d4ed8;
-      font-size: 0.72rem;
+      font-size: 0.68rem;
       font-weight: 700;
       white-space: nowrap;
     }
 
     .event-due-badge-today {
-      background: #eef2ff;
+      background: #e0e7ff;
       color: #4338ca;
     }
 
     .event-due-badge-soon {
-      background: #fffbeb;
+      background: #fef3c7;
       color: #b45309;
     }
 
     .event-due-badge-overdue {
-      background: #fef2f2;
+      background: #fee2e2;
       color: #b91c1c;
     }
 
@@ -507,7 +565,7 @@ type CalendarDay = {
       border: 0;
       background: transparent;
       color: #3730a3;
-      font-size: 0.9rem;
+      font-size: 0.86rem;
       font-weight: 700;
       text-align: left;
       cursor: pointer;
