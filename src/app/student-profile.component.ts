@@ -1455,7 +1455,7 @@ import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component'
               <h1>My IDP</h1>
             </div>
 
-            <div class="kpi-year-selector-row" *ngIf="managerData.idpYearsOpened().length > 1">
+            <div class="kpi-year-selector-row" *ngIf="managerData.idpYearsOpened().length > 0">
               <span class="kpi-year-selector-label">IDP year</span>
               <div class="kpi-year-chip-row">
                 <button
