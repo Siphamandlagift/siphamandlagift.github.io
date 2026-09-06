@@ -1553,40 +1553,52 @@ type KpiEntryFormGroup = FormGroup<{
               </div>
 
               @if (selectedEnrollmentView() === 'students') {
-                <div class="student-enrollment-list" role="table" aria-label="Student enrollment list">
-                  <div class="student-list-head" role="row">
-                    <span role="columnheader">Name</span>
-                    <span role="columnheader">Surname</span>
-                    <span role="columnheader">Group</span>
-                    <span role="columnheader">Date Enrolled</span>
-                    <span role="columnheader">Deadline Date</span>
-                    <span role="columnheader">Email Address</span>
-                    <span role="columnheader">Active Status</span>
-                    <span role="columnheader">Department</span>
-                    <span role="columnheader">Actions</span>
+                <div class="enrollment-user-table-wrap">
+                  <div class="enrollment-user-table enrollment-user-table-head" aria-hidden="true">
+                    <span>Student</span>
+                    <span>Group</span>
+                    <span>Enrollment</span>
+                    <span>Status</span>
+                    <span>Department</span>
+                    <span>Actions</span>
                   </div>
 
-                  @for (student of filteredEnrollmentStudents(); track student.id) {
-                    <article class="student-list-item" role="row">
-                      <span class="student-list-cell student-name" role="cell">{{ student.name }}</span>
-                      <span class="student-list-cell" role="cell">{{ student.surname }}</span>
-                      <span class="student-list-cell" role="cell">{{ student.group }}</span>
-                      <span class="student-list-cell" role="cell">{{ student.dateEnrolled }}</span>
-                      <span class="student-list-cell" role="cell">{{ student.deadlineDate }}</span>
-                      <span class="student-list-cell student-list-email" role="cell">{{ student.email }}</span>
-                      <span class="student-list-cell" role="cell">
-                        <span class="student-active-pill" [class.student-active-pill-inactive]="student.activeStatus === 'Inactive'">{{ student.activeStatus }}</span>
-                      </span>
-                      <span class="student-list-cell" role="cell">{{ student.department }}</span>
-                      <div class="student-list-actions" role="cell">
-                        <button type="button" class="courses-btn" (click)="openManageEnrollmentStudent(student)">Courses ({{ managerData.offeringsForStudent(student).length }})</button>
-                      </div>
-                    </article>
-                  }
+                  <div class="enrollment-user-list" role="table" aria-label="Student enrollment list">
+                    @for (student of filteredEnrollmentStudents(); track student.id) {
+                      <article class="enrollment-user-table enrollment-user-row" role="row">
+                        <div class="enrollment-user-cell enrollment-user-primary" role="cell">
+                          <span class="enrollment-user-avatar" aria-hidden="true">{{ student.name[0] }}{{ student.surname[0] }}</span>
+                          <div class="enrollment-user-identity">
+                            <div class="enrollment-user-fullname">{{ student.name }} {{ student.surname }}</div>
+                            <div class="enrollment-user-email">{{ student.email }}</div>
+                          </div>
+                        </div>
+                        <div class="enrollment-user-cell" role="cell">
+                          <div class="enrollment-user-field-label">Group</div>
+                          <span>{{ student.group }}</span>
+                        </div>
+                        <div class="enrollment-user-cell enrollment-user-dates" role="cell">
+                          <div class="enrollment-user-date-row"><span class="enrollment-user-field-label enrollment-user-field-label-inline">Enrolled</span> {{ student.dateEnrolled }}</div>
+                          <div class="enrollment-user-date-row"><span class="enrollment-user-field-label enrollment-user-field-label-inline">Deadline</span> {{ student.deadlineDate }}</div>
+                        </div>
+                        <div class="enrollment-user-cell" role="cell">
+                          <div class="enrollment-user-field-label">Status</div>
+                          <span class="student-active-pill" [class.student-active-pill-inactive]="student.activeStatus === 'Inactive'">{{ student.activeStatus }}</span>
+                        </div>
+                        <div class="enrollment-user-cell" role="cell">
+                          <div class="enrollment-user-field-label">Department</div>
+                          <span>{{ student.department }}</span>
+                        </div>
+                        <div class="enrollment-user-cell enrollment-user-actions" role="cell">
+                          <button type="button" class="courses-btn" (click)="openManageEnrollmentStudent(student)">Courses ({{ managerData.offeringsForStudent(student).length }})</button>
+                        </div>
+                      </article>
+                    }
 
-                  @if (!filteredEnrollmentStudents().length) {
-                    <div class="student-search-empty">No students match your current search.</div>
-                  }
+                    @if (!filteredEnrollmentStudents().length) {
+                      <div class="student-search-empty">No students match your current search.</div>
+                    }
+                  </div>
                 </div>
               } @else {
                 <div class="enrollment-group-toolbar">
@@ -3604,7 +3616,6 @@ type KpiEntryFormGroup = FormGroup<{
     .manager-user-name,
     .stat-value,
     .offering-title,
-    .student-name,
     h1,
     h2,
     p {
@@ -4833,24 +4844,20 @@ type KpiEntryFormGroup = FormGroup<{
       gap: 0.9rem;
     }
 
-    .student-enrollment-list {
-      display: grid;
-      gap: 0.6rem;
-      width: 100%;
-      overflow-x: auto;
-      padding-bottom: 0.25rem;
-    }
+    /* Compact roster list — replaces the old 9-column table (name/surname split into two
+       columns, no avatar, min-width: 68rem forcing horizontal scroll on most screens) with a
+       6-column layout that combines name+email into one identifiable cell, so a manager with a
+       large team (up to 50 direct reports) can scan it without scrolling sideways. */
+    .enrollment-user-table-wrap { display: grid; gap: 0.6rem; }
 
-    .student-list-head,
-    .student-list-item {
+    .enrollment-user-table {
       display: grid;
-      grid-template-columns: 1fr 1fr 0.8fr 1fr 1fr 1.4fr 0.9fr 1fr 1.5fr;
-      gap: 0.6rem;
+      grid-template-columns: minmax(0, 1.8fr) minmax(0, 0.9fr) minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1.2fr);
+      gap: 0.75rem;
       align-items: center;
-      min-width: 68rem;
     }
 
-    .student-list-head {
+    .enrollment-user-table-head {
       padding: 0 0.9rem;
       color: #64748b;
       font-size: 0.72rem;
@@ -4859,7 +4866,9 @@ type KpiEntryFormGroup = FormGroup<{
       text-transform: uppercase;
     }
 
-    .student-list-item {
+    .enrollment-user-list { display: grid; gap: 0.6rem; }
+
+    .enrollment-user-row {
       padding: 0.65rem 0.9rem;
       border: 1px solid rgba(15, 23, 42, 0.07);
       border-radius: 10px;
@@ -4868,37 +4877,64 @@ type KpiEntryFormGroup = FormGroup<{
       transition: box-shadow 0.15s ease, border-color 0.15s ease;
     }
 
-    .student-list-item:hover,
-    .student-list-item:focus-within {
+    .enrollment-user-row:hover,
+    .enrollment-user-row:focus-within {
       border-color: var(--brand-tint);
       box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
     }
 
-    .student-list-cell {
+    .enrollment-user-cell {
       min-width: 0;
       font-size: 0.86rem;
       color: #173446;
+    }
+
+    .enrollment-user-field-label {
+      display: none;
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 0.2rem;
+    }
+
+    .enrollment-user-primary { display: flex; align-items: center; gap: 0.65rem; }
+    .enrollment-user-avatar {
+      flex: 0 0 auto;
+      width: 2.3rem;
+      height: 2.3rem;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+      color: #fff;
+      font-weight: 800;
+      font-size: 0.78rem;
+    }
+    .enrollment-user-identity { min-width: 0; }
+    .enrollment-user-fullname {
+      font-weight: 700;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-
-    .student-name {
-      font-weight: 700;
-    }
-
-    .student-list-email {
+    .enrollment-user-email {
+      font-size: 0.8rem;
+      color: #64748b;
       overflow-wrap: anywhere;
-      white-space: normal;
     }
 
-    .student-list-actions {
-      display: flex;
-      justify-content: flex-end;
-      align-items: center;
-      gap: 0.4rem;
-      flex-wrap: wrap;
+    .enrollment-user-dates { display: grid; gap: 0.2rem; }
+    .enrollment-user-date-row { font-size: 0.84rem; }
+    .enrollment-user-field-label-inline {
+      display: inline;
+      margin-bottom: 0;
+      margin-right: 0.35rem;
     }
+
+    .enrollment-user-actions { display: flex; justify-content: flex-end; }
 
     .student-active-pill {
       display: inline-flex;
@@ -6013,15 +6049,20 @@ type KpiEntryFormGroup = FormGroup<{
         grid-template-columns: 1fr;
       }
 
-      .student-list-head {
+      .enrollment-user-table-head {
         display: none;
       }
 
-      .student-list-item {
+      .enrollment-user-table {
         grid-template-columns: 1fr;
+        gap: 0.35rem;
       }
 
-      .student-list-actions {
+      .enrollment-user-field-label {
+        display: block;
+      }
+
+      .enrollment-user-actions {
         justify-content: flex-start;
       }
 
