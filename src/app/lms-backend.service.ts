@@ -4,6 +4,7 @@ import { Observable, switchMap, map, catchError } from 'rxjs';
 import { FirebaseStorageService, UploadEvent } from './firebase-storage.service';
 import { LMS_API_CONFIG, LmsApiConfig } from './lms-api.config';
 import type {
+  ApprovalWorkflowSettings,
   AssignmentSubmissionRecord,
   EnrollmentStudent,
   ExternalTrainingRequestCreateInput,
@@ -11,6 +12,8 @@ import type {
   ExternalTrainingRequestRecord,
   ExternalTrainingRequestReviewInput,
   ExternalTrainingRequestUpdateInput,
+  KpiApprovalRecord,
+  KpiApprovalStatus,
   ManagerMessage,
   MentorshipAssignmentRecord,
   MentorshipSubmissionRecord,
@@ -56,6 +59,12 @@ export type LmsBootstrapResponse = {
   kpiEntriesByStudent?: Record<string, StudentKpiEntry[]>;
   currentKpiYear?: number;
   kpiYearsOpened?: number[];
+  // Readable by every role — see repository.getBootstrap. Only an admin can change it (PUT
+  // /api/approval-workflow-settings).
+  approvalWorkflowSettings?: ApprovalWorkflowSettings;
+  // Current KPI year's approval chain state per student — null/absent when kpiApproversRequired
+  // is 1 (the default) or the table hasn't been submitted for approval.
+  kpiApprovalByStudent?: Record<string, KpiApprovalRecord | null>;
   trainingManagers: SystemTrainingManager[];
   managerMessages: ManagerMessage[];
   mentorshipAssignments: MentorshipAssignmentRecord[];
@@ -487,6 +496,18 @@ export class LmsBackendService {
 
   openKpiYear(year: number): Observable<{ currentKpiYear: number; kpiYearsOpened: number[] }> {
     return this.http.post<{ currentKpiYear: number; kpiYearsOpened: number[] }>(`${this.config.baseUrl}/kpi-years/open`, { year });
+  }
+
+  updateApprovalWorkflowSettings(input: ApprovalWorkflowSettings): Observable<ApprovalWorkflowSettings> {
+    return this.http.put<ApprovalWorkflowSettings>(`${this.config.baseUrl}/approval-workflow-settings`, input);
+  }
+
+  submitKpiTableForApproval(studentId: string, nextApproverId: string): Observable<KpiApprovalRecord> {
+    return this.http.post<KpiApprovalRecord>(`${this.config.baseUrl}/students/${studentId}/kpi-entries/submit-for-approval`, { nextApproverId });
+  }
+
+  decideKpiApproval(studentId: string, decision: KpiApprovalStatus, nextApproverId?: string): Observable<KpiApprovalRecord> {
+    return this.http.put<KpiApprovalRecord>(`${this.config.baseUrl}/students/${studentId}/kpi-entries/approval`, { decision, nextApproverId });
   }
 
   createSuccessionRole(input: SuccessionRoleInput): Observable<SuccessionRoleRecord> {

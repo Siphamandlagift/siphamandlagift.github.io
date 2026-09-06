@@ -2309,8 +2309,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       <span class="admin-settings-menu-item-status">{{ hrIntegrationConfig()?.enabled ? 'Enabled' : 'Not connected' }}</span>
                     </button>
                     <button type="button" class="admin-settings-menu-item" role="listitem" (click)="selectSettingsSection('approval-settings')">
-                      <span class="admin-settings-menu-item-title">Approval settings</span>
-                      <span class="admin-settings-menu-item-copy">Manage who students can select as an approving manager for external training requests.</span>
+                      <span class="admin-settings-menu-item-title">Approval &amp; Reporting Settings</span>
+                      <span class="admin-settings-menu-item-copy">Set how many people must sign off on KPI ratings and training requests, and manage who can approve them.</span>
                       <span class="admin-settings-menu-item-status">{{ managerData.explicitTrainingManagers().length }} approving {{ managerData.explicitTrainingManagers().length === 1 ? 'manager' : 'managers' }}</span>
                     </button>
                   </div>
@@ -2489,12 +2489,44 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                 @if (selectedSettingsSection() === 'approval-settings') {
                   <div class="admin-settings-section-detail">
                     <div class="admin-section-card-header">
-                      <h2>Approval settings</h2>
+                      <h2>Approval &amp; Reporting Settings</h2>
                       <span>{{ managerData.explicitTrainingManagers().length }} approving {{ managerData.explicitTrainingManagers().length === 1 ? 'manager' : 'managers' }}</span>
                     </div>
 
                     <p class="admin-settings-hint">
-                      This is the list a student picks from when they submit an external training request for approval. Any employee marked as a Manager under User Management is automatically available too, alongside anyone added here.
+                      Set how many people must sign off on a KPI rating or an external training request before it's final. When more than one is required, the first approver picks who reviews it next from a dropdown, and so on until every required sign-off is collected — a rejection at any step sends it back to the first approver to revise and resubmit.
+                    </p>
+
+                    <div class="admin-report-actions">
+                      <label class="admin-report-filter-field admin-report-download-field">
+                        <span>KPI ratings require</span>
+                        <select [value]="approvalWorkflowKpiApproversRequired()" (change)="approvalWorkflowKpiApproversRequired.set(+$any($event.target).value)">
+                          @for (count of approverCountOptions; track count) {
+                            <option [value]="count">{{ count }} {{ count === 1 ? 'approver' : 'approvers' }}</option>
+                          }
+                        </select>
+                      </label>
+                      <label class="admin-report-filter-field admin-report-download-field">
+                        <span>Training requests require</span>
+                        <select [value]="approvalWorkflowTrainingApproversRequired()" (change)="approvalWorkflowTrainingApproversRequired.set(+$any($event.target).value)">
+                          @for (count of approverCountOptions; track count) {
+                            <option [value]="count">{{ count }} {{ count === 1 ? 'approver' : 'approvers' }}</option>
+                          }
+                        </select>
+                      </label>
+                      <button type="button" class="admin-primary-btn" [disabled]="savingApprovalWorkflowSettings()" (click)="saveApprovalWorkflowSettings()">
+                        {{ savingApprovalWorkflowSettings() ? 'Saving…' : 'Save' }}
+                      </button>
+                    </div>
+
+                    @if (approvalWorkflowSettingsMessage(); as message) {
+                      <div class="admin-upload-feedback" [class.admin-upload-feedback-error]="approvalWorkflowSettingsTone() === 'error'" role="status" aria-live="polite">
+                        {{ message }}
+                      </div>
+                    }
+
+                    <p class="admin-settings-hint">
+                      Below is the list a student (or a chain's next approver) picks from. Any employee marked as a Manager under User Management is automatically available too, alongside anyone added here.
                     </p>
 
                     @if (!editingApprovingManagerId()) {
@@ -6049,6 +6081,12 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     if (section === 'hr-integration') {
       this.loadHrIntegrationConfig();
     }
+    if (section === 'approval-settings') {
+      const settings = this.managerData.approvalWorkflowSettings();
+      this.approvalWorkflowKpiApproversRequired.set(settings.kpiApproversRequired);
+      this.approvalWorkflowTrainingApproversRequired.set(settings.trainingApproversRequired);
+      this.approvalWorkflowSettingsMessage.set('');
+    }
   }
 
   clearSettingsSection() {
@@ -6070,6 +6108,28 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly managerBulkUploadMessage = signal('');
   readonly managerBulkUploadTone = signal<'success' | 'error'>('success');
   readonly managerBulkUploadIssues = signal<BulkUploadIssue[]>([]);
+
+  // How many approvers KPI ratings / training requests require (see
+  // TrainingManagerDataService.approvalWorkflowSettings) — staged locally so an in-progress edit
+  // isn't clobbered by a background bootstrap refresh, then pushed to the server on Save.
+  readonly approverCountOptions = [1, 2, 3, 4, 5];
+  readonly approvalWorkflowKpiApproversRequired = signal(1);
+  readonly approvalWorkflowTrainingApproversRequired = signal(1);
+  readonly savingApprovalWorkflowSettings = signal(false);
+  readonly approvalWorkflowSettingsMessage = signal('');
+  readonly approvalWorkflowSettingsTone = signal<'success' | 'error'>('success');
+
+  async saveApprovalWorkflowSettings() {
+    this.savingApprovalWorkflowSettings.set(true);
+    this.approvalWorkflowSettingsMessage.set('');
+    const result = await this.managerData.updateApprovalWorkflowSettings({
+      kpiApproversRequired: this.approvalWorkflowKpiApproversRequired(),
+      trainingApproversRequired: this.approvalWorkflowTrainingApproversRequired(),
+    });
+    this.savingApprovalWorkflowSettings.set(false);
+    this.approvalWorkflowSettingsTone.set(result.success ? 'success' : 'error');
+    this.approvalWorkflowSettingsMessage.set(result.success ? 'Approval settings saved.' : result.message);
+  }
 
   approverInitials(name: string) {
     const parts = name.trim().split(/\s+/).filter(Boolean);

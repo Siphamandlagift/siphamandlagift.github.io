@@ -13,6 +13,9 @@ import {
   verifyPassword,
 } from './auth-utils.js';
 import {
+  ApprovalChainStepRecord,
+  ApprovalWorkflowSettingsRecord,
+  ApprovalWorkflowSettingsUpdateInput,
   AuthAccountRecord,
   AssignmentSubmissionRecord,
   BrandingSettingsUpdateInput,
@@ -26,6 +29,9 @@ import {
   HrIntegrationConfigUpdateInput,
   HrIntegrationRosterRecord,
   HrIntegrationSyncSummary,
+  KpiApprovalDecisionInput,
+  KpiApprovalRecord,
+  KpiApprovalStatus,
   LoginRequestInput,
   LoginRole,
   LmsDataStore,
@@ -45,6 +51,7 @@ import {
   StudentSnapshotUpdate,
   StudentRecord,
   StudentSuccessionStatus,
+  SubmitKpiTableForApprovalInput,
   SuccessionNominationStatus,
   SuccessionRoleInput,
   SuccessionRoleRecord,
@@ -462,6 +469,17 @@ function resolveApprovingManagers(data: LmsDataStore): SystemTrainingManagerReco
   return managers;
 }
 
+// Feeds the "pick who reviews next" dropdown on both approval chains (training requests and KPI
+// tables) — the shared pool above minus whoever has already approved earlier in THIS chain, so
+// the same person can't be picked twice in one sequence.
+function nextApproverCandidates(
+  pool: SystemTrainingManagerRecord[],
+  alreadyApprovedIds: string[],
+): SystemTrainingManagerRecord[] {
+  const approvedIds = new Set(alreadyApprovedIds);
+  return pool.filter((manager) => !approvedIds.has(manager.id));
+}
+
 /** Best-effort "First Last" display name for an account that has no directory entry yet —
  *  derived from its username/email rather than a hardcoded placeholder. */
 function deriveDisplayNameFromIdentity(username: string, email: string): { name: string; surname: string } {
@@ -578,9 +596,66 @@ function preserveEmployeeScoringOnFullReplace(
   });
 }
 
+function normalizeApprovalChainStep(candidate: unknown): ApprovalChainStepRecord | null {
+  if (!candidate || typeof candidate !== 'object') {
+    return null;
+  }
+
+  const step = candidate as Partial<ApprovalChainStepRecord>;
+  const approverId = typeof step.approverId === 'string' ? step.approverId : '';
+  if (!approverId) {
+    return null;
+  }
+
+  return {
+    approverId,
+    approverName: typeof step.approverName === 'string' ? step.approverName : '',
+    approverEmail: typeof step.approverEmail === 'string' ? step.approverEmail : '',
+    decidedAt: typeof step.decidedAt === 'string' ? step.decidedAt : '',
+  };
+}
+
+// A KPI year record with no (or an invalid) approval field normalizes to undefined — that's what
+// keeps a table nobody has ever submitted for approval (or one saved back when
+// kpiApproversRequired was still 1) behaving exactly as it did before this feature existed.
+function normalizeKpiApproval(candidate: unknown): KpiApprovalRecord | undefined {
+  if (!candidate || typeof candidate !== 'object') {
+    return undefined;
+  }
+
+  const approval = candidate as Partial<KpiApprovalRecord>;
+  const status: KpiApprovalStatus = approval.status === 'Approved' || approval.status === 'Needs Revision'
+    ? approval.status
+    : 'Pending Approval';
+  const currentApproverId = typeof approval.currentApproverId === 'string' ? approval.currentApproverId : '';
+  const currentApproverEmail = typeof approval.currentApproverEmail === 'string' ? approval.currentApproverEmail : '';
+  if (!currentApproverId || !currentApproverEmail) {
+    return undefined;
+  }
+
+  return {
+    status,
+    approvalHistory: Array.isArray(approval.approvalHistory)
+      ? approval.approvalHistory
+        .map((step) => normalizeApprovalChainStep(step))
+        .filter((step): step is ApprovalChainStepRecord => step !== null)
+      : [],
+    currentApproverId,
+    currentApproverName: typeof approval.currentApproverName === 'string' ? approval.currentApproverName : '',
+    currentApproverEmail,
+    approvalsRequired: typeof approval.approvalsRequired === 'number' && Number.isFinite(approval.approvalsRequired)
+      ? Math.max(1, Math.round(approval.approvalsRequired))
+      : 1,
+  };
+}
+
 // Migrates the legacy flat kpiEntries array (no year concept — every student had exactly one KPI
 // table) into the current year's bucket the first time a record is normalized after the year
 // feature shipped. Once a record has kpiYears, that's authoritative and kpiEntries is ignored.
+// Explicitly carries the approval field forward (normalizeKpiApproval) rather than reconstructing
+// only { year, entries } — the latter would silently drop a table's approval state on every single
+// read/write cycle, in both backends (this migrate-on-read path also runs inline against raw
+// Firestore snapshots inside the transactional overrides below).
 function normalizeStudentKpiYears(
   student: { kpiYears?: unknown; kpiEntries?: unknown },
   currentKpiYear: number,
@@ -589,7 +664,7 @@ function normalizeStudentKpiYears(
     return student.kpiYears.map((candidate) => {
       const yearRecord = candidate as Partial<StudentKpiYearRecord>;
       const year = typeof yearRecord.year === 'number' && Number.isFinite(yearRecord.year) ? yearRecord.year : currentKpiYear;
-      return { year, entries: normalizeStudentKpiEntries(yearRecord.entries) };
+      return { year, entries: normalizeStudentKpiEntries(yearRecord.entries), approval: normalizeKpiApproval(yearRecord.approval) };
     });
   }
 
@@ -604,14 +679,55 @@ function findKpiYearEntries(kpiYears: StudentKpiYearRecord[], year: number): Stu
   return kpiYears.find((yearRecord) => yearRecord.year === year)?.entries ?? [];
 }
 
+function findKpiYearApproval(kpiYears: StudentKpiYearRecord[], year: number): KpiApprovalRecord | null {
+  return kpiYears.find((yearRecord) => yearRecord.year === year)?.approval ?? null;
+}
+
+// Blocks setKpiEntriesForStudent/updateKpiEmployeeScoring/updateKpiGapAnalysis from touching a
+// table that's mid-chain (an edit landing while an approver is reviewing could silently
+// invalidate a decision already in flight) or already fully signed off (letting an edit through
+// after Approved would defeat the point of the sign-off). Only unblocked by a reject — see
+// resolveNextKpiApproval, which is the only thing that ever sets status back to 'Needs Revision' —
+// same reasoning as updateExternalTrainingRequest's status gate below. A table with no approval
+// object at all (kpiApproversRequired still 1, or a not-yet-submitted year) is unaffected; a new
+// year opened via openKpiYear also always starts with no approval object, so this can't trap a
+// student's next review cycle.
+function ensureKpiTableEditable(kpiYears: StudentKpiYearRecord[], year: number) {
+  const approval = findKpiYearApproval(kpiYears, year);
+  if (approval && approval.status !== 'Needs Revision') {
+    throw new Error(approval.status === 'Approved'
+      ? 'This KPI table has already been approved for this year and can no longer be edited.'
+      : 'This KPI table is awaiting sign-off and cannot be edited until the approval is resolved or rejected.');
+  }
+}
+
+// approvalOverride is omitted by every existing caller that only touches entries — omitting it
+// preserves whatever approval state (if any) the year record already had, so
+// setKpiEntriesForStudent/updateKpiEmployeeScoring/updateKpiGapAnalysis/openKpiYear don't need to
+// know anything about approval at all. Pass an explicit KpiApprovalRecord to set it, or null to
+// clear it — see withKpiYearApproval below, the only caller that does either.
 function withKpiYearEntries(
   kpiYears: StudentKpiYearRecord[],
   year: number,
   entries: StudentKpiEntryRecord[],
+  approvalOverride?: KpiApprovalRecord | null,
 ): StudentKpiYearRecord[] {
+  const existing = kpiYears.find((yearRecord) => yearRecord.year === year);
   const next = kpiYears.filter((yearRecord) => yearRecord.year !== year);
-  next.push({ year, entries });
+  const approval = approvalOverride === null ? undefined : approvalOverride ?? existing?.approval;
+  next.push({ year, entries, approval });
   return next.sort((left, right) => left.year - right.year);
+}
+
+// Sets (or, with undefined, clears) a year record's approval state without touching its entries —
+// used exclusively by submitKpiTableForApproval/decideKpiApproval below.
+function withKpiYearApproval(
+  kpiYears: StudentKpiYearRecord[],
+  year: number,
+  approval: KpiApprovalRecord | undefined,
+): StudentKpiYearRecord[] {
+  const existing = kpiYears.find((yearRecord) => yearRecord.year === year);
+  return withKpiYearEntries(kpiYears, year, existing?.entries ?? [], approval ?? null);
 }
 
 // Same migrate-on-read convention as normalizeStudentKpiYears above, for IDP. Unlike KPI, an IDP
@@ -959,6 +1075,12 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
   const idpYearsOpened = Array.isArray(data.idpYearsOpened) && data.idpYearsOpened.length > 0
     ? Array.from(new Set(data.idpYearsOpened.filter((year) => typeof year === 'number' && Number.isFinite(year)))).sort((left, right) => left - right)
     : [currentIdpYear];
+  const clampApproversRequired = (value: unknown) =>
+    typeof value === 'number' && Number.isFinite(value) ? Math.max(1, Math.round(value)) : 1;
+  const approvalWorkflowSettings: ApprovalWorkflowSettingsRecord = {
+    kpiApproversRequired: clampApproversRequired(data.approvalWorkflowSettings?.kpiApproversRequired),
+    trainingApproversRequired: clampApproversRequired(data.approvalWorkflowSettings?.trainingApproversRequired),
+  };
   const students = data.students.map((student) => {
     const rawRole = (student.role ?? defaultStudentTemplate.role ?? 'student') as EnrollmentStudentRecord['role'] | LoginRole | 'admin';
     // Legacy migration: 'admin'/'administrator' used to be a base role. It's now the isAdmin flag
@@ -1022,6 +1144,7 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
     currentIdpYear,
     idpYearsOpened,
     hrIntegration: data.hrIntegration ?? defaults.hrIntegration,
+    approvalWorkflowSettings,
   });
 
   syncLinkedAuthAccounts(normalized);
@@ -1162,6 +1285,10 @@ export class LmsRepository {
     const kpiEntriesByStudent = Object.fromEntries(
       data.students.map((student) => [student.id, findKpiYearEntries(student.kpiYears ?? [], data.currentKpiYear)]),
     );
+    // Own field rather than riding along inside kpiEntriesByStudent — see LmsBootstrapResponse.
+    const kpiApprovalByStudent = Object.fromEntries(
+      data.students.map((student) => [student.id, findKpiYearApproval(student.kpiYears ?? [], data.currentKpiYear)]),
+    );
     const students = data.students.map(({ courses, notifications, messages, notifiedOfferingIds, idpYears, kpiYears, ...student }) => student);
 
     const isPrivileged = caller?.role === 'administrator' || caller?.role === 'training-manager';
@@ -1197,6 +1324,8 @@ export class LmsRepository {
         kpiEntriesByStudent,
         currentKpiYear: data.currentKpiYear,
         kpiYearsOpened: data.kpiYearsOpened,
+        approvalWorkflowSettings: data.approvalWorkflowSettings,
+        kpiApprovalByStudent,
         trainingManagers: data.trainingManagers,
         managerMessages: data.managerMessages,
         mentorshipAssignments: data.mentorshipAssignments,
@@ -1231,6 +1360,8 @@ export class LmsRepository {
       kpiEntriesByStudent: ownStudentId ? { [ownStudentId]: kpiEntriesByStudent[ownStudentId] ?? [] } : {},
       currentKpiYear: data.currentKpiYear,
       kpiYearsOpened: data.kpiYearsOpened,
+      approvalWorkflowSettings: data.approvalWorkflowSettings,
+      kpiApprovalByStudent: ownStudentId ? { [ownStudentId]: kpiApprovalByStudent[ownStudentId] ?? null } : {},
       trainingManagers: data.trainingManagers,
       // The student-facing reply flow fetches its own thread through the dedicated, ownership-
       // scoped GET /api/manager-messages instead — nothing in the student UI reads this bootstrap
@@ -1263,6 +1394,19 @@ export class LmsRepository {
     }
 
     return findKpiYearEntries(student.kpiYears ?? [], year);
+  }
+
+  // Used by server.ts to authorize PUT .../kpi-entries/approval before calling decideKpiApproval —
+  // only the record's currentApproverEmail (or an administrator) may decide it, and there's no way
+  // to check that without reading the CURRENT year's approval state first.
+  async getKpiApprovalForCurrentYear(studentId: string): Promise<KpiApprovalRecord | null> {
+    const data = await this.read();
+    const student = data.students.find((entry) => entry.id === studentId);
+    if (!student) {
+      return null;
+    }
+
+    return findKpiYearApproval(student.kpiYears ?? [], data.currentKpiYear);
   }
 
   // The manager-facing "open a new KPI year" action: every student's current-year KPI rows are
@@ -1515,6 +1659,7 @@ export class LmsRepository {
     }
 
     const kpiYears = data.students[studentIndex].kpiYears ?? [];
+    ensureKpiTableEditable(kpiYears, data.currentKpiYear);
     const existingEntries = findKpiYearEntries(kpiYears, data.currentKpiYear);
     const nextEntries = preserveEmployeeScoringOnFullReplace(existingEntries, normalizeStudentKpiEntries(entries));
     data.students[studentIndex] = {
@@ -1541,6 +1686,7 @@ export class LmsRepository {
 
     const scoringById = new Map(updates.map((update) => [update.id, update.employeeScoring]));
     const kpiYears = data.students[studentIndex].kpiYears ?? [];
+    ensureKpiTableEditable(kpiYears, data.currentKpiYear);
     const existingEntries = findKpiYearEntries(kpiYears, data.currentKpiYear);
     const nextEntries = existingEntries.map((entry) =>
       scoringById.has(entry.id) ? { ...entry, employeeScoring: scoringById.get(entry.id) ?? null } : entry,
@@ -1572,6 +1718,7 @@ export class LmsRepository {
 
     const updatesById = new Map(updates.map((update) => [update.id, update]));
     const kpiYears = data.students[studentIndex].kpiYears ?? [];
+    ensureKpiTableEditable(kpiYears, data.currentKpiYear);
     const existingEntries = findKpiYearEntries(kpiYears, data.currentKpiYear);
     const nextEntries = existingEntries.map((entry) => {
       const update = updatesById.get(entry.id);
@@ -1587,6 +1734,171 @@ export class LmsRepository {
 
     const next = await this.write(data);
     return findKpiYearEntries(next.students.find((entry) => entry.id === studentId)?.kpiYears ?? [], next.currentKpiYear);
+  }
+
+  // Resolves an authenticated caller's email to their entry in the approver pool (see
+  // resolveApprovingManagers) — used by server.ts to know who to record as the manager submitting
+  // a KPI table for approval. Falls back to a best-effort display name derived from the caller's
+  // own identity (deriveDisplayNameFromIdentity) when they aren't in the pool — e.g. an
+  // administrator acting on a manager's behalf, or a manager not yet synced into it.
+  async resolveApprovingManagerIdentity(email: string, username: string): Promise<{ id: string; name: string; email: string }> {
+    const data = await this.read();
+    const normalizedEmail = email.trim().toLowerCase();
+    const pooled = resolveApprovingManagers(data).find((manager) => manager.email.trim().toLowerCase() === normalizedEmail);
+    if (pooled) {
+      return { id: pooled.id, name: pooled.name, email: pooled.email };
+    }
+
+    const derived = deriveDisplayNameFromIdentity(username, email);
+    return { id: `identity-${normalizedEmail}`, name: [derived.name, derived.surname].filter(Boolean).join(' ').trim() || email.trim(), email: email.trim() };
+  }
+
+  // Manager-facing "submit the table for the next sign-off" action — only meaningful once
+  // kpiApproversRequired >= 2 (server.ts gates the route on that; this method itself doesn't need
+  // to, since resubmitting an already-approved/no-op table is harmless and self-correcting). The
+  // year is always resolved server-side as data.currentKpiYear — never trust a client-supplied
+  // year, matching every other KPI write method, so a stale client can't submit a closed year for
+  // approval. submittingManager* is the caller's own identity (see server.ts), recorded as the
+  // first completed step in the chain.
+  async submitKpiTableForApproval(
+    studentId: string,
+    submittingManagerId: string,
+    submittingManagerName: string,
+    submittingManagerEmail: string,
+    nextApproverId: string,
+  ) {
+    const data = await this.read();
+    const studentIndex = data.students.findIndex((entry) => entry.id === studentId);
+    if (studentIndex === -1) {
+      return null;
+    }
+
+    const kpiYears = data.students[studentIndex].kpiYears ?? [];
+    const year = data.currentKpiYear;
+    const entries = findKpiYearEntries(kpiYears, year);
+    if (!entries.length) {
+      throw new Error('There are no KPIs to submit for approval.');
+    }
+
+    const totalWeight = entries.reduce((total, entry) => total + entry.weight, 0);
+    if (Math.abs(totalWeight - 100) > 0.01) {
+      throw new Error(`The KPI table's total weight must equal 100% before it can be submitted for approval (currently ${Math.round(totalWeight * 100) / 100}%).`);
+    }
+
+    ensureKpiTableEditable(kpiYears, year);
+    // Excludes the submitting manager from their own first approval step — same "can't pick the
+    // same person twice in one chain" rule nextApproverCandidates already enforces between later
+    // steps, applied here so a manager can't submit a table and immediately approve it themselves.
+    const nextApprover = nextApproverCandidates(resolveApprovingManagers(data), [submittingManagerId])
+      .find((manager) => manager.id === nextApproverId);
+    if (!nextApprover) {
+      throw new Error('Select who should review this KPI table next.');
+    }
+
+    const approval: KpiApprovalRecord = {
+      status: 'Pending Approval',
+      approvalHistory: [{
+        approverId: submittingManagerId,
+        approverName: submittingManagerName,
+        approverEmail: submittingManagerEmail,
+        decidedAt: this.formatDisplayDate(new Date()),
+      }],
+      currentApproverId: nextApprover.id,
+      currentApproverName: nextApprover.name,
+      currentApproverEmail: nextApprover.email,
+      approvalsRequired: data.approvalWorkflowSettings.kpiApproversRequired,
+    };
+
+    data.students[studentIndex] = {
+      ...data.students[studentIndex],
+      kpiYears: withKpiYearApproval(kpiYears, year, approval),
+    };
+
+    const next = await this.write(data);
+    return findKpiYearApproval(next.students.find((entry) => entry.id === studentId)?.kpiYears ?? [], next.currentKpiYear);
+  }
+
+  // The current approver's decision on a submitted KPI table. Authorization (does the caller's
+  // identity.email actually match currentApproverEmail, or are they an administrator) is enforced
+  // in server.ts before this is ever called — this method trusts the caller was already checked,
+  // same division of responsibility as every other route in this codebase. Year is always resolved
+  // server-side, never trusted from a caller, same reasoning as submitKpiTableForApproval above.
+  async decideKpiApproval(studentId: string, decision: KpiApprovalStatus, nextApproverId: string | undefined) {
+    const data = await this.read();
+    const studentIndex = data.students.findIndex((entry) => entry.id === studentId);
+    if (studentIndex === -1) {
+      return null;
+    }
+
+    const kpiYears = data.students[studentIndex].kpiYears ?? [];
+    const year = data.currentKpiYear;
+    const approval = findKpiYearApproval(kpiYears, year);
+    if (!approval || approval.status !== 'Pending Approval') {
+      throw new Error('This KPI table is not currently awaiting approval.');
+    }
+
+    const decidedAt = this.formatDisplayDate(new Date());
+    const nextApproval = this.resolveNextKpiApproval(data, approval, decision, decidedAt, nextApproverId);
+
+    data.students[studentIndex] = {
+      ...data.students[studentIndex],
+      kpiYears: withKpiYearApproval(kpiYears, year, nextApproval),
+    };
+
+    const next = await this.write(data);
+    return findKpiYearApproval(next.students.find((entry) => entry.id === studentId)?.kpiYears ?? [], next.currentKpiYear);
+  }
+
+  // Shared step-advance logic for decideKpiApproval (both the base and Firestore-transactional
+  // implementations) — kept as one method so the "reject sends it all the way back to the first
+  // approver" rule can't drift between the two backends.
+  protected resolveNextKpiApproval(
+    data: LmsDataStore,
+    approval: KpiApprovalRecord,
+    decision: KpiApprovalStatus,
+    decidedAt: string,
+    nextApproverId: string | undefined,
+  ): KpiApprovalRecord {
+    if (decision === 'Needs Revision') {
+      const firstStep = approval.approvalHistory[0];
+      return {
+        ...approval,
+        status: 'Needs Revision',
+        approvalHistory: [],
+        currentApproverId: firstStep?.approverId ?? approval.currentApproverId,
+        currentApproverName: firstStep?.approverName ?? approval.currentApproverName,
+        currentApproverEmail: firstStep?.approverEmail ?? approval.currentApproverEmail,
+      };
+    }
+
+    const completedHistory = [
+      ...approval.approvalHistory,
+      {
+        approverId: approval.currentApproverId,
+        approverName: approval.currentApproverName,
+        approverEmail: approval.currentApproverEmail,
+        decidedAt,
+      },
+    ];
+
+    if (completedHistory.length >= approval.approvalsRequired) {
+      return { ...approval, status: 'Approved', approvalHistory: completedHistory };
+    }
+
+    const candidates = nextApproverCandidates(resolveApprovingManagers(data), completedHistory.map((step) => step.approverId));
+    const nextApprover = candidates.find((manager) => manager.id === nextApproverId);
+    if (!nextApprover) {
+      throw new Error('Select who should review this KPI table next.');
+    }
+
+    return {
+      ...approval,
+      status: 'Pending Approval',
+      approvalHistory: completedHistory,
+      currentApproverId: nextApprover.id,
+      currentApproverName: nextApprover.name,
+      currentApproverEmail: nextApprover.email,
+    };
   }
 
   async listOfferings() {
@@ -1632,6 +1944,20 @@ export class LmsRepository {
 
     const next = await this.write(data);
     return redactHrIntegrationConfig(next.hrIntegration);
+  }
+
+  // Unlike hrIntegration above, this setting is broadly readable (it rides along in bootstrap for
+  // every role — see getBootstrap) since a manager needs it just to know whether to show a
+  // "Submit for Approval" action. This is the only way to CHANGE it (admin-only, see server.ts).
+  async updateApprovalWorkflowSettings(input: ApprovalWorkflowSettingsUpdateInput): Promise<ApprovalWorkflowSettingsRecord> {
+    const data = await this.read();
+    data.approvalWorkflowSettings = {
+      kpiApproversRequired: Math.max(1, Math.round(input.kpiApproversRequired)),
+      trainingApproversRequired: Math.max(1, Math.round(input.trainingApproversRequired)),
+    };
+
+    const next = await this.write(data);
+    return next.approvalWorkflowSettings;
   }
 
   // Pulls roster data from the admin-configured external HR endpoint and upserts it into the
@@ -2124,6 +2450,10 @@ export class LmsRepository {
       reviewerName: null,
       reviewerFeedback: '',
       reviewedAt: null,
+      // Snapshotted at submission time so a later change to the org-wide setting doesn't reshape
+      // a chain already in flight — see ApprovalWorkflowSettingsRecord.trainingApproversRequired.
+      approvalHistory: [],
+      approvalsRequired: data.approvalWorkflowSettings.trainingApproversRequired,
     };
 
     data.externalTrainingRequests.unshift(request);
@@ -2189,6 +2519,10 @@ export class LmsRepository {
       reviewerName: null,
       reviewerFeedback: '',
       reviewedAt: null,
+      // A resubmission is a fresh run through the chain — re-snapshots the setting (in case it
+      // changed since the original submission) and clears any prior partial progress.
+      approvalHistory: [],
+      approvalsRequired: data.approvalWorkflowSettings.trainingApproversRequired,
     };
 
     const next = await this.write(data);
@@ -2209,13 +2543,63 @@ export class LmsRepository {
       return null;
     }
 
-    data.externalTrainingRequests[existingIndex] = {
-      ...data.externalTrainingRequests[existingIndex],
-      reviewerName,
-      reviewerFeedback: input.feedback?.trim() ?? '',
-      status: input.status,
-      reviewedAt: this.formatDisplayDate(new Date()),
-    };
+    const existing = data.externalTrainingRequests[existingIndex];
+    const decidedAt = this.formatDisplayDate(new Date());
+
+    if (input.status !== 'Approved') {
+      // A rejection at any step sends it all the way back to the first approver to revise and
+      // resubmit (see updateExternalTrainingRequest, which only accepts an edit while
+      // status === 'Needs Revision').
+      const firstStep = existing.approvalHistory?.[0];
+      data.externalTrainingRequests[existingIndex] = {
+        ...existing,
+        reviewerName,
+        reviewerFeedback: input.feedback?.trim() ?? '',
+        status: input.status,
+        reviewedAt: decidedAt,
+        approvalHistory: [],
+        approvingManagerId: firstStep?.approverId ?? existing.approvingManagerId,
+        approvingManagerName: firstStep?.approverName ?? existing.approvingManagerName,
+        approvingManagerEmail: firstStep?.approverEmail ?? existing.approvingManagerEmail,
+      };
+    } else {
+      const approvalsRequired = existing.approvalsRequired ?? 1;
+      const completedHistory: ApprovalChainStepRecord[] = [
+        ...(existing.approvalHistory ?? []),
+        { approverId: existing.approvingManagerId, approverName: existing.approvingManagerName, approverEmail: existing.approvingManagerEmail, decidedAt },
+      ];
+
+      if (completedHistory.length >= approvalsRequired) {
+        data.externalTrainingRequests[existingIndex] = {
+          ...existing,
+          reviewerName,
+          reviewerFeedback: input.feedback?.trim() ?? '',
+          status: 'Approved',
+          reviewedAt: decidedAt,
+          approvalHistory: completedHistory,
+        };
+      } else {
+        const candidates = nextApproverCandidates(resolveApprovingManagers(data), completedHistory.map((step) => step.approverId));
+        const nextApprover = candidates.find((manager) => manager.id === input.nextApproverId);
+        if (!nextApprover) {
+          throw new Error('Select who should review this training request next.');
+        }
+
+        data.externalTrainingRequests[existingIndex] = {
+          ...existing,
+          reviewerName,
+          reviewerFeedback: input.feedback?.trim() ?? '',
+          // Stays Pending Review — it's still actionable, just now by the next approver, not
+          // resolved yet, so the existing three-value status enum doesn't need a fourth value.
+          status: 'Pending Review',
+          reviewedAt: decidedAt,
+          approvalHistory: completedHistory,
+          approvingManagerId: nextApprover.id,
+          approvingManagerName: nextApprover.name,
+          approvingManagerEmail: nextApprover.email,
+        };
+      }
+    }
 
     const next = await this.write(data);
     return next.externalTrainingRequests.find((entry) => entry.id === requestId) ?? null;
@@ -3204,7 +3588,7 @@ class FirestoreLmsRepository extends LmsRepository {
 
     const defaults = normalizeData(createDefaultData());
     const storeData = storeSnapshot.exists
-      ? (storeSnapshot.data() as Partial<Pick<LmsDataStore, 'branding' | 'updatedAt' | 'currentKpiYear' | 'kpiYearsOpened' | 'currentIdpYear' | 'idpYearsOpened' | 'hrIntegration'>>)
+      ? (storeSnapshot.data() as Partial<Pick<LmsDataStore, 'branding' | 'updatedAt' | 'currentKpiYear' | 'kpiYearsOpened' | 'currentIdpYear' | 'idpYearsOpened' | 'hrIntegration' | 'approvalWorkflowSettings'>>)
       : undefined;
 
     return normalizeData({
@@ -3228,6 +3612,7 @@ class FirestoreLmsRepository extends LmsRepository {
       currentIdpYear: storeData?.currentIdpYear ?? defaults.currentIdpYear,
       idpYearsOpened: storeData?.idpYearsOpened ?? defaults.idpYearsOpened,
       hrIntegration: storeData?.hrIntegration ?? defaults.hrIntegration,
+      approvalWorkflowSettings: storeData?.approvalWorkflowSettings ?? defaults.approvalWorkflowSettings,
     });
   }
 
@@ -3256,6 +3641,7 @@ class FirestoreLmsRepository extends LmsRepository {
             currentIdpYear: nextData.currentIdpYear,
             idpYearsOpened: nextData.idpYearsOpened,
             hrIntegration: nextData.hrIntegration,
+            approvalWorkflowSettings: nextData.approvalWorkflowSettings,
           }));
         },
       ];
@@ -3304,6 +3690,7 @@ class FirestoreLmsRepository extends LmsRepository {
       // and silently orphan it the instant this transaction actually commits a kpiYears field.
       const rawData = snapshot.data() as { kpiYears?: unknown; kpiEntries?: unknown };
       const kpiYears = normalizeStudentKpiYears(rawData, currentKpiYear);
+      ensureKpiTableEditable(kpiYears, currentKpiYear);
       const existingEntries = findKpiYearEntries(kpiYears, currentKpiYear);
       const nextEntries = preserveEmployeeScoringOnFullReplace(existingEntries, normalizeStudentKpiEntries(entries));
       transaction.update(ref, {
@@ -3332,6 +3719,7 @@ class FirestoreLmsRepository extends LmsRepository {
       // Same migrate-on-read as setKpiEntriesForStudent above — see that comment.
       const rawData = snapshot.data() as { kpiYears?: unknown; kpiEntries?: unknown };
       const kpiYears = normalizeStudentKpiYears(rawData, currentKpiYear);
+      ensureKpiTableEditable(kpiYears, currentKpiYear);
       const existingEntries = findKpiYearEntries(kpiYears, currentKpiYear);
       const nextEntries = existingEntries.map((entry) =>
         scoringById.has(entry.id) ? { ...entry, employeeScoring: scoringById.get(entry.id) ?? null } : entry,
@@ -3361,6 +3749,7 @@ class FirestoreLmsRepository extends LmsRepository {
       // Same migrate-on-read as setKpiEntriesForStudent above — see that comment.
       const rawData = snapshot.data() as { kpiYears?: unknown; kpiEntries?: unknown };
       const kpiYears = normalizeStudentKpiYears(rawData, currentKpiYear);
+      ensureKpiTableEditable(kpiYears, currentKpiYear);
       const existingEntries = findKpiYearEntries(kpiYears, currentKpiYear);
       const nextEntries = existingEntries.map((entry) => {
         const update = updatesById.get(entry.id);
@@ -3374,6 +3763,100 @@ class FirestoreLmsRepository extends LmsRepository {
         ...('kpiEntries' in rawData ? { kpiEntries: FieldValue.delete() } : {}),
       });
       return nextEntries;
+    });
+  }
+
+  // Scoped, transactional overrides of submitKpiTableForApproval/decideKpiApproval — same
+  // single-student-document reasoning as setKpiEntriesForStudent above, and the mandatory pattern
+  // for any new high-frequency single-student write in this codebase (see setIdpEntriesForStudent/
+  // updateStudentSnapshot for the others). resolveApprovingManagers/nextApproverCandidates read the
+  // approver pool from a full this.read() rather than the transaction snapshot — the pool
+  // (trainingManagers + active manager-role students) changes far less often than any one
+  // student's KPI/approval state, so reading it outside the transaction doesn't reintroduce the
+  // race this override exists to avoid; only the one student document actually written is read and
+  // written inside the transaction.
+  override async submitKpiTableForApproval(
+    studentId: string,
+    submittingManagerId: string,
+    submittingManagerName: string,
+    submittingManagerEmail: string,
+    nextApproverId: string,
+  ) {
+    const data = await this.read();
+    const ref = this.collection('students').doc(studentId);
+    return this.firestore.runTransaction(async (transaction) => {
+      const [snapshot, storeSnapshot] = await Promise.all([transaction.get(ref), transaction.get(this.storeDocument)]);
+      if (!snapshot.exists) {
+        return null;
+      }
+
+      const currentKpiYear = this.readCurrentKpiYear(storeSnapshot);
+      const rawData = snapshot.data() as { kpiYears?: unknown; kpiEntries?: unknown };
+      const kpiYears = normalizeStudentKpiYears(rawData, currentKpiYear);
+      const entries = findKpiYearEntries(kpiYears, currentKpiYear);
+      if (!entries.length) {
+        throw new Error('There are no KPIs to submit for approval.');
+      }
+
+      const totalWeight = entries.reduce((total, entry) => total + entry.weight, 0);
+      if (Math.abs(totalWeight - 100) > 0.01) {
+        throw new Error(`The KPI table's total weight must equal 100% before it can be submitted for approval (currently ${Math.round(totalWeight * 100) / 100}%).`);
+      }
+
+      ensureKpiTableEditable(kpiYears, currentKpiYear);
+      const nextApprover = nextApproverCandidates(resolveApprovingManagers(data), [submittingManagerId])
+        .find((manager) => manager.id === nextApproverId);
+      if (!nextApprover) {
+        throw new Error('Select who should review this KPI table next.');
+      }
+
+      const approval: KpiApprovalRecord = {
+        status: 'Pending Approval',
+        approvalHistory: [{
+          approverId: submittingManagerId,
+          approverName: submittingManagerName,
+          approverEmail: submittingManagerEmail,
+          decidedAt: this.formatDisplayDate(new Date()),
+        }],
+        currentApproverId: nextApprover.id,
+        currentApproverName: nextApprover.name,
+        currentApproverEmail: nextApprover.email,
+        approvalsRequired: data.approvalWorkflowSettings.kpiApproversRequired,
+      };
+
+      transaction.update(ref, {
+        kpiYears: this.sanitizeForFirestore(withKpiYearApproval(kpiYears, currentKpiYear, approval)),
+        ...('kpiEntries' in rawData ? { kpiEntries: FieldValue.delete() } : {}),
+      });
+      return approval;
+    });
+  }
+
+  override async decideKpiApproval(studentId: string, decision: KpiApprovalStatus, nextApproverId: string | undefined) {
+    const data = await this.read();
+    const ref = this.collection('students').doc(studentId);
+    return this.firestore.runTransaction(async (transaction) => {
+      const [snapshot, storeSnapshot] = await Promise.all([transaction.get(ref), transaction.get(this.storeDocument)]);
+      if (!snapshot.exists) {
+        return null;
+      }
+
+      const currentKpiYear = this.readCurrentKpiYear(storeSnapshot);
+      const rawData = snapshot.data() as { kpiYears?: unknown; kpiEntries?: unknown };
+      const kpiYears = normalizeStudentKpiYears(rawData, currentKpiYear);
+      const approval = findKpiYearApproval(kpiYears, currentKpiYear);
+      if (!approval || approval.status !== 'Pending Approval') {
+        throw new Error('This KPI table is not currently awaiting approval.');
+      }
+
+      const decidedAt = this.formatDisplayDate(new Date());
+      const nextApproval = this.resolveNextKpiApproval(data, approval, decision, decidedAt, nextApproverId);
+
+      transaction.update(ref, {
+        kpiYears: this.sanitizeForFirestore(withKpiYearApproval(kpiYears, currentKpiYear, nextApproval)),
+        ...('kpiEntries' in rawData ? { kpiEntries: FieldValue.delete() } : {}),
+      });
+      return nextApproval;
     });
   }
 

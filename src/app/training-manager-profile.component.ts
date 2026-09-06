@@ -1441,6 +1441,11 @@ type KpiEntryFormGroup = FormGroup<{
                               <span class="mentorship-review-status-pill" [class.mentorship-review-status-pill-approved]="activeRequest.status === 'Approved'" [class.mentorship-review-status-pill-revision]="activeRequest.status === 'Needs Revision'">
                                 {{ activeRequest.status }}
                               </span>
+                              @if ((activeRequest.approvalsRequired ?? 1) > 1) {
+                                <span class="kpi-approval-badge" [class.kpi-approval-badge-approved]="activeRequest.status === 'Approved'">
+                                  {{ activeRequest.approvalHistory?.length ?? 0 }} of {{ activeRequest.approvalsRequired }} signed off
+                                </span>
+                              }
                               <button type="button" class="mentorship-review-detail-close" (click)="closeExternalTrainingRequestReview()">Close</button>
                             </div>
                           </div>
@@ -1522,9 +1527,26 @@ type KpiEntryFormGroup = FormGroup<{
                               <textarea formControlName="feedback" rows="5" placeholder="Add approval notes or revision guidance"></textarea>
                             </label>
 
+                            @if (!trainingRequestApprovalIsFinalStep()) {
+                              <label class="kpi-approval-next-approver">
+                                <span>Next approver</span>
+                                <select [value]="trainingRequestNextApproverId()" (change)="trainingRequestNextApproverId.set($any($event.target).value)">
+                                  <option value="">Select who reviews this next…</option>
+                                  @for (candidate of trainingRequestNextApproverCandidates(); track candidate.id) {
+                                    <option [value]="candidate.id">{{ candidate.name }}</option>
+                                  }
+                                </select>
+                              </label>
+                            }
+                            @if (trainingRequestReviewError(); as error) {
+                              <p class="kpi-weight-error" role="alert">{{ error }}</p>
+                            }
+
                             <div class="mentorship-review-actions">
                               <button type="button" class="detail-action-btn" (click)="applyExternalTrainingRequestReview('Needs Revision')">Request revision</button>
-                              <button type="submit" class="detail-action-btn detail-action-btn-primary">Approve request</button>
+                              <button type="submit" class="detail-action-btn detail-action-btn-primary">
+                                {{ trainingRequestApprovalIsFinalStep() ? 'Approve request' : 'Approve & Send to Next Approver' }}
+                              </button>
                             </div>
                           </form>
                         </article>
@@ -2442,6 +2464,40 @@ type KpiEntryFormGroup = FormGroup<{
               </p>
 
               @if (!selectedKpiStudentId()) {
+                @if (kpiApprovalChainEnabled()) {
+                  <div class="kpi-approval-view-tabs">
+                    <button type="button" class="idp-cancel-btn" [class.idp-program-add]="kpiListView() === 'team'" (click)="kpiListView.set('team')">All KPIs</button>
+                    <button type="button" class="idp-cancel-btn" [class.idp-program-add]="kpiListView() === 'awaiting-approval'" (click)="kpiListView.set('awaiting-approval')">
+                      Awaiting My Approval
+                      @if (managerData.kpiApprovalsAwaitingMe().length) {
+                        <span class="idp-program-count" aria-hidden="true">{{ managerData.kpiApprovalsAwaitingMe().length }}</span>
+                      }
+                    </button>
+                  </div>
+                }
+
+                @if (kpiListView() === 'awaiting-approval') {
+                  <!-- Cross-team: whoever a chain's next step lands on may well be reviewing a
+                       different manager's report — see kpiApprovalsAwaitingMe. -->
+                  <div class="roster-picker-list">
+                    @for (item of managerData.kpiApprovalsAwaitingMe(); track item.student.id) {
+                      <button type="button" class="roster-row roster-picker-row" (click)="selectKpiStudent(item.student.id)">
+                        <span class="roster-avatar" aria-hidden="true">{{ item.student.name[0] }}{{ item.student.surname[0] }}</span>
+                        <div class="roster-identity">
+                          <div class="roster-name">{{ item.student.name }} {{ item.student.surname }}</div>
+                          <div class="roster-secondary">{{ item.student.jobTitle || item.student.group }} · {{ item.student.department }}</div>
+                        </div>
+                        <div class="roster-picker-status">
+                          <span class="kpi-approval-badge">{{ item.approval.approvalHistory.length }} of {{ item.approval.approvalsRequired }} signed off</span>
+                          <span class="idp-member-chevron" aria-hidden="true">›</span>
+                        </div>
+                      </button>
+                    }
+                    @if (!managerData.kpiApprovalsAwaitingMe().length) {
+                      <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">Nothing is currently awaiting your approval.</div>
+                    }
+                  </div>
+                } @else {
                 <!-- Team member list -->
                 <div class="student-search-row">
                   <label class="student-search-field">
@@ -2478,6 +2534,7 @@ type KpiEntryFormGroup = FormGroup<{
                     <div class="student-search-empty">No team members match your search.</div>
                   }
                 </div>
+                }
               } @else if (selectedKpiStudent(); as student) {
                 <!-- Per-student KPI table pops out into a bigger overlay so the wide table has room to breathe -->
                 <div class="kpi-overlay" role="dialog" aria-modal="true" aria-labelledby="kpi-overlay-title">
@@ -2521,8 +2578,19 @@ type KpiEntryFormGroup = FormGroup<{
                           <span class="kpi-total-weight" [class.kpi-total-weight-off]="savedKpiTotalWeight() !== 100">
                             Total weight: {{ savedKpiTotalWeight() }}%
                           </span>
+                          @if (selectedKpiApproval(); as approval) {
+                            <span class="kpi-approval-badge" [class.kpi-approval-badge-approved]="approval.status === 'Approved'" [class.kpi-approval-badge-revision]="approval.status === 'Needs Revision'">
+                              @if (approval.status === 'Pending Approval') {
+                                Pending sign-off ({{ approval.approvalHistory.length }} of {{ approval.approvalsRequired }}) — awaiting {{ approval.currentApproverName }}
+                              } @else if (approval.status === 'Approved') {
+                                Approved ({{ approval.approvalHistory.length }} of {{ approval.approvalsRequired }} sign-offs)
+                              } @else {
+                                Sent back for revision
+                              }
+                            </span>
+                          }
                         </div>
-                        @if (isViewingCurrentKpiYear()) {
+                        @if (isViewingCurrentKpiYear() && !kpiTableLocked()) {
                           <button type="button" class="idp-program-add" (click)="openKpiEdit()">Edit table</button>
                         }
                       </div>
@@ -2577,6 +2645,49 @@ type KpiEntryFormGroup = FormGroup<{
                       </div>
                       @if (!savedKpiEntries().length) {
                         <p class="kpi-year-empty-note">No KPIs were recorded for {{ selectedKpiYear() }}.</p>
+                      }
+
+                      @if (isViewingCurrentKpiYear() && kpiApprovalChainEnabled() && savedKpiEntries().length > 0 && savedKpiTotalWeight() === 100 && !selectedKpiApproval()) {
+                        <div class="kpi-approval-submit-row">
+                          <label class="kpi-approval-next-approver">
+                            <span>Next approver</span>
+                            <select [value]="kpiSubmitNextApproverId()" (change)="kpiSubmitNextApproverId.set($any($event.target).value)">
+                              <option value="">Select who reviews this next…</option>
+                              @for (candidate of kpiSubmitCandidates(); track candidate.id) {
+                                <option [value]="candidate.id">{{ candidate.name }}</option>
+                              }
+                            </select>
+                          </label>
+                          <button type="button" class="idp-program-add" [disabled]="!kpiSubmitNextApproverId() || kpiApprovalSubmitting()" (click)="submitKpiForApproval()">
+                            {{ kpiApprovalSubmitting() ? 'Submitting…' : 'Submit for Approval' }}
+                          </button>
+                        </div>
+                        @if (kpiApprovalError(); as error) {
+                          <p class="kpi-weight-error" role="alert">{{ error }}</p>
+                        }
+                      }
+
+                      @if (isCurrentUserKpiApprover()) {
+                        <div class="kpi-approval-submit-row">
+                          @if (!kpiApprovalIsFinalStep()) {
+                            <label class="kpi-approval-next-approver">
+                              <span>Next approver</span>
+                              <select [value]="kpiDecisionNextApproverId()" (change)="kpiDecisionNextApproverId.set($any($event.target).value)">
+                                <option value="">Select who reviews this next…</option>
+                                @for (candidate of kpiDecisionCandidates(); track candidate.id) {
+                                  <option [value]="candidate.id">{{ candidate.name }}</option>
+                                }
+                              </select>
+                            </label>
+                          }
+                          <button type="button" class="idp-program-add" [disabled]="kpiDecisionSubmitting()" (click)="decideKpi('Approved')">
+                            {{ kpiDecisionSubmitting() ? 'Saving…' : (kpiApprovalIsFinalStep() ? 'Approve' : 'Approve & Send to Next Approver') }}
+                          </button>
+                          <button type="button" class="idp-cancel-btn" [disabled]="kpiDecisionSubmitting()" (click)="decideKpi('Needs Revision')">Reject</button>
+                        </div>
+                        @if (kpiDecisionError(); as error) {
+                          <p class="kpi-weight-error" role="alert">{{ error }}</p>
+                        }
                       }
                     </div>
                   } @else {
@@ -7261,6 +7372,60 @@ type KpiEntryFormGroup = FormGroup<{
         color: #64748b;
       }
 
+      .kpi-approval-view-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        margin-bottom: 0.85rem;
+      }
+
+      .kpi-approval-badge {
+        font-size: 0.76rem;
+        font-weight: 700;
+        white-space: nowrap;
+        padding: 0.2rem 0.65rem;
+        border-radius: 999px;
+        color: #b45309;
+        background: #fffbeb;
+      }
+
+      .kpi-approval-badge-approved {
+        color: #15803d;
+        background: #f0fdf4;
+      }
+
+      .kpi-approval-badge-revision {
+        color: #b91c1c;
+        background: #fef2f2;
+      }
+
+      .kpi-approval-submit-row {
+        display: flex;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        margin-top: 0.85rem;
+        padding-top: 0.85rem;
+        border-top: 1px dashed #e2e8f0;
+      }
+
+      .kpi-approval-next-approver {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #334155;
+      }
+
+      .kpi-approval-next-approver select {
+        padding: 0.45rem 0.7rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font: inherit;
+        min-width: 14rem;
+      }
+
       .kpi-table-editable select.kpi-score-flag {
         border-color: #ef4444;
         background: #fef2f2;
@@ -7681,6 +7846,28 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
     return requests.find((request) => request.id === selectedId) ?? null;
   });
+  // Multi-approver chain support for the review form below — only relevant once
+  // approvalWorkflowSettings.trainingApproversRequired > 1 (approvalsRequired mirrors that setting
+  // as it stood when this specific request was submitted/resubmitted).
+  readonly trainingRequestApprovalIsFinalStep = computed(() => {
+    const request = this.selectedExternalTrainingRequest();
+    if (!request) {
+      return true;
+    }
+
+    return (request.approvalHistory?.length ?? 0) + 1 >= (request.approvalsRequired ?? 1);
+  });
+  readonly trainingRequestNextApproverCandidates = computed(() => {
+    const request = this.selectedExternalTrainingRequest();
+    if (!request) {
+      return [];
+    }
+
+    const alreadyApprovedIds = [...(request.approvalHistory?.map((step) => step.approverId) ?? []), request.approvingManagerId];
+    return this.managerData.nextApproverCandidates(alreadyApprovedIds);
+  });
+  readonly trainingRequestNextApproverId = signal('');
+  readonly trainingRequestReviewError = signal<string | null>(null);
   readonly selectedMentorshipReview = computed(() => {
     const selectedId = this.selectedMentorshipReviewId();
     if (!selectedId) {
@@ -8144,11 +8331,15 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.selectedExternalTrainingRequestId.set(requestId);
     const activeRequest = this.managerData.externalTrainingRequestsForCurrentManager().find((request) => request.id === requestId) ?? null;
     this.externalTrainingReviewForm.reset({ feedback: activeRequest?.reviewerFeedback ?? '' });
+    this.trainingRequestNextApproverId.set('');
+    this.trainingRequestReviewError.set(null);
   }
 
   closeExternalTrainingRequestReview() {
     this.selectedExternalTrainingRequestId.set(null);
     this.externalTrainingReviewForm.reset({ feedback: '' });
+    this.trainingRequestNextApproverId.set('');
+    this.trainingRequestReviewError.set(null);
   }
 
   clearMentorshipReview() {
@@ -8178,14 +8369,24 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const needsNextApprover = status === 'Approved' && !this.trainingRequestApprovalIsFinalStep();
+    const nextApproverId = needsNextApprover ? this.trainingRequestNextApproverId() : undefined;
+    if (needsNextApprover && !nextApproverId) {
+      this.trainingRequestReviewError.set('Select who should review this training request next.');
+      return;
+    }
+
+    this.trainingRequestReviewError.set(null);
     const feedback = this.externalTrainingReviewForm.controls.feedback.value.trim();
     this.managerData.reviewExternalTrainingRequest({
       requestId: activeRequest.id,
       reviewerName: this.managerData.profile().name,
       status,
       feedback,
+      nextApproverId,
     });
     this.externalTrainingReviewForm.reset({ feedback });
+    this.trainingRequestNextApproverId.set('');
   }
 
   async applyAssignmentReview(event: { submissionId: string; status: 'Approved' | 'Needs Revision'; feedback: string; awardedPoints: number | null }) {
@@ -11035,6 +11236,9 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   readonly kpiSaved = signal(false);
   readonly kpiEditMode = signal(false);
   readonly kpiMemberSearchTerm = signal('');
+  // Which team-member list is showing when no student is selected yet — "All KPIs" (every
+  // student, as before) or "Awaiting My Approval" (cross-team, see kpiApprovalsAwaitingMe).
+  readonly kpiListView = signal<'team' | 'awaiting-approval'>('team');
   private readonly kpiEntriesByStudent = this.managerData.kpiEntriesByStudent;
 
   // Which year's table is currently on screen for the selected student — defaults to the current
@@ -11082,6 +11286,104 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   readonly savedKpiTotalWeight = computed(() =>
     this.savedKpiEntries().reduce((total, entry) => total + (entry.weight || 0), 0),
   );
+
+  // ── KPI approval chain ───────────────────────────────────────────────────
+  // Only meaningful for the current year — kpiApprovalByStudent only ever holds the CURRENT KPI
+  // year's chain state (see TrainingManagerDataService.kpiApprovalForStudent), so a past, closed
+  // year never shows a stale badge from a chain that applied to a different year's table.
+  readonly selectedKpiApproval = computed(() => {
+    const id = this.selectedKpiStudentId();
+    return id && this.isViewingCurrentKpiYear() ? this.managerData.kpiApprovalForStudent(id) : null;
+  });
+  readonly kpiApprovalChainEnabled = computed(() => this.managerData.approvalWorkflowSettings().kpiApproversRequired > 1);
+  // Mirrors the server's ensureKpiTableEditable exactly: locked whenever an approval object exists
+  // and isn't Needs Revision (i.e. Pending Approval or fully Approved) — only hides the "Edit
+  // table" button here, the server is what actually enforces it.
+  readonly kpiTableLocked = computed(() => {
+    const approval = this.selectedKpiApproval();
+    return approval !== null && approval.status !== 'Needs Revision';
+  });
+  readonly kpiSubmitCandidates = computed(() => {
+    const ownEmail = this.managerData.profile().email.trim().toLowerCase();
+    return this.managerData.trainingManagers().filter((candidate) => candidate.email.trim().toLowerCase() !== ownEmail);
+  });
+  readonly kpiSubmitNextApproverId = signal('');
+  readonly kpiApprovalSubmitting = signal(false);
+  readonly kpiApprovalError = signal<string | null>(null);
+
+  async submitKpiForApproval() {
+    const studentId = this.selectedKpiStudentId();
+    const nextApproverId = this.kpiSubmitNextApproverId();
+    if (!studentId || !nextApproverId || this.kpiApprovalSubmitting()) {
+      return;
+    }
+
+    this.kpiApprovalSubmitting.set(true);
+    this.kpiApprovalError.set(null);
+    const result = await this.managerData.submitKpiTableForApproval(studentId, nextApproverId);
+    this.kpiApprovalSubmitting.set(false);
+
+    if (!result.success) {
+      this.kpiApprovalError.set(result.message);
+      return;
+    }
+
+    this.kpiSubmitNextApproverId.set('');
+  }
+
+  // Whether the currently logged-in manager is the one this table is actually waiting on right
+  // now — distinct from just being able to view it (any manager/admin can browse any student's
+  // KPI table, per the un-scoped team-member list above).
+  readonly isCurrentUserKpiApprover = computed(() => {
+    const approval = this.selectedKpiApproval();
+    if (!approval || approval.status !== 'Pending Approval') {
+      return false;
+    }
+
+    const ownEmail = this.managerData.profile().email.trim().toLowerCase();
+    return approval.currentApproverEmail.trim().toLowerCase() === ownEmail;
+  });
+  readonly kpiApprovalIsFinalStep = computed(() => {
+    const approval = this.selectedKpiApproval();
+    return approval ? approval.approvalHistory.length + 1 >= approval.approvalsRequired : false;
+  });
+  readonly kpiDecisionCandidates = computed(() => {
+    const approval = this.selectedKpiApproval();
+    if (!approval) {
+      return [];
+    }
+
+    return this.managerData.nextApproverCandidates([...approval.approvalHistory.map((step) => step.approverId), approval.currentApproverId]);
+  });
+  readonly kpiDecisionNextApproverId = signal('');
+  readonly kpiDecisionSubmitting = signal(false);
+  readonly kpiDecisionError = signal<string | null>(null);
+
+  async decideKpi(decision: 'Approved' | 'Needs Revision') {
+    const studentId = this.selectedKpiStudentId();
+    if (!studentId || this.kpiDecisionSubmitting()) {
+      return;
+    }
+
+    const needsNextApprover = decision === 'Approved' && !this.kpiApprovalIsFinalStep();
+    const nextApproverId = needsNextApprover ? this.kpiDecisionNextApproverId() : undefined;
+    if (needsNextApprover && !nextApproverId) {
+      this.kpiDecisionError.set('Select who should review this KPI table next.');
+      return;
+    }
+
+    this.kpiDecisionSubmitting.set(true);
+    this.kpiDecisionError.set(null);
+    const result = await this.managerData.decideKpiApproval(studentId, decision, nextApproverId);
+    this.kpiDecisionSubmitting.set(false);
+
+    if (!result.success) {
+      this.kpiDecisionError.set(result.message);
+      return;
+    }
+
+    this.kpiDecisionNextApproverId.set('');
+  }
 
   // ── Performance Gap Analysis ────────────────────────────────────────────
   // Every saved KPI rated 1 or 2 (on Overall Scoring, the authoritative final rating) needs a
@@ -11319,7 +11621,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   }
 
   openKpiEdit() {
-    if (!this.isViewingCurrentKpiYear()) {
+    if (!this.isViewingCurrentKpiYear() || this.kpiTableLocked()) {
       return;
     }
 

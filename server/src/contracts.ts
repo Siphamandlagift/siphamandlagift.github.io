@@ -230,6 +230,27 @@ export type SystemTrainingManagerRecord = {
   email: string;
 };
 
+// Admin-configurable required sign-off counts for the two multi-approver chains below. Defaulting
+// both to 1 reproduces today's single-approver, immediately-final behavior exactly — see
+// ApprovalChainStepRecord/KpiApprovalRecord and the chain fields on ExternalTrainingRequestRecord.
+export type ApprovalWorkflowSettingsRecord = {
+  kpiApproversRequired: number;
+  trainingApproversRequired: number;
+};
+
+export type ApprovalWorkflowSettingsUpdateInput = ApprovalWorkflowSettingsRecord;
+
+// One completed step in either approval chain below. approverEmail is what a reject's "reset back
+// to the first approver" actually restores onto the chain's current-approver-email field — without
+// it, that reset would have no way to recover the first approver's email once later steps had
+// overwritten it.
+export type ApprovalChainStepRecord = {
+  approverId: string;
+  approverName: string;
+  approverEmail: string;
+  decidedAt: string;
+};
+
 export type ExternalTrainingRequestRecord = {
   id: string;
   studentId: string;
@@ -262,6 +283,12 @@ export type ExternalTrainingRequestRecord = {
   reviewerName: string | null;
   reviewerFeedback: string;
   reviewedAt: string | null;
+  // Multi-approver chain (see ApprovalWorkflowSettingsRecord.trainingApproversRequired). Optional
+  // so a record created before this feature shipped (or while the setting is at its default of 1)
+  // is indistinguishable from today's single-approver behavior — approvingManagerId/Name/Email
+  // above still always means "the current, first, or only approver" either way.
+  approvalHistory?: ApprovalChainStepRecord[];
+  approvalsRequired?: number;
 };
 
 export type ExternalTrainingRequestCreateInput = {
@@ -295,6 +322,9 @@ export type ExternalTrainingRequestReviewInput = {
   reviewerName: string;
   status: SubmissionReviewStatus;
   feedback?: string;
+  // Required only when this approval isn't the chain's final step (approvalHistory.length + 1 <
+  // approvalsRequired) — picks who reviews next. Ignored on a reject or a final approval.
+  nextApproverId?: string;
 };
 
 export type ExternalTrainingRequestDocumentsInput = {
@@ -480,16 +510,47 @@ export type StudentSuccessionStatus = {
   competencyGaps: SuccessionCompetencyGap[];
 };
 
+// A sign-off on an entire KPI table for one review year (see
+// ApprovalWorkflowSettingsRecord.kpiApproversRequired) — scoped to the whole table, not a single
+// row, the same unit the Overall Performance Rating already treats as one thing. currentApproverId
+// is the approver-pool entry (see resolveApprovingManagers/buildTrainingManagers);
+// currentApproverEmail is what authorization actually checks against, since every identity check in
+// this codebase resolves by email (AuthenticatedIdentity has no field that could match a pool id).
+export type KpiApprovalStatus = 'Pending Approval' | 'Approved' | 'Needs Revision';
+
+export type KpiApprovalRecord = {
+  status: KpiApprovalStatus;
+  approvalHistory: ApprovalChainStepRecord[];
+  currentApproverId: string;
+  currentApproverName: string;
+  currentApproverEmail: string;
+  approvalsRequired: number;
+};
+
 // One KPI table per opened year. Only the org-wide current year (LmsDataStore.currentKpiYear) is
 // ever editable; every other year in this array is a closed, read-only historical record — see
 // openKpiYear in repository.ts, which is the only thing that ever adds a new entry here.
 export type StudentKpiYearRecord = {
   year: number;
   entries: StudentKpiEntryRecord[];
+  // Absent whenever kpiApproversRequired is 1 (the default) — a table with no approval object
+  // behaves exactly as it did before this feature existed.
+  approval?: KpiApprovalRecord;
 };
 
 export type OpenKpiYearInput = {
   year: number;
+};
+
+export type SubmitKpiTableForApprovalInput = {
+  nextApproverId: string;
+};
+
+export type KpiApprovalDecisionInput = {
+  decision: 'Approved' | 'Needs Revision';
+  // Required only when approving a non-final step — same rule as
+  // ExternalTrainingRequestReviewInput.nextApproverId.
+  nextApproverId?: string;
 };
 
 export type MentorshipAssignmentRecord = {
@@ -722,6 +783,7 @@ export type LmsDataStore = {
   currentIdpYear: number;
   idpYearsOpened: number[];
   hrIntegration: HrIntegrationConfigRecord;
+  approvalWorkflowSettings: ApprovalWorkflowSettingsRecord;
 };
 
 export type LmsBootstrapResponse = {
@@ -739,6 +801,16 @@ export type LmsBootstrapResponse = {
   kpiEntriesByStudent: Record<string, StudentKpiEntryRecord[]>;
   currentKpiYear: number;
   kpiYearsOpened: number[];
+  // Readable by every role (unlike hrIntegration, which never rides along in bootstrap) — a
+  // manager needs kpiApproversRequired/trainingApproversRequired just to know whether to show a
+  // "Submit for Approval" action at all. Only an admin can change it (PUT
+  // /api/approval-workflow-settings).
+  approvalWorkflowSettings: ApprovalWorkflowSettingsRecord;
+  // Current-year KPI approval state per student — null when kpiApproversRequired is 1 (the
+  // default) or the table hasn't been submitted for approval yet. Kept as its own field rather
+  // than riding along inside kpiEntriesByStudent's year bucket, since that projection only ever
+  // carries the entries array, never the year record's other fields (see StudentKpiYearRecord).
+  kpiApprovalByStudent: Record<string, KpiApprovalRecord | null>;
   trainingManagers: SystemTrainingManagerRecord[];
   managerMessages: ManagerMessageRecord[];
   mentorshipAssignments: MentorshipAssignmentRecord[];

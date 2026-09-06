@@ -212,6 +212,36 @@ export type AssignmentReviewStatus = SubmissionReviewStatus;
 
 export type ExternalTrainingRequestStatus = SubmissionReviewStatus;
 
+// Admin-configurable required sign-off counts for the KPI-rating and training-request approval
+// chains — see Admin > Approval & Reporting Settings. Both default to 1, which reproduces the
+// pre-chain single-approver behavior exactly (no "Submit for Approval" action, no chain badge).
+export type ApprovalWorkflowSettings = {
+  kpiApproversRequired: number;
+  trainingApproversRequired: number;
+};
+
+// One completed step in either approval chain below.
+export type ApprovalChainStep = {
+  approverId: string;
+  approverName: string;
+  approverEmail: string;
+  decidedAt: string;
+};
+
+export type KpiApprovalStatus = 'Pending Approval' | 'Approved' | 'Needs Revision';
+
+// A sign-off in progress (or resolved) on an entire KPI table for one review year — see
+// TrainingManagerDataService.kpiApprovalForStudent. Absent/null whenever kpiApproversRequired is 1
+// (the default) or nobody has submitted the table for approval yet.
+export type KpiApprovalRecord = {
+  status: KpiApprovalStatus;
+  approvalHistory: ApprovalChainStep[];
+  currentApproverId: string;
+  currentApproverName: string;
+  currentApproverEmail: string;
+  approvalsRequired: number;
+};
+
 export type ExternalTrainingRequestRecord = {
   id: string;
   studentId: string;
@@ -244,6 +274,12 @@ export type ExternalTrainingRequestRecord = {
   reviewerName: string | null;
   reviewerFeedback: string;
   reviewedAt: string | null;
+  // Multi-approver chain (see ApprovalWorkflowSettings.trainingApproversRequired) — optional so a
+  // request from before this feature (or saved while the setting is 1) reads identically to
+  // today's single-approver behavior; approvingManagerId/Name/Email above still always means "the
+  // current, first, or only approver" either way.
+  approvalHistory?: ApprovalChainStep[];
+  approvalsRequired?: number;
 };
 
 export type ExternalTrainingRequestCreateInput = {
@@ -277,6 +313,9 @@ export type ExternalTrainingRequestReviewInput = {
   reviewerName: string;
   status: ExternalTrainingRequestStatus;
   feedback?: string;
+  // Required only when approving a non-final step (approvalHistory.length + 1 <
+  // approvalsRequired) — picks who reviews next. Ignored on a reject or a final approval.
+  nextApproverId?: string;
 };
 
 export type ExternalTrainingRequestDocumentsInput = {
@@ -469,12 +508,23 @@ export class TrainingManagerDataService {
   private readonly kpiYearEntriesCacheSignal = signal<Record<string, Record<number, StudentKpiEntry[]>>>({});
   private readonly kpiYearFetchesInFlight = new Set<string>();
 
+  // Admin-set required sign-off counts (see Admin > Approval & Reporting Settings) and, per
+  // student, the CURRENT KPI year's approval chain state — mirrors kpiEntriesByStudentSignal's
+  // "current year only" convention exactly, since submitKpiTableForApproval/decideKpiApproval only
+  // ever act on the current year (a closed year is never re-opened for approval).
+  private readonly approvalWorkflowSettingsSignal = signal<ApprovalWorkflowSettings>({ kpiApproversRequired: 1, trainingApproversRequired: 1 });
+  private readonly kpiApprovalByStudentSignal = signal<Record<string, KpiApprovalRecord | null>>({});
+
   // Timestamp of the last local write per student id, so a periodic bootstrap poll that was
   // already in flight when that write happened doesn't clobber it with stale data once the poll
   // resolves (see mergeServerAuthoritativeRecord) — this is what made a student's KPI self-score
   // "disappear" a few seconds after saving.
   private readonly idpEntriesDirtyAt: Record<string, number> = {};
   private readonly kpiEntriesDirtyAt: Record<string, number> = {};
+  // Same reasoning as kpiEntriesDirtyAt above, for kpiApprovalByStudentSignal — a periodic poll
+  // already in flight when a submit/decide call lands shouldn't clobber it with the pre-decision
+  // approval state once that poll resolves.
+  private readonly kpiApprovalDirtyAt: Record<string, number> = {};
   // Same reasoning, but for the students array as a whole rather than per-id — studentsSignal
   // (unlike idpEntriesByStudent/kpiEntriesByStudent) is merged via mergeServerAuthoritative, which
   // trusts the server's copy of any id it already knows about wholesale, with no per-item
@@ -603,6 +653,38 @@ export class TrainingManagerDataService {
   readonly idpYearsOpened = this.idpYearsOpenedSignal.asReadonly();
   readonly currentKpiYear = this.currentKpiYearSignal.asReadonly();
   readonly kpiYearsOpened = this.kpiYearsOpenedSignal.asReadonly();
+  readonly approvalWorkflowSettings = this.approvalWorkflowSettingsSignal.asReadonly();
+  readonly kpiApprovalByStudent = this.kpiApprovalByStudentSignal.asReadonly();
+  // The shared approver pool (see nextApproverCandidates/buildTrainingManagers) minus anyone who's
+  // already approved earlier in a given chain — feeds the "pick who reviews next" dropdown on both
+  // the KPI and training-request approval actions.
+  nextApproverCandidates(alreadyApprovedIds: string[]): SystemTrainingManager[] {
+    const approvedIds = new Set(alreadyApprovedIds);
+    return this.trainingManagers().filter((manager) => !approvedIds.has(manager.id));
+  }
+
+  kpiApprovalForStudent(studentId: string): KpiApprovalRecord | null {
+    return this.kpiApprovalByStudentSignal()[studentId] ?? null;
+  }
+
+  // Every student across the whole roster (not just this manager's own team — a later approver in
+  // a chain is very often reviewing someone else's report) whose KPI table is awaiting sign-off
+  // from the current manager specifically. Feeds the "Awaiting My Approval" tab.
+  readonly kpiApprovalsAwaitingMe = computed(() => {
+    const ownEmail = this.profile().email.trim().toLowerCase();
+    if (!ownEmail) {
+      return [];
+    }
+
+    const byStudent = this.kpiApprovalByStudentSignal();
+    return this.students()
+      .map((student) => ({ student, approval: byStudent[student.id] ?? null }))
+      .filter((entry): entry is { student: EnrollmentStudent; approval: KpiApprovalRecord } =>
+        entry.approval !== null
+        && entry.approval.status === 'Pending Approval'
+        && entry.approval.currentApproverEmail.trim().toLowerCase() === ownEmail,
+      );
+  });
   readonly externalTrainingRequests = computed(() =>
     [...this.externalTrainingRequestsSignal()].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt)),
   );
@@ -856,6 +938,66 @@ export class TrainingManagerDataService {
     }
   }
 
+  // Admin-facing (see Admin > Approval & Reporting Settings). Updates the shared signal directly
+  // from the server's response so every other open session's next bootstrap poll — and, for this
+  // session, every manager-facing "Submit for Approval" check — sees the new counts immediately.
+  async updateApprovalWorkflowSettings(input: ApprovalWorkflowSettings): Promise<{ success: true } | { success: false; message: string }> {
+    try {
+      const settings = await firstValueFrom(this.backend.updateApprovalWorkflowSettings(input));
+      this.approvalWorkflowSettingsSignal.set(settings);
+      return { success: true };
+    } catch {
+      return { success: false, message: 'Failed to save the approval settings.' };
+    }
+  }
+
+  // The manager-facing "submit this KPI table for sign-off" action — only meaningful once
+  // kpiApproversRequired >= 2 (server.ts enforces the actual business rules; this just calls
+  // through). Updates kpiApprovalByStudentSignal directly from the server's response rather than
+  // waiting on a full bootstrap refresh, since exactly one student's approval record changed.
+  async submitKpiTableForApproval(studentId: string, nextApproverId: string): Promise<{ success: true } | { success: false; message: string }> {
+    const normalizedStudentId = studentId.trim();
+    if (!normalizedStudentId || !nextApproverId) {
+      return { success: false, message: 'Select who should review this KPI table next.' };
+    }
+
+    try {
+      this.kpiApprovalDirtyAt[normalizedStudentId] = Date.now();
+      const approval = await firstValueFrom(this.backend.submitKpiTableForApproval(normalizedStudentId, nextApproverId));
+      this.kpiApprovalByStudentSignal.update((current) => ({ ...current, [normalizedStudentId]: approval }));
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Object && 'error' in error && (error as { error?: { message?: string } }).error?.message
+        ? (error as { error: { message: string } }).error.message
+        : 'Failed to submit the KPI table for approval.';
+      return { success: false, message };
+    }
+  }
+
+  // The current approver's decision on a submitted KPI table (see the "Awaiting My Approval" tab).
+  async decideKpiApproval(
+    studentId: string,
+    decision: KpiApprovalStatus,
+    nextApproverId?: string,
+  ): Promise<{ success: true } | { success: false; message: string }> {
+    const normalizedStudentId = studentId.trim();
+    if (!normalizedStudentId) {
+      return { success: false, message: 'Student not found.' };
+    }
+
+    try {
+      this.kpiApprovalDirtyAt[normalizedStudentId] = Date.now();
+      const approval = await firstValueFrom(this.backend.decideKpiApproval(normalizedStudentId, decision, nextApproverId));
+      this.kpiApprovalByStudentSignal.update((current) => ({ ...current, [normalizedStudentId]: approval }));
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Object && 'error' in error && (error as { error?: { message?: string } }).error?.message
+        ? (error as { error: { message: string } }).error.message
+        : 'Failed to record this decision.';
+      return { success: false, message };
+    }
+  }
+
   // Manager-facing: merges only the three Performance Gap Analysis fields into existing KPI
   // rows — same shape as the employee-scoring endpoint this app used to have (see server.ts,
   // which keeps that endpoint and the employeeScoring field for historical data even though no
@@ -967,6 +1109,12 @@ export class TrainingManagerDataService {
         }
         if (bootstrap.kpiYearsOpened?.length) {
           this.kpiYearsOpenedSignal.set(bootstrap.kpiYearsOpened);
+        }
+        if (bootstrap.approvalWorkflowSettings) {
+          this.approvalWorkflowSettingsSignal.set(bootstrap.approvalWorkflowSettings);
+        }
+        if (bootstrap.kpiApprovalByStudent) {
+          this.kpiApprovalByStudentSignal.set(bootstrap.kpiApprovalByStudent);
         }
         this.backendHydrated = true;
         this.offeringsHydratedSignal.set(true);
@@ -2611,16 +2759,13 @@ export class TrainingManagerDataService {
       return;
     }
 
+    const feedback = input.feedback?.trim() ?? '';
+    const decidedAt = this.formatDisplayDate(new Date());
+
     this.externalTrainingRequestsSignal.update((requests) => {
       const nextRequests = requests.map((request) =>
         request.id === requestId
-          ? {
-              ...request,
-              reviewerName,
-              reviewerFeedback: input.feedback?.trim() ?? '',
-              status: input.status,
-              reviewedAt: this.formatDisplayDate(new Date()),
-            }
+          ? this.buildOptimisticTrainingRequestDecision(request, input.status, reviewerName, feedback, decidedAt, input.nextApproverId)
           : request,
       );
 
@@ -2628,10 +2773,69 @@ export class TrainingManagerDataService {
         requestId,
         reviewerName,
         status: input.status,
-        feedback: input.feedback?.trim() ?? '',
+        feedback,
+        nextApproverId: input.nextApproverId,
       });
       return nextRequests;
     });
+  }
+
+  // Mirrors reviewExternalTrainingRequest/resolveNextKpiApproval's server-side chain-advance logic
+  // just closely enough to avoid a wrong-looking optimistic flash — e.g. showing "Approved" when a
+  // non-final approval actually just moved the request on to the next approver. The server's own
+  // response (see persistExternalTrainingRequestReview) is what actually lands a moment later; this
+  // is purely cosmetic for the gap before it arrives.
+  private buildOptimisticTrainingRequestDecision(
+    existing: ExternalTrainingRequestRecord,
+    status: ExternalTrainingRequestStatus,
+    reviewerName: string,
+    feedback: string,
+    decidedAt: string,
+    nextApproverId: string | undefined,
+  ): ExternalTrainingRequestRecord {
+    if (status !== 'Approved') {
+      // A rejection at any step sends it all the way back to the first approver.
+      const firstStep = existing.approvalHistory?.[0];
+      return {
+        ...existing,
+        reviewerName,
+        reviewerFeedback: feedback,
+        status,
+        reviewedAt: decidedAt,
+        approvalHistory: [],
+        approvingManagerId: firstStep?.approverId ?? existing.approvingManagerId,
+        approvingManagerName: firstStep?.approverName ?? existing.approvingManagerName,
+        approvingManagerEmail: firstStep?.approverEmail ?? existing.approvingManagerEmail,
+      };
+    }
+
+    const approvalsRequired = existing.approvalsRequired ?? 1;
+    const completedHistory = [
+      ...(existing.approvalHistory ?? []),
+      { approverId: existing.approvingManagerId, approverName: existing.approvingManagerName, approverEmail: existing.approvingManagerEmail, decidedAt },
+    ];
+
+    if (completedHistory.length >= approvalsRequired) {
+      return { ...existing, reviewerName, reviewerFeedback: feedback, status: 'Approved', reviewedAt: decidedAt, approvalHistory: completedHistory };
+    }
+
+    const nextApprover = this.nextApproverCandidates(completedHistory.map((step) => step.approverId))
+      .find((manager) => manager.id === nextApproverId);
+    if (!nextApprover) {
+      return existing;
+    }
+
+    return {
+      ...existing,
+      reviewerName,
+      reviewerFeedback: feedback,
+      status: 'Pending Review',
+      reviewedAt: decidedAt,
+      approvalHistory: completedHistory,
+      approvingManagerId: nextApprover.id,
+      approvingManagerName: nextApprover.name,
+      approvingManagerEmail: nextApprover.email,
+    };
   }
 
   attachExternalTrainingRequestDocuments(input: ExternalTrainingRequestDocumentsInput) {
@@ -2828,6 +3032,19 @@ export class TrainingManagerDataService {
           }
           if (bootstrap.kpiYearsOpened?.length) {
             this.kpiYearsOpenedSignal.set(bootstrap.kpiYearsOpened);
+          }
+          if (bootstrap.approvalWorkflowSettings) {
+            this.approvalWorkflowSettingsSignal.set(bootstrap.approvalWorkflowSettings);
+          }
+          if (bootstrap.kpiApprovalByStudent) {
+            this.kpiApprovalByStudentSignal.set(
+              this.mergeServerAuthoritativeRecord(
+                bootstrap.kpiApprovalByStudent,
+                this.kpiApprovalByStudentSignal(),
+                this.kpiApprovalDirtyAt,
+                requestStartedAt,
+              ),
+            );
           }
           resolve();
         },

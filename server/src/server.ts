@@ -509,6 +509,8 @@ const externalTrainingRequestReviewSchema = z.object({
   reviewerName: z.string().min(1),
   status: z.enum(['Pending Review', 'Approved', 'Needs Revision']),
   feedback: z.string().optional(),
+  // Required only when approving a non-final chain step — see reviewExternalTrainingRequest.
+  nextApproverId: z.string().optional(),
 });
 
 const externalTrainingRequestDocumentsSchema = z.object({
@@ -805,6 +807,21 @@ const openKpiYearSchema = z.object({
 
 const openIdpYearSchema = z.object({
   year: z.number().int(),
+});
+
+const approvalWorkflowSettingsUpdateSchema = z.object({
+  kpiApproversRequired: z.number().int().min(1),
+  trainingApproversRequired: z.number().int().min(1),
+});
+
+const kpiApprovalSubmitSchema = z.object({
+  nextApproverId: z.string().min(1),
+});
+
+const kpiApprovalDecisionSchema = z.object({
+  decision: z.enum(['Approved', 'Needs Revision']),
+  // Required only when approving a non-final chain step — see decideKpiApproval.
+  nextApproverId: z.string().optional(),
 });
 
 const studentOfferingAssignmentSchema = z.object({
@@ -1868,6 +1885,18 @@ app.put('/api/admin/hr-integration', requireAdministrator, async (request, respo
   }
 });
 
+// Admin-only write side — reading the current counts rides along in bootstrap for every role
+// instead (see repository.getBootstrap), since a manager needs them just to know whether to show
+// a "Submit for Approval" action at all.
+app.put('/api/approval-workflow-settings', requireAdministrator, async (request, response, next) => {
+  try {
+    const payload = approvalWorkflowSettingsUpdateSchema.parse(request.body);
+    response.json(await repository.updateApprovalWorkflowSettings(payload));
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post('/api/admin/hr-integration/sync', requireAdministrator, async (_request, response, next) => {
   try {
     const result = await repository.syncRosterFromHr();
@@ -2809,6 +2838,80 @@ app.post('/api/kpi-years/open', async (request, response, next) => {
   }
 });
 
+// Manager-facing "submit this KPI table for sign-off" action — only meaningful once
+// approvalWorkflowSettings.kpiApproversRequired >= 2, though nothing here actually needs to check
+// that: submitting a table when it's still 1 just creates an approval chain of length 1, which
+// decideKpiApproval immediately resolves to Approved on its very next (only) step.
+app.post('/api/students/:studentId/kpi-entries/submit-for-approval', async (request, response, next) => {
+  try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
+    if (identity.role !== 'administrator' && identity.role !== 'training-manager') {
+      response.status(403).json({ message: 'Only a training manager or administrator can submit a KPI table for approval.' });
+      return;
+    }
+
+    const body = kpiApprovalSubmitSchema.parse(request.body);
+    const submitter = await repository.resolveApprovingManagerIdentity(identity.email, identity.username);
+    const approval = await repository.submitKpiTableForApproval(
+      request.params['studentId'] as string,
+      submitter.id,
+      submitter.name,
+      submitter.email,
+      body.nextApproverId,
+    );
+
+    if (approval === null) {
+      response.status(404).json({ message: 'Student not found.' });
+      return;
+    }
+
+    response.json(approval);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// The current approver's decision on a submitted KPI table — only the record's own
+// currentApproverEmail (or an administrator) may decide it; every other authenticated session,
+// including the manager who submitted it, is rejected. See KpiApprovalRecord for why authorization
+// resolves by email rather than the approver-pool id.
+app.put('/api/students/:studentId/kpi-entries/approval', async (request, response, next) => {
+  try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
+    const studentId = request.params['studentId'] as string;
+    const isAdministrator = identity.role === 'administrator';
+    if (!isAdministrator) {
+      const approval = await repository.getKpiApprovalForCurrentYear(studentId);
+      if (!approval || approval.currentApproverEmail.trim().toLowerCase() !== identity.email.trim().toLowerCase()) {
+        response.status(403).json({ message: 'You are not the approver currently assigned to this KPI table.' });
+        return;
+      }
+    }
+
+    const body = kpiApprovalDecisionSchema.parse(request.body);
+    const approval = await repository.decideKpiApproval(studentId, body.decision, body.nextApproverId);
+
+    if (approval === null) {
+      response.status(404).json({ message: 'Student not found.' });
+      return;
+    }
+
+    response.json(approval);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Succession-planning role selection: a manager flags one of their own team's positions as
 // critical (team = every student whose lineManagerId is the manager's own EnrollmentStudentRecord
 // id). There's no admin-managed catalog any more — admin is fully view-only for succession
@@ -3191,9 +3294,40 @@ app.put('/api/external-training-requests/:requestId', async (request, response, 
 
 app.put('/api/external-training-requests/:requestId/review', requireManagerOrAdministrator, async (request, response, next) => {
   try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+
+    const requestId = request.params['requestId'] as string;
+    const data = await repository.read();
+    const existing = data.externalTrainingRequests.find((entry) => entry.id === requestId);
+    if (!existing) {
+      response.status(404).json({ message: 'External training request not found.' });
+      return;
+    }
+
+    // Only the request's own currentApprover (approvingManagerEmail) may act on it — role alone
+    // used to be enough, which let any manager/admin review (and approve) a request nobody had
+    // actually assigned to them. An administrator may still always override.
+    const isAdministrator = identity.role === 'administrator';
+    const isAssignedApprover = existing.approvingManagerEmail.trim().toLowerCase() === identity.email.trim().toLowerCase();
+    if (!isAdministrator && !isAssignedApprover) {
+      response.status(403).json({ message: 'You are not the approver currently assigned to this training request.' });
+      return;
+    }
+
     const review = externalTrainingRequestReviewSchema.parse({
       ...request.body,
-      requestId: request.params['requestId'],
+      requestId,
+      // The assigned approver's own name is already known and can't be spoofed via the request
+      // body; an administrator override keeps whatever name the client sent (admin actions are
+      // already trusted elsewhere in this app), falling back to the assigned approver's name if
+      // the client didn't send one.
+      reviewerName: isAssignedApprover
+        ? existing.approvingManagerName
+        : (typeof request.body?.reviewerName === 'string' && request.body.reviewerName.trim() ? request.body.reviewerName : existing.approvingManagerName),
     });
     const updated = await repository.reviewExternalTrainingRequest(review);
 

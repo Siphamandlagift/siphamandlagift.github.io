@@ -992,6 +992,11 @@ import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component'
                   <span class="kpi-total-weight" [class.kpi-total-weight-off]="myKpiTotalWeight() !== 100">
                     Total weight: {{ myKpiTotalWeight() }}%
                   </span>
+                  <span class="kpi-approval-badge" *ngIf="myKpiApproval() as approval" [class.kpi-approval-badge-approved]="approval.status === 'Approved'" [class.kpi-approval-badge-revision]="approval.status === 'Needs Revision'">
+                    <ng-container *ngIf="approval.status === 'Pending Approval'">Pending sign-off ({{ approval.approvalHistory.length }} of {{ approval.approvalsRequired }})</ng-container>
+                    <ng-container *ngIf="approval.status === 'Approved'">Approved ({{ approval.approvalHistory.length }} of {{ approval.approvalsRequired }} sign-offs)</ng-container>
+                    <ng-container *ngIf="approval.status === 'Needs Revision'">Sent back for revision</ng-container>
+                  </span>
                 </div>
                 <button
                   type="button"
@@ -1343,6 +1348,11 @@ import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component'
                         <div class="external-training-status-list-meta">
                           <span class="external-training-status-list-date">Submitted {{ request.submittedAt }}</span>
                           <span class="mentorship-item-status" [class.mentorship-item-status-saved]="request.status === 'Approved'">{{ request.status }}</span>
+                          @if ((request.approvalsRequired ?? 1) > 1) {
+                            <span class="kpi-approval-badge" [class.kpi-approval-badge-approved]="request.status === 'Approved'">
+                              Pending sign-off ({{ request.approvalHistory?.length ?? 0 }} of {{ request.approvalsRequired }})
+                            </span>
+                          }
                           <span class="external-training-status-list-link">View request</span>
                         </div>
                       </button>
@@ -1365,6 +1375,11 @@ import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component'
 
                           <div class="external-training-status-detail-header-actions">
                             <span class="mentorship-item-status" [class.mentorship-item-status-saved]="activeRequest.status === 'Approved'">{{ activeRequest.status }}</span>
+                            @if ((activeRequest.approvalsRequired ?? 1) > 1) {
+                              <span class="kpi-approval-badge" [class.kpi-approval-badge-approved]="activeRequest.status === 'Approved'">
+                                Pending sign-off ({{ activeRequest.approvalHistory?.length ?? 0 }} of {{ activeRequest.approvalsRequired }})
+                              </span>
+                            }
                             @if (activeRequest.status === 'Needs Revision') {
                               <button type="button" class="external-training-status-detail-action" (click)="editExternalTrainingRequest(activeRequest)">Edit and resubmit</button>
                             }
@@ -2788,6 +2803,26 @@ import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component'
     }
 
     .kpi-total-weight-off {
+      color: #b91c1c;
+      background: #fef2f2;
+    }
+
+    .kpi-approval-badge {
+      font-size: 0.76rem;
+      font-weight: 700;
+      white-space: nowrap;
+      padding: 0.2rem 0.65rem;
+      border-radius: 999px;
+      color: #b45309;
+      background: #fffbeb;
+    }
+
+    .kpi-approval-badge-approved {
+      color: #15803d;
+      background: #f0fdf4;
+    }
+
+    .kpi-approval-badge-revision {
       color: #b91c1c;
       background: #fef2f2;
     }
@@ -5064,6 +5099,13 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
     }
 
     return this.managerData.kpiEntriesForStudentYear(id, year);
+  });
+
+  // Only ever set for the current year (see kpiApprovalByStudent in repository.ts) — a past,
+  // closed year never shows a stale badge from a chain that applied to a different year's table.
+  readonly myKpiApproval = computed(() => {
+    const id = this.matchedKpiStudentId();
+    return id && this.isViewingCurrentKpiYear() ? this.managerData.kpiApprovalForStudent(id) : null;
   });
 
   // Every KPI rated 1 or 2 on Overall Scoring, alongside the manager's plan to close it (gap

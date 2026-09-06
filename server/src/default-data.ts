@@ -154,5 +154,9 @@ export function createDefaultData(): LmsDataStore {
       authHeaderValue: '',
       lastSyncSummary: null,
     },
+    approvalWorkflowSettings: {
+      kpiApproversRequired: 1,
+      trainingApproversRequired: 1,
+    },
   };
 }
