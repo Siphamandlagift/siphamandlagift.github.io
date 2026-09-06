@@ -5359,29 +5359,36 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly canDownloadBeneficiariesCompletedTrainingReport = computed(() => this.beneficiariesCompletedTrainingRows().length > 0);
 
   readonly numberBeneficiariesRows = computed<NumberBeneficiariesRow[]>(() => {
-    const groups = new Map<string, BeneficiaryDemographicCounts[]>();
+    const groups = new Map<string, { demographics: BeneficiaryDemographicCounts[]; countedBeneficiaryKeys: Set<string> }>();
 
     for (const event of this.completedTrainingEvents()) {
       const ofoOccupation = event.student?.ofoCode || 'Not captured';
       const municipality = event.student?.municipality || 'Not captured';
       const groupKey = [ofoOccupation, municipality].join('::');
-      const demographics = event.student ? this.resolveBeneficiaryDemographics(event.student) : this.resolveBeneficiaryDemographics({ race: undefined, gender: undefined, idNumber: '', dateOfBirth: undefined });
-
+      // This table's headcount is the number of beneficiaries trained, not the number of
+      // interventions completed — per SETA's guidance, a beneficiary who completed several
+      // different courses in the period must still be counted once here, not once per course.
+      const beneficiaryKey = event.request.studentId || event.request.studentEmail.toLowerCase();
       const existing = groups.get(groupKey);
+
       if (existing) {
-        existing.push(demographics);
+        if (!existing.countedBeneficiaryKeys.has(beneficiaryKey)) {
+          existing.countedBeneficiaryKeys.add(beneficiaryKey);
+          existing.demographics.push(event.student ? this.resolveBeneficiaryDemographics(event.student) : this.resolveBeneficiaryDemographics({ race: undefined, gender: undefined, idNumber: '', dateOfBirth: undefined }));
+        }
       } else {
-        groups.set(groupKey, [demographics]);
+        const demographics = event.student ? this.resolveBeneficiaryDemographics(event.student) : this.resolveBeneficiaryDemographics({ race: undefined, gender: undefined, idNumber: '', dateOfBirth: undefined });
+        groups.set(groupKey, { demographics: [demographics], countedBeneficiaryKeys: new Set([beneficiaryKey]) });
       }
     }
 
-    return Array.from(groups.entries()).map(([groupKey, demographics]) => {
+    return Array.from(groups.entries()).map(([groupKey, group]) => {
       const [ofoOccupation, municipality] = groupKey.split('::');
       return {
         id: groupKey,
         ofoOccupation,
         municipality,
-        ...this.sumBeneficiaryDemographics(demographics),
+        ...this.sumBeneficiaryDemographics(group.demographics),
       };
     }).sort((left, right) => left.ofoOccupation.localeCompare(right.ofoOccupation) || left.municipality.localeCompare(right.municipality));
   });
