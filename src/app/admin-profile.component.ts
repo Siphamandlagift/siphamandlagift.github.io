@@ -34,12 +34,23 @@ import { PublishedOfferingCardComponent } from './published-offering-card.compon
 import { PowerPointWindowComponent } from './powerpoint-window.component';
 import { resolvePowerPointUploadType } from './powerpoint-preview';
 
-type AdminPanel = 'dashboard' | 'users' | 'reports' | 'succession' | 'settings' | 'courses';
+type AdminPanel = 'dashboard' | 'users' | 'reports' | 'succession' | 'settings' | 'courses' | 'enrollment';
 
 // ── Courses panel types (relocated from training-manager-profile.component.ts) ────
 type CoursesPanelView = 'create' | 'created' | 'submissions';
 type AssignmentSubmissionFilter = 'All' | 'Pending Review' | 'Approved' | 'Needs Revision';
 type CreateCourseSection = 'basics' | 'content';
+
+// ── Student Enrollment panel types (relocated from training-manager-profile.component.ts) ──
+type EnrollmentPanelView = 'students' | 'groups';
+type AssignWizardStep = 1 | 2 | 3;
+type EnrollmentGroupSummary = {
+  name: string;
+  members: EnrollmentStudent[];
+  activeCount: number;
+  startDate: string;
+  endDate: string;
+};
 
 type AssessmentChoiceFormGroup = FormGroup<{
   text: FormControl<string>;
@@ -503,6 +514,13 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       <path d="M4.75 7.5 12 4l7.25 3.5L12 11 4.75 7.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
                       <path d="M4.75 11.5 12 15l7.25-3.5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
                       <path d="M4.75 15.5 12 19l7.25-3.5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                    </svg>
+                  }
+                  @case ('enrollment') {
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                      <path d="M12 6.5v11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      <path d="M6.5 12h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                      <circle cx="12" cy="12" r="7.25" stroke="currentColor" stroke-width="1.8"/>
                     </svg>
                   }
                   @case ('users') {
@@ -3484,6 +3502,600 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                   (save)="savePublishedOffering($event)" />
               </div>
             </div>
+          }
+          @if (selectedPanel() === 'enrollment') {
+            <section class="manager-panel">
+              <div class="section-heading-row">
+                <div class="section-heading-block">
+                  <h1>Assign students to created courses</h1>
+                </div>
+                <button type="button" class="assign-btn assign-wizard-launch-btn" (click)="openAssignWizard()">+ New assignment</button>
+              </div>
+
+              <div class="enrollment-tab-nav" aria-label="Enrollment views">
+                <button
+                  type="button"
+                  class="enrollment-tab-btn"
+                  [class.enrollment-tab-btn-active]="selectedEnrollmentView() === 'students'"
+                  (click)="selectEnrollmentView('students')">
+                  Students
+                </button>
+                <button
+                  type="button"
+                  class="enrollment-tab-btn"
+                  [class.enrollment-tab-btn-active]="selectedEnrollmentView() === 'groups'"
+                  (click)="selectEnrollmentView('groups')">
+                  Groups
+                </button>
+              </div>
+
+              <div class="student-search-row">
+                <label class="student-search-field">
+                  <span class="student-search-label">Search students</span>
+                  <input
+                    type="search"
+                    [value]="studentSearchTerm()"
+                    (input)="studentSearchTerm.set($any($event.target).value)"
+                    placeholder="Search by name, surname, group, email, department, or status" />
+                </label>
+                <span class="student-search-count">
+                  {{ selectedEnrollmentView() === 'students' ? filteredEnrollmentStudents().length : filteredEnrollmentGroups().length }} shown
+                </span>
+              </div>
+
+              @if (selectedEnrollmentView() === 'students') {
+                <div class="roster-table-wrap">
+                  <div class="roster-table roster-table-enrollment roster-table-head" aria-hidden="true">
+                    <span>Student</span>
+                    <span>Group</span>
+                    <span>Enrollment</span>
+                    <span>Status</span>
+                    <span>Department</span>
+                    <span>Actions</span>
+                  </div>
+
+                  <div class="roster-list" role="table" aria-label="Student enrollment list">
+                    @for (student of filteredEnrollmentStudents(); track student.id) {
+                      <article class="roster-table roster-table-enrollment roster-row" role="row">
+                        <div class="roster-cell roster-primary" role="cell">
+                          <span class="roster-avatar" aria-hidden="true">{{ student.name[0] }}{{ student.surname[0] }}</span>
+                          <div class="roster-identity">
+                            <div class="roster-name">{{ student.name }} {{ student.surname }}</div>
+                            <div class="roster-secondary">{{ student.email }}</div>
+                          </div>
+                        </div>
+                        <div class="roster-cell" role="cell">
+                          <div class="roster-field-label">Group</div>
+                          <span>{{ student.group }}</span>
+                        </div>
+                        <div class="roster-cell roster-dates" role="cell">
+                          <div class="roster-date-row"><span class="roster-field-label roster-field-label-inline">Enrolled</span> {{ student.dateEnrolled }}</div>
+                          <div class="roster-date-row"><span class="roster-field-label roster-field-label-inline">Deadline</span> {{ student.deadlineDate }}</div>
+                        </div>
+                        <div class="roster-cell" role="cell">
+                          <div class="roster-field-label">Status</div>
+                          <span class="student-active-pill" [class.student-active-pill-inactive]="student.activeStatus === 'Inactive'">{{ student.activeStatus }}</span>
+                        </div>
+                        <div class="roster-cell" role="cell">
+                          <div class="roster-field-label">Department</div>
+                          <span>{{ student.department }}</span>
+                        </div>
+                        <div class="roster-cell roster-actions" role="cell">
+                          <button type="button" class="courses-btn" (click)="openManageEnrollmentStudent(student)">Courses ({{ managerData.offeringsForStudent(student).length }})</button>
+                        </div>
+                      </article>
+                    }
+
+                    @if (!filteredEnrollmentStudents().length) {
+                      <div class="student-search-empty">No students match your current search.</div>
+                    }
+                  </div>
+                </div>
+              } @else {
+                <div class="enrollment-group-toolbar">
+                  <div>
+                    <p class="form-section-eyebrow">Groups</p>
+                    <p class="enrollment-group-toolbar-copy">Create a group and choose which students should belong to it.</p>
+                  </div>
+                  <button type="button" class="assign-btn" (click)="openCreateEnrollmentGroup()">Create group</button>
+                </div>
+
+                <div class="enrollment-groups-list" role="table" aria-label="Student groups list">
+                  <div class="enrollment-groups-head" role="row">
+                    <span role="columnheader">Group name</span>
+                    <span role="columnheader">No. students</span>
+                    <span role="columnheader">Start date</span>
+                    <span role="columnheader">End date</span>
+                    <span role="columnheader">Courses</span>
+                    <span role="columnheader">Edit</span>
+                    <span role="columnheader">Delete</span>
+                  </div>
+
+                  @for (group of filteredEnrollmentGroups(); track group.name) {
+                    <article class="enrollment-group-row" role="row">
+                      <span class="enrollment-group-cell enrollment-group-name" role="cell">{{ group.name }}</span>
+                      <span class="enrollment-group-cell" role="cell">{{ group.members.length }}</span>
+                      <span class="enrollment-group-cell" role="cell">{{ group.startDate }}</span>
+                      <span class="enrollment-group-cell" role="cell">{{ group.endDate }}</span>
+                      <div class="enrollment-group-cell enrollment-group-action-cell" role="cell">
+                        <button type="button" class="courses-btn" (click)="openManageEnrollmentGroup(group)">{{ managerData.offeringsForGroup(group.members).length }}</button>
+                      </div>
+                      <div class="enrollment-group-cell enrollment-group-action-cell" role="cell">
+                        <button type="button" class="edit-btn" (click)="openEnrollmentGroupEdit(group)">Edit</button>
+                      </div>
+                      <div class="enrollment-group-cell enrollment-group-action-cell" role="cell">
+                        <button type="button" class="group-delete-btn" (click)="deleteEnrollmentGroup(group)">Delete</button>
+                      </div>
+                    </article>
+                  }
+
+                  @if (!filteredEnrollmentGroups().length) {
+                    <div class="student-search-empty">No groups match your current search.</div>
+                  }
+                </div>
+              }
+
+              @if (creatingEnrollmentGroup()) {
+                <div class="enrollment-modal" aria-label="Create group" role="dialog" aria-modal="true">
+                  <button type="button" class="enrollment-modal-backdrop" aria-label="Close create group dialog" (click)="closeCreateEnrollmentGroup()"></button>
+
+                  <section class="enrollment-modal-card enrollment-group-create-card">
+                    <div class="enrollment-modal-header">
+                      <div class="enrollment-modal-header-copy">
+                        <p class="form-section-eyebrow">Create group</p>
+                        <h3>Create a student group</h3>
+                        <p class="enrollment-modal-copy">Set the shared group details, then select the students you want to add.</p>
+                      </div>
+                      <button type="button" class="builder-secondary-btn" (click)="closeCreateEnrollmentGroup()">Close</button>
+                    </div>
+
+                    <form class="form-grid form-grid-two enrollment-edit-form" [formGroup]="createEnrollmentGroupForm" (ngSubmit)="saveCreateEnrollmentGroup()">
+                      <label class="form-grid-span-two enrollment-edit-field">
+                        Group name
+                        <input formControlName="name" type="text" />
+                      </label>
+                      <label class="enrollment-edit-field">
+                        Start date
+                        <input formControlName="startDate" type="date" />
+                      </label>
+                      <label class="enrollment-edit-field">
+                        End date
+                        <input formControlName="endDate" type="date" />
+                      </label>
+
+                      <div class="form-grid-span-two enrollment-student-picker">
+                        <div class="enrollment-student-picker-header">
+                          <div>
+                            <div class="student-assignment-label">Select students</div>
+                            <p class="enrollment-group-toolbar-copy">Choose the learners that should be added to this group.</p>
+                          </div>
+                          <span class="student-search-count">{{ selectedStudentsForNewGroupCount() }} selected</span>
+                        </div>
+
+                        <label class="student-search-field enrollment-student-picker-search">
+                          <span class="student-search-label">Search students</span>
+                          <input
+                            type="search"
+                            [value]="createGroupStudentSearchTerm()"
+                            (input)="createGroupStudentSearchTerm.set($any($event.target).value)"
+                            placeholder="Search by name, surname, group, email, department, or status" />
+                        </label>
+
+                        @if (groupCreationStudents().length) {
+                          <div class="enrollment-student-picker-list">
+                            @for (student of groupCreationStudents(); track student.id) {
+                              <label class="enrollment-student-picker-item" [class.enrollment-student-picker-item-selected]="isStudentSelectedForNewGroup(student.id)">
+                                <input
+                                  type="checkbox"
+                                  [checked]="isStudentSelectedForNewGroup(student.id)"
+                                  (change)="toggleStudentForNewGroup(student.id, $any($event.target).checked)" />
+                                <div class="enrollment-student-picker-copy">
+                                  <span class="enrollment-student-picker-name">{{ student.name }} {{ student.surname }}</span>
+                                  <span class="enrollment-student-picker-meta">{{ student.group }} • {{ student.department }}</span>
+                                </div>
+                              </label>
+                            }
+                          </div>
+                        } @else {
+                          <p class="enrollment-group-toolbar-copy">No students match your search.</p>
+                        }
+                      </div>
+
+                      <div class="enrollment-modal-actions form-grid-span-two">
+                        <button type="button" class="builder-secondary-btn" (click)="closeCreateEnrollmentGroup()">Cancel</button>
+                        <button type="submit" class="assign-btn" [disabled]="createEnrollmentGroupForm.invalid || selectedStudentsForNewGroupCount() === 0">Create group</button>
+                      </div>
+                    </form>
+                  </section>
+                </div>
+              }
+
+              @if (editingEnrollmentGroup()) {
+                <div class="enrollment-modal" aria-label="Edit group details" role="dialog" aria-modal="true">
+                  <button type="button" class="enrollment-modal-backdrop" aria-label="Close edit group dialog" (click)="closeEnrollmentGroupEdit()"></button>
+
+                  <section class="enrollment-modal-card enrollment-group-edit-card">
+                    <div class="enrollment-modal-header">
+                      <div class="enrollment-modal-header-copy">
+                        <p class="form-section-eyebrow">Edit group</p>
+                        <h3>Edit {{ editingEnrollmentGroup()!.name }}</h3>
+                        <p class="enrollment-modal-copy">Update the group name and shared dates for all learners in this group.</p>
+                      </div>
+                      <button type="button" class="builder-secondary-btn" (click)="closeEnrollmentGroupEdit()">Close</button>
+                    </div>
+
+                    <form class="form-grid form-grid-two enrollment-edit-form" [formGroup]="enrollmentGroupForm" (ngSubmit)="saveEnrollmentGroupEdit()">
+                      <label class="form-grid-span-two enrollment-edit-field">
+                        Group name
+                        <input formControlName="name" type="text" />
+                      </label>
+                      <label class="enrollment-edit-field">
+                        Start date
+                        <input formControlName="startDate" type="date" />
+                      </label>
+                      <label class="enrollment-edit-field">
+                        End date
+                        <input formControlName="endDate" type="date" />
+                      </label>
+
+                      <div class="form-grid-span-two enrollment-student-picker enrollment-group-members-panel">
+                        <div class="enrollment-student-picker-header">
+                          <div>
+                            <div class="student-assignment-label">Students in group</div>
+                            <p class="enrollment-group-toolbar-copy">Current learners already assigned to {{ editingEnrollmentGroup()!.name }}. Tick students you want to remove when you save.</p>
+                          </div>
+                          <span class="student-search-count">{{ currentEditingGroupMembers().length }} students</span>
+                        </div>
+
+                        @if (selectedStudentsForRemovalFromEditedGroupCount() > 0) {
+                          <p class="enrollment-group-toolbar-copy">{{ selectedStudentsForRemovalFromEditedGroupCount() }} student{{ selectedStudentsForRemovalFromEditedGroupCount() === 1 ? '' : 's' }} marked for removal on save.</p>
+                        }
+
+                        <div class="enrollment-student-picker-list">
+                          @for (student of currentEditingGroupMembers(); track student.id) {
+                            <label
+                              class="enrollment-student-picker-item enrollment-student-picker-item-static"
+                              [class.enrollment-student-picker-item-selected]="isStudentSelectedForRemovalFromEditedGroup(student.id)"
+                              [class.enrollment-student-picker-item-pending]="isStudentSelectedForRemovalFromEditedGroup(student.id)">
+                              <input
+                                type="checkbox"
+                                [checked]="isStudentSelectedForRemovalFromEditedGroup(student.id)"
+                                (change)="toggleStudentForRemovalFromEditedGroup(student.id)" />
+                              <div class="enrollment-student-picker-copy">
+                                <span class="enrollment-student-picker-name">{{ student.name }} {{ student.surname }}</span>
+                                <span class="enrollment-student-picker-meta">{{ student.group }} • {{ student.department }}</span>
+                              </div>
+                            </label>
+                          }
+                        </div>
+                      </div>
+
+                      <div class="form-grid-span-two enrollment-student-picker">
+                        <div class="enrollment-student-picker-header">
+                          <div>
+                            <div class="student-assignment-label">Add students</div>
+                            <p class="enrollment-group-toolbar-copy">Select more learners to add to this group when you save.</p>
+                          </div>
+                          <span class="student-search-count">{{ selectedStudentsForEditedGroupCount() }} selected</span>
+                        </div>
+
+                        @if (availableStudentsForEditedGroup().length) {
+                          <div class="enrollment-student-picker-list">
+                            @for (student of availableStudentsForEditedGroup(); track student.id) {
+                              <label class="enrollment-student-picker-item" [class.enrollment-student-picker-item-selected]="isStudentSelectedForEditedGroup(student.id)">
+                                <input
+                                  type="checkbox"
+                                  [checked]="isStudentSelectedForEditedGroup(student.id)"
+                                  (change)="toggleStudentForEditedGroup(student.id, $any($event.target).checked)" />
+                                <div class="enrollment-student-picker-copy">
+                                  <span class="enrollment-student-picker-name">{{ student.name }} {{ student.surname }}</span>
+                                  <span class="enrollment-student-picker-meta">{{ student.group }} • {{ student.department }}</span>
+                                </div>
+                              </label>
+                            }
+                          </div>
+                        } @else {
+                          <p class="enrollment-group-toolbar-copy">All visible students are already in this group.</p>
+                        }
+                      </div>
+
+                      <div class="enrollment-modal-actions form-grid-span-two">
+                        <button type="button" class="builder-secondary-btn" (click)="closeEnrollmentGroupEdit()">Cancel</button>
+                        <button type="submit" class="assign-btn">Save group</button>
+                      </div>
+                    </form>
+                  </section>
+                </div>
+              }
+
+              @if (managingEnrollmentStudent(); as managedStudent) {
+                <div class="enrollment-modal" aria-label="Manage courses" role="dialog" aria-modal="true">
+                  <button type="button" class="enrollment-modal-backdrop" aria-label="Close manage courses dialog" (click)="closeManageEnrollmentStudent()"></button>
+
+                  <section class="enrollment-modal-card enrollment-modal-card-compact">
+                    <div class="enrollment-modal-header">
+                      <div>
+                        <p class="form-section-eyebrow">Assigned courses</p>
+                        <h3>{{ managedStudent.name }} {{ managedStudent.surname }}</h3>
+                      </div>
+                      <button type="button" class="builder-secondary-btn" (click)="closeManageEnrollmentStudent()">Close</button>
+                    </div>
+
+                    <div class="student-assignment-block">
+                      <div class="student-chip-row">
+                        @if (managerData.offeringsForStudent(managedStudent).length) {
+                          @for (offering of managerData.offeringsForStudent(managedStudent); track offering.id) {
+                            <span class="assignment-chip assignment-chip-action">
+                              <span>{{ offering.title }}</span>
+                              <button type="button" class="assignment-chip-remove" (click)="unassignStudentOffering(managedStudent, offering)" [attr.aria-label]="'Remove ' + offering.title + ' from ' + managedStudent.name + ' ' + managedStudent.surname">×</button>
+                            </span>
+                          }
+                        } @else {
+                          <span class="assignment-chip assignment-chip-muted">No courses assigned yet</span>
+                        }
+                      </div>
+                    </div>
+
+                  </section>
+                </div>
+              }
+
+              @if (managingEnrollmentGroup(); as managedGroup) {
+                <div class="enrollment-modal" aria-label="Manage group courses" role="dialog" aria-modal="true">
+                  <button type="button" class="enrollment-modal-backdrop" aria-label="Close manage group courses dialog" (click)="closeManageEnrollmentGroup()"></button>
+
+                  <section class="enrollment-modal-card enrollment-modal-card-compact">
+                    <div class="enrollment-modal-header">
+                      <div>
+                        <p class="form-section-eyebrow">Assigned courses</p>
+                        <h3>{{ managedGroup.name }}</h3>
+                        <p class="enrollment-modal-copy">{{ managedGroup.members.length }} students</p>
+                      </div>
+                      <button type="button" class="builder-secondary-btn" (click)="closeManageEnrollmentGroup()">Close</button>
+                    </div>
+
+                    <div class="student-assignment-block">
+                      <div class="student-chip-row">
+                        @if (managerData.offeringsForGroup(managedGroup.members).length) {
+                          @for (offering of managerData.offeringsForGroup(managedGroup.members); track offering.id) {
+                            <span class="assignment-chip assignment-chip-action">
+                              <span>{{ offering.title }}</span>
+                              <button type="button" class="assignment-chip-remove" (click)="unassignGroupOffering(managedGroup, offering)" [attr.aria-label]="'Remove ' + offering.title + ' from group ' + managedGroup.name">×</button>
+                            </span>
+                          }
+                        } @else {
+                          <span class="assignment-chip assignment-chip-muted">No courses assigned yet</span>
+                        }
+                      </div>
+                    </div>
+
+                  </section>
+                </div>
+              }
+
+              @if (assignWizardOpen()) {
+                <div class="enrollment-modal" aria-label="Assign courses to students" role="dialog" aria-modal="true">
+                  <button type="button" class="enrollment-modal-backdrop" aria-label="Close assignment wizard" (click)="closeAssignWizard()"></button>
+
+                  <section class="enrollment-modal-card assign-wizard-card">
+                    <div class="enrollment-modal-header">
+                      <div>
+                        <p class="form-section-eyebrow">New assignment</p>
+                        <h3>Assign courses to students</h3>
+                      </div>
+                      <button type="button" class="builder-secondary-btn" (click)="closeAssignWizard()">Close</button>
+                    </div>
+
+                    <div class="course-builder-stepper assign-wizard-stepper">
+                      <button
+                        type="button"
+                        class="course-step-btn"
+                        [class.course-step-btn-active]="assignWizardStep() === 1"
+                        (click)="assignWizardGoToStep(1)">
+                        <span class="course-step-index">1</span>
+                        <span class="course-step-copy">
+                          <strong>Add course or assignment</strong>
+                          <span>{{ assignWizardSelectedOfferingCount() }} selected</span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        class="course-step-btn"
+                        [class.course-step-btn-active]="assignWizardStep() === 2"
+                        [disabled]="assignWizardSelectedOfferingCount() === 0"
+                        (click)="assignWizardGoToStep(2)">
+                        <span class="course-step-index">2</span>
+                        <span class="course-step-copy">
+                          <strong>Add students</strong>
+                          <span>{{ assignWizardSelectedStudentCount() }} selected</span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        class="course-step-btn"
+                        [class.course-step-btn-active]="assignWizardStep() === 3"
+                        [disabled]="assignWizardSelectedStudentCount() === 0"
+                        (click)="assignWizardGoToStep(3)">
+                        <span class="course-step-index">3</span>
+                        <span class="course-step-copy">
+                          <strong>Add details</strong>
+                          <span>Completion deadline</span>
+                        </span>
+                      </button>
+                    </div>
+
+                    @if (assignWizardStep() === 1) {
+                      <label class="student-search-field">
+                        <span class="student-search-label">Search courses &amp; programmes</span>
+                        <input
+                          type="search"
+                          [value]="assignWizardOfferingSearchTerm()"
+                          (input)="assignWizardOfferingSearchTerm.set($any($event.target).value)"
+                          placeholder="Search by title, type, category, or description" />
+                      </label>
+
+                      <div class="enrollment-offering-picker" role="listbox" aria-label="Courses and programmes" aria-multiselectable="true">
+                        @if (assignWizardFilteredOfferings().length) {
+                          <div class="enrollment-offering-picker-list">
+                            @for (offering of assignWizardFilteredOfferings(); track offering.id) {
+                              <label class="enrollment-offering-option" [class.enrollment-offering-option-selected]="isAssignWizardOfferingSelected(offering.id)">
+                                <span class="enrollment-offering-option-check-wrap">
+                                  <input
+                                    type="checkbox"
+                                    class="enrollment-offering-option-input"
+                                    [checked]="isAssignWizardOfferingSelected(offering.id)"
+                                    (change)="toggleAssignWizardOffering(offering.id, $any($event.target).checked)" />
+                                  <span class="enrollment-offering-option-check" aria-hidden="true">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                  </span>
+                                </span>
+                                <span class="enrollment-offering-option-body">
+                                  <span class="enrollment-offering-option-title">{{ offering.title }}</span>
+                                  <span class="enrollment-offering-option-meta">{{ offering.type }} • {{ offering.category }} • {{ offeringEnrollmentCount(offering.id) }} assigned</span>
+                                  <span class="enrollment-offering-option-copy">{{ offering.description }}</span>
+                                </span>
+                              </label>
+                            }
+                          </div>
+                        } @else {
+                          <p class="student-search-empty">No course or programme matches your search.</p>
+                        }
+                      </div>
+                    }
+
+                    @if (assignWizardStep() === 2) {
+                      <div class="student-search-row">
+                        <label class="student-search-field">
+                          <span class="student-search-label">Search students</span>
+                          <input
+                            type="search"
+                            [value]="assignWizardStudentSearchTerm()"
+                            (input)="assignWizardStudentSearchTerm.set($any($event.target).value)"
+                            placeholder="Search by name, surname, group, email, or department" />
+                        </label>
+                        <label class="student-search-group-field">
+                          <span class="student-search-label">Group</span>
+                          <select [value]="assignWizardStudentGroupFilter()" (change)="updateAssignWizardStudentGroupFilter($event)">
+                            <option value="">All groups</option>
+                            @for (group of assignWizardStudentGroups(); track group) {
+                              <option [value]="group">{{ group }}</option>
+                            }
+                          </select>
+                        </label>
+                      </div>
+
+                      <div class="enrollment-offering-picker" role="listbox" aria-label="Students" aria-multiselectable="true">
+                        @if (assignWizardFilteredStudents().length) {
+                          <label class="enrollment-offering-option enrollment-offering-select-all" [class.enrollment-offering-option-selected]="assignWizardAllFilteredStudentsSelected()">
+                            <span class="enrollment-offering-option-check-wrap">
+                              <input
+                                type="checkbox"
+                                class="enrollment-offering-option-input"
+                                [checked]="assignWizardAllFilteredStudentsSelected()"
+                                (change)="toggleAssignWizardSelectAllStudents($any($event.target).checked)" />
+                              <span class="enrollment-offering-option-check" aria-hidden="true">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                              </span>
+                            </span>
+                            <span class="enrollment-offering-option-body">
+                              <span class="enrollment-offering-option-title">Select all</span>
+                              <span class="enrollment-offering-option-meta">{{ assignWizardFilteredStudents().length }} {{ assignWizardFilteredStudents().length === 1 ? 'student' : 'students' }} shown</span>
+                            </span>
+                          </label>
+
+                          <div class="enrollment-offering-picker-list">
+                            @for (student of assignWizardFilteredStudents(); track student.id) {
+                              <label class="enrollment-offering-option" [class.enrollment-offering-option-selected]="isAssignWizardStudentSelected(student.id)">
+                                <span class="enrollment-offering-option-check-wrap">
+                                  <input
+                                    type="checkbox"
+                                    class="enrollment-offering-option-input"
+                                    [checked]="isAssignWizardStudentSelected(student.id)"
+                                    (change)="toggleAssignWizardStudent(student.id, $any($event.target).checked)" />
+                                  <span class="enrollment-offering-option-check" aria-hidden="true">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                  </span>
+                                </span>
+                                <span class="enrollment-offering-option-body">
+                                  <span class="enrollment-offering-option-title">{{ student.name }} {{ student.surname }}</span>
+                                  <span class="enrollment-offering-option-meta">{{ student.group || 'Ungrouped' }} • {{ student.department }} • {{ student.email }}</span>
+                                </span>
+                              </label>
+                            }
+                          </div>
+                        } @else {
+                          <p class="student-search-empty">No student matches your search.</p>
+                        }
+                      </div>
+                    }
+
+                    @if (assignWizardStep() === 3) {
+                      <div class="assign-wizard-summary">
+                        <div class="student-assignment-block">
+                          <div class="student-assignment-label">Courses &amp; programmes ({{ assignWizardSelectedOfferingCount() }})</div>
+                          <div class="student-chip-row">
+                            @for (offering of assignWizardSelectedOfferings(); track offering.id) {
+                              <span class="assignment-chip">{{ offering.title }}</span>
+                            }
+                          </div>
+                        </div>
+                        <div class="student-assignment-block">
+                          <div class="student-assignment-label">Students ({{ assignWizardSelectedStudentCount() }})</div>
+                          <div class="student-chip-row">
+                            @for (student of assignWizardSelectedStudents(); track student.id) {
+                              <span class="assignment-chip">{{ student.name }} {{ student.surname }}</span>
+                            }
+                          </div>
+                        </div>
+                      </div>
+
+                      <label class="student-search-field">
+                        <span class="student-search-label">Deadline for completion</span>
+                        <input
+                          type="date"
+                          [value]="assignWizardDeadline()"
+                          (input)="assignWizardDeadline.set($any($event.target).value)" />
+                      </label>
+                      <p class="field-hint">
+                        @if (assignWizardSelectedOfferingCount() > 1) {
+                          Sets the completion deadline on every course/programme selected above — applies to everyone assigned to them, not just the students picked here.
+                        } @else {
+                          Sets this course's completion deadline — applies to everyone assigned to it, not just the students picked here.
+                        }
+                        Leave blank to keep the current deadline{{ assignWizardSelectedOfferingCount() > 1 ? 's' : '' }} unchanged.
+                      </p>
+                    }
+
+                    <div class="enrollment-modal-actions">
+                      @if (assignWizardStep() > 1) {
+                        <button type="button" class="builder-secondary-btn" (click)="assignWizardBack()">Back</button>
+                      }
+                      @if (assignWizardStep() < 3) {
+                        <button
+                          type="button"
+                          class="assign-btn"
+                          [disabled]="assignWizardStep() === 1 ? assignWizardSelectedOfferingCount() === 0 : assignWizardSelectedStudentCount() === 0"
+                          (click)="assignWizardNext()">
+                          Next
+                        </button>
+                      } @else {
+                        <button type="button" class="assign-btn" [disabled]="assignWizardSaving()" (click)="confirmAssignWizard()">
+                          {{ assignWizardSaving() ? 'Assigning…' : 'Confirm assignment' }}
+                        </button>
+                      }
+                    </div>
+                  </section>
+                </div>
+              }
+
+              @if (assignWizardToast(); as toastMessage) {
+                <div class="assign-toast" role="status" aria-live="polite">
+                  <span class="assign-toast-icon" aria-hidden="true">✓</span>
+                  <span class="assign-toast-message">{{ toastMessage }}</span>
+                  <button type="button" class="assign-toast-dismiss" aria-label="Dismiss notification" (click)="dismissAssignWizardToast()">×</button>
+                </div>
+              }
+            </section>
           }
         <!-- removed extra closing main tag to fix template structure -->
 
@@ -10015,6 +10627,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly navItems: ReadonlyArray<{ label: string; value: AdminPanel }> = [
     { label: 'Dashboard', value: 'dashboard' },
     { label: 'Courses', value: 'courses' },
+    { label: 'Student Enrollment', value: 'enrollment' },
     { label: 'User Management', value: 'users' },
     { label: 'Reports', value: 'reports' },
     { label: 'Succession Planning', value: 'succession' },
@@ -11060,6 +11673,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.clearWelcomeBannerTimers();
     if (this.sidebarScrollTimeout) {
       clearTimeout(this.sidebarScrollTimeout);
+    }
+    if (this.assignWizardToastTimer) {
+      clearTimeout(this.assignWizardToastTimer);
     }
     this.reportSnapshotRefreshSub.unsubscribe();
   }
@@ -15739,5 +16355,529 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       this.closePublishedOfferingDetail();
       return;
     }
+
+    if (this.selectedPanel() === 'enrollment' && this.creatingEnrollmentGroup()) {
+      this.closeCreateEnrollmentGroup();
+      return;
+    }
+
+    if (this.selectedPanel() === 'enrollment' && this.editingEnrollmentGroup()) {
+      this.closeEnrollmentGroupEdit();
+      return;
+    }
+
+    if (this.selectedPanel() === 'enrollment' && this.assignWizardOpen()) {
+      this.closeAssignWizard();
+      return;
+    }
+
+    if (this.selectedPanel() === 'enrollment' && this.managingEnrollmentStudent()) {
+      this.closeManageEnrollmentStudent();
+      return;
+    }
+
+    if (this.selectedPanel() === 'enrollment' && this.managingEnrollmentGroup()) {
+      this.closeManageEnrollmentGroup();
+      return;
+    }
+  }
+
+  // ── Student Enrollment panel (relocated from training-manager-profile.component.ts) ──
+  readonly selectedEnrollmentView = signal<EnrollmentPanelView>('students');
+
+  readonly studentSearchTerm = signal('');
+  readonly createGroupStudentSearchTerm = signal('');
+  readonly creatingEnrollmentGroup = signal(false);
+  readonly selectedStudentsForNewGroup = signal<Record<string, boolean>>({});
+  readonly selectedStudentsForEditedGroup = signal<Record<string, boolean>>({});
+  readonly selectedStudentsForRemovalFromEditedGroup = signal<Record<string, boolean>>({});
+  readonly editingEnrollmentStudentId = signal<string | null>(null);
+  readonly editingEnrollmentGroupName = signal<string | null>(null);
+  readonly managingEnrollmentStudentId = signal<string | null>(null);
+  readonly managingEnrollmentGroupName = signal<string | null>(null);
+
+  // ── Assign wizard (course/assignment → students → deadline) ─────────────
+  readonly assignWizardOpen = signal(false);
+  readonly assignWizardStep = signal<AssignWizardStep>(1);
+  readonly assignWizardSelectedOfferingIds = signal<Record<string, boolean>>({});
+  readonly assignWizardSelectedStudentIds = signal<Record<string, boolean>>({});
+  readonly assignWizardOfferingSearchTerm = signal('');
+  readonly assignWizardStudentSearchTerm = signal('');
+  readonly assignWizardStudentGroupFilter = signal('');
+  readonly assignWizardDeadline = signal('');
+  readonly assignWizardSaving = signal(false);
+  // Pop notification shown after a successful assignment — the wizard closes immediately rather
+  // than showing its own in-modal success screen, so this is the only confirmation the manager
+  // sees. Auto-dismisses; a timer handle (not a signal, since it's not rendered) lets a second
+  // assignment landing before the first toast clears restart the countdown instead of the two
+  // racing to clear each other's toast early.
+  readonly assignWizardToast = signal<string | null>(null);
+  private assignWizardToastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  readonly editingEnrollmentGroup = computed(() => {
+    const selectedName = this.editingEnrollmentGroupName();
+    if (!selectedName) {
+      return null;
+    }
+
+    return this.filteredEnrollmentGroups().find((group) => group.name === selectedName) ?? null;
+  });
+  readonly managingEnrollmentStudent = computed(() => {
+    const selectedId = this.managingEnrollmentStudentId();
+    if (!selectedId) {
+      return null;
+    }
+
+    return this.managerData.students().find((student) => student.id === selectedId) ?? null;
+  });
+  readonly managingEnrollmentGroup = computed(() => {
+    const selectedName = this.managingEnrollmentGroupName();
+    if (!selectedName) {
+      return null;
+    }
+
+    return this.filteredEnrollmentGroups().find((group) => group.name === selectedName) ?? null;
+  });
+
+  readonly assignWizardFilteredOfferings = computed(() => {
+    const query = this.assignWizardOfferingSearchTerm().trim().toLowerCase();
+    const offerings = this.managerData.offerings();
+
+    if (!query) {
+      return offerings;
+    }
+
+    return offerings.filter((offering) =>
+      [offering.title, offering.type, offering.category, offering.description]
+        .some((value) => value.toLowerCase().includes(query)),
+    );
+  });
+  readonly assignWizardSelectedOfferings = computed(() => {
+    const selected = this.assignWizardSelectedOfferingIds();
+    return this.managerData.offerings().filter((offering) => selected[offering.id]);
+  });
+  readonly assignWizardSelectedOfferingCount = computed(() =>
+    Object.values(this.assignWizardSelectedOfferingIds()).filter(Boolean).length,
+  );
+  // Distinct groups across the current roster, for the group filter dropdown in the assign
+  // wizard's student-selection step — lets a manager narrow the list to one group (e.g. a single
+  // intake cohort) and select everyone in it at once, rather than relying on search text alone.
+  readonly assignWizardStudentGroups = computed(() => {
+    const groups = new Set(this.managerData.students().map((student) => student.group.trim()).filter(Boolean));
+    return Array.from(groups).sort((left, right) => left.localeCompare(right));
+  });
+  readonly assignWizardFilteredStudents = computed(() => {
+    const query = this.assignWizardStudentSearchTerm().trim().toLowerCase();
+    const groupFilter = this.assignWizardStudentGroupFilter();
+    const students = groupFilter
+      ? this.managerData.students().filter((student) => student.group === groupFilter)
+      : this.managerData.students();
+
+    if (!query) {
+      return students;
+    }
+
+    return students.filter((student) =>
+      [student.name, student.surname, student.group, student.email, student.department]
+        .some((value) => value.toLowerCase().includes(query)),
+    );
+  });
+  // "Select all" reflects and acts on whatever the search has currently filtered down to, not
+  // literally every student in the system — the more useful reading when it's sitting right above
+  // a search box, and it means searching to a smaller group and selecting all of them doesn't
+  // silently pull in everyone else too.
+  readonly assignWizardAllFilteredStudentsSelected = computed(() => {
+    const filtered = this.assignWizardFilteredStudents();
+    if (!filtered.length) {
+      return false;
+    }
+
+    const selected = this.assignWizardSelectedStudentIds();
+    return filtered.every((student) => selected[student.id]);
+  });
+  readonly assignWizardSelectedStudents = computed(() => {
+    const selected = this.assignWizardSelectedStudentIds();
+    return this.managerData.students().filter((student) => selected[student.id]);
+  });
+  readonly assignWizardSelectedStudentCount = computed(() =>
+    Object.values(this.assignWizardSelectedStudentIds()).filter(Boolean).length,
+  );
+  readonly filteredEnrollmentStudents = computed(() => {
+    const query = this.studentSearchTerm().trim().toLowerCase();
+    const students = this.managerData.students();
+
+    if (!query) {
+      return students;
+    }
+
+    return students.filter((student) =>
+      [
+        student.name,
+        student.surname,
+        student.group,
+        student.dateEnrolled,
+        student.deadlineDate,
+        student.email,
+        student.activeStatus,
+        student.department,
+        student.status,
+      ].some((value) => value.toLowerCase().includes(query)),
+    );
+  });
+  readonly filteredEnrollmentGroups = computed<EnrollmentGroupSummary[]>(() => {
+    const groups = new Map<string, EnrollmentStudent[]>();
+
+    for (const student of this.filteredEnrollmentStudents()) {
+      const groupName = student.group.trim() || 'Ungrouped';
+      groups.set(groupName, [...(groups.get(groupName) ?? []), student]);
+    }
+
+    return Array.from(groups.entries())
+      .map(([name, members]) => {
+        const startDates = members.map((student) => student.dateEnrolled).filter(Boolean).sort();
+        const endDates = members.map((student) => student.deadlineDate).filter(Boolean).sort();
+
+        return {
+          name,
+          members: [...members].sort((left, right) => `${left.name} ${left.surname}`.localeCompare(`${right.name} ${right.surname}`)),
+          activeCount: members.filter((student) => student.activeStatus === 'Active').length,
+          startDate: startDates[0] || 'No start date',
+          endDate: endDates[endDates.length - 1] || 'No end date',
+        } satisfies EnrollmentGroupSummary;
+      })
+      .sort((left, right) => left.name.localeCompare(right.name));
+  });
+  readonly groupCreationStudents = computed(() => {
+    const query = this.createGroupStudentSearchTerm().trim().toLowerCase();
+    const students = [...this.managerData.students()].sort((left, right) => `${left.name} ${left.surname}`.localeCompare(`${right.name} ${right.surname}`));
+
+    if (!query) {
+      return students;
+    }
+
+    return students.filter((student) =>
+      [student.name, student.surname, student.group, student.email, student.department, student.activeStatus]
+        .some((value) => value.toLowerCase().includes(query)),
+    );
+  });
+  readonly selectedStudentsForNewGroupCount = computed(() =>
+    Object.values(this.selectedStudentsForNewGroup()).filter(Boolean).length,
+  );
+  readonly currentEditingGroupMembers = computed(() => this.editingEnrollmentGroup()?.members ?? []);
+  readonly selectedStudentsForRemovalFromEditedGroupCount = computed(() =>
+    Object.values(this.selectedStudentsForRemovalFromEditedGroup()).filter(Boolean).length,
+  );
+  readonly availableStudentsForEditedGroup = computed(() => {
+    const editingGroup = this.editingEnrollmentGroup();
+
+    if (!editingGroup) {
+      return [];
+    }
+
+    const existingMemberIds = new Set(editingGroup.members.map((student) => student.id));
+
+    return [...this.filteredEnrollmentStudents()]
+      .filter((student) => !existingMemberIds.has(student.id))
+      .sort((left, right) => `${left.name} ${left.surname}`.localeCompare(`${right.name} ${right.surname}`));
+  });
+  readonly selectedStudentsForEditedGroupCount = computed(() =>
+    Object.values(this.selectedStudentsForEditedGroup()).filter(Boolean).length,
+  );
+
+  readonly enrollmentGroupForm = new FormGroup({
+    name: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    startDate: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    endDate: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+  });
+  readonly createEnrollmentGroupForm = new FormGroup({
+    name: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    startDate: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    endDate: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+  });
+
+  selectEnrollmentView(view: EnrollmentPanelView) {
+    this.selectedEnrollmentView.set(view);
+  }
+
+  openCreateEnrollmentGroup() {
+    this.createEnrollmentGroupForm.reset({
+      name: '',
+      startDate: '',
+      endDate: '',
+    });
+    this.selectedStudentsForNewGroup.set({});
+    this.createGroupStudentSearchTerm.set('');
+    this.creatingEnrollmentGroup.set(true);
+  }
+
+  closeCreateEnrollmentGroup() {
+    this.creatingEnrollmentGroup.set(false);
+    this.selectedStudentsForNewGroup.set({});
+    this.createGroupStudentSearchTerm.set('');
+  }
+
+  toggleStudentForNewGroup(studentId: string, checked: boolean) {
+    this.selectedStudentsForNewGroup.update((current) => ({
+      ...current,
+      [studentId]: checked,
+    }));
+  }
+
+  isStudentSelectedForNewGroup(studentId: string) {
+    return this.selectedStudentsForNewGroup()[studentId] ?? false;
+  }
+
+  toggleStudentForEditedGroup(studentId: string, checked: boolean) {
+    this.selectedStudentsForEditedGroup.update((current) => ({
+      ...current,
+      [studentId]: checked,
+    }));
+  }
+
+  isStudentSelectedForEditedGroup(studentId: string) {
+    return this.selectedStudentsForEditedGroup()[studentId] ?? false;
+  }
+
+  toggleStudentForRemovalFromEditedGroup(studentId: string) {
+    this.selectedStudentsForRemovalFromEditedGroup.update((current) => ({
+      ...current,
+      [studentId]: !current[studentId],
+    }));
+  }
+
+  isStudentSelectedForRemovalFromEditedGroup(studentId: string) {
+    return this.selectedStudentsForRemovalFromEditedGroup()[studentId] ?? false;
+  }
+
+  openEnrollmentGroupEdit(group: EnrollmentGroupSummary) {
+    this.enrollmentGroupForm.reset({
+      name: group.name,
+      startDate: group.startDate,
+      endDate: group.endDate,
+    });
+    this.selectedStudentsForEditedGroup.set({});
+    this.selectedStudentsForRemovalFromEditedGroup.set({});
+    this.editingEnrollmentGroupName.set(group.name);
+  }
+
+  closeEnrollmentGroupEdit() {
+    this.editingEnrollmentGroupName.set(null);
+    this.selectedStudentsForEditedGroup.set({});
+    this.selectedStudentsForRemovalFromEditedGroup.set({});
+  }
+
+  saveEnrollmentGroupEdit() {
+    const groupName = this.editingEnrollmentGroupName();
+
+    if (!groupName) {
+      return;
+    }
+
+    if (this.enrollmentGroupForm.invalid) {
+      this.enrollmentGroupForm.markAllAsTouched();
+      return;
+    }
+
+    this.managerData.updateGroup(groupName, {
+      name: this.enrollmentGroupForm.controls.name.value,
+      startDate: this.enrollmentGroupForm.controls.startDate.value,
+      endDate: this.enrollmentGroupForm.controls.endDate.value,
+      additionalStudentIds: Object.entries(this.selectedStudentsForEditedGroup())
+        .filter(([, selected]) => selected)
+        .map(([studentId]) => studentId),
+      removedStudentIds: Object.entries(this.selectedStudentsForRemovalFromEditedGroup())
+        .filter(([, selected]) => selected)
+        .map(([studentId]) => studentId),
+    });
+    this.closeEnrollmentGroupEdit();
+  }
+
+  saveCreateEnrollmentGroup() {
+    if (this.createEnrollmentGroupForm.invalid || this.selectedStudentsForNewGroupCount() === 0) {
+      this.createEnrollmentGroupForm.markAllAsTouched();
+      return;
+    }
+
+    const selectedStudentIds = Object.entries(this.selectedStudentsForNewGroup())
+      .filter(([, selected]) => selected)
+      .map(([studentId]) => studentId);
+
+    this.managerData.createGroup({
+      name: this.createEnrollmentGroupForm.controls.name.value,
+      startDate: this.createEnrollmentGroupForm.controls.startDate.value,
+      endDate: this.createEnrollmentGroupForm.controls.endDate.value,
+      studentIds: selectedStudentIds,
+    });
+    this.closeCreateEnrollmentGroup();
+  }
+
+  deleteEnrollmentGroup(group: EnrollmentGroupSummary) {
+    this.managerData.deleteGroup(group.name);
+    if (this.editingEnrollmentGroupName() === group.name) {
+      this.closeEnrollmentGroupEdit();
+    }
+    if (this.managingEnrollmentGroupName() === group.name) {
+      this.closeManageEnrollmentGroup();
+    }
+  }
+
+  openManageEnrollmentStudent(student: EnrollmentStudent) {
+    this.managingEnrollmentStudentId.set(student.id);
+  }
+
+  closeManageEnrollmentStudent() {
+    this.managingEnrollmentStudentId.set(null);
+  }
+
+  openManageEnrollmentGroup(group: EnrollmentGroupSummary) {
+    this.managingEnrollmentGroupName.set(group.name);
+  }
+
+  closeManageEnrollmentGroup() {
+    this.managingEnrollmentGroupName.set(null);
+  }
+
+  unassignGroupOffering(group: EnrollmentGroupSummary, offering: TrainingOffering) {
+    this.managerData.removeGroupFromOffering(group.name, offering.id);
+  }
+
+  unassignStudentOffering(student: EnrollmentStudent, offering: TrainingOffering) {
+    this.managerData.removeStudentFromOffering(student.id, offering.id);
+  }
+
+  // ── Assign wizard ─────────────────────────────────────────────────────
+  // No preset parameter — "+ New assignment" in the panel header is the only entry point into
+  // this wizard now, deliberately: it always starts from a clean slate rather than being
+  // pre-filtered by whichever student, group, or course the manager happened to click from.
+  openAssignWizard() {
+    this.assignWizardSelectedOfferingIds.set({});
+    this.assignWizardSelectedStudentIds.set({});
+    this.assignWizardOfferingSearchTerm.set('');
+    this.assignWizardStudentSearchTerm.set('');
+    this.assignWizardStudentGroupFilter.set('');
+    this.assignWizardDeadline.set('');
+    this.assignWizardSaving.set(false);
+    this.assignWizardStep.set(1);
+    this.assignWizardOpen.set(true);
+  }
+
+  closeAssignWizard() {
+    this.assignWizardOpen.set(false);
+  }
+
+  private showAssignWizardToast(message: string) {
+    if (this.assignWizardToastTimer) {
+      clearTimeout(this.assignWizardToastTimer);
+    }
+    this.assignWizardToast.set(message);
+    this.assignWizardToastTimer = setTimeout(() => {
+      this.assignWizardToast.set(null);
+      this.assignWizardToastTimer = null;
+    }, 4000);
+  }
+
+  dismissAssignWizardToast() {
+    if (this.assignWizardToastTimer) {
+      clearTimeout(this.assignWizardToastTimer);
+      this.assignWizardToastTimer = null;
+    }
+    this.assignWizardToast.set(null);
+  }
+
+  toggleAssignWizardOffering(offeringId: string, checked: boolean) {
+    this.assignWizardSelectedOfferingIds.update((current) => ({ ...current, [offeringId]: checked }));
+  }
+
+  isAssignWizardOfferingSelected(offeringId: string) {
+    return this.assignWizardSelectedOfferingIds()[offeringId] ?? false;
+  }
+
+  toggleAssignWizardStudent(studentId: string, checked: boolean) {
+    this.assignWizardSelectedStudentIds.update((current) => ({ ...current, [studentId]: checked }));
+  }
+
+  updateAssignWizardStudentGroupFilter(event: Event) {
+    const target = event.target as HTMLSelectElement | null;
+    this.assignWizardStudentGroupFilter.set(target?.value ?? '');
+  }
+
+  isAssignWizardStudentSelected(studentId: string) {
+    return this.assignWizardSelectedStudentIds()[studentId] ?? false;
+  }
+
+  // Only ever touches the currently filtered/visible students — a student hidden by an active
+  // search keeps whatever selection state they already had, whichever way this is clicked.
+  toggleAssignWizardSelectAllStudents(checked: boolean) {
+    const filtered = this.assignWizardFilteredStudents();
+    this.assignWizardSelectedStudentIds.update((current) => {
+      const next = { ...current };
+      for (const student of filtered) {
+        next[student.id] = checked;
+      }
+      return next;
+    });
+  }
+
+  // Direct step-button navigation and Back/Next both funnel through this — later steps stay
+  // unreachable (button disabled in the template too) until the step before them has at least
+  // one selection, so the wizard can't be confirmed with an empty course or student list.
+  assignWizardGoToStep(step: AssignWizardStep) {
+    if (step >= 2 && this.assignWizardSelectedOfferingCount() === 0) {
+      return;
+    }
+
+    if (step >= 3 && this.assignWizardSelectedStudentCount() === 0) {
+      return;
+    }
+
+    this.assignWizardStep.set(step);
+  }
+
+  assignWizardNext() {
+    this.assignWizardGoToStep((this.assignWizardStep() + 1) as AssignWizardStep);
+  }
+
+  assignWizardBack() {
+    this.assignWizardStep.set(Math.max(1, this.assignWizardStep() - 1) as AssignWizardStep);
+  }
+
+  confirmAssignWizard() {
+    const offerings = this.assignWizardSelectedOfferings();
+    const students = this.assignWizardSelectedStudents();
+    if (!offerings.length || !students.length || this.assignWizardSaving()) {
+      return;
+    }
+
+    this.assignWizardSaving.set(true);
+
+    // A course's completion deadline is shared by everyone assigned to it (there's no per-
+    // student, per-course deadline in this app) — update it first so assignStudentToOffering
+    // below picks up the new value for students newly assigned in this same run.
+    const deadline = this.assignWizardDeadline().trim();
+    if (deadline) {
+      for (const offering of offerings) {
+        this.managerData.updateOffering({
+          id: offering.id,
+          title: offering.title,
+          type: offering.type,
+          category: offering.category,
+          description: offering.description,
+          completionDeadline: deadline,
+          status: offering.status,
+          thumbnailDataUrl: offering.thumbnailDataUrl,
+        });
+      }
+    }
+
+    for (const offering of offerings) {
+      for (const student of students) {
+        this.managerData.assignStudentToOffering(student.id, offering.id);
+      }
+    }
+
+    this.assignWizardSaving.set(false);
+    const message = `Assigned ${offerings.length} ${offerings.length === 1 ? 'course' : 'courses'} to ${students.length} ${students.length === 1 ? 'student' : 'students'}.`;
+    this.closeAssignWizard();
+    this.showAssignWizardToast(message);
   }
 }

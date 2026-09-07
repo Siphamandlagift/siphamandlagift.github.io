@@ -4,7 +4,7 @@ import { LmsBackendService } from './lms-backend.service';
 import { combineDisplayName, readLmsSessionRecord } from './session-auth';
 import type { StudentMessage } from './student-data.service';
 
-export type ManagerPanel = 'dashboard' | 'requested-training' | 'mentorship' | 'enrollment' | 'messages' | 'idp' | 'performance' | 'succession';
+export type ManagerPanel = 'dashboard' | 'requested-training' | 'mentorship' | 'messages' | 'idp' | 'performance' | 'succession';
 
 export type ManagerProfile = {
   name: string;
