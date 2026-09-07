@@ -2,10 +2,11 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormArray, FormControl, FormGroup, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { firstValueFrom, interval } from 'rxjs';
 import {
+  AssignmentSubmissionRecord,
   EnrollmentStudent,
   EnrollmentStudentInput,
   ExternalTrainingRequestRecord,
@@ -13,7 +14,14 @@ import {
   SuccessionReadinessRating,
   SuccessionRoleRecord,
   SystemTrainingManager,
+  TrainingAssessmentChoice,
+  TrainingAssessmentType,
+  TrainingContentKind,
   TrainingManagerDataService,
+  TrainingMatchingPair,
+  TrainingOffering,
+  TrainingOfferingType,
+  TrainingQuestionType,
 } from './training-manager-data.service';
 import { LmsBackendService, type HrIntegrationConfig, type HrIntegrationConfigUpdate, type HrIntegrationSyncSummary, type LoginRole, type ManagedUserCredentialInput, type ResolveRolesEntry } from './lms-backend.service';
 import { LmsBrandThemeId, LmsBrandingService } from './lms-branding.service';
@@ -21,8 +29,61 @@ import type { StudentCertificateLicence, StudentCertificateStatus, StudentCourse
 import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLmsSessionRecord } from './session-auth';
 import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component';
 import { LoadingSpinnerComponent } from './loading-spinner.component';
+import { PublishedOfferingDetailComponent } from './published-offering-detail.component';
+import { PublishedOfferingCardComponent } from './published-offering-card.component';
+import { PowerPointWindowComponent } from './powerpoint-window.component';
+import { resolvePowerPointUploadType } from './powerpoint-preview';
 
-type AdminPanel = 'dashboard' | 'users' | 'reports' | 'succession' | 'settings';
+type AdminPanel = 'dashboard' | 'users' | 'reports' | 'succession' | 'settings' | 'courses';
+
+// ── Courses panel types (relocated from training-manager-profile.component.ts) ────
+type CoursesPanelView = 'create' | 'created' | 'submissions';
+type AssignmentSubmissionFilter = 'All' | 'Pending Review' | 'Approved' | 'Needs Revision';
+type CreateCourseSection = 'basics' | 'content';
+
+type AssessmentChoiceFormGroup = FormGroup<{
+  text: FormControl<string>;
+  points: FormControl<number>;
+  isCorrect: FormControl<boolean>;
+}>;
+
+type AssessmentQuestionFormGroup = FormGroup<{
+  prompt: FormControl<string>;
+  questionType: FormControl<TrainingQuestionType>;
+  points: FormControl<number>;
+  choices: FormArray<AssessmentChoiceFormGroup>;
+  matchingPairs: FormArray<MatchingPairFormGroup>;
+  dragAndDropEnabled: FormControl<boolean>;
+  attachmentFileName: FormControl<string>;
+  attachmentDataUrl: FormControl<string>;
+}>;
+
+type MatchingPairFormGroup = FormGroup<{
+  prompt: FormControl<string>;
+  answer: FormControl<string>;
+}>;
+
+type ContentItemFormGroup = FormGroup<{
+  id: FormControl<string>;
+  kind: FormControl<TrainingContentKind>;
+  title: FormControl<string>;
+  assessmentType: FormControl<TrainingAssessmentType | null>;
+  passMarkPercentage: FormControl<number>;
+  maxAttempts: FormControl<number>;
+  resourceLink: FormControl<string>;
+  uploadedFileName: FormControl<string>;
+  uploadedFileDataUrl: FormControl<string>;
+  convertedPdfUrl: FormControl<string>;
+  requiresAcknowledgement: FormControl<boolean>;
+  allowDownload: FormControl<boolean>;
+  durationSeconds: FormControl<number | null>;
+  questions: FormArray<AssessmentQuestionFormGroup>;
+}>;
+
+type PowerPointPreviewState = {
+  fileName: string;
+  message: string;
+};
 
 type SuccessionOrgNode = { role: SuccessionRoleRecord; children: SuccessionOrgNode[] };
 
@@ -315,8 +376,11 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
 @Component({
   selector: 'admin-profile',
-  imports: [CommonModule, ReactiveFormsModule, LogoutConfirmDialogComponent, LoadingSpinnerComponent],
+  imports: [CommonModule, ReactiveFormsModule, LogoutConfirmDialogComponent, LoadingSpinnerComponent, PublishedOfferingCardComponent, PublishedOfferingDetailComponent, PowerPointWindowComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '(document:keydown.escape)': 'handleOverlayEscape()',
+  },
   template: `
 
     <div
@@ -432,6 +496,13 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       <rect x="13.5" y="3.5" width="7" height="4.5" rx="2" stroke="currentColor" stroke-width="1.8"></rect>
                       <rect x="13.5" y="11" width="7" height="9.5" rx="2" stroke="currentColor" stroke-width="1.8"></rect>
                       <rect x="3.5" y="13.5" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.8"></rect>
+                    </svg>
+                  }
+                  @case ('courses') {
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                      <path d="M4.75 7.5 12 4l7.25 3.5L12 11 4.75 7.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                      <path d="M4.75 11.5 12 15l7.25-3.5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                      <path d="M4.75 15.5 12 19l7.25-3.5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
                     </svg>
                   }
                   @case ('users') {
@@ -2657,6 +2728,762 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                 }
               </section>
             </section>
+          }
+
+          @if (selectedPanel() === 'courses') {
+            <section class="manager-panel">
+
+              <div class="courses-panel-shell">
+                <div class="courses-tab-nav" aria-label="Courses panel navigation">
+                  <button type="button" class="courses-tab-btn" [class.courses-tab-btn-active]="selectedCoursesView() === 'create'" (click)="selectCoursesView('create')">
+                    <span class="courses-tab-icon" aria-hidden="true">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                    </span>
+                    <span>Create Course</span>
+                  </button>
+                  <button type="button" class="courses-tab-btn" [class.courses-tab-btn-active]="selectedCoursesView() === 'created'" (click)="selectCoursesView('created')">
+                    <span class="courses-tab-icon" aria-hidden="true">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M7 6.75h10M7 12h10M7 17.25h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="4.5" cy="6.75" r="1" fill="currentColor"/><circle cx="4.5" cy="12" r="1" fill="currentColor"/><circle cx="4.5" cy="17.25" r="1" fill="currentColor"/></svg>
+                    </span>
+                    <span>My Created Courses</span>
+                  </button>
+                  <button type="button" class="courses-tab-btn" [class.courses-tab-btn-active]="selectedCoursesView() === 'submissions'" (click)="selectCoursesView('submissions')">
+                    <span class="courses-tab-icon" aria-hidden="true">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M7 6.75h10M7 12h10M7 17.25h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="m17 16.5 1.75 1.75L22 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="4.5" cy="6.75" r="1" fill="currentColor"/><circle cx="4.5" cy="12" r="1" fill="currentColor"/><circle cx="4.5" cy="17.25" r="1" fill="currentColor"/></svg>
+                    </span>
+                    <span>Assignment Submissions</span>
+                  </button>
+                </div>
+
+                @if (selectedCoursesView() === 'create') {
+                  <section class="course-form-card course-studio-card">
+                    <form class="course-form course-studio-form" [formGroup]="courseForm" (ngSubmit)="submitCourseForm()">
+                      <aside class="course-studio-sidebar">
+                        <div class="course-studio-topbar">
+                          <button type="button" class="course-studio-icon-btn" aria-label="Back to created courses" (click)="selectCoursesView('created')">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M5 12h14M5 17h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                          </button>
+                          <button type="submit" class="course-studio-publish-btn" [disabled]="courseForm.invalid">{{ editingCourseId() ? 'Save' : 'Publish' }}</button>
+                        </div>
+
+                        <div class="course-studio-sidebar-copy">
+                          <strong>{{ courseForm.controls.title.value || 'New course' }}</strong>
+                        </div>
+
+                        <div class="course-studio-quick-actions">
+                          <button type="button" class="course-studio-add-btn" (click)="toggleAddItemMenu()">
+                            <span aria-hidden="true">+</span>
+                            <span>Add</span>
+                          </button>
+                          <button type="button" class="course-studio-mini-btn" [class.course-studio-mini-btn-active]="selectedCreateSection() === 'basics'" aria-label="Open course details" (click)="openCreateSection('basics'); closeContentItemDetails()">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 7h12M6 12h12M6 17h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                          </button>
+                          <button type="button" class="course-studio-mini-btn" [class.course-studio-mini-btn-active]="selectedCreateSection() === 'content'" aria-label="Open course units" (click)="openCreateSection('content')">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="7" cy="6" r="1.25" fill="currentColor"/><circle cx="7" cy="12" r="1.25" fill="currentColor"/><circle cx="7" cy="18" r="1.25" fill="currentColor"/></svg>
+                          </button>
+                          <button type="button" class="course-studio-mini-btn" aria-label="Return to created courses" (click)="selectCoursesView('created')">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                          </button>
+                        </div>
+
+                        @if (isAddItemMenuOpen()) {
+                          <div class="content-add-menu course-studio-add-menu" role="menu" aria-label="Add item types">
+                            @for (contentKind of contentKindOptions; track contentKind) {
+                              <button type="button" class="content-add-menu-item" (click)="addContentItemFromMenu(contentKind)">
+                                {{ contentKind }}
+                              </button>
+                            }
+                          </div>
+                        }
+
+                        <div class="course-studio-unit-list">
+                          <button type="button" class="course-studio-unit" [class.course-studio-unit-active]="selectedCreateSection() === 'basics' && expandedContentIndex() === null" (click)="openCreateSection('basics'); closeContentItemDetails()">
+                            <span class="course-studio-unit-icon" aria-hidden="true">
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 7h12M6 12h12M6 17h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                            </span>
+                            <span class="course-studio-unit-copy">
+                              <strong>Course details</strong>
+                              <span>{{ createSectionStatus('basics') }}</span>
+                            </span>
+                          </button>
+
+                          @for (item of contentItemsArray.controls; track $index; let itemIndex = $index) {
+                              <button
+                                type="button"
+                                class="course-studio-unit"
+                                draggable="true"
+                                [class.course-studio-unit-active]="selectedCreateSection() === 'content' && expandedContentIndex() === itemIndex"
+                                [class.course-studio-unit-dragging]="draggedContentIndex() === itemIndex"
+                                [attr.aria-label]="'Drag to reorder or open ' + courseStudioItemTitle(itemIndex)"
+                                (click)="openCreateSection('content'); openContentItemDetails(itemIndex)"
+                                (dragstart)="onContentDragStart(itemIndex)"
+                                (dragover)="onContentDragOver($event)"
+                                (drop)="onContentDrop(itemIndex)"
+                                (dragend)="onContentDragEnd()">
+                              <span class="course-studio-unit-icon" aria-hidden="true">
+                                @switch (item.controls.kind.value) {
+                                  @case ('Video') {
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 7.5v9l7-4.5-7-4.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><rect x="4.5" y="4.5" width="15" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/></svg>
+                                  }
+                                  @case ('Document') {
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 4.75h6.5l3.75 3.75V19A1.75 1.75 0 0 1 16.5 20.75h-8A1.75 1.75 0 0 1 6.75 19V6.5A1.75 1.75 0 0 1 8.5 4.75Z" stroke="currentColor" stroke-width="1.8"/><path d="M14.5 4.75V8.5h3.75" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                  }
+                                  @case ('Assessment') {
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 7h8M8 12h8M8 17h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="4.5" y="4.5" width="15" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/></svg>
+                                  }
+                                }
+                              </span>
+                              <span class="course-studio-unit-copy">
+                                <strong>{{ courseStudioItemTitle(itemIndex) }}</strong>
+                                <span>{{ contentItemSummary(itemIndex) }}</span>
+                              </span>
+                              <span class="course-studio-unit-drag-handle" aria-hidden="true">::</span>
+                            </button>
+                          }
+
+                          @if (contentItemsArray.length > 1) {
+                            <div
+                              class="course-studio-end-dropzone"
+                              [class.course-studio-end-dropzone-active]="draggedContentIndex() !== null"
+                              (dragover)="onContentDragOver($event)"
+                              (drop)="onContentDrop(contentItemsArray.length)">
+                              Drag a unit here to move it to the end
+                            </div>
+                          }
+
+                        </div>
+                      </aside>
+
+                      <div class="course-studio-workspace">
+                        <div class="course-studio-workspace-header">
+                          <div>
+                            <h2>{{ courseStudioWorkspaceTitle() }}</h2>
+                          </div>
+
+                          @if (selectedCreateSection() === 'content' && selectedContentItem()) {
+                            <button type="button" class="builder-secondary-btn" (click)="removeContentItem(activeContentItemIndex())">Remove unit</button>
+                          }
+                        </div>
+
+                        @if (selectedCreateSection() === 'basics') {
+                          <section class="form-section-card course-studio-panel" aria-labelledby="course-studio-basics-title">
+                            <div class="form-section-header">
+                              <div>
+                                <p class="form-section-eyebrow">New course</p>
+                                <h3 id="course-studio-basics-title">Course settings</h3>
+                              </div>
+                              <span class="create-section-status-pill">{{ createSectionStatus('basics') }}</span>
+                            </div>
+
+                            <div class="form-grid form-grid-two">
+                              <label title="Enter the course or programme name learners will see.">
+                                <span class="required-label">Course Title <span class="required-marker" aria-hidden="true">*</span></span>
+                                <input formControlName="title" type="text" placeholder="Enter course or programme title" />
+                                @if (courseForm.controls.title.touched && courseForm.controls.title.invalid) {
+                                  <span class="field-error">Add a title before creating the item.</span>
+                                }
+                              </label>
+
+                              <label title="Choose when learners should complete this item.">
+                                <span>Completion Deadline</span>
+                                <input formControlName="completionDeadline" type="date" />
+                              </label>
+
+                              <label>
+                                <span class="required-label">Type <span class="required-marker" aria-hidden="true">*</span></span>
+                                <select formControlName="type">
+                                  <option value="Course">Course</option>
+                                  <option value="Programme">Programme</option>
+                                </select>
+                              </label>
+
+                              <label title="Use a category to group related learning items.">
+                                <span class="required-label">Category <span class="required-marker" aria-hidden="true">*</span></span>
+                                <input formControlName="category" type="text" placeholder="Examples: Onboarding, Compliance, Leadership" />
+                                @if (courseForm.controls.category.touched && courseForm.controls.category.invalid) {
+                                  <span class="field-error">Add a category to organise the item.</span>
+                                }
+                              </label>
+
+                              <label class="upload-field form-grid-span-two" title="Upload a cover image for the course card.">
+                                Course Thumbnail
+                                <input type="file" accept="image/*" [disabled]="thumbnailUploading()" (change)="onThumbnailSelected($event)" />
+                                @if (thumbnailFileName()) {
+                                  <span class="asset-preview-copy">Selected thumbnail: {{ thumbnailFileName() }}</span>
+                                }
+                              </label>
+
+                              @if (thumbnailPreview()) {
+                                <div class="course-studio-thumbnail-preview form-grid-span-two">
+                                  <img [src]="thumbnailPreview()!" alt="Selected course thumbnail preview" />
+                                </div>
+                              }
+
+                              <label class="form-grid-span-two" title="Add a compact summary learners will see before starting the item.">
+                                <span class="required-label">Course Description <span class="required-marker" aria-hidden="true">*</span></span>
+                                <textarea formControlName="description" rows="5" placeholder="Add a short summary of what learners will cover."></textarea>
+                                @if (courseForm.controls.description.touched && courseForm.controls.description.invalid) {
+                                  <span class="field-error">Add a longer description so learners know what to expect.</span>
+                                }
+                              </label>
+                            </div>
+                          </section>
+                        } @else if (selectedContentItem(); as activeItem) {
+                          <section class="form-section-card course-studio-panel course-item-detail-card" [formGroup]="activeItem" aria-labelledby="course-item-detail-title">
+                            <div class="form-section-header course-item-detail-header">
+                              <div>
+                                <p class="form-section-eyebrow">{{ activeItem.controls.kind.value }} unit</p>
+                                <h3 id="course-item-detail-title">{{ courseStudioWorkspaceTitle() }}</h3>
+                              </div>
+                              <span class="create-section-status-pill">{{ contentItemResourceState(activeContentItemIndex()) }}</span>
+                            </div>
+
+                            @if (activeItem.controls.kind.value === 'Assessment') {
+                              <div class="form-grid form-grid-two">
+                                <div title="The item type is chosen when you add the step.">
+                                  <span class="required-label">Item Type</span>
+                                  <div class="content-item-type-display">{{ activeItem.controls.kind.value }}</div>
+                                </div>
+
+                                <label title="Give this content step a short descriptive name.">
+                                  <span class="required-label">Assessment Title <span class="required-marker" aria-hidden="true">*</span></span>
+                                  <input formControlName="title" type="text" [attr.data-content-item-title]="activeContentItemIndex()" placeholder="Example: Knowledge Check" />
+                                </label>
+
+                                <label title="Choose how this assessment should be evaluated.">
+                                  Assessment Type
+                                  <select formControlName="assessmentType" (change)="onAssessmentTypeChanged(activeContentItemIndex(), $any($event.target).value)">
+                                    @for (assessmentType of assessmentTypeOptions; track assessmentType) {
+                                      <option [value]="assessmentType">{{ assessmentType }}</option>
+                                    }
+                                  </select>
+                                </label>
+
+                                <label title="Set the minimum percentage learners must achieve to pass this assessment.">
+                                  <span class="required-label">Pass Mark (%) <span class="required-marker" aria-hidden="true">*</span></span>
+                                  <input formControlName="passMarkPercentage" type="number" min="1" max="100" />
+                                </label>
+
+                                <label title="Set how many times a learner can submit or retry this assessment.">
+                                  <span class="required-label">Attempts Allowed <span class="required-marker" aria-hidden="true">*</span></span>
+                                  <input formControlName="maxAttempts" type="number" min="1" step="1" />
+                                </label>
+                              </div>
+
+                              <div class="assessment-question-builder">
+                                <div class="assessment-question-header">
+                                  <div>
+                                    <p class="form-section-eyebrow">{{ assessmentCollectionLabel(activeContentItemIndex()) }}</p>
+                                    <h4>{{ assessmentBuilderHeading(activeContentItemIndex()) }}</h4>
+                                  </div>
+                                  <button type="button" class="assessment-add-btn" (click)="addAssessmentQuestion(activeContentItemIndex())">{{ assessmentAddButtonLabel(activeContentItemIndex()) }}</button>
+                                </div>
+
+                                @if (assessmentStatusMessage(activeContentItemIndex()); as assessmentStatus) {
+                                  <div class="assessment-status-banner" [class.assessment-status-banner-success]="assessmentStatus.tone === 'success'" role="status" aria-live="polite">
+                                    {{ assessmentStatus.message }}
+                                  </div>
+                                }
+
+                                <div class="assessment-question-list" formArrayName="questions">
+                                  @if (!assessmentQuestionsAt(activeContentItemIndex()).length) {
+                                    <div class="assessment-status-banner" role="status" aria-live="polite">
+                                      No {{ assessmentEntryLabel(activeContentItemIndex(), 2) }} added yet. Use {{ assessmentAddButtonLabel(activeContentItemIndex()).toLowerCase() }} to create the first one.
+                                    </div>
+                                  }
+
+                                  @for (question of assessmentQuestionsAt(activeContentItemIndex()).controls; track $index; let questionIndex = $index) {
+                                    <div class="assessment-question-card" [formGroupName]="questionIndex">
+                                      <div class="assessment-question-topbar">
+                                        <div class="assessment-question-summary">
+                                          <strong>{{ question.controls.prompt.value || 'Untitled question' }}</strong>
+                                          <span>{{ question.controls.questionType.value }} • {{ question.controls.points.value }} pts</span>
+                                        </div>
+                                        <div class="assessment-question-actions">
+                                          <button type="button" class="content-item-toggle-btn" (click)="toggleAssessmentQuestion(activeContentItemIndex(), questionIndex)">
+                                            {{ isAssessmentQuestionExpanded(activeContentItemIndex(), questionIndex) ? 'Collapse' : 'Expand' }}
+                                          </button>
+                                          <button type="button" class="assessment-remove-btn" (click)="removeAssessmentQuestion(activeContentItemIndex(), questionIndex)">Remove question</button>
+                                        </div>
+                                      </div>
+
+                                      @if (isAssessmentQuestionExpanded(activeContentItemIndex(), questionIndex)) {
+                                        <div class="assessment-question-grid">
+                                          <label class="form-grid-span-two" title="Enter the learner question or task instruction.">
+                                            <span class="required-label">{{ assessmentPromptLabel(activeContentItemIndex()) }} <span class="required-marker" aria-hidden="true">*</span></span>
+                                            <textarea formControlName="prompt" rows="3" [placeholder]="assessmentPromptPlaceholder(activeContentItemIndex())"></textarea>
+                                          </label>
+
+                                          <label>
+                                            <span class="required-label">{{ assessmentQuestionTypeLabel(activeContentItemIndex()) }} <span class="required-marker" aria-hidden="true">*</span></span>
+                                            <select formControlName="questionType" [disabled]="assessmentQuestionTypeOptionsForItem(activeContentItemIndex()).length === 1" (change)="onAssessmentQuestionTypeChanged(activeContentItemIndex(), questionIndex, $any($event.target).value)">
+                                              @for (questionType of assessmentQuestionTypeOptionsForItem(activeContentItemIndex()); track questionType) {
+                                                <option [value]="questionType">{{ questionType }}</option>
+                                              }
+                                            </select>
+                                          </label>
+
+                                          <label>
+                                            <span class="required-label">{{ assessmentPointsLabel(activeContentItemIndex()) }} <span class="required-marker" aria-hidden="true">*</span></span>
+                                            <input formControlName="points" type="number" min="1" (input)="onAssessmentQuestionPointsChanged(activeContentItemIndex(), questionIndex)" />
+                                          </label>
+
+                                          @if (supportsAssessmentAttachment(activeContentItemIndex())) {
+                                            <label class="upload-field form-grid-span-two" [title]="assessmentAttachmentTitle(activeContentItemIndex())">
+                                              {{ assessmentAttachmentLabel(activeContentItemIndex()) }}
+                                              <input accept=".pdf,.doc,.docx,.ppt,.pptx,.xlsx,.txt" type="file" (change)="onAssessmentQuestionFileSelected(activeContentItemIndex(), questionIndex, $event)" />
+                                              @if (question.controls.attachmentFileName.value) {
+                                                <span class="asset-preview-copy">Selected document: {{ question.controls.attachmentFileName.value }}</span>
+                                                <button type="button" class="detail-action-btn detail-action-btn-subtle" (click)="removeAssessmentQuestionFile(activeContentItemIndex(), questionIndex); $event.preventDefault()">Remove document</button>
+                                              } @else {
+                                                <span class="asset-preview-copy">{{ assessmentAttachmentHint(activeContentItemIndex()) }}</span>
+                                              }
+                                            </label>
+                                          }
+
+                                          @if (isMultipleChoiceQuestion(activeContentItemIndex(), questionIndex)) {
+                                            <div class="assessment-choice-builder form-grid-span-two">
+                                              <div class="assessment-choice-header">
+                                                <div>
+                                                  <p class="form-section-eyebrow">Answer Options</p>
+                                                </div>
+                                                <button type="button" class="assessment-add-btn assessment-choice-add-btn" (click)="addAssessmentChoice(activeContentItemIndex(), questionIndex)">Add option</button>
+                                              </div>
+
+                                              <div class="assessment-choice-list" formArrayName="choices">
+                                                @for (choice of assessmentChoicesAt(activeContentItemIndex(), questionIndex).controls; track $index; let choiceIndex = $index) {
+                                                  <div class="assessment-choice-row" [formGroupName]="choiceIndex">
+                                                    <label class="assessment-choice-text">
+                                                      <span class="required-label">Option {{ choiceIndex + 1 }} <span class="required-marker" aria-hidden="true">*</span></span>
+                                                      <input formControlName="text" type="text" [placeholder]="'Option ' + (choiceIndex + 1)" />
+                                                    </label>
+
+                                                    <label class="assessment-choice-points">
+                                                      <span class="required-label">Choice Points</span>
+                                                      <input formControlName="points" type="number" min="0" />
+                                                    </label>
+
+                                                    <label class="assessment-choice-correct" [class.assessment-choice-correct-active]="choice.controls.isCorrect.value">
+                                                      <input formControlName="isCorrect" type="checkbox" />
+                                                      <span>Correct</span>
+                                                    </label>
+
+                                                    <button type="button" class="assessment-remove-btn assessment-choice-remove-btn" [disabled]="assessmentChoicesAt(activeContentItemIndex(), questionIndex).length === 2" (click)="removeAssessmentChoice(activeContentItemIndex(), questionIndex, choiceIndex)">Remove option</button>
+                                                  </div>
+                                                }
+                                              </div>
+
+                                              @if (question.errors && (question.touched || courseForm.touched)) {
+                                                @if (question.errors['multipleChoiceMinOptions']) {
+                                                  <span class="field-error">Add at least two answer options for a multiple-choice question.</span>
+                                                }
+                                                @if (question.errors['multipleChoiceCorrectAnswerRequired']) {
+                                                  <span class="field-error">Select at least one correct answer so the question can be graded.</span>
+                                                }
+                                              }
+                                            </div>
+                                          }
+
+                                          @if (isTrueFalseQuestion(activeContentItemIndex(), questionIndex)) {
+                                            <div class="assessment-choice-builder form-grid-span-two">
+                                              <div class="assessment-choice-header">
+                                                <div>
+                                                  <p class="form-section-eyebrow">True Or False</p>
+                                                </div>
+                                              </div>
+
+                                              <div class="assessment-binary-list">
+                                                @for (choice of assessmentChoicesAt(activeContentItemIndex(), questionIndex).controls; track $index; let choiceIndex = $index) {
+                                                  <div class="assessment-binary-row" [class.assessment-binary-row-active]="choice.controls.isCorrect.value">
+                                                    <div class="assessment-binary-copy">
+                                                      <strong>{{ choice.controls.text.value }}</strong>
+                                                      <span>{{ choice.controls.isCorrect.value ? 'Marked as the correct answer.' : 'Available learner option.' }}</span>
+                                                    </div>
+                                                    <button type="button" class="detail-action-btn" [class.detail-action-btn-primary]="choice.controls.isCorrect.value" (click)="setTrueFalseCorrectAnswer(activeContentItemIndex(), questionIndex, choiceIndex)">
+                                                      {{ choice.controls.isCorrect.value ? 'Correct answer' : 'Mark correct' }}
+                                                    </button>
+                                                  </div>
+                                                }
+                                              </div>
+                                            </div>
+                                          }
+
+                                          @if (isMatchingQuestion(activeContentItemIndex(), questionIndex)) {
+                                            <div class="assessment-choice-builder form-grid-span-two">
+                                              <div class="assessment-choice-header">
+                                                <div>
+                                                  <p class="form-section-eyebrow">Matching Pairs</p>
+                                                </div>
+                                                <button type="button" class="assessment-add-btn assessment-choice-add-btn" (click)="addMatchingPair(activeContentItemIndex(), questionIndex)">Add pair</button>
+                                              </div>
+
+                                              <label class="assessment-drag-toggle" [class.assessment-drag-toggle-active]="question.controls.dragAndDropEnabled.value">
+                                                <input formControlName="dragAndDropEnabled" type="checkbox" />
+                                                <span>Enable drag-and-drop matching for learners</span>
+                                              </label>
+
+                                              <div class="assessment-matching-list" formArrayName="matchingPairs">
+                                                @for (pair of matchingPairsAt(activeContentItemIndex(), questionIndex).controls; track $index; let pairIndex = $index) {
+                                                  <div class="assessment-matching-row" [formGroupName]="pairIndex">
+                                                    <label>
+                                                      <span class="required-label">Prompt {{ pairIndex + 1 }} <span class="required-marker" aria-hidden="true">*</span></span>
+                                                      <input formControlName="prompt" type="text" [placeholder]="'Prompt ' + (pairIndex + 1)" />
+                                                    </label>
+                                                    <label>
+                                                      <span class="required-label">Match {{ pairIndex + 1 }} <span class="required-marker" aria-hidden="true">*</span></span>
+                                                      <input formControlName="answer" type="text" [placeholder]="'Match ' + (pairIndex + 1)" />
+                                                    </label>
+                                                    <button type="button" class="assessment-remove-btn assessment-choice-remove-btn" [disabled]="matchingPairsAt(activeContentItemIndex(), questionIndex).length === 2" (click)="removeMatchingPair(activeContentItemIndex(), questionIndex, pairIndex)">Remove pair</button>
+                                                  </div>
+                                                }
+                                              </div>
+
+                                              @if (question.errors && (question.touched || courseForm.touched) && question.errors['matchingMinPairs']) {
+                                                <span class="field-error">Add at least two matching pairs for a drag-and-drop matching question.</span>
+                                              }
+                                            </div>
+                                          }
+                                        </div>
+                                      }
+                                    </div>
+                                  }
+                                </div>
+
+                                <div class="assessment-submit-row">
+                                  <div class="assessment-submit-copy">
+                                    <strong>Submit this assessment setup</strong>
+                                  </div>
+                                  <button type="button" class="detail-action-btn detail-action-btn-primary" (click)="submitAssessmentSetup(activeContentItemIndex())">Submit assessment</button>
+                                </div>
+                              </div>
+                            } @else {
+                              <div class="form-grid form-grid-two">
+                                <div title="The item type is chosen when you add the step.">
+                                  <span class="required-label">Item Type</span>
+                                  <div class="content-item-type-display">{{ activeItem.controls.kind.value }}</div>
+                                </div>
+
+                                <label title="Give this content step a short descriptive name.">
+                                  <span class="required-label">{{ activeItem.controls.kind.value }} Title <span class="required-marker" aria-hidden="true">*</span></span>
+                                  <input formControlName="title" type="text" [attr.data-content-item-title]="activeContentItemIndex()" [placeholder]="'Example: ' + activeItem.controls.kind.value + ' unit'" />
+                                </label>
+                              </div>
+
+                              <div class="course-studio-upload-grid">
+                                <label class="course-studio-upload-card" [title]="'Upload the ' + activeItem.controls.kind.value.toLowerCase() + ' file'">
+                                  <span class="course-studio-upload-icon" aria-hidden="true">
+                                    <svg width="38" height="38" viewBox="0 0 24 24" fill="none"><path d="M12 16V6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8.5 9.5 12 6l3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 16.5V18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                                  </span>
+                                  <strong>Upload a file</strong>
+                                  <span class="course-studio-upload-caption">{{ activeItem.controls.uploadedFileName.value || 'or drag-and-drop here' }}</span>
+                                  @if (contentUploadProgresses()[activeContentItemIndex()] !== null && contentUploadProgresses()[activeContentItemIndex()] !== undefined) {
+                                    @if (contentUploadProgresses()[activeContentItemIndex()] === -1) {
+                                      <span class="course-studio-upload-progress-label">Converting to PDF…</span>
+                                    } @else {
+                                      <span class="course-studio-upload-progress-bar" aria-hidden="true">
+                                        <span class="course-studio-upload-progress-fill" [style.width.%]="contentUploadProgresses()[activeContentItemIndex()]"></span>
+                                      </span>
+                                      <span class="course-studio-upload-progress-label">{{ contentUploadProgresses()[activeContentItemIndex()] }}%</span>
+                                    }
+                                  }
+                                  <input class="course-studio-upload-input" [accept]="contentUploadAccept(activeItem.controls.kind.value)" type="file" (change)="onContentFileSelected(activeContentItemIndex(), $event)" />
+                                </label>
+
+                                <label class="course-studio-upload-card course-studio-upload-card-link" title="Paste a hosted link if this item lives online.">
+                                  <span class="course-studio-upload-icon" aria-hidden="true">
+                                    <svg width="38" height="38" viewBox="0 0 24 24" fill="none"><path d="M10 13a4 4 0 0 0 5.66 0l2.12-2.12a4 4 0 1 0-5.66-5.66L10.9 6.44" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 11a4 4 0 0 0-5.66 0l-2.12 2.12a4 4 0 1 0 5.66 5.66l1.22-1.22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                  </span>
+                                  <strong>Use a link</strong>
+                                  <input formControlName="resourceLink" type="url" placeholder="Paste a hosted link for this item" />
+                                </label>
+                              </div>
+
+                              @if (presentationPreviewState(activeItem); as presentationPreview) {
+                                <section class="form-section-card course-studio-presentation-panel">
+                                  <div class="form-section-header">
+                                    <div>
+                                      <p class="form-section-eyebrow">PowerPoint file</p>
+                                      <h3>{{ presentationPreview.fileName }}</h3>
+                                    </div>
+                                    @if (activeItem.controls.convertedPdfUrl.value) {
+                                      <span class="create-section-status-pill">PDF ready for students</span>
+                                    } @else {
+                                      <span class="create-section-status-pill">Open in app</span>
+                                    }
+                                  </div>
+
+                                  <powerpoint-window
+                                    [viewerTitle]="'PowerPoint file for ' + presentationPreview.fileName"
+                                    [sourceDataUrl]="activeItem.controls.uploadedFileDataUrl.value || null"
+                                    [sourceFileName]="presentationPreview.fileName"
+                                    [emptyMessage]="presentationPreview.message"></powerpoint-window>
+                                </section>
+                              }
+
+                              @if (activeItem.controls.kind.value === 'Document') {
+                                <div class="doc-toggle-row form-grid-span-two">
+                                  <label class="doc-toggle" [class.doc-toggle-active]="activeItem.controls.requiresAcknowledgement.value" title="Learners must open this document in the LMS and confirm they've read it.">
+                                    <input formControlName="requiresAcknowledgement" type="checkbox" class="doc-toggle-input" />
+                                    <span class="doc-toggle-track" aria-hidden="true"><span class="doc-toggle-thumb"></span></span>
+                                    <span class="doc-toggle-label">Requires acknowledgement</span>
+                                  </label>
+                                  <label class="doc-toggle" [class.doc-toggle-active]="activeItem.controls.allowDownload.value" title="Learners can download this document or open it in a new tab.">
+                                    <input formControlName="allowDownload" type="checkbox" class="doc-toggle-input" />
+                                    <span class="doc-toggle-track" aria-hidden="true"><span class="doc-toggle-thumb"></span></span>
+                                    <span class="doc-toggle-label">Allow download</span>
+                                  </label>
+                                </div>
+                              }
+                            }
+                          </section>
+                        } @else {
+                          <section class="form-section-card course-studio-empty-panel">
+                            <div class="form-section-header">
+                              <div>
+                                <p class="form-section-eyebrow">Add content</p>
+                                <h3>Choose the first unit to add</h3>
+                              </div>
+                              <span class="create-section-status-pill">{{ createSectionStatus('content') }}</span>
+                            </div>
+
+                            <div class="course-studio-empty-grid">
+                              <button type="button" class="course-studio-empty-card" (click)="addContentItemFromMenu('Video')">
+                                <span class="course-studio-upload-icon" aria-hidden="true">
+                                  <svg width="38" height="38" viewBox="0 0 24 24" fill="none"><path d="M8 7.5v9l7-4.5-7-4.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><rect x="4.5" y="4.5" width="15" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/></svg>
+                                </span>
+                                <strong>Add a video unit</strong>
+                                <span>Upload a video file or connect a hosted link.</span>
+                              </button>
+                              <button type="button" class="course-studio-empty-card" (click)="addContentItemFromMenu('Document')">
+                                <span class="course-studio-upload-icon" aria-hidden="true">
+                                  <svg width="38" height="38" viewBox="0 0 24 24" fill="none"><path d="M8 4.75h6.5l3.75 3.75V19A1.75 1.75 0 0 1 16.5 20.75h-8A1.75 1.75 0 0 1 6.75 19V6.5A1.75 1.75 0 0 1 8.5 4.75Z" stroke="currentColor" stroke-width="1.8"/><path d="M14.5 4.75V8.5h3.75" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                </span>
+                                <strong>Add a document unit</strong>
+                                <span>Attach a learner document and decide if acknowledgement is required.</span>
+                              </button>
+                              <button type="button" class="course-studio-empty-card" (click)="addContentItemFromMenu('Scorm')">
+                                <span class="course-studio-upload-icon" aria-hidden="true">
+                                  <svg width="38" height="38" viewBox="0 0 24 24" fill="none"><path d="M7.5 4.75h9A1.75 1.75 0 0 1 18.25 6.5v11A1.75 1.75 0 0 1 16.5 19.25h-9A1.75 1.75 0 0 1 5.75 17.5v-11A1.75 1.75 0 0 1 7.5 4.75Z" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 9.5h7M8.5 12h7M8.5 14.5h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                                </span>
+                                <strong>Add a SCORM unit</strong>
+                                <span>Upload a SCORM package (.zip) or provide a hosted launch link.</span>
+                              </button>
+                              <button type="button" class="course-studio-empty-card" (click)="addContentItemFromMenu('Assessment')">
+                                <span class="course-studio-upload-icon" aria-hidden="true">
+                                  <svg width="38" height="38" viewBox="0 0 24 24" fill="none"><path d="M8 7h8M8 12h8M8 17h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="4.5" y="4.5" width="15" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/></svg>
+                                </span>
+                                <strong>Add an assessment unit</strong>
+                                <span>Build a quiz, assignment, mentorship prompt, or acknowledgement flow.</span>
+                              </button>
+                            </div>
+                          </section>
+                        }
+
+                        <div class="course-studio-footer">
+                          <span class="form-action-copy">{{ courseForm.invalid ? 'Complete the required fields to publish.' : (editingCourseId() ? 'Save your changes.' : 'Ready to publish.') }}</span>
+                          <div class="builder-step-actions">
+                            <button type="button" class="builder-secondary-btn" [disabled]="!hasPreviousCreateSection()" (click)="goToPreviousCreateSection()">Previous</button>
+                            <button type="button" class="builder-secondary-btn" [disabled]="!hasNextCreateSection()" (click)="goToNextCreateSection()">Next</button>
+                          </div>
+                        </div>
+                      </div>
+                    </form>
+                  </section>
+                }
+
+                @if (selectedCoursesView() === 'created') {
+                  <section class="course-list-card">
+                    <div class="section-heading-row">
+                      <h2>Published Items</h2>
+                      <span>{{ managerData.offerings().length }} total</span>
+                    </div>
+
+                    <div class="offering-list">
+                      @if (!managerData.offerings().length) {
+                        <p class="section-copy">No created courses yet. Publish a course or programme and it will appear here.</p>
+                      }
+
+                      @for (offering of managerData.offerings(); track offering.id) {
+                        <published-offering-card
+                          [offering]="offering"
+                          [selected]="selectedPublishedOfferingId() === offering.id"
+                          [assignedCount]="offeringEnrollmentCount(offering.id)"
+                          (open)="openPublishedOffering(offering)" />
+                      }
+                    </div>
+                  </section>
+                }
+
+                @if (selectedCoursesView() === 'submissions') {
+                  <section class="activity-card mentorship-review-card">
+                    <div class="section-heading-row mentorship-review-heading-row">
+                      <div>
+                        <h2>Assignment Submissions</h2>
+                        <span>Review learner submissions in one workspace instead of opening each course overlay.</span>
+                      </div>
+                      <span class="student-search-count">{{ filteredAssignmentSubmissions().length }} shown</span>
+                    </div>
+
+                    <div class="student-search-row">
+                      <label class="student-search-field">
+                        <span class="student-search-label">Search submissions</span>
+                        <input
+                          type="search"
+                          [value]="assignmentSubmissionSearchTerm()"
+                          (input)="updateAssignmentSubmissionSearch($any($event.target).value)"
+                          placeholder="Search by learner, course, email, type, or status" />
+                      </label>
+
+                      <div class="student-chip-row" aria-label="Assignment review status filters">
+                        @for (status of assignmentSubmissionFilterOptions; track status) {
+                          <button
+                            type="button"
+                            class="mentorship-panel-nav-btn"
+                            [class.mentorship-panel-nav-btn-active]="assignmentSubmissionStatusFilter() === status"
+                            (click)="setAssignmentSubmissionStatusFilter(status)">
+                            {{ status }}
+                          </button>
+                        }
+                      </div>
+                    </div>
+
+                    @if (filteredAssignmentSubmissions().length) {
+                      <div class="mentorship-review-layout">
+                        <div class="mentorship-review-list" role="list" aria-label="Assignment submissions list">
+                          @for (submission of filteredAssignmentSubmissions(); track submission.id) {
+                            <button
+                              type="button"
+                              class="mentorship-review-list-item"
+                              [class.mentorship-review-list-item-active]="selectedAssignmentSubmission()?.id === submission.id"
+                              (click)="openAssignmentSubmission(submission.id)">
+                              <strong>{{ submission.studentName }}</strong>
+                              <small>{{ submission.offeringTitle }}</small>
+                              <small>{{ submission.questionType }} • Submitted {{ submission.submittedAt }}</small>
+                              <div class="mentorship-review-chip-row">
+                                @if (submission.awardedPoints !== null) {
+                                  <span class="mentorship-review-score-chip">{{ formatAssignmentMark(submission) }}</span>
+                                }
+                                <span class="mentorship-review-status-pill" [class.mentorship-review-status-pill-approved]="submission.status === 'Approved'" [class.mentorship-review-status-pill-revision]="submission.status === 'Needs Revision'">
+                                  {{ submission.status }}
+                                </span>
+                              </div>
+                            </button>
+                          }
+                        </div>
+
+                        @if (selectedAssignmentSubmission(); as activeSubmission) {
+                          <div class="mentorship-review-detail-card">
+                            <div class="mentorship-review-detail-header">
+                              <div>
+                                <h3>{{ activeSubmission.studentName }}</h3>
+                                <span>{{ activeSubmission.offeringTitle }} • {{ activeSubmission.assessmentTitle }}</span>
+                              </div>
+                              <span class="mentorship-review-status-pill" [class.mentorship-review-status-pill-approved]="activeSubmission.status === 'Approved'" [class.mentorship-review-status-pill-revision]="activeSubmission.status === 'Needs Revision'">
+                                {{ activeSubmission.status }}
+                              </span>
+                            </div>
+
+                            <div class="mentorship-review-meta-grid">
+                              <div>
+                                <strong>Learner email</strong>
+                                <span>{{ activeSubmission.studentEmail }}</span>
+                              </div>
+                              <div>
+                                <strong>Submission type</strong>
+                                <span>{{ activeSubmission.questionType }}</span>
+                              </div>
+                              <div>
+                                <strong>Mark</strong>
+                                <span>{{ formatAssignmentMark(activeSubmission) }}</span>
+                              </div>
+                              <div>
+                                <strong>Submitted</strong>
+                                <span>{{ activeSubmission.submittedAt }}</span>
+                              </div>
+                              <div>
+                                <strong>Reviewed</strong>
+                                <span>{{ activeSubmission.reviewedAt || 'Not reviewed yet' }}</span>
+                              </div>
+                            </div>
+
+                            @if (activeSubmission.responseText) {
+                              <div class="mentorship-review-action-plan">
+                                <strong>Submitted response</strong>
+                                <p>{{ activeSubmission.responseText }}</p>
+                              </div>
+                            }
+
+                            @if (activeSubmission.documentFileName) {
+                              <div class="mentorship-review-history">
+                                <strong>Submitted document</strong>
+                                <span>{{ activeSubmission.documentFileName }}</span>
+                                <div class="mentorship-review-actions">
+                                  <button type="button" class="detail-action-btn" (click)="downloadSupportingDocument(activeSubmission.documentDataUrl, activeSubmission.documentFileName)">Download assignment</button>
+                                </div>
+                              </div>
+                            }
+
+                            @if (activeSubmission.reviewerFeedback) {
+                              <div class="mentorship-review-history">
+                                <strong>{{ activeSubmission.reviewerName || 'Manager' }} feedback</strong>
+                                <p>{{ activeSubmission.reviewerFeedback }}</p>
+                              </div>
+                            }
+
+                            <form class="mentorship-review-form" [formGroup]="assignmentWorkspaceReviewForm" (ngSubmit)="applyAssignmentWorkspaceReview('Approved')">
+                              <label>
+                                Mark awarded
+                                <input formControlName="awardedPoints" type="number" min="0" [max]="activeSubmission.possiblePoints" step="1" placeholder="Out of {{ activeSubmission.possiblePoints }}" />
+                              </label>
+                              <label>
+                                Feedback for learner
+                                <textarea formControlName="feedback" rows="5" placeholder="Add review feedback or revision guidance"></textarea>
+                              </label>
+
+                              @if (assignmentWorkspaceReviewError()) {
+                                <span class="field-error">{{ assignmentWorkspaceReviewError() }}</span>
+                              }
+
+                              <div class="mentorship-review-actions">
+                                <button type="button" class="detail-action-btn" (click)="applyAssignmentWorkspaceReview('Needs Revision')">Request revision</button>
+                                <button type="submit" class="detail-action-btn detail-action-btn-primary">Approve submission</button>
+                              </div>
+                            </form>
+                          </div>
+                        }
+                      </div>
+                    } @else {
+                      <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">No assignment submissions match the current search and filter.</div>
+                    }
+                  </section>
+                }
+              </div>
+            </section>
+          }
+
+          @if (selectedPanel() === 'courses' && selectedCoursesView() === 'created' && selectedPublishedOffering(); as activeOffering) {
+            <div class="published-offering-overlay" role="dialog" aria-modal="true" aria-labelledby="published-offering-detail-title">
+              <button
+                type="button"
+                class="published-offering-overlay-backdrop"
+                aria-label="Close course details"
+                (click)="closePublishedOfferingDetail()"></button>
+
+              <div class="published-offering-overlay-panel">
+                <published-offering-detail
+                  [offering]="activeOffering"
+                  [assignedCount]="offeringEnrollmentCount(activeOffering.id)"
+                  [assessmentCount]="offeringAssessmentCount(activeOffering)"
+                  [questionCount]="offeringQuestionCount(activeOffering)"
+                  [contentSummary]="offeringContentSummary(activeOffering)"
+                  [assignmentSubmissions]="offeringAssignmentSubmissions(activeOffering.id)"
+                  (close)="closePublishedOfferingDetail()"
+                  (editContent)="editPublishedOfferingContent(activeOffering)"
+                  (deleteCourse)="confirmDeletePublishedOffering(activeOffering)"
+                  (reviewAssignment)="applyAssignmentReview($event)"
+                  (save)="savePublishedOffering($event)" />
+              </div>
+            </div>
           }
         <!-- removed extra closing main tag to fix template structure -->
 
@@ -4940,10 +5767,4221 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
         min-width: 100%;
       }
     }
+  `,
+  // ── Relocated from training-manager-profile.component.ts (Courses/Enrollment move) ──
+  // Full stylesheet duplicated verbatim rather than cherry-picked: the moved Courses
+  // (and later Enrollment) markup reuses this file's entire shared design system
+  // (.manager-panel/.activity-card/.form-grid/.detail-action-btn/.mentorship-review-*
+  // etc., not just courses-exclusive classes), and Angular's per-component style
+  // encapsulation makes duplicating it here risk-free — there is no collision with
+  // this file's own .admin-* styles above. A trim pass to drop the classes never
+  // actually used once Courses+Enrollment templates are both in place is a reasonable
+  // later cleanup, not required for correctness.
+  `
+
+    .manager-shell {
+      position: relative;
+      isolation: isolate;
+      min-height: 100vh;
+      padding: calc(1rem * var(--ui-scale));
+      box-sizing: border-box;
+      background:
+        radial-gradient(circle at top left, var(--brand-tint), transparent 20%),
+        linear-gradient(180deg, #f6f8fc 0%, var(--brand-surface) 100%);
+    }
+
+    .manager-topbar,
+    .manager-sidebar,
+    .manager-panel,
+    .stat-card,
+    .activity-card,
+    .course-form-card,
+    .course-list-card,
+    .offering-card,
+    .student-card {
+      border: 1px solid rgba(15, 23, 42, 0.07);
+      background: #ffffff;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03), 0 4px 14px rgba(15, 23, 42, 0.045);
+    }
+
+    .manager-topbar {
+      position: sticky;
+      top: calc(1rem * var(--ui-scale));
+      z-index: 70;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: calc(1rem * var(--ui-scale));
+      margin-bottom: calc(1rem * var(--ui-scale));
+      padding: calc(0.9rem * var(--ui-scale)) calc(1.2rem * var(--ui-scale));
+      border-radius: calc(22px * var(--ui-scale));
+      background: linear-gradient(180deg, var(--brand-tint) 0%, rgba(255, 255, 255, 0.92) 70%);
+      border-bottom: 3px solid var(--brand-primary);
+    }
+
+    .manager-welcome-banner {
+      position: fixed;
+      top: calc(1rem * var(--ui-scale));
+      left: 50%;
+      z-index: 150;
+      width: min(calc(360px * var(--ui-scale)), calc(100vw - 2rem));
+      padding: calc(0.95rem * var(--ui-scale)) calc(1.2rem * var(--ui-scale));
+      border: 1px solid rgba(129, 140, 248, 0.18);
+      border-radius: calc(20px * var(--ui-scale));
+      background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+      box-shadow: 0 20px 40px rgba(79, 70, 229, 0.24);
+      color: #fff;
+      text-align: center;
+      transform: translate(-50%, -120%);
+      opacity: 0;
+      animation: manager-welcome-banner-drop 0.6s cubic-bezier(0.2, 0.9, 0.2, 1) forwards;
+      pointer-events: none;
+    }
+
+    .manager-welcome-banner-leaving {
+      animation: manager-welcome-banner-exit 0.45s ease forwards;
+    }
+
+    .manager-welcome-banner-title {
+      font-size: calc(1rem * var(--ui-scale));
+      font-weight: 800;
+      letter-spacing: 0.01em;
+    }
+
+    .manager-welcome-banner-copy {
+      margin-top: calc(0.2rem * var(--ui-scale));
+      font-size: calc(0.86rem * var(--ui-scale));
+      color: rgba(255, 255, 255, 0.88);
+    }
+
+    @keyframes manager-welcome-banner-drop {
+      0% {
+        transform: translate(-50%, -120%);
+        opacity: 0;
+      }
+      60% {
+        transform: translate(-50%, 6%);
+        opacity: 1;
+      }
+      100% {
+        transform: translate(-50%, 0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes manager-welcome-banner-exit {
+      0% {
+        transform: translate(-50%, 0);
+        opacity: 1;
+      }
+      100% {
+        transform: translate(-50%, -120%);
+        opacity: 0;
+      }
+    }
+
+    .manager-brand-block,
+    .manager-topbar-user {
+      display: flex;
+      align-items: center;
+      gap: calc(0.9rem * var(--ui-scale));
+    }
+
+    .manager-topbar-user {
+      gap: calc(0.55rem * var(--ui-scale));
+    }
+
+    .manager-topbar-dropdown-wrap {
+      position: relative;
+      z-index: 35;
+    }
+
+    .manager-icon-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: calc(2.8rem * var(--ui-scale));
+      height: calc(2.8rem * var(--ui-scale));
+      border: 1px solid var(--brand-tint);
+      border-radius: calc(16px * var(--ui-scale));
+      background: var(--brand-surface);
+      color: #64748b;
+      cursor: pointer;
+      transition: box-shadow 0.15s ease, background 0.15s ease;
+    }
+
+    .manager-icon-btn-active {
+      border-color: var(--brand-secondary);
+      background: var(--brand-tint);
+    }
+
+    .manager-icon-btn:hover,
+    .manager-icon-btn:focus-visible {
+      outline: none;
+      background: var(--brand-tint);
+      box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+    }
+
+    .manager-icon-counter {
+      position: absolute;
+      top: calc(-0.2rem * var(--ui-scale));
+      right: calc(-0.2rem * var(--ui-scale));
+      min-width: calc(1.15rem * var(--ui-scale));
+      height: calc(1.15rem * var(--ui-scale));
+      padding: 0 calc(0.25rem * var(--ui-scale));
+      border-radius: 999px;
+      background: #ef4444;
+      color: #fff;
+      font-size: calc(0.72rem * var(--ui-scale));
+      font-weight: 800;
+      line-height: calc(1.15rem * var(--ui-scale));
+      text-align: center;
+      box-shadow: 0 6px 12px rgba(239, 68, 68, 0.25);
+    }
+
+    .manager-topbar-profile-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: calc(0.7rem * var(--ui-scale));
+      min-height: calc(2.8rem * var(--ui-scale));
+      padding: calc(0.25rem * var(--ui-scale)) calc(0.4rem * var(--ui-scale)) calc(0.25rem * var(--ui-scale)) calc(0.25rem * var(--ui-scale));
+      border: 1px solid transparent;
+      border-radius: 999px;
+      background: transparent;
+      color: #475569;
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .manager-topbar-profile-btn:hover,
+    .manager-topbar-profile-btn:focus-visible {
+      outline: none;
+      background: var(--brand-surface);
+      border-color: var(--brand-tint);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    .manager-topbar-profile-copy {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .manager-topbar-preview-panel {
+      position: absolute;
+      top: calc(100% + calc(0.75rem * var(--ui-scale)));
+      right: 0;
+      z-index: 40;
+      width: min(17rem, calc(100vw - 2rem));
+      padding: calc(0.4rem * var(--ui-scale)) 0;
+      border-radius: calc(12px * var(--ui-scale));
+      border: 1px solid var(--brand-tint);
+      background: #ffffff;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+      overflow: hidden;
+    }
+
+    .manager-topbar-preview-title {
+      display: grid;
+      gap: calc(0.2rem * var(--ui-scale));
+      padding: calc(0.7rem * var(--ui-scale)) calc(0.85rem * var(--ui-scale)) calc(0.8rem * var(--ui-scale));
+      font-weight: 700;
+      color: var(--brand-primary);
+      font-size: calc(0.94rem * var(--ui-scale));
+    }
+
+    .manager-topbar-preview-empty {
+      color: #64748b;
+      font-size: calc(0.82rem * var(--ui-scale));
+      padding: calc(0.2rem * var(--ui-scale)) calc(0.85rem * var(--ui-scale)) calc(0.6rem * var(--ui-scale));
+    }
+
+    .manager-topbar-preview-item {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: calc(0.18rem * var(--ui-scale));
+      width: calc(100% - calc(0.76rem * var(--ui-scale)));
+      margin: 0 calc(0.38rem * var(--ui-scale));
+      border: none;
+      border-radius: calc(12px * var(--ui-scale));
+      background: transparent;
+      color: #475569;
+      text-align: left;
+      padding: calc(0.58rem * var(--ui-scale)) calc(0.62rem * var(--ui-scale));
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .manager-topbar-preview-item strong {
+      width: 100%;
+      font-size: calc(0.9rem * var(--ui-scale));
+      color: #1e293b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .manager-topbar-preview-item span {
+      width: 100%;
+      font-size: calc(0.8rem * var(--ui-scale));
+      color: #64748b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .manager-topbar-preview-item small {
+      width: 100%;
+      font-size: calc(0.72rem * var(--ui-scale));
+      color: #94a3b8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .manager-topbar-preview-item:hover,
+    .manager-topbar-preview-item:focus-visible {
+      outline: none;
+      background: var(--brand-tint);
+      color: var(--brand-primary);
+    }
+
+    .manager-topbar-preview-link {
+      width: calc(100% - calc(0.76rem * var(--ui-scale)));
+      margin: calc(0.25rem * var(--ui-scale)) calc(0.38rem * var(--ui-scale)) 0;
+      padding: calc(0.55rem * var(--ui-scale)) calc(0.62rem * var(--ui-scale));
+      border: none;
+      border-top: 1px solid var(--brand-tint);
+      border-radius: calc(12px * var(--ui-scale));
+      background: transparent;
+      color: #475569;
+      font-weight: 600;
+      text-align: left;
+      font-size: calc(0.9rem * var(--ui-scale));
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .manager-topbar-preview-link:hover,
+    .manager-topbar-preview-link:focus-visible {
+      outline: none;
+      background: var(--brand-tint);
+      color: var(--brand-primary);
+    }
+
+    .manager-topbar-menu {
+      position: absolute;
+      top: calc(100% + 0.5rem);
+      right: 0;
+      z-index: 40;
+      min-width: calc(13rem * var(--ui-scale));
+      display: grid;
+      gap: calc(0.2rem * var(--ui-scale));
+      border: 1px solid var(--brand-tint);
+      border-radius: calc(12px * var(--ui-scale));
+      background: #ffffff;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+      padding: calc(0.35rem * var(--ui-scale));
+    }
+
+    .manager-topbar-caret {
+      color: #94a3b8;
+      flex-shrink: 0;
+    }
+
+    .manager-topbar-menu-item {
+      border: none;
+      border-radius: calc(12px * var(--ui-scale));
+      background: transparent;
+      color: #0f172a;
+      text-align: left;
+      font-weight: 600;
+      font-size: calc(0.9rem * var(--ui-scale));
+      padding: calc(0.6rem * var(--ui-scale)) calc(0.85rem * var(--ui-scale));
+      cursor: pointer;
+      transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .manager-topbar-menu-item:hover,
+    .manager-topbar-menu-item:focus-visible {
+      outline: none;
+      background: var(--brand-tint);
+      color: var(--brand-primary);
+    }
+
+    .manager-topbar-menu-item-danger {
+      color: #b91c1c;
+    }
+
+    .manager-topbar-menu-item-danger:hover,
+    .manager-topbar-menu-item-danger:focus-visible {
+      background: rgba(185, 28, 28, 0.1);
+      color: #991b1b;
+    }
+
+    .manager-topbar-menu-item {
+      display: flex;
+      align-items: center;
+      gap: calc(0.55rem * var(--ui-scale));
+    }
+
+    .manager-topbar-menu-divider {
+      height: 1px;
+      background: var(--brand-tint);
+      margin: calc(0.2rem * var(--ui-scale)) calc(0.6rem * var(--ui-scale));
+    }
+
+    .manager-topbar-menu-section-label {
+      padding: calc(0.35rem * var(--ui-scale)) calc(0.85rem * var(--ui-scale)) calc(0.1rem * var(--ui-scale));
+      font-size: calc(0.72rem * var(--ui-scale));
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+
+    .manager-topbar-profile-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .manager-topbar-menu-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 19;
+      border: none;
+      background: transparent;
+      padding: 0;
+      margin: 0;
+      cursor: default;
+    }
+
+    .manager-brand-mark,
+    .manager-avatar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: calc(2.6rem * var(--ui-scale));
+      height: calc(2.6rem * var(--ui-scale));
+      border-radius: calc(16px * var(--ui-scale));
+      color: #fff;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+    }
+
+    .manager-brand-mark {
+      background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+      overflow: hidden;
+    }
+
+    .manager-avatar {
+      width: calc(2.25rem * var(--ui-scale));
+      height: calc(2.25rem * var(--ui-scale));
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+      flex: 0 0 auto;
+      font-size: calc(0.88rem * var(--ui-scale));
+      overflow: hidden;
+    }
+
+    .manager-avatar-has-image {
+      background: #fff;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+    }
+
+    .manager-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .manager-brand-name,
+    .manager-user-name,
+    .stat-value,
+    .offering-title {
+      margin: 0;
+    }
+
+    .manager-brand-name,
+    .manager-user-name {
+      font-size: calc(1.02rem * var(--ui-scale));
+      font-weight: 800;
+    }
+
+    .manager-user-name {
+      max-width: calc(11rem * var(--ui-scale));
+      color: #475569;
+      font-size: calc(0.98rem * var(--ui-scale));
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .manager-brand-copy,
+    .manager-user-copy,
+    .section-copy,
+    .stat-detail,
+    .offering-copy,
+    .student-copy,
+    .success-copy {
+      color: #5b7080;
+      line-height: 1.55;
+    }
+
+    .manager-field-error {
+      display: block;
+      color: #dc2626;
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin-top: 0.25rem;
+    }
+
+    .manager-field-hint {
+      display: block;
+      color: #64748b;
+      font-size: 0.85rem;
+      margin-top: 0.25rem;
+    }
+
+    .manager-layout {
+      display: grid;
+      grid-template-columns: calc(296px * var(--ui-scale)) minmax(0, 1fr);
+      gap: calc(1rem * var(--ui-scale));
+      align-items: start;
+    }
+
+    .manager-layout.manager-layout-sidebar-collapsed {
+      grid-template-columns: calc(96px * var(--ui-scale)) minmax(0, 1fr);
+    }
+
+    .manager-sidebar {
+      position: sticky;
+      top: var(--sidebar-stack-offset);
+      display: flex;
+      flex-direction: column;
+      gap: calc(0.25rem * var(--ui-scale));
+      align-self: start;
+      height: calc(100vh - var(--sidebar-stack-offset) - calc(1rem * var(--ui-scale)));
+      overflow: auto;
+      padding: calc(0.6rem * var(--ui-scale));
+      border-radius: calc(14px * var(--ui-scale));
+      /* Tinted by the chosen theme rather than a flat fixed navy — same recipe as the admin
+         sidebar (color-mix keeps it dark enough for white text/icons across every theme). */
+      background: linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 32%, #12152f) 0%, color-mix(in srgb, var(--brand-primary) 16%, #12152f) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      box-shadow: 0 20px 45px rgba(8, 10, 26, 0.35);
+      scrollbar-width: none;
+      scrollbar-color: transparent transparent;
+    }
+
+    .manager-sidebar.manager-sidebar-scrolling {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+    }
+
+    .manager-sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .manager-sidebar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .manager-sidebar::-webkit-scrollbar-thumb {
+      background-color: transparent;
+      border-radius: 999px;
+      transition: background-color 0.3s ease;
+    }
+
+    .manager-sidebar.manager-sidebar-scrolling::-webkit-scrollbar-thumb {
+      background-color: rgba(255, 255, 255, 0.25);
+    }
+
+    .manager-sidebar-header {
+      display: flex;
+      justify-content: center;
+    }
+
+    .manager-sidebar-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: calc(2.1rem * var(--ui-scale));
+      height: calc(2.1rem * var(--ui-scale));
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: calc(10px * var(--ui-scale));
+      background: rgba(255, 255, 255, 0.06);
+      color: rgba(255, 255, 255, 0.85);
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease, color 0.15s ease;
+    }
+
+    .manager-sidebar-toggle:hover,
+    .manager-sidebar-toggle:focus-visible {
+      background: rgba(255, 255, 255, 0.14);
+      border-color: rgba(255, 255, 255, 0.3);
+      outline: none;
+      transform: translateY(-1px);
+    }
+
+    .manager-sidebar-toggle svg {
+      width: calc(1rem * var(--ui-scale));
+      height: calc(1rem * var(--ui-scale));
+      stroke: currentColor;
+    }
+
+    .manager-sidebar button:not(.manager-sidebar-toggle),
+    .assign-btn,
+    .course-form button {
+      border: none;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .manager-sidebar button:not(.manager-sidebar-toggle) {
+      display: flex;
+      align-items: center;
+      gap: calc(0.6rem * var(--ui-scale));
+      border-radius: calc(10px * var(--ui-scale));
+      padding: calc(0.5rem * var(--ui-scale)) calc(0.7rem * var(--ui-scale));
+      background: transparent;
+      color: rgba(255, 255, 255, 0.68);
+      text-align: left;
+      font-size: calc(0.88rem * var(--ui-scale));
+      font-weight: 700;
+      transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease;
+    }
+
+    .manager-nav-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 calc(1.9rem * var(--ui-scale));
+      width: calc(1.9rem * var(--ui-scale));
+      height: calc(1.9rem * var(--ui-scale));
+      border-radius: calc(9px * var(--ui-scale));
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: currentColor;
+      flex-shrink: 0;
+      transition: background 0.18s ease, color 0.18s ease;
+    }
+
+    .manager-nav-icon svg {
+      display: block;
+      width: calc(1rem * var(--ui-scale));
+      height: calc(1rem * var(--ui-scale));
+    }
+
+    .manager-nav-label {
+      min-width: 0;
+    }
+
+    .manager-sidebar-collapsed {
+      gap: calc(0.35rem * var(--ui-scale));
+      padding-inline: calc(0.5rem * var(--ui-scale));
+    }
+
+    .manager-sidebar-collapsed .manager-sidebar-header {
+      justify-content: center;
+    }
+
+    .manager-sidebar-collapsed button {
+      justify-content: center;
+      padding-inline: calc(0.5rem * var(--ui-scale));
+    }
+
+    .manager-sidebar-collapsed .manager-nav-label {
+      display: none;
+    }
+
+    .manager-sidebar-collapsed .manager-nav-icon {
+      flex-basis: calc(2.1rem * var(--ui-scale));
+      width: calc(2.1rem * var(--ui-scale));
+    }
+
+    .manager-sidebar button:not(.manager-sidebar-toggle):hover,
+    .manager-sidebar button:not(.manager-sidebar-toggle):focus-visible {
+      background: rgba(255, 255, 255, 0.07);
+      color: #fff;
+      outline: none;
+      transform: translateX(2px);
+    }
+
+    .manager-sidebar button:not(.manager-sidebar-toggle).active {
+      background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+      color: #fff;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+    }
+
+    .manager-sidebar button:not(.manager-sidebar-toggle):hover .manager-nav-icon,
+    .manager-sidebar button:not(.manager-sidebar-toggle):focus-visible .manager-nav-icon {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .manager-sidebar button:not(.manager-sidebar-toggle).active .manager-nav-icon {
+      background: rgba(255, 255, 255, 0.18);
+      border-color: rgba(255, 255, 255, 0.24);
+    }
+
+    .manager-sidebar button:not(.manager-sidebar-toggle).logout {
+      margin-top: auto;
+      background: rgba(248, 113, 113, 0.14);
+      color: #fca5a5;
+      border-color: rgba(248, 113, 113, 0.22);
+    }
+
+    .manager-sidebar button:not(.manager-sidebar-toggle).logout:hover,
+    .manager-sidebar button:not(.manager-sidebar-toggle).logout:focus-visible {
+      background: rgba(248, 113, 113, 0.24);
+      color: #fecaca;
+    }
+
+    .manager-sidebar button:not(.manager-sidebar-toggle).logout .manager-nav-icon {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(248, 113, 113, 0.3);
+      color: #fca5a5;
+    }
+
+    .manager-main-panel {
+      min-width: 0;
+    }
+
+    .manager-panel {
+      display: flex;
+      flex-direction: column;
+      gap: calc(1rem * var(--ui-scale));
+      min-height: calc(100vh - 7rem);
+      padding: calc(1.6rem * var(--ui-scale));
+      border-radius: calc(24px * var(--ui-scale));
+      box-sizing: border-box;
+    }
+
+    .published-offering-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      justify-content: flex-end;
+      align-items: stretch;
+      padding: 1rem;
+    }
+
+    .published-offering-overlay {
+      z-index: 70;
+    }
+
+    .published-offering-overlay-backdrop {
+      position: absolute;
+      inset: 0;
+      border: none;
+      cursor: pointer;
+    }
+
+    .published-offering-overlay-backdrop {
+      background: rgba(15, 23, 42, 0.5);
+      backdrop-filter: blur(3px);
+    }
+
+    .published-offering-overlay-panel {
+      position: relative;
+      z-index: 1;
+      height: calc(100vh - 2rem);
+      overflow: auto;
+      animation: published-offering-panel-enter 0.26s ease-out;
+    }
+
+    .published-offering-overlay-panel {
+      width: min(980px, 100%);
+      border-radius: 16px;
+      transform-origin: right center;
+    }
+
+    @keyframes published-offering-panel-enter {
+      from {
+        opacity: 0;
+        transform: translateX(28px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    /* KPI table pops out into a large centered overlay instead of squeezing into the
+       sidebar-constrained content column — a wide table needs room a narrow card can't give it. */
+    .kpi-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 1.5rem;
+    }
+
+    .kpi-overlay-backdrop {
+      position: absolute;
+      inset: 0;
+      border: none;
+      cursor: pointer;
+      background: rgba(15, 23, 42, 0.5);
+      backdrop-filter: blur(3px);
+    }
+
+    .kpi-overlay-panel {
+      position: relative;
+      z-index: 1;
+      width: min(1500px, 96vw);
+      max-height: min(1000px, 92vh);
+      overflow: auto;
+      padding: 1.5rem;
+      border-radius: 20px;
+      background: #f8fafc;
+      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+      animation: kpi-overlay-panel-enter 0.22s ease-out;
+      box-sizing: border-box;
+    }
+
+    @keyframes kpi-overlay-panel-enter {
+      from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.98);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .section-heading-block {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .eyebrow,
+    .stat-label,
+    .manager-summary-label,
+    .student-assignment-label,
+    .offering-type {
+      color: #4f46e5;
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .dashboard-card-grid,
+    .courses-layout {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .dashboard-card-grid {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    .courses-panel-shell {
+      display: grid;
+      gap: 1.1rem;
+    }
+
+    .courses-tab-nav {
+      display: flex;
+      gap: 1.5rem;
+      align-items: center;
+      padding: 0 0 0.2rem;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .courses-tab-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.1rem 0.1rem 0.9rem;
+      border: none;
+      background: transparent;
+      color: #64748b;
+      font: inherit;
+      font-size: 0.98rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: color 0.18s ease;
+    }
+
+    .courses-tab-btn::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -1px;
+      height: 3px;
+      border-radius: 999px;
+      background: transparent;
+      transition: background 0.18s ease;
+    }
+
+    .courses-tab-btn:hover,
+    .courses-tab-btn:focus-visible {
+      color: var(--brand-primary);
+      outline: none;
+    }
+
+    .courses-tab-btn-active {
+      color: var(--brand-primary);
+    }
+
+    .courses-tab-btn-active::after {
+      background: var(--brand-primary);
+    }
+
+    .courses-tab-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #8b5cf6;
+      flex: 0 0 auto;
+    }
+
+    .stat-card,
+    .activity-card,
+    .course-form-card,
+    .course-list-card,
+    .student-card {
+      border-radius: 24px;
+      padding: 1rem;
+    }
+
+    .stat-card {
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.18s cubic-bezier(.4,1.5,.5,1), box-shadow 0.18s cubic-bezier(.4,1.5,.5,1);
+    }
+
+    .stat-card:hover,
+    .stat-card:focus-visible {
+      transform: scale(1.06);
+      box-shadow: 0 8px 32px rgba(79, 70, 229, 0.18), 0 2px 8px rgba(0,0,0,0.04);
+      z-index: 2;
+    }
+
+    .stat-accent {
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 4px;
+    }
+
+    .stat-value {
+      margin-top: 0.45rem;
+      font-size: 2rem;
+      font-weight: 800;
+      color: #173446;
+    }
+
+    .section-heading-row,
+    .student-card-header,
+    .enrollment-action-row,
+    .offering-top-row,
+    .offering-footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.85rem;
+      align-items: center;
+    }
+
+    .activity-chart,
+    .offering-list,
+    .student-list,
+    .course-form,
+    .student-assignment-block {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .course-builder-layout {
+      grid-template-columns: 1fr;
+      align-items: start;
+      gap: 0.9rem;
+    }
+
+    .course-builder-stepper {
+      position: sticky;
+      top: 1rem;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.5rem;
+      align-content: start;
+      z-index: 2;
+    }
+
+    .course-step-btn {
+      display: flex;
+      gap: 0.65rem;
+      align-items: center;
+      width: 100%;
+      padding: 0.68rem 0.72rem;
+      border: 1px solid #dbe2ea;
+      border-radius: 16px;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+      color: #334155;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+    }
+
+    .course-step-btn:hover,
+    .course-step-btn:focus-visible {
+      border-color: #a5b4fc;
+      box-shadow: 0 10px 24px rgba(99, 102, 241, 0.12);
+      outline: none;
+    }
+
+    .course-step-btn-active {
+      border-color: #818cf8;
+      background: linear-gradient(180deg, #eef2ff 0%, #ffffff 100%);
+      box-shadow: 0 12px 28px rgba(99, 102, 241, 0.14);
+    }
+
+    .course-step-index {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.72rem;
+      height: 1.72rem;
+      border-radius: 999px;
+      background: #e0e7ff;
+      color: #4338ca;
+      font-size: 0.76rem;
+      font-weight: 800;
+      flex: 0 0 auto;
+    }
+
+    .course-step-copy {
+      display: grid;
+      gap: 0.08rem;
+      min-width: 0;
+    }
+
+    .course-step-copy strong {
+      color: #173446;
+      font-size: 0.86rem;
+      line-height: 1.15;
+    }
+
+    .course-step-copy span {
+      color: #64748b;
+      font-size: 0.7rem;
+      line-height: 1.15;
+    }
+
+    .course-builder-main {
+      display: grid;
+      gap: 0.8rem;
+      align-content: start;
+    }
+
+    .form-section-card {
+      border-radius: 18px;
+      border: 1px solid #e2e8f0;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+      padding: 0.82rem;
+    }
+
+    .form-section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .form-section-eyebrow {
+      margin: 0 0 0.25rem;
+      color: #4f46e5;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .form-section-header h3 {
+      margin: 0;
+      font-size: 0.96rem;
+      line-height: 1.2;
+      color: #173446;
+    }
+
+    .form-section-note,
+    .field-hint,
+    .form-action-copy,
+    .asset-empty-state {
+      color: #64748b;
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .required-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.16rem;
+    }
+
+    .required-marker {
+      color: #dc2626;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .form-grid-span-two {
+      grid-column: 1 / -1;
+    }
+
+    .doc-toggle-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+    }
+
+    .doc-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.45rem 0.75rem;
+      border: 1px solid rgba(148, 163, 184, 0.32);
+      border-radius: 999px;
+      background: #fff;
+      cursor: pointer;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .doc-toggle-active {
+      border-color: var(--brand-primary);
+      background: var(--brand-tint);
+    }
+
+    .doc-toggle-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .doc-toggle-track {
+      position: relative;
+      flex-shrink: 0;
+      width: 2.1rem;
+      height: 1.15rem;
+      border-radius: 999px;
+      background: #cbd5e1;
+      transition: background 0.15s ease;
+    }
+
+    .doc-toggle-active .doc-toggle-track {
+      background: var(--brand-primary);
+    }
+
+    .doc-toggle-thumb {
+      position: absolute;
+      top: 0.13rem;
+      left: 0.13rem;
+      width: 0.9rem;
+      height: 0.9rem;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.25);
+      transition: transform 0.15s ease;
+    }
+
+    .doc-toggle-active .doc-toggle-thumb {
+      transform: translateX(0.95rem);
+    }
+
+    .doc-toggle-input:focus-visible + .doc-toggle-track {
+      outline: 2px solid var(--brand-primary);
+      outline-offset: 2px;
+    }
+
+    .doc-toggle-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #173446;
+    }
+
+    .form-grid-two,
+    .media-preview-grid {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .form-grid-two,
+    .media-preview-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .create-section-status-pill {
+      padding: 0.18rem 0.45rem;
+      border-radius: 999px;
+      background: #eef2ff;
+      color: #4f46e5;
+      font-size: 0.68rem;
+      font-weight: 800;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .summary-pill-grid,
+    .summary-stat-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .field-hint,
+    .field-error {
+      display: block;
+    }
+
+    .field-hint-compact {
+      font-size: 0.72rem;
+      line-height: 1.2;
+    }
+
+    .field-error {
+      color: #be123c;
+      font-size: 0.76rem;
+      font-weight: 700;
+    }
+
+    .content-item-type-display {
+      display: flex;
+      align-items: center;
+      min-height: 3rem;
+      padding: 0.72rem 0.9rem;
+      border: 1px solid #dbe2ea;
+      border-radius: 14px;
+      background: #f8fafc;
+      color: #173446;
+      font-size: 0.92rem;
+      font-weight: 700;
+    }
+
+    .upload-field input[type='file'] {
+      padding: 0.62rem 0.72rem;
+    }
+
+    .asset-preview-card-compact {
+      display: grid;
+      gap: 0.8rem;
+      min-height: 100%;
+    }
+
+    .asset-preview-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      align-items: center;
+      color: #334155;
+      font-size: 0.84rem;
+      font-weight: 800;
+    }
+
+    .course-form-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.8rem;
+      padding: 0.2rem 0;
+    }
+
+    .builder-step-actions {
+      display: flex;
+      gap: 0.55rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .builder-secondary-btn,
+    .builder-submit-btn {
+      min-width: 110px;
+    }
+
+    .builder-secondary-btn {
+      background: #eef2ff;
+      color: #4338ca;
+      box-shadow: none;
+    }
+
+    .builder-secondary-btn:disabled {
+      background: #e2e8f0;
+      color: #94a3b8;
+    }
+
+    .builder-submit-btn {
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+    }
+
+    .detail-action-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      min-height: 2.4rem;
+      padding: 0.55rem 0.9rem;
+      border: 1px solid rgba(148, 163, 184, 0.32);
+      border-radius: 10px;
+      background: #ffffff;
+      color: #173446;
+      font: inherit;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .detail-action-btn:hover,
+    .detail-action-btn:focus-visible {
+      transform: translateY(-1px);
+      border-color: var(--brand-secondary);
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.1);
+      outline: none;
+    }
+
+    .detail-action-btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .detail-action-btn-primary {
+      background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 2px 6px rgba(23, 52, 70, 0.14);
+    }
+
+    .detail-action-btn-primary:hover,
+    .detail-action-btn-primary:focus-visible {
+      box-shadow: 0 4px 12px rgba(23, 52, 70, 0.2);
+    }
+
+    .detail-action-btn-subtle {
+      background: transparent;
+      border-color: transparent;
+      color: #64748b;
+      box-shadow: none;
+    }
+
+    .detail-action-btn-subtle:hover,
+    .detail-action-btn-subtle:focus-visible {
+      background: rgba(15, 23, 42, 0.05);
+      box-shadow: none;
+      transform: none;
+    }
+
+    .activity-chart-shell {
+      position: relative;
+      display: grid;
+      grid-template-columns: auto repeat(3, minmax(0, 1fr));
+      gap: 1rem;
+      align-items: end;
+      min-height: 300px;
+      padding: 1.25rem 1rem 0.75rem;
+      border-radius: 22px;
+      background:
+        linear-gradient(180deg, rgba(248, 250, 252, 0.98) 0%, rgba(238, 242, 255, 0.82) 100%);
+      overflow: hidden;
+    }
+
+    .activity-chart-shell::before {
+      content: '';
+      position: absolute;
+      inset: 1.25rem 1rem 3.4rem 4rem;
+      background-image:
+        linear-gradient(to top, rgba(148, 163, 184, 0.18) 1px, transparent 1px);
+      background-size: 100% 33.333%;
+      pointer-events: none;
+    }
+
+    .activity-chart-scale {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-self: stretch;
+      padding-bottom: 2.6rem;
+      color: #94a3b8;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-align: right;
+    }
+
+    .activity-column {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      gap: 0.85rem;
+      justify-items: center;
+    }
+
+    .activity-column-stage {
+      display: flex;
+      align-items: end;
+      justify-content: center;
+      width: 100%;
+      min-height: 220px;
+    }
+
+    .activity-column-track {
+      display: flex;
+      align-items: end;
+      justify-content: center;
+      width: min(96px, 100%);
+      height: 220px;
+      padding: 0.45rem;
+      border-radius: 26px 26px 18px 18px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.78) 0%, rgba(226, 232, 240, 0.92) 100%);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    }
+
+    .activity-bar-fill {
+      display: block;
+      width: 100%;
+      border-radius: 20px;
+      box-shadow: 0 14px 24px rgba(99, 102, 241, 0.16);
+    }
+
+    .activity-column-meta {
+      display: grid;
+      gap: 0.2rem;
+      justify-items: center;
+      text-align: center;
+    }
+
+    .activity-column-meta strong {
+      color: #173446;
+      font-size: 1.2rem;
+      line-height: 1;
+    }
+
+    .activity-column-meta span {
+      color: #64748b;
+      font-size: 0.88rem;
+      font-weight: 700;
+      line-height: 1.35;
+      max-width: 110px;
+    }
+
+    .activity-legend-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.85rem;
+      align-items: center;
+    }
+
+    .activity-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.45rem 0.7rem;
+      border-radius: 999px;
+      background: #f8fafc;
+      color: #475569;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .activity-legend-dot {
+      width: 0.7rem;
+      height: 0.7rem;
+      border-radius: 999px;
+    }
+
+    .course-form label,
+    .enrollment-select-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      color: #1f2937;
+      font-weight: 700;
+      font-size: 0.86rem;
+    }
+
+    .course-form input,
+    .course-form select,
+    .course-form textarea,
+    .enrollment-select-wrap select {
+      width: 100%;
+      border: 1px solid #dbe2ea;
+      border-radius: 12px;
+      padding: 0.68rem 0.8rem;
+      font-size: 0.9rem;
+      color: #173446;
+      background: #fff;
+      box-sizing: border-box;
+    }
+
+    .course-form input:focus,
+    .course-form select:focus,
+    .course-form textarea:focus,
+    .enrollment-select-wrap select:focus {
+      outline: none;
+      border-color: #818cf8;
+      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+    }
+
+    .course-form textarea {
+      resize: vertical;
+      min-height: 4.2rem;
+      font-family: inherit;
+    }
+
+    .builder-secondary-btn,
+    .builder-submit-btn,
+    .assign-btn {
+      border-radius: 10px;
+      padding: 0.6rem 0.85rem;
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: #fff;
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      box-shadow: 0 2px 6px rgba(79, 70, 229, 0.16);
+    }
+
+    .assign-btn-compact {
+      padding: 0.4rem 0.7rem;
+      font-size: 0.78rem;
+      box-shadow: none;
+    }
+
+    .courses-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 2.1rem;
+      padding: 0.4rem 0.75rem;
+      border: 1px solid rgba(148, 163, 184, 0.32);
+      border-radius: 9px;
+      background: #ffffff;
+      color: #173446;
+      font: inherit;
+      font-weight: 700;
+      font-size: 0.78rem;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .courses-btn:hover,
+    .courses-btn:focus-visible {
+      border-color: var(--brand-tint);
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
+      outline: none;
+    }
+
+    .course-form button:disabled,
+    .assign-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .asset-preview-card,
+    .assessment-builder-card {
+      border-radius: 16px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      padding: 0.78rem;
+    }
+
+    .asset-preview-image {
+      display: block;
+      width: 100%;
+      max-height: 220px;
+      object-fit: cover;
+      border-radius: 14px;
+    }
+
+    .asset-preview-copy {
+      color: #475569;
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    .assessment-list {
+      display: grid;
+      gap: 0.55rem;
+      margin-top: 0.45rem;
+    }
+
+    .sequence-builder-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .content-add-menu-btn,
+    .content-add-menu-item {
+      border: none;
+      border-radius: 12px;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: none;
+    }
+
+    .content-add-menu-btn {
+      padding: 0.62rem 0.8rem;
+      background: #173446;
+      color: #fff;
+      font-size: 0.84rem;
+    }
+
+    .content-add-menu {
+      position: absolute;
+      top: calc(100% + 0.55rem);
+      left: 0;
+      z-index: 3;
+      display: grid;
+      gap: 0.45rem;
+      min-width: 170px;
+      padding: 0.45rem;
+      border: 1px solid #dbe2ea;
+      border-radius: 14px;
+      background: #fff;
+    }
+
+    .content-add-menu-item {
+      width: 100%;
+      padding: 0.62rem 0.75rem;
+      background: #f8fafc;
+      color: #334155;
+      text-align: left;
+      font-size: 0.83rem;
+    }
+
+    
+
+    .assessment-remove-btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .offering-list {
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+
+    .offering-meta-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.42rem 0.7rem;
+      border-radius: 999px;
+      background: #f8fafc;
+      color: #475569;
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .offering-date,
+    .offering-footer,
+    .student-copy,
+    .assignment-chip-muted {
+      color: #64748b;
+    }
+
+    .student-list {
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+
+    .student-list-compact {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.9rem;
+    }
+
+    /* Shared compact-list system — one visual language (avatar-led primary cell, labeled
+       secondary cells, row hover) reused across every roster-style list in the manager view
+       (Student Enrollment, Mentorship, and the IDP/Performance team-member pickers below) instead
+       of each screen inventing its own table. Column count/proportions vary per screen via the
+       roster-table-* modifiers; everything else (padding, hover, avatar, labels) is shared. */
+    .roster-table-wrap { display: grid; gap: 0.6rem; }
+    .roster-list { display: grid; gap: 0.6rem; }
+
+    .roster-table {
+      display: grid;
+      gap: 0.75rem;
+      align-items: center;
+    }
+    .roster-table-enrollment { grid-template-columns: minmax(0, 1.8fr) minmax(0, 0.9fr) minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1.2fr); }
+    .roster-table-mentorship-list { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1.3fr); }
+    .roster-table-mentorship-submissions { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.7fr) minmax(0, 1.6fr); }
+
+    .roster-table-head {
+      padding: 0 0.9rem;
+      color: #64748b;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .roster-row {
+      padding: 0.65rem 0.9rem;
+      border: 1px solid rgba(15, 23, 42, 0.07);
+      border-radius: 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+      transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+
+    .roster-row:hover,
+    .roster-row:focus-within {
+      border-color: var(--brand-tint);
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
+    }
+
+    .roster-cell {
+      min-width: 0;
+      font-size: 0.86rem;
+      color: #173446;
+    }
+
+    .roster-field-label {
+      display: none;
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 0.2rem;
+    }
+
+    .roster-primary { display: flex; align-items: center; gap: 0.65rem; }
+    .roster-avatar {
+      flex: 0 0 auto;
+      width: 2.3rem;
+      height: 2.3rem;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+      color: #fff;
+      font-weight: 800;
+      font-size: 0.78rem;
+    }
+    .roster-identity { min-width: 0; }
+    .roster-name {
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .roster-secondary {
+      font-size: 0.8rem;
+      color: #64748b;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      overflow-wrap: anywhere;
+    }
+
+    .roster-dates { display: grid; gap: 0.2rem; }
+    .roster-date-row { font-size: 0.84rem; }
+    .roster-field-label-inline {
+      display: inline;
+      margin-bottom: 0;
+      margin-right: 0.35rem;
+    }
+
+    .roster-actions { display: flex; justify-content: flex-end; align-items: center; gap: 0.5rem; }
+
+    /* Team-member pickers (IDP, Performance) — a simpler flex row (avatar + name/meta on the
+       left, a count badge and chevron on the right) since these are single clickable rows with no
+       header row to align columns against, unlike the table-style lists above. Reuses
+       roster-row/roster-avatar/roster-identity/roster-name/roster-secondary for the same look. */
+    .roster-picker-list { display: grid; gap: 0.5rem; }
+    .roster-picker-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      width: 100%;
+      text-align: left;
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+    }
+    .roster-picker-row .roster-identity { flex: 1; }
+    .roster-picker-status { flex: 0 0 auto; display: flex; align-items: center; gap: 0.5rem; }
+
+    .student-active-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.24rem 0.6rem;
+      border-radius: 999px;
+      background: rgba(16, 185, 129, 0.14);
+      color: #047857;
+      font-size: 0.76rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .student-active-pill-inactive {
+      background: rgba(148, 163, 184, 0.2);
+      color: #475569;
+    }
+
+    .enrollment-groups-list {
+      display: grid;
+      gap: 0.6rem;
+      overflow-x: auto;
+      padding-bottom: 0.25rem;
+    }
+
+    .enrollment-groups-head,
+    .enrollment-group-row {
+      display: grid;
+      grid-template-columns: 1.4fr 0.8fr 1fr 1fr 0.7fr 0.6fr 0.6fr;
+      gap: 0.6rem;
+      align-items: center;
+      min-width: 46rem;
+    }
+
+    .enrollment-groups-head {
+      padding: 0 0.9rem;
+      color: #64748b;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .enrollment-group-row {
+      padding: 0.65rem 0.9rem;
+      border: 1px solid rgba(15, 23, 42, 0.07);
+      border-radius: 10px;
+      background: #ffffff;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+      transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+
+    .enrollment-group-row:hover,
+    .enrollment-group-row:focus-within {
+      border-color: var(--brand-tint);
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
+    }
+
+    .enrollment-group-cell {
+      min-width: 0;
+      font-size: 0.86rem;
+      color: #173446;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .enrollment-group-name {
+      font-weight: 700;
+    }
+
+    .enrollment-group-action-cell {
+      display: flex;
+    }
+
+    .edit-btn,
+    .group-delete-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 2.1rem;
+      padding: 0.4rem 0.75rem;
+      border: 1px solid rgba(148, 163, 184, 0.32);
+      border-radius: 9px;
+      background: #ffffff;
+      color: #173446;
+      font: inherit;
+      font-weight: 700;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .edit-btn:hover,
+    .edit-btn:focus-visible {
+      border-color: var(--brand-secondary);
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.1);
+      outline: none;
+    }
+
+    .group-delete-btn {
+      border-color: rgba(248, 113, 113, 0.35);
+      color: #b91c1c;
+      background: rgba(254, 242, 242, 0.9);
+    }
+
+    .group-delete-btn:hover,
+    .group-delete-btn:focus-visible {
+      border-color: rgba(239, 68, 68, 0.5);
+      box-shadow: 0 3px 10px rgba(239, 68, 68, 0.14);
+      outline: none;
+    }
+
+    .enrollment-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 45;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .enrollment-modal-backdrop {
+      position: absolute;
+      inset: 0;
+      border: none;
+      background: rgba(15, 23, 42, 0.42);
+      backdrop-filter: blur(4px);
+      cursor: pointer;
+    }
+
+    .enrollment-modal-card {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      gap: 1rem;
+      width: min(100%, 52rem);
+      padding: 1.1rem;
+      border-radius: 16px;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      background: #fff;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+    }
+
+    .enrollment-edit-modal-card {
+      padding: 1.35rem;
+      background:
+        radial-gradient(circle at top right, rgba(99, 102, 241, 0.12), transparent 24%),
+        linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    }
+
+    .enrollment-modal-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .enrollment-modal-header-copy {
+      display: grid;
+      gap: 0.3rem;
+    }
+
+    .enrollment-modal-header h3 {
+      margin: 0.2rem 0 0;
+      color: #173446;
+      font-size: 1.1rem;
+      font-weight: 800;
+    }
+
+    .enrollment-modal-copy {
+      margin: 0;
+      color: #64748b;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .enrollment-edit-hero {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.95rem 1rem;
+      border: 1px solid rgba(129, 140, 248, 0.18);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.84);
+    }
+
+    .enrollment-edit-avatar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 3.1rem;
+      height: 3.1rem;
+      border-radius: 18px;
+      background: linear-gradient(135deg, #6366f1, #38bdf8);
+      color: #fff;
+      font-size: 0.96rem;
+      font-weight: 800;
+      flex: 0 0 auto;
+    }
+
+    .enrollment-edit-hero-copy {
+      display: grid;
+      min-width: 0;
+    }
+
+    .enrollment-edit-hero-name {
+      color: #173446;
+      font-size: 1rem;
+      font-weight: 800;
+    }
+
+    .enrollment-edit-hero-meta {
+      color: #64748b;
+    }
+
+    .enrollment-edit-form {
+      padding: 1rem;
+      border: 1px solid rgba(15, 23, 42, 0.06);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    }
+
+    .enrollment-modal-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 0.65rem;
+    }
+
+    .enrollment-action-row-modal {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .enrollment-modal-card-compact {
+      width: min(100%, 34rem);
+    }
+
+    /* Assign wizard — reuses the (previously unused-in-template) course-builder-stepper/
+       course-step-btn styling from the course creation flow so both 3-step flows in this
+       component look consistent, instead of inventing a second stepper design. */
+    .assign-wizard-card {
+      width: min(100%, 56rem);
+      max-height: 88vh;
+      overflow-y: auto;
+    }
+
+    .assign-wizard-stepper {
+      position: static;
+    }
+
+    .course-step-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .enrollment-offering-picker {
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    .enrollment-offering-picker-list {
+      display: grid;
+      gap: 0.5rem;
+      max-height: 19rem;
+      overflow-y: auto;
+      padding-right: 0.2rem;
+    }
+
+    .enrollment-offering-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      padding: 0.65rem 0.8rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      background: #fff;
+      cursor: pointer;
+      transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .enrollment-offering-option:hover {
+      border-color: var(--brand-tint);
+    }
+
+    .enrollment-offering-option-selected {
+      border-color: var(--brand-primary);
+      background: var(--brand-tint);
+      box-shadow: 0 2px 8px rgba(79, 70, 229, 0.12);
+    }
+
+    /* Custom check button — the native checkbox stays in the DOM (positioned invisibly over its
+       own custom indicator) for real checkbox semantics/keyboard behaviour, while what's actually
+       visible is the rounded square that fills in and shows a check mark via the :checked sibling
+       selector below. No JS beyond the existing toggle handler is needed for the visual state. */
+    .enrollment-offering-option-check-wrap {
+      position: relative;
+      flex: 0 0 auto;
+      width: 1.35rem;
+      height: 1.35rem;
+      margin-top: 0.15rem;
+    }
+
+    .enrollment-offering-option-input {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .enrollment-offering-option-check {
+      position: absolute;
+      inset: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 7px;
+      border: 2px solid #cbd5e1;
+      background: #fff;
+      color: #fff;
+      pointer-events: none;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .enrollment-offering-option-check svg {
+      opacity: 0;
+      transform: scale(0.5);
+      transition: opacity 0.15s ease, transform 0.15s ease;
+    }
+
+    .enrollment-offering-option-input:hover ~ .enrollment-offering-option-check {
+      border-color: var(--brand-primary);
+    }
+
+    .enrollment-offering-option-input:focus-visible ~ .enrollment-offering-option-check {
+      outline: 2px solid var(--brand-primary);
+      outline-offset: 2px;
+    }
+
+    .enrollment-offering-option-input:checked ~ .enrollment-offering-option-check {
+      border-color: var(--brand-primary);
+      background: var(--brand-primary);
+    }
+
+    .enrollment-offering-option-input:checked ~ .enrollment-offering-option-check svg {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .enrollment-offering-option-body {
+      display: grid;
+      gap: 0.15rem;
+      min-width: 0;
+    }
+
+    .enrollment-offering-option-title {
+      font-weight: 700;
+      color: #173446;
+      font-size: 0.88rem;
+    }
+
+    /* Sits above the picker list (a sibling, not a list member) — the tinted background and
+       dashed border keep it reading as a control acting ON the list rather than one more row
+       in it, even though it reuses the same option/check-button markup and styling. */
+    .enrollment-offering-select-all {
+      background: #f8fafc;
+      border-style: dashed;
+    }
+
+    .enrollment-offering-select-all.enrollment-offering-option-selected {
+      border-style: solid;
+    }
+
+    .enrollment-offering-option-meta {
+      color: #64748b;
+      font-size: 0.76rem;
+      font-weight: 600;
+    }
+
+    .enrollment-offering-option-copy {
+      color: #64748b;
+      font-size: 0.78rem;
+      line-height: 1.4;
+    }
+
+    .student-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .assignment-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.7rem;
+      border-radius: 999px;
+      background: #eef2ff;
+      color: #4338ca;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .assignment-chip-action {
+      padding-right: 0.4rem;
+    }
+
+    .assignment-chip-remove {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.3rem;
+      height: 1.3rem;
+      border-radius: 999px;
+      border: none;
+      background: rgba(255, 255, 255, 0.6);
+      color: #4338ca;
+      font-size: 0.85rem;
+      line-height: 1;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .assignment-chip-remove:hover,
+    .assignment-chip-remove:focus-visible {
+      background: #fee2e2;
+      color: #b91c1c;
+      outline: none;
+    }
+
+    .assign-wizard-summary {
+      display: grid;
+      gap: 0.85rem;
+    }
+
+    @keyframes assign-toast-in {
+      0% { opacity: 0; transform: translateY(12px) scale(0.96); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .assign-toast {
+      position: fixed;
+      right: 1.5rem;
+      bottom: 1.5rem;
+      z-index: 60;
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      max-width: min(24rem, calc(100vw - 2rem));
+      padding: 0.85rem 0.85rem 0.85rem 1rem;
+      border-radius: 14px;
+      background: #173446;
+      color: #fff;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.28);
+      animation: assign-toast-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .assign-toast-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.6rem;
+      height: 1.6rem;
+      border-radius: 999px;
+      background: #22c55e;
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 800;
+      flex: 0 0 auto;
+    }
+
+    .assign-toast-message {
+      flex: 1 1 auto;
+      font-size: 0.86rem;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .assign-toast-dismiss {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.5rem;
+      height: 1.5rem;
+      border: none;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .assign-toast-dismiss:hover,
+    .assign-toast-dismiss:focus-visible {
+      background: rgba(255, 255, 255, 0.22);
+      outline: none;
+    }
+
+    .course-studio-card {
+      padding: 0;
+      overflow: hidden;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 244, 239, 0.96) 100%);
+    }
+
+    .course-studio-form {
+      display: grid;
+      grid-template-columns: minmax(300px, 340px) minmax(0, 1fr);
+      gap: 0;
+      min-height: 760px;
+    }
+
+    .course-studio-sidebar {
+      position: relative;
+      display: grid;
+      align-content: start;
+      gap: 1rem;
+      padding: 0 1rem 1rem;
+      background: linear-gradient(180deg, #f2efe8 0%, #ece5db 100%);
+      border-right: 1px solid rgba(118, 94, 70, 0.18);
+    }
+
+    .course-studio-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin: 0 -1rem;
+      padding: 1rem;
+      background: linear-gradient(135deg, #bc6015, #9e4b18);
+    }
+
+    .course-studio-icon-btn,
+    .course-studio-publish-btn,
+    .course-studio-add-btn,
+    .course-studio-mini-btn,
+    .course-studio-unit,
+    .course-studio-empty-card {
+      border: none;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .course-studio-icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 11px;
+      background: rgba(255, 255, 255, 0.14);
+      color: #fff;
+    }
+
+    .course-studio-publish-btn {
+      min-width: 110px;
+      padding: 0.6rem 0.95rem;
+      border-radius: 10px;
+      background: #fff;
+      color: #a04c11;
+      font-size: 0.88rem;
+      font-weight: 800;
+      box-shadow: 0 2px 8px rgba(70, 31, 4, 0.18);
+    }
+
+    .course-studio-publish-btn:disabled {
+      background: rgba(255, 255, 255, 0.72);
+      color: rgba(160, 76, 17, 0.58);
+      box-shadow: none;
+    }
+
+    .course-studio-back-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 0.35rem;
+      width: fit-content;
+      padding: 0;
+      border: none;
+      background: transparent;
+      color: #7c4a23;
+      font: inherit;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .course-studio-back-link::before {
+      content: '←';
+      font-size: 1rem;
+      line-height: 1;
+    }
+
+    .course-studio-sidebar-copy {
+      display: grid;
+      gap: 0.32rem;
+      padding: 0 0.15rem;
+    }
+
+    .course-studio-sidebar-copy strong {
+      color: #173446;
+      font-size: 1.45rem;
+      line-height: 1.15;
+    }
+
+    .course-studio-sidebar-copy span {
+      color: #6b7280;
+      font-size: 0.84rem;
+      line-height: 1.5;
+    }
+
+    .course-studio-quick-actions {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) repeat(3, 2.85rem);
+      gap: 0.55rem;
+      align-items: center;
+    }
+
+    .course-studio-add-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      min-height: 2.85rem;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #d86b1a, #b45415);
+      color: #fff;
+      font-size: 0.92rem;
+      font-weight: 800;
+      box-shadow: 0 12px 24px rgba(180, 84, 21, 0.2);
+    }
+
+    .course-studio-add-btn span:first-child {
+      font-size: 1.15rem;
+      line-height: 1;
+    }
+
+    .course-studio-mini-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.85rem;
+      height: 2.85rem;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.86);
+      color: #8b4b22;
+      box-shadow: inset 0 0 0 1px rgba(139, 75, 34, 0.08);
+    }
+
+    .course-studio-mini-btn-active {
+      background: #fff;
+      color: #a04c11;
+      box-shadow: 0 12px 22px rgba(180, 84, 21, 0.12);
+    }
+
+    .course-studio-add-menu {
+      position: static;
+      min-width: 0;
+      width: 100%;
+      box-shadow: 0 16px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    .course-studio-unit-list {
+      display: grid;
+      gap: 0.65rem;
+      align-content: start;
+    }
+
+    .course-studio-unit {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 0.75rem;
+      align-items: center;
+      width: 100%;
+      padding: 0.88rem 0.92rem;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.82);
+      color: #173446;
+      text-align: left;
+      transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+    }
+
+    .course-studio-unit:hover,
+    .course-studio-unit:focus-visible,
+    .course-studio-empty-card:hover,
+    .course-studio-empty-card:focus-visible,
+    .course-studio-add-btn:hover,
+    .course-studio-add-btn:focus-visible,
+    .course-studio-mini-btn:hover,
+    .course-studio-mini-btn:focus-visible,
+    .course-studio-icon-btn:hover,
+    .course-studio-icon-btn:focus-visible,
+    .course-studio-back-link:focus-visible,
+    .course-studio-publish-btn:focus-visible {
+      outline: none;
+      transform: translateY(-1px);
+    }
+
+    .course-studio-unit-active {
+      background: #fff;
+      box-shadow: 0 16px 28px rgba(180, 84, 21, 0.12);
+    }
+
+    .course-studio-unit-dragging {
+      opacity: 0.55;
+      box-shadow: none;
+    }
+
+    .course-studio-unit-icon,
+    .course-studio-upload-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      border-radius: 18px;
+      background: rgba(188, 96, 21, 0.12);
+      color: #a04c11;
+    }
+
+    .course-studio-unit-icon {
+      width: 2.5rem;
+      height: 2.5rem;
+    }
+
+    .course-studio-upload-icon {
+      width: 4rem;
+      height: 4rem;
+    }
+
+    .course-studio-unit-copy {
+      display: grid;
+      gap: 0.18rem;
+      min-width: 0;
+    }
+
+    .course-studio-unit-copy strong {
+      color: #173446;
+      font-size: 0.92rem;
+      line-height: 1.2;
+    }
+
+    .course-studio-unit-copy span,
+    .course-studio-unit-drag-handle {
+      color: #7a7f86;
+      font-size: 0.76rem;
+      line-height: 1.35;
+    }
+
+    .course-studio-unit-drag-handle {
+      font-size: 1rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      cursor: grab;
+    }
+
+    .course-studio-end-dropzone {
+      display: grid;
+      place-items: center;
+      min-height: 3.3rem;
+      padding: 0.8rem 1rem;
+      border: 1px dashed rgba(160, 76, 17, 0.26);
+      border-radius: 18px;
+      color: #8b4b22;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.52);
+      transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+    }
+
+    .course-studio-end-dropzone-active {
+      background: rgba(255, 255, 255, 0.9);
+      border-color: rgba(160, 76, 17, 0.52);
+      color: #a04c11;
+    }
+
+    .course-studio-unit-ordering-note {
+      margin: 0;
+      color: #7a7f86;
+      font-size: 0.76rem;
+      line-height: 1.45;
+    }
+
+    .course-studio-workspace {
+      display: grid;
+      align-content: start;
+      gap: 1rem;
+      padding: 1.4rem 1.5rem 1.5rem;
+      background: linear-gradient(180deg, #ffffff 0%, #faf8f4 100%);
+    }
+
+    .course-studio-workspace-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      align-items: flex-start;
+    }
+
+    .course-studio-workspace-header h2 {
+      margin: 0;
+      color: #173446;
+      font-size: 2rem;
+      line-height: 1.08;
+    }
+
+    .course-studio-workspace-header p {
+      margin: 0.35rem 0 0;
+      color: #6b7280;
+      font-size: 0.94rem;
+      line-height: 1.5;
+    }
+
+    .course-studio-panel,
+    .course-studio-empty-panel {
+      padding: 1.2rem;
+      border-radius: 24px;
+      border-color: #ece5db;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+    }
+
+    .course-studio-card .form-section-eyebrow {
+      color: #a04c11;
+    }
+
+    .course-studio-card .create-section-status-pill {
+      background: rgba(188, 96, 21, 0.12);
+      color: #a04c11;
+    }
+
+    .course-studio-card .builder-secondary-btn {
+      border: 1px solid rgba(188, 96, 21, 0.18);
+      background: #fff;
+      color: #8b4b22;
+      box-shadow: none;
+    }
+
+    .course-studio-card .builder-secondary-btn:disabled {
+      border-color: transparent;
+      background: #f1ede7;
+      color: #a8a29e;
+    }
+
+    .course-studio-thumbnail-preview {
+      overflow: hidden;
+      padding: 0.78rem;
+      border: 1px dashed #d9c1aa;
+      border-radius: 22px;
+      background: #fbf4eb;
+    }
+
+    .course-studio-thumbnail-preview img {
+      display: block;
+      width: 100%;
+      max-height: 240px;
+      object-fit: cover;
+      border-radius: 16px;
+    }
+
+    .course-studio-upload-grid,
+    .course-studio-empty-grid {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .course-studio-upload-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .course-studio-upload-card {
+      position: relative;
+      display: grid;
+      justify-items: center;
+      align-content: center;
+      gap: 0.45rem;
+      min-height: 250px;
+      padding: 1.2rem;
+      border: 1px dashed #d9d3ca;
+      border-radius: 22px;
+      background: linear-gradient(180deg, #fcfbf8 0%, #f4f0ea 100%);
+      color: #173446;
+      text-align: center;
+      overflow: hidden;
+    }
+
+    .course-studio-upload-card strong,
+    .course-studio-empty-card strong {
+      font-size: 1.02rem;
+      line-height: 1.2;
+    }
+
+    .course-studio-upload-caption,
+    .course-studio-empty-card span {
+      color: #6b7280;
+      font-size: 0.84rem;
+      line-height: 1.45;
+    }
+
+    .course-studio-upload-progress-bar {
+      display: block;
+      width: 100%;
+      height: 6px;
+      background: #e5e7eb;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .course-studio-upload-progress-fill {
+      display: block;
+      height: 100%;
+      background: var(--brand-primary, #2563eb);
+      border-radius: 999px;
+      transition: width 0.2s ease;
+    }
+
+    .course-studio-upload-progress-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--brand-primary, #2563eb);
+    }
+
+    .course-studio-upload-card-link {
+      justify-items: stretch;
+      align-content: stretch;
+      text-align: left;
+      gap: 0.75rem;
+    }
+
+    .course-studio-upload-card-link input {
+      margin-top: auto;
+    }
+
+    .course-studio-upload-input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .course-studio-presentation-panel {
+      display: grid;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .course-studio-empty-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .course-studio-empty-card {
+      display: grid;
+      align-content: start;
+      gap: 0.75rem;
+      min-height: 220px;
+      padding: 1.15rem;
+      border-radius: 22px;
+      background: #fff;
+      color: #173446;
+      text-align: left;
+      box-shadow: inset 0 0 0 1px #ece5db;
+    }
+
+    .course-studio-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding-top: 0.2rem;
+    }
+
+    .course-studio-footer .form-action-copy {
+      max-width: 36rem;
+    }
+
+    @media (max-width: 1080px) {
+      .manager-layout,
+      .courses-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .manager-layout.manager-layout-sidebar-collapsed {
+        grid-template-columns: 1fr;
+      }
+
+      .manager-sidebar {
+        position: static;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        height: auto;
+        overflow: visible;
+      }
+
+      .manager-sidebar-header {
+        grid-column: 1 / -1;
+        justify-content: center;
+      }
+
+      .manager-sidebar-collapsed {
+        padding-inline: calc(1rem * var(--ui-scale));
+      }
+
+      .manager-sidebar-collapsed button {
+        justify-content: flex-start;
+      }
+
+      .manager-sidebar-collapsed .manager-nav-label {
+        display: inline;
+      }
+
+      .course-studio-form {
+        grid-template-columns: 1fr;
+      }
+
+      .course-studio-sidebar {
+        border-right: none;
+        border-bottom: 1px solid rgba(118, 94, 70, 0.18);
+      }
+
+      .course-studio-empty-grid {
+        grid-template-columns: 1fr;
+      }
+
+    }
+
+    @media (max-width: 720px) {
+      .manager-shell {
+        padding: 0.8rem;
+      }
+
+      .manager-topbar,
+      .manager-topbar-user,
+      .student-card-header,
+      .section-heading-row,
+      .enrollment-action-row,
+      .offering-top-row,
+      .offering-footer {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .assessment-row {
+        grid-template-columns: 1fr;
+      }
+
+      .student-list-row {
+        grid-template-columns: 1fr;
+      }
+
+      .roster-table-head {
+        display: none;
+      }
+
+      .roster-table {
+        grid-template-columns: 1fr;
+        gap: 0.35rem;
+      }
+
+      .roster-field-label {
+        display: block;
+      }
+
+      .roster-actions {
+        justify-content: flex-start;
+      }
+
+      .roster-picker-row {
+        flex-wrap: wrap;
+      }
+
+      .form-section-header,
+      .course-form-actions,
+      .enrollment-modal-header,
+      .enrollment-edit-hero,
+      .enrollment-modal-actions,
+      .asset-preview-header,
+      .builder-step-actions {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .content-add-menu {
+        right: 0;
+        left: auto;
+        width: min(100%, 220px);
+      }
+
+      .form-grid-two,
+      .media-preview-grid,
+      .assessment-question-grid,
+      .course-studio-upload-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .course-studio-workspace {
+        padding: 1rem;
+      }
+
+      .course-studio-workspace-header,
+      .course-studio-footer {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .course-studio-quick-actions {
+        grid-template-columns: minmax(0, 1fr) repeat(3, 2.65rem);
+      }
+
+      .course-studio-unit {
+        grid-template-columns: auto minmax(0, 1fr);
+      }
+
+      .course-studio-unit-drag-handle {
+        display: none;
+      }
+
+      .courses-tab-nav {
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+
+      .published-offering-overlay {
+        padding: 0.5rem;
+      }
+
+      .published-offering-overlay-panel {
+        width: min(100%, 560px);
+        height: calc(100vh - 1rem);
+        border-radius: 22px;
+      }
+
+      .assign-btn {
+        width: 100%;
+      }
+
+      .activity-chart-shell {
+        grid-template-columns: 1fr;
+        min-height: auto;
+        padding: 1rem;
+      }
+
+      .activity-chart-shell::before {
+        inset: 3.2rem 1rem 4.2rem 1rem;
+      }
+
+      .activity-chart-scale {
+        display: none;
+      }
+
+      .activity-column-stage,
+      .activity-column-track {
+        width: 100%;
+      }
+
+      .activity-column-track {
+        max-width: none;
+      }
+    }
+
+    .mentorship-review-shell-overlay {
+      position: relative;
+    }
+
+    .mentorship-review-request-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 1rem;
+      background: rgba(15, 23, 42, 0.5);
+      backdrop-filter: blur(3px);
+    }
+
+    .mentorship-review-request-panel {
+      width: min(860px, 100%);
+      max-height: calc(100vh - 6rem);
+      overflow: auto;
+      animation: published-offering-panel-enter 0.26s ease-out;
+    }
+
+    .mentorship-review-detail-header-actions {
+      display: grid;
+      gap: 0.6rem;
+      justify-items: end;
+    }
+
+    .mentorship-review-detail-close {
+      border: 1px solid #dbe2ea;
+      border-radius: 999px;
+      padding: 0.55rem 0.95rem;
+      background: #f8fafc;
+      color: #173446;
+      font: inherit;
+      font-size: 0.84rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .mentorship-review-detail-close:hover,
+    .mentorship-review-detail-close:focus-visible {
+      background: #eef2ff;
+      border-color: #c7d2fe;
+      outline: none;
+    }
+
+    @media (max-width: 720px) {
+      .mentorship-review-request-overlay {
+        padding: 0.5rem;
+      }
+
+      .mentorship-review-detail-header-actions {
+        justify-items: start;
+      }
+    }
+
+    .mentorship-review-chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+      }
+
+      .mentorship-review-score-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.35rem 0.7rem;
+        border-radius: 999px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-size: 0.76rem;
+        font-weight: 800;
+      }
+
+      /* ── IDP Form ──────────────────────────────────────────────────── */
+      .idp-program-hero {
+        padding: 1.5rem 0 1rem;
+        border-bottom: 1px solid #f1f5f9;
+        margin-bottom: 1.5rem;
+      }
+      .idp-program-hero h3 {
+        font-size: 1.05rem;
+        font-weight: 700;
+        margin: 0 0 0.2rem;
+        color: #0f172a;
+      }
+      .idp-program-hero p {
+        font-size: 0.85rem;
+        color: #64748b;
+        margin: 0;
+      }
+      .idp-program-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        margin-bottom: 1.25rem;
+        overflow: hidden;
+      }
+      .idp-program-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid #f1f5f9;
+      }
+      .idp-program-card-title-shell {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .idp-program-card-title {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #0f172a;
+      }
+      .idp-program-count {
+        font-size: 0.72rem;
+        font-weight: 800;
+        padding: 0.15rem 0.55rem;
+        border-radius: 999px;
+        background: #eff6ff;
+        color: #1d4ed8;
+      }
+      .idp-program-add {
+        font-size: 0.8rem;
+        padding: 0.35rem 0.9rem;
+        border-radius: 6px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        color: #334155;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .idp-program-add:hover { background: #e2e8f0; }
+      .idp-program-card-body {
+        padding: 0.75rem 1.25rem;
+      }
+      .idp-program-entry {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+      }
+      .idp-program-entry-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+      }
+      .idp-program-entry-heading {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .idp-row-number {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: #e2e8f0;
+        color: #64748b;
+        font-size: 0.72rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .idp-program-entry-label {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #334155;
+      }
+      .idp-program-remove {
+        font-size: 0.78rem;
+        color: #ef4444;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+      }
+      .idp-program-remove:hover { background: #fef2f2; }
+      .idp-program-remove:disabled { color: #cbd5e1; cursor: not-allowed; }
+      .idp-form-field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        margin-bottom: 0.75rem;
+      }
+      .idp-form-field span {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+      }
+      .idp-form-field input,
+      .idp-form-field textarea,
+      .idp-form-field select {
+        width: 100%;
+        padding: 0.55rem 0.75rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 7px;
+        font-size: 0.875rem;
+        color: #0f172a;
+        background: #fff;
+        box-sizing: border-box;
+        font-family: inherit;
+      }
+      .idp-form-field input:focus,
+      .idp-form-field textarea:focus,
+      .idp-form-field select:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      }
+      .idp-program-date-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+      }
+      .idp-program-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        padding-top: 1rem;
+        border-top: 1px solid #f1f5f9;
+        margin-top: 0.5rem;
+      }
+      .idp-save-button {
+        padding: 0.6rem 1.5rem;
+        background: #1d4ed8;
+        color: #fff;
+        border: none;
+        border-radius: 7px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .idp-save-button:hover { background: #1e40af; }
+      .idp-save-button:disabled {
+        background: #94a3b8;
+        cursor: not-allowed;
+      }
+      .idp-save-button:disabled:hover { background: #94a3b8; }
+      .idp-form-status {
+        font-size: 0.82rem;
+        color: #22c55e;
+        font-weight: 600;
+      }
+
+      /* IDP Member List */
+      .idp-member-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+      }
+      .idp-member-card {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem 1.25rem;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        cursor: pointer;
+        text-align: left;
+        width: 100%;
+        transition: border-color 0.15s, box-shadow 0.15s;
+      }
+      .idp-member-card:hover {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.08);
+      }
+      .idp-member-avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-size: 0.9rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        text-transform: uppercase;
+      }
+      .idp-member-avatar-lg {
+        width: 52px;
+        height: 52px;
+        font-size: 1.1rem;
+      }
+      .idp-member-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+        min-width: 0;
+      }
+      .idp-member-name {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #0f172a;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .idp-member-meta {
+        font-size: 0.8rem;
+        color: #475569;
+      }
+      .idp-member-no-entries {
+        font-size: 0.72rem;
+        color: #94a3b8;
+      }
+      .idp-member-chevron {
+        font-size: 1.2rem;
+        color: #94a3b8;
+        line-height: 1;
+      }
+
+      /* IDP Detail Header */
+      /* IDP Read-only view */
+      .idp-readonly-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.6rem;
+        margin-top: 0.5rem;
+      }
+      .idp-readonly-field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        padding: 0.6rem 0.75rem;
+        background: #fff;
+        border: 1px solid #f1f5f9;
+        border-radius: 7px;
+      }
+      .idp-readonly-field span {
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .idp-readonly-field strong {
+        font-size: 0.875rem;
+        color: #0f172a;
+        font-weight: 500;
+        line-height: 1.4;
+      }
+      .idp-readonly-field-full { grid-column: 1 / -1; }
+      .idp-status-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.2rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        background: #f1f5f9;
+        color: #475569;
+      }
+      .idp-status-badge.idp-status-in-progress { background: #eff6ff; color: #1d4ed8; }
+      .idp-status-badge.idp-status-completed { background: #f0fdf4; color: #15803d; }
+      .idp-status-badge.idp-status-on-hold { background: #fff7ed; color: #c2410c; }
+      .idp-cancel-btn {
+        padding: 0.55rem 1.1rem;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 7px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #475569;
+        cursor: pointer;
+      }
+      .idp-cancel-btn:hover { background: #e2e8f0; }
+
+      /* ===== Succession Planning — high-tech treatment ===== */
+      .succession-hq {
+        --succ-primary: #4f46e5;
+        --succ-cyan: #06b6d4;
+        --succ-critical: #dc2626;
+      }
+
+      .succession-avatar {
+        flex-shrink: 0;
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.85rem;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+        color: #fff;
+        background: linear-gradient(135deg, var(--succ-primary), var(--succ-cyan));
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.28);
+      }
+      .succession-avatar-critical { background: linear-gradient(135deg, #f97316, var(--succ-critical)); box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3); }
+      .succession-avatar-lg { width: 3.1rem; height: 3.1rem; font-size: 1rem; }
+      .succession-avatar-sm { width: 1.9rem; height: 1.9rem; font-size: 0.68rem; }
+
+      .succession-role-card {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(79, 70, 229, 0.18);
+        background: linear-gradient(180deg, rgba(79, 70, 229, 0.05), rgba(255, 255, 255, 0));
+      }
+      .succession-role-card::before {
+        content: '';
+        position: absolute;
+        inset: 0 0 auto 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--succ-critical), #f97316, var(--succ-primary), var(--succ-cyan));
+        background-size: 300% 100%;
+        animation: successionScanline 5s linear infinite;
+      }
+      @keyframes successionScanline {
+        0% { background-position: 0% 0; }
+        100% { background-position: 300% 0; }
+      }
+
+      .succession-team-card {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+      .succession-team-card .idp-member-info { flex: 1; }
+
+      .succession-critical-chip,
+      .succession-count-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .succession-critical-chip {
+        background: rgba(220, 38, 38, 0.12);
+        color: #b91c1c;
+        box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.18) inset;
+        animation: successionPulse 2.4s ease-in-out infinite;
+      }
+      @keyframes successionPulse {
+        0%, 100% { box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.18) inset, 0 0 0 0 rgba(220, 38, 38, 0.28); }
+        50% { box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.18) inset, 0 0 0 5px rgba(220, 38, 38, 0); }
+      }
+      .succession-count-chip { background: #eef2ff; color: #4338ca; }
+
+      .succession-flag-btn,
+      .succession-nominate-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        white-space: nowrap;
+        border: none;
+        border-radius: 999px;
+        padding: 0.6rem 1rem;
+        font: inherit;
+        font-size: 0.84rem;
+        font-weight: 700;
+        color: #fff;
+        cursor: pointer;
+        background: linear-gradient(135deg, var(--succ-primary), var(--succ-cyan));
+        box-shadow: 0 6px 16px rgba(79, 70, 229, 0.28);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+      .succession-flag-btn:hover:not(:disabled),
+      .succession-nominate-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 22px rgba(79, 70, 229, 0.34);
+      }
+      .succession-flag-btn:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
+      .succession-nominate-btn-sm { padding: 0.42rem 0.75rem; font-size: 0.78rem; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.24); }
+
+      .succession-glow-card {
+        border: 1px solid rgba(79, 70, 229, 0.22);
+        box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.06) inset, 0 12px 28px rgba(79, 70, 229, 0.1);
+      }
+
+      .succession-nominate-form { display: grid; gap: 1rem; }
+      .succession-form-field {
+        display: grid;
+        gap: 0.4rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #334155;
+      }
+      .succession-field-label { display: inline-flex; align-items: center; gap: 0.4rem; color: #4338ca; }
+      .succession-form-field select,
+      .succession-form-field textarea,
+      .succession-form-field input {
+        border: 1px solid #d7e2ee;
+        border-radius: 10px;
+        padding: 0.6rem 0.75rem;
+        font: inherit;
+        font-weight: 400;
+        color: #14213d;
+        background: #fff;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      }
+      .succession-form-field select:focus,
+      .succession-form-field textarea:focus,
+      .succession-form-field input:focus {
+        outline: none;
+        border-color: var(--succ-primary, #4f46e5);
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.14);
+      }
+
+      .succession-progress-track {
+        position: relative;
+        width: 100%;
+        height: 0.5rem;
+        border-radius: 999px;
+        background: #e7ebf5;
+        overflow: hidden;
+      }
+      .succession-progress-track-thin { height: 0.35rem; }
+      .succession-progress-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #f97316, #facc15);
+        box-shadow: 0 0 8px rgba(249, 115, 22, 0.5);
+        transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .succession-progress-fill.succession-progress-hot {
+        background: linear-gradient(90deg, #22c55e, #06b6d4);
+        box-shadow: 0 0 8px rgba(34, 197, 94, 0.55);
+      }
+      .succession-progress-percent { font-size: 0.76rem; font-weight: 800; color: #4338ca; white-space: nowrap; }
+
+      .succession-readiness-row {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 0.6rem;
+      }
+      .succession-readiness-label { color: #334155; font-size: 0.82rem; }
+
+      .succession-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.2rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        background: #f1f5f9;
+        color: #475569;
+      }
+      .succession-status-draft { background: #eff6ff; color: #1d4ed8; }
+      .succession-status-active { background: rgba(34, 197, 94, 0.14); color: #15803d; }
+      .succession-status-withdrawn { background: rgba(148, 163, 184, 0.22); color: #475569; }
+
+      .succession-nomination-card { display: grid; gap: 0.65rem; }
+      .succession-gap-editor {
+        display: grid;
+        gap: 0.75rem;
+        margin-top: 0.5rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #e2e8f0;
+      }
+      .succession-gap-card {
+        display: grid;
+        gap: 0.5rem;
+        padding: 0.85rem;
+        border-radius: 12px;
+        background: #f8fafc;
+        border: 1px solid rgba(79, 70, 229, 0.1);
+      }
+      .succession-gap-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+      .succession-gap-title { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 700; color: #14213d; font-size: 0.9rem; }
+      .succession-gap-title svg { color: #f59e0b; }
+      .succession-action-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.4rem; }
+      .succession-action-item { display: flex; align-items: baseline; gap: 0.5rem; font-size: 0.85rem; color: #475569; }
+      .succession-action-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        flex-shrink: 0;
+        padding: 0.12rem 0.5rem;
+        border-radius: 999px;
+        background: #e2e8f0;
+        color: #334155;
+        font-size: 0.7rem;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .succession-action-status-completed { background: rgba(34, 197, 94, 0.16); color: #15803d; }
+      .succession-action-status-in-progress { background: #eff6ff; color: #1d4ed8; }
+      .succession-action-status-on-hold { background: #fff7ed; color: #c2410c; }
+      .succession-action-add-row { display: flex; gap: 0.5rem; align-items: center; }
+      .succession-action-add-row input { flex: 1; }
+
+      .succession-unflag-row { justify-content: flex-end; margin-bottom: 0.5rem; }
+      .succession-danger-btn { display: inline-flex; align-items: center; gap: 0.35rem; color: #b91c1c; }
+
+      .succession-stats-row {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.85rem;
+      }
+      .succession-stat-card {
+        display: grid;
+        justify-items: start;
+        gap: 0.3rem;
+        padding: 0.95rem 1.05rem;
+        border-radius: 16px;
+        background: #fff;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+      }
+      .succession-stat-card svg { color: var(--succ-primary, #4f46e5); }
+      .succession-stat-card-good svg { color: #16a34a; }
+      .succession-stat-card-warn svg { color: #d97706; }
+      .succession-stat-value { font-size: 1.5rem; font-weight: 800; color: #14213d; line-height: 1; }
+      .succession-stat-label { font-size: 0.76rem; color: #64748b; font-weight: 600; }
+
+      .succession-filter-tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+      .succession-filter-tab {
+        border: 1px solid rgba(148, 163, 184, 0.32);
+        background: #fff;
+        color: #475569;
+        border-radius: 999px;
+        padding: 0.45rem 0.95rem;
+        font: inherit;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+      }
+      .succession-filter-tab:hover { border-color: rgba(79, 70, 229, 0.4); }
+      .succession-filter-tab.active {
+        background: linear-gradient(135deg, var(--succ-primary, #4f46e5), var(--succ-cyan, #06b6d4));
+        border-color: transparent;
+        color: #fff;
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.28);
+      }
+
+      /* Compact list of critical roles — a card grid didn't scale for a manager with a large team
+         (up to 50 direct reports could mean 50 rows here), so each position is one dense row with
+         View/Edit actions instead of a full multi-section card. The detail view (opened via View
+         or Edit) still shows the full successor/development-plan breakdown. */
+      .succession-position-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+      .succession-position-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.65rem 0.9rem;
+        border-radius: 12px;
+        background: #fff;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+      }
+      .succession-position-title-group { display: grid; gap: 0.15rem; flex: 1; min-width: 0; }
+      .succession-position-title { font-size: 0.92rem; font-weight: 800; color: #14213d; }
+      .succession-position-meta {
+        font-size: 0.78rem;
+        color: #64748b;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .succession-position-row-count { flex-shrink: 0; font-size: 0.78rem; color: #64748b; font-weight: 600; white-space: nowrap; }
+      .succession-position-row-actions { flex-shrink: 0; display: flex; gap: 0.4rem; }
+      .succession-row-btn {
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        background: #fff;
+        color: #334155;
+        border-radius: 8px;
+        padding: 0.4rem 0.85rem;
+        font: inherit;
+        font-size: 0.8rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background 0.15s ease, border-color 0.15s ease;
+      }
+      .succession-row-btn:hover { border-color: rgba(79, 70, 229, 0.4); }
+      .succession-row-btn-primary {
+        background: linear-gradient(135deg, var(--succ-primary, #4f46e5), var(--succ-cyan, #06b6d4));
+        border-color: transparent;
+        color: #fff;
+      }
+      .succession-row-btn-primary:hover { opacity: 0.92; }
+
+      .succession-readiness-pill {
+        flex-shrink: 0;
+        padding: 0.25rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .succession-readiness-pill-sm { padding: 0.16rem 0.55rem; font-size: 0.68rem; }
+      .succession-readiness-pill-ready-now { background: rgba(34, 197, 94, 0.16); color: #15803d; }
+      .succession-readiness-pill-1-2-years { background: #eff6ff; color: #1d4ed8; }
+      .succession-readiness-pill-3-plus-years { background: rgba(147, 51, 234, 0.12); color: #7e22ce; }
+      .succession-readiness-pill-none { background: #f1f5f9; color: #64748b; }
+
+      .succession-add-position-block { display: grid; gap: 0.85rem; }
+      .succession-add-position-toggle {
+        justify-self: start;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        border: 1px dashed rgba(79, 70, 229, 0.4);
+        background: rgba(79, 70, 229, 0.05);
+        color: #4338ca;
+        border-radius: 999px;
+        padding: 0.55rem 1rem;
+        font: inherit;
+        font-size: 0.84rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background 0.15s ease;
+      }
+      .succession-add-position-toggle:hover { background: rgba(79, 70, 229, 0.1); }
+
+      @media (max-width: 900px) {
+        .succession-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .succession-position-row { flex-wrap: wrap; }
+        .succession-position-row-actions { margin-left: auto; }
+      }
+
+      .idp-detail-header { margin-bottom: 1.25rem; }
+      .idp-back-btn {
+        background: none;
+        border: none;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #3b82f6;
+        cursor: pointer;
+        padding: 0.4rem 0;
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+      }
+      .idp-back-btn:hover { color: #1d4ed8; }
+      .idp-detail-identity {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem 1.25rem;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+      }
+      .idp-detail-name {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0 0 0.2rem;
+      }
+      .idp-detail-meta {
+        font-size: 0.83rem;
+        color: #64748b;
+      }
+
+      /* ── KPI Table ─────────────────────────────────────────────────── */
+      /* .manager-panel is a column flexbox — without min-width: 0 here, a flex item won't
+         shrink below its content's natural width, so the wide KPI table (min-width: 62rem)
+         was forcing this whole card past its intended bounds instead of scrolling internally
+         inside .kpi-table-wrap where it belongs. */
+      .mentorship-review-card {
+        min-width: 0;
+      }
+      .idp-program-card {
+        min-width: 0;
+      }
+      .kpi-table-wrap {
+        overflow-x: auto;
+        min-width: 0;
+        padding: 0 1.25rem 1.25rem;
+      }
+      .kpi-table {
+        width: 100%;
+        min-width: 46rem;
+        table-layout: fixed;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 0.83rem;
+      }
+      /* The editable table needs more floor width than the read-only one — a native date
+         input can't shrink past its own internal minimum, so its column needs enough absolute
+         room even at the table's narrowest. */
+      .kpi-table-editable {
+        min-width: 58rem;
+      }
+      .kpi-table th,
+      .kpi-table td {
+        padding: 0.75rem 0.85rem;
+        text-align: left;
+        vertical-align: middle;
+        border-bottom: 1px solid #eef1f6;
+        overflow-wrap: break-word;
+      }
+      .kpi-table thead th {
+        padding-top: 0.7rem;
+        padding-bottom: 0.7rem;
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: #64748b;
+        white-space: normal;
+        overflow-wrap: break-word;
+        background: linear-gradient(180deg, #f8fafc 0%, #f3f6fb 100%);
+        border-bottom: 1px solid #e7ecf3;
+      }
+      .kpi-table td {
+        color: #1e293b;
+        line-height: 1.45;
+      }
+      .kpi-table tbody tr:last-of-type td {
+        border-bottom: none;
+      }
+      .kpi-table tbody tr:nth-child(even) td {
+        background: #fbfcfe;
+      }
+      .kpi-table tbody tr:hover td {
+        background: #f3f7ff;
+      }
+      .kpi-cell-weight {
+        text-align: right;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .kpi-cell-center {
+        text-align: center;
+      }
+      .kpi-table-editable textarea,
+      .kpi-table-editable input,
+      .kpi-table-editable select {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        padding: 0.5rem 0.6rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font: inherit;
+        color: #0f172a;
+        background: #fff;
+        box-sizing: border-box;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      }
+      .kpi-table-editable input[type='number'] {
+        text-align: right;
+      }
+      .kpi-table-editable textarea {
+        resize: vertical;
+        min-height: 2.6rem;
+      }
+      .kpi-table-editable textarea:hover,
+      .kpi-table-editable input:hover,
+      .kpi-table-editable select:hover {
+        border-color: #cbd5e1;
+      }
+      .kpi-table-editable textarea:focus,
+      .kpi-table-editable input:focus,
+      .kpi-table-editable select:focus {
+        border-color: #60a5fa;
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.16);
+      }
+
+      .kpi-score-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 0.3rem;
+        max-width: 100%;
+        padding: 0.28rem 0.6rem;
+        border-radius: 14px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-size: 0.72rem;
+        font-weight: 700;
+        line-height: 1.3;
+        white-space: normal;
+        overflow-wrap: break-word;
+      }
+      .kpi-score-pill.kpi-score-empty {
+        background: #f1f5f9;
+        color: #94a3b8;
+        font-weight: 600;
+      }
+      .kpi-score-pill.kpi-score-flag {
+        background: #fef2f2;
+        color: #b91c1c;
+      }
+
+      .kpi-total-weight {
+        font-size: 0.76rem;
+        font-weight: 700;
+        color: #15803d;
+        white-space: nowrap;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        background: #f0fdf4;
+      }
+
+      .kpi-total-weight-off {
+        color: #b91c1c;
+        background: #fef2f2;
+      }
+
+      .kpi-weight-error {
+        margin: 0;
+        flex-basis: 100%;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #b91c1c;
+      }
+
+      .kpi-year-banner {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        background: #f8fafc;
+      }
+
+      .kpi-year-banner-label {
+        font-size: 0.9rem;
+        color: #334155;
+      }
+
+      .kpi-year-banner-label strong {
+        color: #0f172a;
+      }
+
+      .kpi-year-banner-hint {
+        margin: 0.5rem 0 0;
+        font-size: 0.8rem;
+        color: #64748b;
+      }
+
+      .kpi-year-prompt {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+      }
+
+      .kpi-year-prompt-field {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: #334155;
+      }
+
+      .kpi-year-prompt-field input {
+        width: 6rem;
+        padding: 0.4rem 0.6rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font: inherit;
+      }
+
+      .kpi-year-prompt-error {
+        margin: 0;
+        flex-basis: 100%;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #b91c1c;
+      }
+
+      .kpi-year-selector-row {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin: 0.85rem 0;
+      }
+
+      .kpi-year-selector-label {
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+      }
+
+      .kpi-year-selector {
+        padding: 0.4rem 0.7rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font: inherit;
+        color: #0f172a;
+        background: #fff;
+      }
+
+      .kpi-year-readonly-badge {
+        font-size: 0.76rem;
+        font-weight: 700;
+        color: #b45309;
+        background: #fffbeb;
+        border-radius: 999px;
+        padding: 0.2rem 0.65rem;
+      }
+
+      .kpi-year-empty-note {
+        margin: 0.75rem 0 0;
+        font-size: 0.85rem;
+        color: #64748b;
+      }
+
+      .kpi-approval-view-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        margin-bottom: 0.85rem;
+      }
+
+      .kpi-approval-badge {
+        font-size: 0.76rem;
+        font-weight: 700;
+        white-space: nowrap;
+        padding: 0.2rem 0.65rem;
+        border-radius: 999px;
+        color: #b45309;
+        background: #fffbeb;
+      }
+
+      .kpi-approval-badge-approved {
+        color: #15803d;
+        background: #f0fdf4;
+      }
+
+      .kpi-approval-badge-revision {
+        color: #b91c1c;
+        background: #fef2f2;
+      }
+
+      .kpi-approval-submit-row {
+        display: flex;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        margin-top: 0.85rem;
+        padding-top: 0.85rem;
+        border-top: 1px dashed #e2e8f0;
+      }
+
+      .kpi-approval-next-approver {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #334155;
+      }
+
+      .kpi-approval-next-approver select {
+        padding: 0.45rem 0.7rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font: inherit;
+        min-width: 14rem;
+      }
+
+      .kpi-table-editable select.kpi-score-flag {
+        border-color: #ef4444;
+        background: #fef2f2;
+        color: #b91c1c;
+        font-weight: 700;
+      }
+
+      .kpi-totals-row td {
+        font-weight: 800;
+        color: #0f172a;
+        background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+        border-top: 2px solid #e2e8f0;
+        border-bottom: none;
+      }
+
+      .kpi-total-rating-pill {
+        background: #eef2ff;
+        color: #4338ca;
+        font-size: 0.78rem;
+      }
+
+      /* Performance Gap Analysis — a distinct, slightly "alert" card (warm-tinted background,
+         red-toned border) so it visually stands apart from the neutral KPI table above it rather
+         than reading as just another data table. Each gap gets its own left-accented item card,
+         colour-graded by severity (rating 1 vs 2), matching the red-for-low-score convention the
+         KPI table itself already uses via kpi-score-flag. */
+      .kpi-gap-card {
+        background: linear-gradient(165deg, rgba(254, 242, 242, 0.65) 0%, rgba(255, 255, 255, 0.98) 60%);
+        border: 1px solid #fecdd3;
+      }
+
+      .kpi-gap-card-header {
+        border-bottom-color: #fecdd3;
+      }
+
+      .kpi-gap-icon {
+        display: inline-flex;
+        color: #dc2626;
+      }
+
+      .kpi-gap-count {
+        background: #fee2e2;
+        color: #b91c1c;
+      }
+
+      .kpi-gap-subtitle {
+        margin: 0;
+        padding: 0 1.25rem 0.9rem;
+        font-size: 0.82rem;
+        color: #7f1d1d;
+      }
+
+      .kpi-gap-empty {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin: 0 1.25rem 1.25rem;
+        padding: 0.9rem 1rem;
+        border: 1px dashed #bbf7d0;
+        border-radius: 10px;
+        background: #f0fdf4;
+        color: #166534;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+
+      .kpi-gap-empty-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.35rem;
+        height: 1.35rem;
+        border-radius: 999px;
+        background: #16a34a;
+        color: #fff;
+        font-size: 0.78rem;
+        font-weight: 800;
+        flex: 0 0 auto;
+      }
+
+      .kpi-gap-list {
+        display: grid;
+        gap: 0.9rem;
+        padding: 0 1.25rem 1.25rem;
+      }
+
+      .kpi-gap-item {
+        background: #fff;
+        border: 1px solid #fecaca;
+        border-left: 4px solid #f59e0b;
+        border-radius: 10px;
+        padding: 0.95rem 1.1rem;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      }
+
+      .kpi-gap-item-critical {
+        border-left-color: #dc2626;
+        background: linear-gradient(180deg, rgba(254, 226, 226, 0.5) 0%, #fff 45%);
+      }
+
+      .kpi-gap-item-warning {
+        border-left-color: #f59e0b;
+        background: linear-gradient(180deg, rgba(255, 247, 237, 0.6) 0%, #fff 45%);
+      }
+
+      .kpi-gap-item-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .kpi-gap-item-title {
+        font-size: 0.92rem;
+        color: #0f172a;
+      }
+
+      .kpi-gap-fields {
+        display: grid;
+        grid-template-columns: 1fr 1fr 11rem;
+        gap: 0.85rem;
+        margin-top: 0.85rem;
+      }
+
+      .kpi-gap-field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        min-width: 0;
+      }
+
+      .kpi-gap-field > span {
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: #78716c;
+      }
+
+      .kpi-gap-field textarea,
+      .kpi-gap-field input[type='date'] {
+        width: 100%;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.5rem 0.6rem;
+        font: inherit;
+        font-size: 0.85rem;
+        color: #1f2937;
+        resize: vertical;
+        background: #fff;
+      }
+
+      .kpi-gap-field textarea:focus,
+      .kpi-gap-field input[type='date']:focus {
+        outline: none;
+        border-color: #f59e0b;
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+      }
+
+      .kpi-gap-field-date input[type='date'] {
+        min-height: 2.35rem;
+      }
+
+      .kpi-gap-fields-readonly .kpi-gap-field p {
+        margin: 0;
+        padding: 0.5rem 0.6rem;
+        min-height: 1.35rem;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        color: #334155;
+        word-break: break-word;
+      }
+
+      .kpi-gap-actions {
+        margin-inline: 1.25rem;
+        padding-bottom: 1.25rem;
+      }
+
+      @media (max-width: 720px) {
+        .kpi-gap-fields {
+          grid-template-columns: 1fr;
+        }
+      }
   `],
 })
 export class AdminProfileComponent implements OnInit, OnDestroy {
   selectPanel(panel: AdminPanel) {
+    // Mirrors training-manager-profile.component.ts's own selectPanel teardown for the same
+    // reason it existed there: leaving the course builder open mid-edit while browsing away to
+    // another panel and back would otherwise resurface stale in-progress state.
+    if (panel !== 'courses') {
+      if (this.editingCourseId()) {
+        this.resetCourseBuilder();
+      }
+      this.closeCreateSectionDetail();
+      this.closeContentItemDetails();
+      this.closePublishedOfferingDetail();
+    }
+
     this.selectedPanel.set(panel);
   }
 
@@ -4976,6 +10014,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   readonly navItems: ReadonlyArray<{ label: string; value: AdminPanel }> = [
     { label: 'Dashboard', value: 'dashboard' },
+    { label: 'Courses', value: 'courses' },
     { label: 'User Management', value: 'users' },
     { label: 'Reports', value: 'reports' },
     { label: 'Succession Planning', value: 'succession' },
@@ -9006,6 +14045,1699 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     if (this.welcomeBannerHideTimer) {
       clearTimeout(this.welcomeBannerHideTimer);
       this.welcomeBannerHideTimer = null;
+    }
+  }
+
+  // ── Courses panel (relocated from training-manager-profile.component.ts) ──────────
+  readonly assessmentTypeOptions: ReadonlyArray<TrainingAssessmentType> = ['Quiz', 'Assignment'];
+  readonly contentKindOptions: ReadonlyArray<TrainingContentKind> = ['Video', 'Assessment', 'Document', 'Scorm'];
+  readonly questionTypeOptions: ReadonlyArray<TrainingQuestionType> = ['Multiple Choice', 'Short Answer', 'True or False', 'Matching'];
+  readonly assignmentQuestionTypeOptions: ReadonlyArray<TrainingQuestionType> = ['Long Answer', 'Document Upload'];
+
+  private readonly createSectionOrder: ReadonlyArray<CreateCourseSection> = ['basics', 'content'];
+
+  readonly selectedCoursesView = signal<CoursesPanelView>('create');
+
+  readonly selectedCreateSection = signal<CreateCourseSection>('basics');
+  readonly assignmentSubmissionStatusFilter = signal<AssignmentSubmissionFilter>('All');
+  readonly assignmentSubmissionSearchTerm = signal('');
+
+  readonly thumbnailPreview = signal<string | null>(null);
+  readonly thumbnailFileName = signal<string>('');
+  readonly thumbnailUploading = signal(false);
+  readonly selectedPublishedOfferingId = signal<string | null>(null);
+  readonly selectedAssignmentSubmissionId = signal<string | null>(null);
+
+  readonly createSectionDetailOpen = signal(false);
+  readonly draggedContentIndex = signal<number | null>(null);
+  readonly expandedContentIndex = signal<number | null>(null);
+  readonly expandedQuestionByItem = signal<Record<number, number | null>>({});
+  readonly assessmentStatusByItem = signal<Record<number, { tone: 'info' | 'success'; message: string }>>({});
+  readonly submittedAssessmentByItem = signal<Record<number, boolean>>({});
+  readonly addItemMenuOpen = signal(false);
+
+  readonly editingCourseId = signal<string | null>(null);
+  readonly presentationPreviewByItem = signal<Map<ContentItemFormGroup, PowerPointPreviewState>>(new Map());
+  readonly contentUploadProgresses = signal<Record<number, number | null>>({});
+  private readonly courseCreatedSignal = signal(false);
+  readonly courseCreated = computed(() => this.courseCreatedSignal());
+  readonly selectedPublishedOffering = computed(() => {
+    const selectedId = this.selectedPublishedOfferingId();
+    if (!selectedId) {
+      return null;
+    }
+
+    return this.managerData.offerings().find((offering) => offering.id === selectedId) ?? null;
+  });
+
+  readonly filteredAssignmentSubmissions = computed<AssignmentSubmissionRecord[]>(() => {
+    const query = this.assignmentSubmissionSearchTerm().trim().toLowerCase();
+    const status = this.assignmentSubmissionStatusFilter();
+    const submissions = this.managerData.assignmentSubmissions();
+
+    return submissions.filter((submission) => {
+      if (status !== 'All' && submission.status !== status) {
+        return false;
+      }
+
+      if (!query) {
+        return true;
+      }
+
+      return [
+        submission.studentName,
+        submission.studentEmail,
+        submission.offeringTitle,
+        submission.assessmentTitle,
+        submission.questionType,
+        submission.status,
+      ].some((value) => value.toLowerCase().includes(query));
+    });
+  });
+  readonly selectedAssignmentSubmission = computed<AssignmentSubmissionRecord | null>(() => {
+    const selectedId = this.selectedAssignmentSubmissionId();
+
+    if (!selectedId) {
+      return this.filteredAssignmentSubmissions()[0] ?? null;
+    }
+
+    return this.filteredAssignmentSubmissions().find((submission) => submission.id === selectedId) ?? this.filteredAssignmentSubmissions()[0] ?? null;
+  });
+
+  readonly courseForm = new FormGroup({
+    title: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    completionDeadline: new FormControl('', { nonNullable: true }),
+    type: new FormControl<TrainingOfferingType>('Course', { nonNullable: true, validators: [Validators.required] }),
+    category: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    description: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(12)] }),
+    contentItems: new FormArray<ContentItemFormGroup>([]),
+  });
+
+  readonly assignmentWorkspaceReviewForm = new FormGroup({
+    awardedPoints: new FormControl<number | null>(null, { validators: [Validators.min(0)] }),
+    feedback: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(6)] }),
+  });
+  readonly assignmentWorkspaceReviewError = signal('');
+  readonly assignmentSubmissionFilterOptions: ReadonlyArray<AssignmentSubmissionFilter> = ['All', 'Pending Review', 'Approved', 'Needs Revision'];
+
+  get contentItemsArray() {
+    return this.courseForm.controls.contentItems;
+  }
+
+  async applyAssignmentReview(event: { submissionId: string; status: 'Approved' | 'Needs Revision'; feedback: string; awardedPoints: number | null }) {
+    const result = await this.managerData.reviewAssignmentSubmission({
+      submissionId: event.submissionId,
+      reviewerName: this.managerData.profile().name,
+      status: event.status,
+      awardedPoints: event.awardedPoints,
+      feedback: event.feedback,
+    });
+
+    if (!result.ok) {
+      alert(result.message);
+    }
+  }
+
+  selectCoursesView(view: CoursesPanelView) {
+    if (view !== 'create') {
+      if (this.editingCourseId()) {
+        this.resetCourseBuilder();
+      } else {
+        this.editingCourseId.set(null);
+      }
+    }
+
+    if (view !== 'create') {
+      this.closeCreateSectionDetail();
+      this.closeContentItemDetails();
+    }
+
+    if (view !== 'created') {
+      this.closePublishedOfferingDetail();
+    }
+
+    if (view !== 'submissions') {
+      this.selectedAssignmentSubmissionId.set(null);
+      this.assignmentWorkspaceReviewForm.reset({ awardedPoints: null, feedback: '' });
+    } else {
+      const firstSubmission = this.filteredAssignmentSubmissions()[0] ?? null;
+      this.selectedAssignmentSubmissionId.set(firstSubmission?.id ?? null);
+      this.assignmentWorkspaceReviewForm.reset({ awardedPoints: firstSubmission?.awardedPoints ?? null, feedback: firstSubmission?.reviewerFeedback ?? '' });
+    }
+    this.assignmentWorkspaceReviewError.set('');
+
+    this.selectedCoursesView.set(view);
+  }
+
+  updateAssignmentSubmissionSearch(value: string) {
+    this.assignmentSubmissionSearchTerm.set(value);
+    const firstSubmission = this.filteredAssignmentSubmissions()[0] ?? null;
+    this.selectedAssignmentSubmissionId.set(firstSubmission?.id ?? null);
+    this.assignmentWorkspaceReviewForm.reset({ awardedPoints: firstSubmission?.awardedPoints ?? null, feedback: firstSubmission?.reviewerFeedback ?? '' });
+    this.assignmentWorkspaceReviewError.set('');
+  }
+
+  setAssignmentSubmissionStatusFilter(status: AssignmentSubmissionFilter) {
+    this.assignmentSubmissionStatusFilter.set(status);
+    const firstSubmission = this.filteredAssignmentSubmissions()[0] ?? null;
+    this.selectedAssignmentSubmissionId.set(firstSubmission?.id ?? null);
+    this.assignmentWorkspaceReviewForm.reset({ awardedPoints: firstSubmission?.awardedPoints ?? null, feedback: firstSubmission?.reviewerFeedback ?? '' });
+    this.assignmentWorkspaceReviewError.set('');
+  }
+
+  openAssignmentSubmission(submissionId: string) {
+    this.selectedAssignmentSubmissionId.set(submissionId);
+    const activeSubmission = this.filteredAssignmentSubmissions().find((submission) => submission.id === submissionId) ?? null;
+    this.assignmentWorkspaceReviewForm.reset({ awardedPoints: activeSubmission?.awardedPoints ?? null, feedback: activeSubmission?.reviewerFeedback ?? '' });
+    this.assignmentWorkspaceReviewError.set('');
+  }
+
+  async applyAssignmentWorkspaceReview(status: 'Approved' | 'Needs Revision') {
+    const activeSubmission = this.selectedAssignmentSubmission();
+    if (!activeSubmission || this.assignmentWorkspaceReviewForm.invalid) {
+      this.assignmentWorkspaceReviewForm.markAllAsTouched();
+      return;
+    }
+
+    const awardedPoints = this.assignmentWorkspaceReviewForm.controls.awardedPoints.value;
+    if (status === 'Approved' && awardedPoints === null) {
+      this.assignmentWorkspaceReviewForm.controls.awardedPoints.markAsTouched();
+      return;
+    }
+
+    this.assignmentWorkspaceReviewError.set('');
+    const feedback = this.assignmentWorkspaceReviewForm.controls.feedback.value.trim();
+    const result = await this.managerData.reviewAssignmentSubmission({
+      submissionId: activeSubmission.id,
+      reviewerName: this.managerData.profile().name,
+      status,
+      awardedPoints: status === 'Approved' ? awardedPoints : null,
+      feedback,
+    });
+
+    if (!result.ok) {
+      this.assignmentWorkspaceReviewError.set(result.message ?? 'Your review could not be saved. Please try again.');
+      return;
+    }
+
+    this.assignmentWorkspaceReviewForm.reset({
+      awardedPoints: status === 'Approved' ? awardedPoints : null,
+      feedback,
+    });
+  }
+
+  downloadSupportingDocument(documentDataUrl: string | null | undefined, fileName: string | null | undefined) {
+    if (!documentDataUrl) {
+      return;
+    }
+
+    const anchor = document.createElement('a');
+    anchor.href = documentDataUrl;
+    anchor.download = fileName?.trim() || 'supporting-document';
+    anchor.rel = 'noopener';
+    anchor.style.display = 'none';
+
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+  }
+
+  formatAssignmentMark(submission: Pick<AssignmentSubmissionRecord, 'awardedPoints' | 'possiblePoints'>) {
+    if (submission.awardedPoints === null || submission.possiblePoints <= 0) {
+      return 'Not marked yet';
+    }
+
+    const percentage = Math.round((submission.awardedPoints / submission.possiblePoints) * 100);
+    return `${submission.awardedPoints} / ${submission.possiblePoints} (${percentage}%)`;
+  }
+
+  openPublishedOffering(offering: TrainingOffering) {
+    this.selectedPublishedOfferingId.set(offering.id);
+  }
+
+  closePublishedOfferingDetail() {
+    this.selectedPublishedOfferingId.set(null);
+  }
+
+  editPublishedOfferingContent(offering: TrainingOffering) {
+    this.closePublishedOfferingDetail();
+    this.loadOfferingIntoCourseBuilder(offering, 'content');
+  }
+
+  savePublishedOffering(update: {
+    id: string;
+    title: string;
+    type: TrainingOfferingType;
+    category: string;
+    completionDeadline: string;
+    status: TrainingOffering['status'];
+    description: string;
+    thumbnailDataUrl: string | null;
+  }) {
+    this.managerData.updateOffering(update);
+  }
+
+  confirmDeletePublishedOffering(offering: TrainingOffering) {
+    const confirmed = confirm(
+      `Delete "${offering.title}"? This will remove the course from the created courses list and learners will no longer be able to access it.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const deleted = this.managerData.deleteOffering(offering.id);
+    if (deleted) {
+      this.closePublishedOfferingDetail();
+    }
+  }
+
+  openCreateSection(section: CreateCourseSection) {
+    if (section !== 'content') {
+      this.closeContentItemDetails();
+    }
+
+    this.selectedCreateSection.set(section);
+    this.createSectionDetailOpen.set(true);
+  }
+
+  closeCreateSectionDetail() {
+    this.closeContentItemDetails();
+    this.createSectionDetailOpen.set(false);
+  }
+
+  isCreateSectionComplete(section: CreateCourseSection) {
+    if (section === 'basics') {
+      return this.courseForm.controls.title.valid
+        && this.courseForm.controls.completionDeadline.valid
+        && this.courseForm.controls.type.valid
+        && this.courseForm.controls.category.valid
+        && this.courseForm.controls.description.valid;
+    }
+
+    return this.contentItemsArray.controls.every((item) => item.valid);
+  }
+
+  createSectionStatus(section: CreateCourseSection) {
+    if (this.isCreateSectionComplete(section)) {
+      if (section === 'content' && this.contentItemsArray.length === 0) {
+        return 'Add later';
+      }
+
+      return 'Complete';
+    }
+
+    return section === 'content' ? 'Add later' : 'Required';
+  }
+
+  contentUploadAccept(kind: TrainingContentKind) {
+    if (kind === 'Video') {
+      return 'video/*';
+    }
+
+    if (kind === 'Scorm') {
+      return '.zip,application/zip,application/x-zip-compressed';
+    }
+
+    return '.pdf,.doc,.docx,.ppt,.pptx,.xlsx,.txt';
+  }
+
+  courseStudioItemTitle(index: number) {
+    const item = this.contentItemsArray.at(index);
+    if (!item) {
+      return 'Untitled unit';
+    }
+
+    const title = item.controls.title.value.trim();
+    if (title) {
+      return title;
+    }
+
+    if (item.controls.kind.value === 'Assessment') {
+      const assessmentType = item.controls.assessmentType.value;
+      if (assessmentType === 'Read and Acknowledge') {
+        return 'Acknowledgement unit';
+      }
+
+      return `${assessmentType || 'Assessment'} unit`;
+    }
+
+    return `${item.controls.kind.value} unit`;
+  }
+
+  courseStudioWorkspaceTitle() {
+    if (this.selectedCreateSection() === 'basics') {
+      return this.courseForm.controls.title.value.trim() || 'New course';
+    }
+
+    const activeItem = this.selectedContentItem();
+    if (!activeItem) {
+      return 'Add content';
+    }
+
+    return activeItem.controls.title.value.trim() || 'Untitled';
+  }
+
+  isAddItemMenuOpen() {
+    return this.addItemMenuOpen();
+  }
+
+  toggleAddItemMenu() {
+    this.addItemMenuOpen.update((current) => !current);
+  }
+
+  addContentItemFromMenu(kind: TrainingContentKind) {
+    this.addContentItem(kind);
+    this.addItemMenuOpen.set(false);
+  }
+
+  hasPreviousCreateSection() {
+    return this.createSectionOrder.indexOf(this.selectedCreateSection()) > 0;
+  }
+
+  hasNextCreateSection() {
+    return this.createSectionOrder.indexOf(this.selectedCreateSection()) < this.createSectionOrder.length - 1;
+  }
+
+  goToPreviousCreateSection() {
+    const currentIndex = this.createSectionOrder.indexOf(this.selectedCreateSection());
+    if (currentIndex <= 0) {
+      return;
+    }
+
+    this.openCreateSection(this.createSectionOrder[currentIndex - 1]);
+  }
+
+  goToNextCreateSection() {
+    const currentIndex = this.createSectionOrder.indexOf(this.selectedCreateSection());
+    if (currentIndex >= this.createSectionOrder.length - 1) {
+      return;
+    }
+
+    this.openCreateSection(this.createSectionOrder[currentIndex + 1]);
+  }
+
+  createContentItemGroup(kind: TrainingContentKind, item?: Partial<TrainingOffering['contentItems'][number]>): ContentItemFormGroup {
+    return new FormGroup({
+      id: new FormControl(item?.id ?? '', { nonNullable: true }),
+      kind: new FormControl<TrainingContentKind>(kind, { nonNullable: true, validators: [Validators.required] }),
+      title: new FormControl(item?.title ?? '', { nonNullable: true, validators: [Validators.required] }),
+      assessmentType: new FormControl<TrainingAssessmentType | null>(kind === 'Assessment' ? (item?.assessmentType ?? 'Quiz') : null),
+      passMarkPercentage: new FormControl(item?.passMarkPercentage ?? 70, { nonNullable: true, validators: [Validators.required, Validators.min(1), Validators.max(100)] }),
+      maxAttempts: new FormControl(item?.maxAttempts ?? 3, { nonNullable: true, validators: [Validators.required, Validators.min(1)] }),
+      resourceLink: new FormControl(item?.resourceLink ?? '', { nonNullable: true }),
+      uploadedFileName: new FormControl(item?.uploadedFileName ?? '', { nonNullable: true }),
+      uploadedFileDataUrl: new FormControl(item?.uploadedFileDataUrl ?? '', { nonNullable: true }),
+      convertedPdfUrl: new FormControl(item?.convertedPdfUrl ?? '', { nonNullable: true }),
+      requiresAcknowledgement: new FormControl(Boolean(item?.requiresAcknowledgement), { nonNullable: true }),
+      allowDownload: new FormControl(item?.allowDownload !== false, { nonNullable: true }),
+      durationSeconds: new FormControl<number | null>(item?.durationSeconds ?? null),
+      questions: new FormArray<AssessmentQuestionFormGroup>(
+        item?.questions?.map((question) => this.createQuestionGroup(question.questionType, question)) ?? [],
+      ),
+    });
+  }
+
+  createQuestionGroup(
+    questionType: TrainingQuestionType = 'Multiple Choice',
+    questionValue?: Partial<TrainingOffering['contentItems'][number]['questions'][number]>,
+  ): AssessmentQuestionFormGroup {
+    const resolvedQuestionType = questionValue?.questionType ?? questionType;
+    const question = new FormGroup({
+      prompt: new FormControl(questionValue?.prompt ?? '', { nonNullable: true, validators: [Validators.required] }),
+      questionType: new FormControl<TrainingQuestionType>(resolvedQuestionType, { nonNullable: true, validators: [Validators.required] }),
+      points: new FormControl(questionValue?.points ?? 5, { nonNullable: true, validators: [Validators.required, Validators.min(1)] }),
+      choices: new FormArray<AssessmentChoiceFormGroup>(
+        questionValue?.choices?.map((choice) => this.createChoiceGroup(choice)) ?? [],
+      ),
+      matchingPairs: new FormArray<MatchingPairFormGroup>(
+        questionValue?.matchingPairs?.map((pair) => this.createMatchingPairGroup(pair)) ?? [],
+      ),
+      dragAndDropEnabled: new FormControl(questionValue?.dragAndDropEnabled ?? false, { nonNullable: true }),
+      attachmentFileName: new FormControl(questionValue?.attachmentFileName ?? '', { nonNullable: true }),
+      attachmentDataUrl: new FormControl(questionValue?.attachmentDataUrl ?? '', { nonNullable: true }),
+    });
+
+    question.addValidators((control) => this.validateAssessmentQuestion(control));
+    this.normalizeQuestionDetails(question);
+    return question;
+  }
+
+  createChoiceGroup(choice: Partial<TrainingAssessmentChoice> = {}): AssessmentChoiceFormGroup {
+    return new FormGroup({
+      text: new FormControl(choice.text ?? '', { nonNullable: true, validators: [Validators.required] }),
+      points: new FormControl(choice.points ?? 0, { nonNullable: true, validators: [Validators.required, Validators.min(0)] }),
+      isCorrect: new FormControl(choice.isCorrect ?? false, { nonNullable: true }),
+    });
+  }
+
+  createMatchingPairGroup(pair: Partial<TrainingMatchingPair> = {}): MatchingPairFormGroup {
+    return new FormGroup({
+      prompt: new FormControl(pair.prompt ?? '', { nonNullable: true, validators: [Validators.required] }),
+      answer: new FormControl(pair.answer ?? '', { nonNullable: true, validators: [Validators.required] }),
+    });
+  }
+
+  assessmentTypeForItem(itemIndex: number) {
+    return this.contentItemsArray.at(itemIndex).controls.assessmentType.value ?? 'Quiz';
+  }
+
+  assessmentQuestionTypeOptionsForItem(itemIndex: number): ReadonlyArray<TrainingQuestionType> {
+    switch (this.assessmentTypeForItem(itemIndex)) {
+      case 'Assignment':
+        return this.assignmentQuestionTypeOptions;
+      case 'Mentorship':
+      case 'Read and Acknowledge':
+        return ['Short Answer'];
+      case 'Quiz':
+      default:
+        return this.questionTypeOptions;
+    }
+  }
+
+  assessmentCollectionLabel(itemIndex: number) {
+    switch (this.assessmentTypeForItem(itemIndex)) {
+      case 'Assignment':
+        return 'Tasks';
+      case 'Mentorship':
+        return 'Sessions';
+      case 'Read and Acknowledge':
+        return 'Acknowledgements';
+      case 'Quiz':
+      default:
+        return 'Questions';
+    }
+  }
+
+  assessmentEntryLabel(itemIndex: number, count: number) {
+    switch (this.assessmentTypeForItem(itemIndex)) {
+      case 'Assignment':
+        return count === 1 ? 'task' : 'tasks';
+      case 'Mentorship':
+        return count === 1 ? 'session prompt' : 'session prompts';
+      case 'Read and Acknowledge':
+        return count === 1 ? 'acknowledgement step' : 'acknowledgement steps';
+      case 'Quiz':
+      default:
+        return count === 1 ? 'question' : 'questions';
+    }
+  }
+
+  assessmentBuilderHeading(itemIndex: number) {
+    switch (this.assessmentTypeForItem(itemIndex)) {
+      case 'Assignment':
+        return 'Build the assignment brief';
+      case 'Mentorship':
+        return 'Build the mentorship check-in';
+      case 'Read and Acknowledge':
+        return 'Build the read-and-acknowledge step';
+      case 'Quiz':
+      default:
+        return 'Build this assessment';
+    }
+  }
+
+  assessmentAddButtonLabel(itemIndex: number) {
+    switch (this.assessmentTypeForItem(itemIndex)) {
+      case 'Assignment':
+        return 'Add task';
+      case 'Mentorship':
+        return 'Add session prompt';
+      case 'Read and Acknowledge':
+        return 'Add acknowledgement step';
+      case 'Quiz':
+      default:
+        return 'Add question';
+    }
+  }
+
+  assessmentPromptLabel(itemIndex: number) {
+    switch (this.assessmentTypeForItem(itemIndex)) {
+      case 'Assignment':
+        return 'Task Instructions';
+      case 'Mentorship':
+        return 'Mentorship Prompt';
+      case 'Read and Acknowledge':
+        return 'Acknowledgement Instructions';
+      case 'Quiz':
+      default:
+        return 'Question Prompt';
+    }
+  }
+
+  assessmentPromptPlaceholder(itemIndex: number) {
+    switch (this.assessmentTypeForItem(itemIndex)) {
+      case 'Assignment':
+        return 'Describe what learners need to submit for this assignment task';
+      case 'Mentorship':
+        return 'Describe the mentorship reflection, coaching activity, or follow-up expected from the student';
+      case 'Read and Acknowledge':
+        return 'Explain what the learner must review and acknowledge once the document is opened';
+      case 'Quiz':
+      default:
+        return 'Add the learner question or instruction';
+    }
+  }
+
+  assessmentQuestionTypeLabel(itemIndex: number) {
+    switch (this.assessmentTypeForItem(itemIndex)) {
+      case 'Assignment':
+        return 'Response Format';
+      case 'Mentorship':
+        return 'Mentorship Format';
+      case 'Read and Acknowledge':
+        return 'Acknowledgement Format';
+      case 'Quiz':
+      default:
+        return 'Question Type';
+    }
+  }
+
+  assessmentPointsLabel(itemIndex: number) {
+    switch (this.assessmentTypeForItem(itemIndex)) {
+      case 'Assignment':
+        return 'Marks';
+      case 'Mentorship':
+        return 'Mentorship Credits';
+      case 'Read and Acknowledge':
+        return 'Acknowledgement Credits';
+      case 'Quiz':
+      default:
+        return 'Points';
+    }
+  }
+
+  supportsAssessmentAttachment(itemIndex: number) {
+    return this.assessmentTypeForItem(itemIndex) !== 'Quiz';
+  }
+
+  assessmentAttachmentLabel(itemIndex: number) {
+    switch (this.assessmentTypeForItem(itemIndex)) {
+      case 'Read and Acknowledge':
+        return 'Acknowledgement Document';
+      case 'Mentorship':
+        return 'Mentorship Guide';
+      case 'Assignment':
+      default:
+        return 'Assignment Document';
+    }
+  }
+
+  assessmentAttachmentTitle(itemIndex: number) {
+    switch (this.assessmentTypeForItem(itemIndex)) {
+      case 'Read and Acknowledge':
+        return 'Attach the document the learner must open and acknowledge in the LMS.';
+      case 'Mentorship':
+        return 'Attach a coaching guide, reflection template, or mentor notes for this session.';
+      case 'Assignment':
+      default:
+        return 'Attach a supporting document or assignment brief for this task.';
+    }
+  }
+
+  assessmentAttachmentHint(itemIndex: number) {
+    switch (this.assessmentTypeForItem(itemIndex)) {
+      case 'Read and Acknowledge':
+        return 'Add the policy, guideline, or compliance document that must be opened before acknowledgement.';
+      case 'Mentorship':
+        return 'Add a mentoring guide, reflection worksheet, or preparation notes for the student session.';
+      case 'Assignment':
+      default:
+        return 'Add the assignment brief, worksheet, or reference document for this task.';
+    }
+  }
+
+  defaultQuestionTypeForAssessment(assessmentType: TrainingAssessmentType): TrainingQuestionType {
+    return this.assessmentQuestionTypeOptionsForAssessment(assessmentType)[0] ?? 'Multiple Choice';
+  }
+
+  assessmentQuestionTypeOptionsForAssessment(assessmentType: TrainingAssessmentType): ReadonlyArray<TrainingQuestionType> {
+    switch (assessmentType) {
+      case 'Assignment':
+        return this.assignmentQuestionTypeOptions;
+      case 'Mentorship':
+      case 'Read and Acknowledge':
+        return ['Short Answer'];
+      case 'Quiz':
+      default:
+        return this.questionTypeOptions;
+    }
+  }
+
+  onAssessmentTypeChanged(itemIndex: number, assessmentType: TrainingAssessmentType) {
+    const item = this.contentItemsArray.at(itemIndex);
+    item.patchValue({ assessmentType });
+    this.normalizeAssessmentQuestionsForType(itemIndex, assessmentType);
+  }
+
+  private normalizeAssessmentQuestionsForType(itemIndex: number, assessmentType: TrainingAssessmentType) {
+    const questions = this.assessmentQuestionsAt(itemIndex);
+    const allowedQuestionTypes = this.assessmentQuestionTypeOptionsForAssessment(assessmentType);
+    const defaultQuestionType = allowedQuestionTypes[0] ?? 'Multiple Choice';
+
+    for (const question of questions.controls) {
+      if (!allowedQuestionTypes.includes(question.controls.questionType.value)) {
+        question.patchValue({ questionType: defaultQuestionType });
+      }
+
+      this.normalizeQuestionDetails(question);
+    }
+  }
+
+  onAssessmentQuestionTypeChanged(itemIndex: number, questionIndex: number, questionType: TrainingQuestionType) {
+    const question = this.assessmentQuestionsAt(itemIndex).at(questionIndex);
+    question.controls.questionType.setValue(questionType);
+    this.normalizeQuestionDetails(question);
+    this.submittedAssessmentByItem.update((current) => ({ ...current, [itemIndex]: false }));
+    this.assessmentStatusByItem.update((current) => ({
+      ...current,
+      [itemIndex]: { tone: 'info', message: `${questionType} format selected for this ${this.assessmentEntryLabel(itemIndex, 1)}.` },
+    }));
+  }
+
+  addContentItem(kind: TrainingContentKind) {
+    this.selectedCreateSection.set('content');
+    this.createSectionDetailOpen.set(true);
+    this.contentItemsArray.push(this.createContentItemGroup(kind));
+    const nextIndex = this.contentItemsArray.length - 1;
+    this.expandedContentIndex.set(nextIndex);
+    if (kind === 'Assessment') {
+      this.expandedQuestionByItem.update((current) => ({
+        ...current,
+        [nextIndex]: null,
+      }));
+    }
+
+    this.focusContentItemTitle(nextIndex);
+  }
+
+  removeContentItem(index: number) {
+    const item = this.contentItemsArray.at(index) ?? null;
+    if (item) {
+      this.setPresentationPreviewState(item, null);
+    }
+
+    this.contentItemsArray.removeAt(index);
+    if (this.expandedContentIndex() === index) {
+      this.expandedContentIndex.set(Math.max(0, index - 1));
+    } else if ((this.expandedContentIndex() ?? -1) > index) {
+      this.expandedContentIndex.update((current) => (current === null ? null : current - 1));
+    }
+    this.expandedQuestionByItem.update((current) => {
+      const next: Record<number, number | null> = {};
+      for (const [key, value] of Object.entries(current)) {
+        const numericKey = Number(key);
+        if (numericKey === index) {
+          continue;
+        }
+
+        next[numericKey > index ? numericKey - 1 : numericKey] = value;
+      }
+
+      return next;
+    });
+
+    this.contentUploadProgresses.update((current) => {
+      const next: Record<number, number | null> = {};
+      for (const [key, value] of Object.entries(current)) {
+        const numericKey = Number(key);
+        if (numericKey === index) {
+          continue;
+        }
+
+        next[numericKey > index ? numericKey - 1 : numericKey] = value;
+      }
+
+      return next;
+    });
+
+    if (!this.contentItemsArray.length) {
+      this.expandedContentIndex.set(null);
+    }
+  }
+
+  openContentItemDetails(index: number) {
+    this.selectedCreateSection.set('content');
+    this.createSectionDetailOpen.set(true);
+    this.expandedContentIndex.set(index);
+    this.focusContentItemTitle(index);
+  }
+
+  openContentItemDetailsFromKeyboard(index: number, event: Event) {
+    event.preventDefault();
+    this.openContentItemDetails(index);
+  }
+
+  closeContentItemDetails() {
+    this.expandedContentIndex.set(null);
+  }
+
+  private focusContentItemTitle(index: number) {
+    setTimeout(() => {
+      const titleInput = document.querySelector<HTMLInputElement>(`input[data-content-item-title="${index}"]`);
+      titleInput?.focus();
+      titleInput?.select();
+    });
+  }
+
+  selectedContentItem() {
+    const index = this.expandedContentIndex();
+    if (index === null) {
+      return null;
+    }
+
+    return this.contentItemsArray.at(index) ?? null;
+  }
+
+  activeContentItemIndex() {
+    return this.expandedContentIndex() ?? 0;
+  }
+
+  activeContentItemNumber() {
+    return this.activeContentItemIndex() + 1;
+  }
+
+  presentationPreviewState(item: ContentItemFormGroup | null) {
+    if (!item) {
+      return null;
+    }
+
+    return this.presentationPreviewByItem().get(item) ?? null;
+  }
+
+  contentItemSummary(index: number) {
+    const item = this.contentItemsArray.at(index);
+    const kind = item.controls.kind.value;
+
+    if (kind === 'Assessment') {
+      const questionCount = this.assessmentQuestionsAt(index).length;
+      return `${item.controls.assessmentType.value ?? 'Quiz'} • ${questionCount} ${this.assessmentEntryLabel(index, questionCount)}`;
+    }
+
+    if (item.controls.uploadedFileName.value) {
+      return item.controls.uploadedFileName.value;
+    }
+
+    if (item.controls.resourceLink.value) {
+      return 'Linked resource added';
+    }
+
+    return `${kind} details not added yet`;
+  }
+
+  contentItemResourceState(index: number) {
+    const item = this.contentItemsArray.at(index);
+
+    if (item.controls.kind.value === 'Assessment') {
+      return this.submittedAssessmentByItem()[index] ? 'Assessment confirmed' : 'Assessment setup';
+    }
+
+    if (item.controls.kind.value === 'Document' && item.controls.requiresAcknowledgement.value) {
+      return 'Acknowledgement required';
+    }
+
+    if (item.controls.kind.value === 'Scorm') {
+      return 'SCORM package';
+    }
+
+    if (item.controls.uploadedFileName.value) {
+      return 'File attached';
+    }
+
+    if (item.controls.resourceLink.value) {
+      return 'Link attached';
+    }
+
+    return 'Resource pending';
+  }
+
+  assessmentQuestionsAt(itemIndex: number): FormArray<AssessmentQuestionFormGroup> {
+    return this.contentItemsArray.at(itemIndex).controls.questions;
+  }
+
+  assessmentChoicesAt(itemIndex: number, questionIndex: number): FormArray<AssessmentChoiceFormGroup> {
+    return this.assessmentQuestionsAt(itemIndex).at(questionIndex).controls.choices;
+  }
+
+  matchingPairsAt(itemIndex: number, questionIndex: number): FormArray<MatchingPairFormGroup> {
+    return this.assessmentQuestionsAt(itemIndex).at(questionIndex).controls.matchingPairs;
+  }
+
+  isMultipleChoiceQuestion(itemIndex: number, questionIndex: number) {
+    return this.assessmentQuestionsAt(itemIndex).at(questionIndex).controls.questionType.value === 'Multiple Choice';
+  }
+
+  isTrueFalseQuestion(itemIndex: number, questionIndex: number) {
+    return this.assessmentQuestionsAt(itemIndex).at(questionIndex).controls.questionType.value === 'True or False';
+  }
+
+  isMatchingQuestion(itemIndex: number, questionIndex: number) {
+    return this.assessmentQuestionsAt(itemIndex).at(questionIndex).controls.questionType.value === 'Matching';
+  }
+
+  assessmentStatusMessage(itemIndex: number) {
+    return this.assessmentStatusByItem()[itemIndex] ?? null;
+  }
+
+  addAssessmentQuestion(itemIndex: number) {
+    const questionType = this.defaultQuestionTypeForAssessment(this.assessmentTypeForItem(itemIndex));
+    this.assessmentQuestionsAt(itemIndex).push(this.createQuestionGroup(questionType));
+    this.expandedQuestionByItem.update((current) => ({
+      ...current,
+      [itemIndex]: this.assessmentQuestionsAt(itemIndex).length - 1,
+    }));
+    this.submittedAssessmentByItem.update((current) => ({ ...current, [itemIndex]: false }));
+    this.assessmentStatusByItem.update((current) => ({
+      ...current,
+      [itemIndex]: { tone: 'info', message: `New ${this.assessmentEntryLabel(itemIndex, 1)} added with ${questionType.toLowerCase()} format.` },
+    }));
+  }
+
+  addAssessmentChoice(itemIndex: number, questionIndex: number) {
+    const question = this.assessmentQuestionsAt(itemIndex).at(questionIndex);
+    question.controls.choices.push(this.createChoiceGroup());
+    question.markAsTouched();
+    question.updateValueAndValidity();
+    this.submittedAssessmentByItem.update((current) => ({ ...current, [itemIndex]: false }));
+  }
+
+  setTrueFalseCorrectAnswer(itemIndex: number, questionIndex: number, correctChoiceIndex: number) {
+    const question = this.assessmentQuestionsAt(itemIndex).at(questionIndex);
+    const choices = question.controls.choices;
+
+    choices.controls.forEach((choice, index) => {
+      const isCorrect = index === correctChoiceIndex;
+      choice.controls.isCorrect.setValue(isCorrect);
+      choice.controls.points.setValue(isCorrect ? question.controls.points.value : 0);
+    });
+
+    question.markAsTouched();
+    question.updateValueAndValidity();
+    this.submittedAssessmentByItem.update((current) => ({ ...current, [itemIndex]: false }));
+  }
+
+  addMatchingPair(itemIndex: number, questionIndex: number) {
+    const question = this.assessmentQuestionsAt(itemIndex).at(questionIndex);
+    question.controls.matchingPairs.push(this.createMatchingPairGroup());
+    question.markAsTouched();
+    question.updateValueAndValidity();
+    this.submittedAssessmentByItem.update((current) => ({ ...current, [itemIndex]: false }));
+  }
+
+  removeMatchingPair(itemIndex: number, questionIndex: number, pairIndex: number) {
+    const question = this.assessmentQuestionsAt(itemIndex).at(questionIndex);
+    const matchingPairs = question.controls.matchingPairs;
+
+    if (matchingPairs.length === 2) {
+      return;
+    }
+
+    matchingPairs.removeAt(pairIndex);
+    question.markAsTouched();
+    question.updateValueAndValidity();
+    this.submittedAssessmentByItem.update((current) => ({ ...current, [itemIndex]: false }));
+  }
+
+  onAssessmentQuestionPointsChanged(itemIndex: number, questionIndex: number) {
+    if (!this.isTrueFalseQuestion(itemIndex, questionIndex)) {
+      return;
+    }
+
+    const question = this.assessmentQuestionsAt(itemIndex).at(questionIndex);
+    const correctChoiceIndex = question.controls.choices.controls.findIndex((choice) => choice.controls.isCorrect.value);
+    this.setTrueFalseCorrectAnswer(itemIndex, questionIndex, correctChoiceIndex === -1 ? 0 : correctChoiceIndex);
+  }
+
+  removeAssessmentChoice(itemIndex: number, questionIndex: number, choiceIndex: number) {
+    const question = this.assessmentQuestionsAt(itemIndex).at(questionIndex);
+    const choices = question.controls.choices;
+
+    if (choices.length === 2) {
+      return;
+    }
+
+    choices.removeAt(choiceIndex);
+
+    if (!choices.controls.some((choice) => choice.controls.isCorrect.value) && choices.length) {
+      choices.at(0).controls.isCorrect.setValue(true);
+    }
+
+    question.markAsTouched();
+    question.updateValueAndValidity();
+    this.submittedAssessmentByItem.update((current) => ({ ...current, [itemIndex]: false }));
+  }
+
+  removeAssessmentQuestion(itemIndex: number, questionIndex: number) {
+    const questions = this.assessmentQuestionsAt(itemIndex);
+    questions.removeAt(questionIndex);
+    this.expandedQuestionByItem.update((current) => ({
+      ...current,
+      [itemIndex]: questions.length ? Math.max(0, questionIndex - 1) : null,
+    }));
+    this.submittedAssessmentByItem.update((current) => ({ ...current, [itemIndex]: false }));
+  }
+
+  toggleAssessmentQuestion(itemIndex: number, questionIndex: number) {
+    this.expandedQuestionByItem.update((current) => ({
+      ...current,
+      [itemIndex]: current[itemIndex] === questionIndex ? null : questionIndex,
+    }));
+  }
+
+  isAssessmentQuestionExpanded(itemIndex: number, questionIndex: number) {
+    return this.expandedQuestionByItem()[itemIndex] === questionIndex;
+  }
+
+  submitAssessmentSetup(itemIndex: number) {
+    const questions = this.assessmentQuestionsAt(itemIndex);
+    const questionCount = questions.length;
+
+    if (!questionCount) {
+      this.assessmentStatusByItem.update((current) => ({
+        ...current,
+        [itemIndex]: {
+          tone: 'info',
+          message: `Add at least one ${this.assessmentEntryLabel(itemIndex, 1)} before submitting this assessment.`,
+        },
+      }));
+      this.expandedQuestionByItem.update((current) => ({
+        ...current,
+        [itemIndex]: null,
+      }));
+      return;
+    }
+
+    questions.markAllAsTouched();
+    questions.updateValueAndValidity();
+
+    const invalidQuestionIndex = questions.controls.findIndex((question) => question.invalid);
+    if (invalidQuestionIndex !== -1) {
+      this.expandedQuestionByItem.update((current) => ({
+        ...current,
+        [itemIndex]: invalidQuestionIndex,
+      }));
+      return;
+    }
+
+    const assessmentType = this.assessmentTypeForItem(itemIndex);
+    if (assessmentType === 'Read and Acknowledge' && !this.hasReadAndAcknowledgeDocument(itemIndex)) {
+      this.assessmentStatusByItem.update((current) => ({
+        ...current,
+        [itemIndex]: {
+          tone: 'info',
+          message: 'Attach an acknowledgement document or add a hosted document link before submitting this item.',
+        },
+      }));
+      this.expandedQuestionByItem.update((current) => ({
+        ...current,
+        [itemIndex]: 0,
+      }));
+      return;
+    }
+
+    this.submittedAssessmentByItem.update((current) => ({ ...current, [itemIndex]: true }));
+    this.assessmentStatusByItem.update((current) => ({
+      ...current,
+      [itemIndex]: {
+        tone: 'success',
+        message: `${assessmentType} assessment submitted with ${questionCount} ${this.assessmentEntryLabel(itemIndex, questionCount)}.`,
+      },
+    }));
+  }
+
+  private validateAssessmentQuestion(control: AbstractControl): ValidationErrors | null {
+    if (!(control instanceof FormGroup)) {
+      return null;
+    }
+
+    const questionGroup = control as AssessmentQuestionFormGroup;
+
+    if (questionGroup.controls.questionType.value === 'Matching') {
+      if (questionGroup.controls.matchingPairs.length < 2) {
+        return { matchingMinPairs: true };
+      }
+
+      return null;
+    }
+
+    if (questionGroup.controls.questionType.value === 'True or False') {
+      const choices = questionGroup.controls.choices;
+      const correctCount = choices.controls.filter((choice) => choice.controls.isCorrect.value).length;
+
+      if (choices.length !== 2) {
+        return { trueFalseChoicesInvalid: true };
+      }
+
+      if (correctCount !== 1) {
+        return { trueFalseCorrectAnswerRequired: true };
+      }
+
+      return null;
+    }
+
+    if (questionGroup.controls.questionType.value !== 'Multiple Choice') {
+      return null;
+    }
+
+    const choices = questionGroup.controls.choices;
+
+    if (choices.length < 2) {
+      return { multipleChoiceMinOptions: true };
+    }
+
+    if (!choices.controls.some((choice) => choice.controls.isCorrect.value)) {
+      return { multipleChoiceCorrectAnswerRequired: true };
+    }
+
+    return null;
+  }
+
+  private createDefaultMultipleChoiceChoices(totalPoints: number) {
+    return [
+      this.createChoiceGroup({ points: Math.max(1, totalPoints || 1), isCorrect: true }),
+      this.createChoiceGroup(),
+    ];
+  }
+
+  private createDefaultTrueFalseChoices(totalPoints: number) {
+    return [
+      this.createChoiceGroup({ text: 'True', points: Math.max(1, totalPoints || 1), isCorrect: true }),
+      this.createChoiceGroup({ text: 'False', points: 0, isCorrect: false }),
+    ];
+  }
+
+  private createDefaultMatchingPairs() {
+    return [
+      this.createMatchingPairGroup(),
+      this.createMatchingPairGroup(),
+    ];
+  }
+
+  private normalizeQuestionDetails(question: AssessmentQuestionFormGroup) {
+    const choices = question.controls.choices;
+    const matchingPairs = question.controls.matchingPairs;
+
+    if (question.controls.questionType.value === 'Multiple Choice') {
+      while (matchingPairs.length) {
+        matchingPairs.removeAt(0);
+      }
+
+      question.controls.dragAndDropEnabled.setValue(false, { emitEvent: false });
+
+      if (choices.length < 2) {
+        while (choices.length) {
+          choices.removeAt(0);
+        }
+
+        for (const choice of this.createDefaultMultipleChoiceChoices(question.controls.points.value)) {
+          choices.push(choice);
+        }
+      }
+
+      if (!choices.controls.some((choice) => choice.controls.isCorrect.value)) {
+        choices.at(0).controls.isCorrect.setValue(true);
+      }
+
+      question.updateValueAndValidity({ emitEvent: false });
+      return;
+    }
+
+    if (question.controls.questionType.value === 'True or False') {
+      while (matchingPairs.length) {
+        matchingPairs.removeAt(0);
+      }
+
+      while (choices.length) {
+        choices.removeAt(0);
+      }
+
+      for (const choice of this.createDefaultTrueFalseChoices(question.controls.points.value)) {
+        choices.push(choice);
+      }
+
+      question.controls.dragAndDropEnabled.setValue(false, { emitEvent: false });
+      question.updateValueAndValidity({ emitEvent: false });
+      return;
+    }
+
+    if (question.controls.questionType.value === 'Matching') {
+      while (choices.length) {
+        choices.removeAt(0);
+      }
+
+      if (matchingPairs.length < 2) {
+        while (matchingPairs.length) {
+          matchingPairs.removeAt(0);
+        }
+
+        for (const pair of this.createDefaultMatchingPairs()) {
+          matchingPairs.push(pair);
+        }
+      }
+
+      question.controls.dragAndDropEnabled.setValue(true, { emitEvent: false });
+      question.updateValueAndValidity({ emitEvent: false });
+      return;
+    }
+
+    while (choices.length) {
+      choices.removeAt(0);
+    }
+
+    while (matchingPairs.length) {
+      matchingPairs.removeAt(0);
+    }
+
+    question.controls.dragAndDropEnabled.setValue(false, { emitEvent: false });
+    question.updateValueAndValidity({ emitEvent: false });
+  }
+
+  isReadAndAcknowledgeAssessment(itemIndex: number) {
+    return this.assessmentTypeForItem(itemIndex) === 'Read and Acknowledge';
+  }
+
+  private hasReadAndAcknowledgeDocument(itemIndex: number) {
+    const item = this.contentItemsArray.at(itemIndex);
+
+    if (item.controls.resourceLink.value.trim()) {
+      return true;
+    }
+
+    return this.assessmentQuestionsAt(itemIndex).controls.some((question) =>
+      question.controls.attachmentFileName.value.trim().length > 0 || question.controls.attachmentDataUrl.value.trim().length > 0,
+    );
+  }
+
+  onContentKindChanged(index: number, nextKind: TrainingContentKind) {
+    const item = this.contentItemsArray.at(index);
+    const questions = item.controls.questions;
+
+    if (nextKind === 'Assessment') {
+      const assessmentType = item.controls.assessmentType.value ?? 'Quiz';
+      item.patchValue({ assessmentType });
+      this.normalizeAssessmentQuestionsForType(index, assessmentType);
+      this.expandedQuestionByItem.update((current) => ({
+        ...current,
+        [index]: questions.length ? 0 : null,
+      }));
+      return;
+    }
+
+    item.patchValue({ assessmentType: null });
+    if (nextKind !== 'Document') {
+      item.controls.requiresAcknowledgement.setValue(false);
+    }
+    while (questions.length) {
+      questions.removeAt(0);
+    }
+    this.expandedQuestionByItem.update((current) => ({
+      ...current,
+      [index]: null,
+    }));
+    this.expandedContentIndex.set(index);
+  }
+
+  onThumbnailSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+
+    if (!file || !file.type.startsWith('image/')) {
+      this.thumbnailPreview.set(null);
+      this.thumbnailFileName.set('');
+      input.value = '';
+      return;
+    }
+
+    this.thumbnailUploading.set(true);
+    this.thumbnailFileName.set(`Uploading ${file.name}…`);
+    input.value = '';
+
+    this.backend.uploadFileChunked(file, 'course-thumbnails').subscribe({
+      next: (uploadEvent) => {
+        if (uploadEvent.type !== 'complete') return;
+        this.thumbnailPreview.set(uploadEvent.url);
+        this.thumbnailFileName.set(file.name);
+        this.thumbnailUploading.set(false);
+      },
+      error: () => {
+        this.thumbnailPreview.set(null);
+        this.thumbnailFileName.set('');
+        this.thumbnailUploading.set(false);
+        alert(`Failed to upload "${file.name}". Please check your connection and try again.`);
+      },
+    });
+  }
+
+  onContentFileSelected(index: number, event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+
+    if (!file) {
+      input.value = '';
+      return;
+    }
+
+    const item = this.contentItemsArray.at(index);
+    if (item.controls.kind.value === 'Scorm' && !/\.zip$/i.test(file.name)) {
+      input.value = '';
+      alert('SCORM uploads must be .zip packages. Please choose a SCORM package file.');
+      return;
+    }
+
+    if (item.controls.kind.value === 'Scorm') {
+      item.patchValue({ uploadedFileName: `Uploading ${file.name}…`, uploadedFileDataUrl: '' });
+      this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: 0 }));
+      input.value = '';
+
+      this.backend.uploadScormPackage(file).subscribe({
+        next: (result) => {
+          this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
+          item.patchValue({
+            uploadedFileName: file.name,
+            uploadedFileDataUrl: '',
+            resourceLink: result.launchUrl,
+            requiresAcknowledgement: false,
+            // Keep the "Launch SCORM package" open-in-new-tab fallback visible — it's
+            // gated on this same flag, so forcing it false hid that button entirely.
+            allowDownload: true,
+          });
+        },
+        error: () => {
+          this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
+          item.patchValue({ uploadedFileName: '', uploadedFileDataUrl: '' });
+          alert(`Failed to process SCORM package "${file.name}". Please ensure it contains a valid launch file and try again.`);
+        },
+      });
+
+      return;
+    }
+
+    item.patchValue({ uploadedFileName: `Uploading ${file.name}…`, uploadedFileDataUrl: '' });
+    this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: 0 }));
+    input.value = '';
+
+    if (item.controls.kind.value === 'Video') {
+      // Read the real video length so the student dashboard's "Total Hours Spent"
+      // reflects this course's actual content instead of a flat guess.
+      void this.readVideoDurationSeconds(file).then((durationSeconds) => {
+        if (durationSeconds) {
+          item.patchValue({ durationSeconds });
+        }
+      });
+    }
+
+    this.backend.uploadFileChunked(file, 'content-items').subscribe({
+      next: (event) => {
+        if (event.type === 'progress') {
+          this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: event.percent }));
+          return;
+        }
+
+        this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
+        item.patchValue({
+          uploadedFileName: file.name,
+          uploadedFileDataUrl: '',
+          resourceLink: event.url,
+        });
+        this.updatePresentationPreview(item, file.name, '');
+
+        // After a successful PPTX upload, convert it to PDF for inline student preview.
+        if (/\.pptx?$/i.test(file.name)) {
+          this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: -1 })); // -1 signals converting state
+          this.backend.convertPptxToPdf(file).subscribe({
+            next: (result) => {
+              item.patchValue({ convertedPdfUrl: result.pdfUrl });
+              this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
+            },
+            error: () => {
+              // Conversion failed — students will see the download-only fallback. Non-fatal.
+              this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
+            },
+          });
+        }
+      },
+      error: () => {
+        this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
+        item.patchValue({ uploadedFileName: '', uploadedFileDataUrl: '' });
+        alert(`Failed to upload "${file.name}". Please check your connection and try again.`);
+      },
+    });
+  }
+
+  /** Reads a video file's real length client-side via its metadata — no upload or server round-trip needed. */
+  private readVideoDurationSeconds(file: File): Promise<number | null> {
+    return new Promise((resolve) => {
+      const objectUrl = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+
+      const cleanUp = () => {
+        URL.revokeObjectURL(objectUrl);
+        video.removeAttribute('src');
+        video.load();
+      };
+
+      video.onloadedmetadata = () => {
+        const duration = Number.isFinite(video.duration) ? video.duration : null;
+        cleanUp();
+        resolve(duration);
+      };
+
+      video.onerror = () => {
+        cleanUp();
+        resolve(null);
+      };
+
+      video.src = objectUrl;
+    });
+  }
+
+  onAssessmentQuestionFileSelected(itemIndex: number, questionIndex: number, event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+
+    if (!file) {
+      input.value = '';
+      return;
+    }
+
+    const question = this.assessmentQuestionsAt(itemIndex).at(questionIndex);
+    const reader = new FileReader();
+    reader.onload = () => {
+      question.controls.attachmentFileName.setValue(file.name);
+      question.controls.attachmentDataUrl.setValue(typeof reader.result === 'string' ? reader.result : '');
+      question.markAsTouched();
+      this.submittedAssessmentByItem.update((current) => ({ ...current, [itemIndex]: false }));
+      input.value = '';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  removeAssessmentQuestionFile(itemIndex: number, questionIndex: number) {
+    const question = this.assessmentQuestionsAt(itemIndex).at(questionIndex);
+    question.controls.attachmentFileName.setValue('');
+    question.controls.attachmentDataUrl.setValue('');
+    question.markAsTouched();
+    this.submittedAssessmentByItem.update((current) => ({ ...current, [itemIndex]: false }));
+  }
+
+  onContentDragStart(index: number) {
+    this.draggedContentIndex.set(index);
+  }
+
+  onContentDragOver(event: DragEvent) {
+    event.preventDefault();
+  }
+
+  onContentDrop(targetIndex: number) {
+    const sourceIndex = this.draggedContentIndex();
+    if (sourceIndex === null || sourceIndex === targetIndex) {
+      this.draggedContentIndex.set(null);
+      return;
+    }
+
+    const current = this.contentItemsArray.at(sourceIndex);
+    this.contentItemsArray.removeAt(sourceIndex);
+    const destinationIndex = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex;
+    this.contentItemsArray.insert(destinationIndex, current);
+    if (this.expandedContentIndex() === sourceIndex) {
+      this.expandedContentIndex.set(destinationIndex);
+    } else if ((this.expandedContentIndex() ?? -1) > sourceIndex && (this.expandedContentIndex() ?? -1) <= destinationIndex) {
+      this.expandedContentIndex.update((currentIndex) => (currentIndex === null ? null : currentIndex - 1));
+    } else if ((this.expandedContentIndex() ?? -1) < sourceIndex && (this.expandedContentIndex() ?? -1) >= destinationIndex) {
+      this.expandedContentIndex.update((currentIndex) => (currentIndex === null ? null : currentIndex + 1));
+    }
+    this.expandedQuestionByItem.update((currentMap) => {
+      const next: Record<number, number | null> = {};
+      const entries = Object.entries(currentMap).map(([key, value]) => [Number(key), value] as const);
+      for (const [key, value] of entries) {
+        if (key === sourceIndex) {
+          next[destinationIndex] = value;
+          continue;
+        }
+
+        if (sourceIndex < targetIndex && key > sourceIndex && key < targetIndex) {
+          next[key - 1] = value;
+          continue;
+        }
+
+        if (sourceIndex > targetIndex && key >= targetIndex && key < sourceIndex) {
+          next[key + 1] = value;
+          continue;
+        }
+
+        next[key] = value;
+      }
+
+      return next;
+    });
+    this.draggedContentIndex.set(null);
+  }
+
+  onContentDragEnd() {
+    this.draggedContentIndex.set(null);
+  }
+
+  private setPresentationPreviewState(item: ContentItemFormGroup, preview: PowerPointPreviewState | null) {
+    this.presentationPreviewByItem.update((current) => {
+      const next = new Map(current);
+      if (preview) {
+        next.set(item, preview);
+      } else {
+        next.delete(item);
+      }
+      return next;
+    });
+  }
+
+  private updatePresentationPreview(item: ContentItemFormGroup, fileName = item.controls.uploadedFileName.value, dataUrl = item.controls.uploadedFileDataUrl.value) {
+    const previewableType = resolvePowerPointUploadType(fileName, dataUrl);
+
+    if (!previewableType) {
+      this.setPresentationPreviewState(item, null);
+      return;
+    }
+
+    this.setPresentationPreviewState(item, {
+      fileName,
+      message:
+        previewableType === 'pptx'
+          ? 'Open this presentation in Microsoft PowerPoint to review the original slides and formatting before publishing.'
+          : 'Open this legacy PowerPoint file in Microsoft PowerPoint to review the original slides and formatting.',
+    });
+  }
+
+  private restorePresentationPreviews() {
+    this.presentationPreviewByItem.set(new Map());
+    for (const item of this.contentItemsArray.controls) {
+      this.updatePresentationPreview(item);
+    }
+  }
+
+  private revealFirstInvalidSection() {
+    if (
+      this.courseForm.controls.title.invalid ||
+      this.courseForm.controls.completionDeadline.invalid ||
+      this.courseForm.controls.type.invalid ||
+      this.courseForm.controls.category.invalid
+    ) {
+      this.openCreateSection('basics');
+      return;
+    }
+
+    const invalidContentIndex = this.contentItemsArray.controls.findIndex((item) => item.invalid);
+    if (invalidContentIndex !== -1) {
+      this.openCreateSection('content');
+      this.expandedContentIndex.set(invalidContentIndex);
+
+      const invalidQuestionIndex = this.assessmentQuestionsAt(invalidContentIndex).controls.findIndex((question) => question.invalid);
+      if (invalidQuestionIndex !== -1) {
+        this.expandedQuestionByItem.update((current) => ({
+          ...current,
+          [invalidContentIndex]: invalidQuestionIndex,
+        }));
+      }
+      return;
+    }
+
+    if (this.courseForm.controls.description.invalid) {
+      this.openCreateSection('basics');
+    }
+  }
+
+  private contentItemsPayload() {
+    return this.contentItemsArray.getRawValue().map((item) => ({
+      ...item,
+      durationSeconds: item.durationSeconds ?? undefined,
+    }));
+  }
+
+  submitCourseForm() {
+    if (this.courseForm.invalid) {
+      this.courseForm.markAllAsTouched();
+      this.courseCreatedSignal.set(false);
+      this.revealFirstInvalidSection();
+      return;
+    }
+
+    if (this.thumbnailUploading() || Object.values(this.contentUploadProgresses()).some((progress) => progress !== null && progress !== undefined)) {
+      alert('Please wait for the thumbnail and content uploads to finish before saving.');
+      this.courseCreatedSignal.set(false);
+      return;
+    }
+
+    const editingOffering = this.editingCourseId()
+      ? this.managerData.offerings().find((offering) => offering.id === this.editingCourseId()) ?? null
+      : null;
+
+    if (editingOffering) {
+      const updatedOffering = this.managerData.updateOffering({
+        id: editingOffering.id,
+        title: this.courseForm.controls.title.value,
+        completionDeadline: this.courseForm.controls.completionDeadline.value,
+        type: this.courseForm.controls.type.value,
+        category: this.courseForm.controls.category.value,
+        thumbnailDataUrl: this.thumbnailPreview(),
+        description: this.courseForm.controls.description.value,
+        status: editingOffering.status,
+        contentItems: this.contentItemsPayload(),
+      });
+
+      if (!updatedOffering) {
+        this.courseCreatedSignal.set(false);
+        return;
+      }
+
+      this.resetCourseBuilder();
+      this.courseCreatedSignal.set(true);
+      this.selectedCoursesView.set('created');
+      this.openPublishedOffering(updatedOffering);
+      return;
+    }
+
+    const createdOffering = this.managerData.createOffering({
+      title: this.courseForm.controls.title.value,
+      completionDeadline: this.courseForm.controls.completionDeadline.value,
+      type: this.courseForm.controls.type.value,
+      category: this.courseForm.controls.category.value,
+      thumbnailDataUrl: this.thumbnailPreview(),
+      description: this.courseForm.controls.description.value,
+      contentItems: this.contentItemsPayload(),
+    });
+
+    if (!createdOffering) {
+      this.courseCreatedSignal.set(false);
+      return;
+    }
+
+    this.resetCourseBuilder();
+    this.courseCreatedSignal.set(true);
+    this.selectedCoursesView.set('created');
+    this.openPublishedOffering(createdOffering);
+  }
+
+  cancelCourseEditing() {
+    this.resetCourseBuilder();
+  }
+
+  private loadOfferingIntoCourseBuilder(offering: TrainingOffering, section: CreateCourseSection) {
+    this.editingCourseId.set(offering.id);
+    this.courseCreatedSignal.set(false);
+    this.courseForm.reset({
+      title: offering.title,
+      completionDeadline: offering.completionDeadline,
+      type: offering.type,
+      category: offering.category,
+      description: offering.description,
+    });
+    this.courseForm.setControl(
+      'contentItems',
+      new FormArray<ContentItemFormGroup>(
+        offering.contentItems.map((item) => this.createContentItemGroup(item.kind, item)),
+      ),
+    );
+    this.thumbnailPreview.set(offering.thumbnailDataUrl);
+    this.thumbnailFileName.set('');
+    this.thumbnailUploading.set(false);
+    this.contentUploadProgresses.set({});
+    this.assessmentStatusByItem.set({});
+    this.submittedAssessmentByItem.set({});
+    this.expandedQuestionByItem.set({});
+    this.addItemMenuOpen.set(false);
+    this.selectedCoursesView.set('create');
+    this.openCreateSection(section);
+    this.expandedContentIndex.set(section === 'content' && offering.contentItems.length ? 0 : null);
+    this.restorePresentationPreviews();
+  }
+
+  private resetCourseBuilder() {
+    this.courseForm.reset({
+      title: '',
+      completionDeadline: '',
+      type: 'Course',
+      category: '',
+      description: '',
+    });
+    this.courseForm.setControl('contentItems', new FormArray<ContentItemFormGroup>([]));
+    this.thumbnailPreview.set(null);
+    this.thumbnailFileName.set('');
+    this.thumbnailUploading.set(false);
+    this.contentUploadProgresses.set({});
+    this.createSectionDetailOpen.set(false);
+    this.expandedContentIndex.set(null);
+    this.expandedQuestionByItem.set({});
+    this.assessmentStatusByItem.set({});
+    this.submittedAssessmentByItem.set({});
+    this.addItemMenuOpen.set(false);
+    this.selectedCreateSection.set('basics');
+    this.editingCourseId.set(null);
+    this.presentationPreviewByItem.set(new Map());
+  }
+
+  offeringAssessmentCount(offering: TrainingOffering) {
+    return offering.contentItems.filter((item) => item.kind === 'Assessment').length;
+  }
+
+  offeringContentSummary(offering: TrainingOffering) {
+    const videos = offering.contentItems.filter((item) => item.kind === 'Video').length;
+    const documents = offering.contentItems.filter((item) => item.kind === 'Document').length;
+    const scormPackages = offering.contentItems.filter((item) => item.kind === 'Scorm').length;
+    const parts = [
+      videos ? `${videos} video${videos === 1 ? '' : 's'}` : '',
+      documents ? `${documents} document${documents === 1 ? '' : 's'}` : '',
+      scormPackages ? `${scormPackages} SCORM package${scormPackages === 1 ? '' : 's'}` : '',
+    ].filter(Boolean);
+
+    return parts.length ? parts.join(' • ') : 'Assessment only';
+  }
+
+  offeringQuestionCount(offering: TrainingOffering) {
+    return offering.contentItems.reduce((total, item) => total + item.questions.length, 0);
+  }
+
+
+  offeringEnrollmentCount(offeringId: string) {
+    return this.managerData.offeringAssignmentCounts().get(offeringId) ?? 0;
+  }
+
+  offeringAssignmentSubmissions(offeringId: string) {
+    return this.managerData.assignmentSubmissions().filter((submission) => submission.offeringId === offeringId);
+  }
+
+  handleOverlayEscape() {
+    if (this.selectedPanel() === 'courses' && this.selectedCoursesView() === 'create' && this.expandedContentIndex() !== null) {
+      this.closeContentItemDetails();
+      return;
+    }
+
+    if (this.selectedPanel() === 'courses' && this.selectedCoursesView() === 'create' && this.createSectionDetailOpen()) {
+      this.closeCreateSectionDetail();
+      return;
+    }
+
+    if (this.selectedPanel() === 'courses' && this.selectedCoursesView() === 'created' && this.selectedPublishedOfferingId()) {
+      this.closePublishedOfferingDetail();
+      return;
     }
   }
 }
