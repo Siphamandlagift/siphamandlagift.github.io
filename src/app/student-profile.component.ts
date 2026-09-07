@@ -1288,7 +1288,7 @@ import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component'
                     <select formControlName="approvingManagerId">
                       <option value="" disabled>Select a training manager</option>
                       <option *ngFor="let manager of availableTrainingManagers()" [value]="manager.id">
-                        {{ manager.name }} - {{ manager.team }}
+                        {{ manager.name }} - {{ manager.team }} ({{ manager.email }})
                       </option>
                     </select>
                     <span *ngIf="!availableTrainingManagers().length" class="utility-card-copy external-training-request-support-copy">No training managers are available right now.</span>

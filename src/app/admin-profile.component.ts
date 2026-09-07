@@ -2636,6 +2636,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         <input type="email" [value]="approvingManagerFormEmail()" (input)="approvingManagerFormEmail.set($any($event.target).value)" placeholder="e.g. jane.doe@example.com" />
                       </label>
 
+                      @if (approvingManagerFormNameConflict(); as conflict) {
+                        <div class="admin-upload-feedback admin-upload-feedback-error" role="alert">
+                          A User Management roster member also named "{{ conflict.name }} {{ conflict.surname }}" (role: Manager) already exists with a different email ({{ conflict.email }}). Students pick an approving manager by name only, so two entries with the same name but different emails can send a request to the wrong inbox. If this is the same person, use {{ conflict.email }} here instead.
+                        </div>
+                      }
+
                       @if (approvingManagerFormError()) {
                         <div class="admin-upload-feedback admin-upload-feedback-error" role="status" aria-live="polite">{{ approvingManagerFormError() }}</div>
                       }
@@ -6130,6 +6136,28 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.approvalWorkflowSettingsTone.set(result.success ? 'success' : 'error');
     this.approvalWorkflowSettingsMessage.set(result.success ? 'Approval settings saved.' : result.message);
   }
+
+  // Flags the exact footgun that let a training request silently go to the wrong recipient: the
+  // student's approving-manager dropdown shows only a name (see student-profile.component.ts), so
+  // an explicit entry here sharing a name with an active roster manager but a DIFFERENT email is
+  // indistinguishable to a student picking between them — whichever one they don't mean to pick
+  // still "succeeds" (the request is created and confirmed), it just goes to the wrong inbox and
+  // is never seen by the person who actually goes by that name. Purely advisory, not a save block:
+  // a coincidental same-name-different-person case is legitimate and shouldn't be blocked.
+  readonly approvingManagerFormNameConflict = computed(() => {
+    const name = this.approvingManagerFormName().trim().toLowerCase();
+    if (!name) {
+      return null;
+    }
+
+    const email = this.approvingManagerFormEmail().trim().toLowerCase();
+    return this.managerData.students().find((student) =>
+      student.role === 'manager'
+      && student.activeStatus === 'Active'
+      && `${student.name} ${student.surname}`.trim().toLowerCase() === name
+      && student.email.trim().toLowerCase() !== email,
+    ) ?? null;
+  });
 
   approverInitials(name: string) {
     const parts = name.trim().split(/\s+/).filter(Boolean);
