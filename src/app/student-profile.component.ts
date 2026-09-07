@@ -16,7 +16,7 @@ import {
   StudentMentorshipProgressEntry,
   StudentMentorshipProgressReport,
 } from './student-data.service';
-import { ExternalTrainingRequestRecord, StudentIdpEntry, StudentKpiEntry, StudentKpiScore, TrainingManagerDataService } from './training-manager-data.service';
+import { ExternalTrainingRequestRecord, ExternalTrainingRequestStatus, StudentIdpEntry, StudentKpiEntry, StudentKpiScore, TrainingManagerDataService } from './training-manager-data.service';
 import { LmsBackendService, type LoginRole } from './lms-backend.service';
 import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service';
 import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLmsSessionRecord } from './session-auth';
@@ -58,6 +58,7 @@ import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component'
         *ngIf="externalTrainingSuccessPopupVisible()"
         class="submit-success-popup"
         [class.submit-success-popup-leaving]="externalTrainingSuccessPopupLeaving()"
+        [class.submit-success-popup-warning]="externalTrainingSuccessPopupTone() === 'warning'"
         role="status"
         aria-live="polite">
         <div class="submit-success-popup-title">{{ externalTrainingSuccessPopupTitle() }}</div>
@@ -1631,6 +1632,11 @@ import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component'
 
     .submit-success-popup-leaving {
       animation: submit-success-popup-exit 0.35s ease forwards;
+    }
+
+    .submit-success-popup-warning {
+      background: linear-gradient(135deg, #78350f, #d97706);
+      box-shadow: 0 18px 40px rgba(180, 83, 9, 0.28);
     }
 
     .submit-success-popup-title {
@@ -5255,15 +5261,34 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
   readonly externalTrainingSuccessPopupVisible = computed(() => this._externalTrainingSuccessPopupVisible());
   private readonly _externalTrainingSuccessPopupLeaving = signal(false);
   readonly externalTrainingSuccessPopupLeaving = computed(() => this._externalTrainingSuccessPopupLeaving());
-  private readonly _externalTrainingSuccessPopupMode = signal<'create' | 'update'>('create');
-  readonly externalTrainingSuccessPopupTitle = computed(() =>
-    this._externalTrainingSuccessPopupMode() === 'update' ? 'Training request resubmitted' : 'Training request submitted',
+  // 'approved'/'needs-revision' are triggered live by externalTrainingRequestOutcomeEffect below
+  // when a background poll picks up the manager's decision on one of this student's own
+  // requests — 'create'/'update' are triggered directly from submitExternalTrainingRequest's own
+  // success handler instead, since those are this session's own action completing, not something
+  // to detect via a poll.
+  private readonly _externalTrainingSuccessPopupMode = signal<'create' | 'update' | 'approved' | 'needs-revision'>('create');
+  private readonly _externalTrainingSuccessPopupCourseName = signal('');
+  readonly externalTrainingSuccessPopupTone = computed<'success' | 'warning'>(() =>
+    this._externalTrainingSuccessPopupMode() === 'needs-revision' ? 'warning' : 'success',
   );
-  readonly externalTrainingSuccessPopupCopy = computed(() =>
-    this._externalTrainingSuccessPopupMode() === 'update'
-      ? 'Your updated request was sent back to the manager for review.'
-      : 'Your request was sent successfully for manager review.',
-  );
+  readonly externalTrainingSuccessPopupTitle = computed(() => {
+    switch (this._externalTrainingSuccessPopupMode()) {
+      case 'update': return 'Training request resubmitted';
+      case 'approved': return 'Training request approved';
+      case 'needs-revision': return 'Training request needs changes';
+      default: return 'Training request submitted';
+    }
+  });
+  readonly externalTrainingSuccessPopupCopy = computed(() => {
+    const courseName = this._externalTrainingSuccessPopupCourseName();
+    const named = courseName ? `Your request for "${courseName}"` : 'Your training request';
+    switch (this._externalTrainingSuccessPopupMode()) {
+      case 'update': return 'Your updated request was sent back to the manager for review.';
+      case 'approved': return `${named} has been approved.`;
+      case 'needs-revision': return `${named} was sent back for changes — edit and resubmit it for review.`;
+      default: return 'Your request was sent successfully for manager review.';
+    }
+  });
   private readonly _editingExternalTrainingRequestId = signal<string | null>(null);
   readonly externalTrainingInvoiceFileName = signal('');
   readonly externalTrainingInvoiceDataUrl = signal('');
@@ -5464,6 +5489,41 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
       clearTimeout(this.welcomeBannerHideTimer);
       this.welcomeBannerHideTimer = null;
     }
+  }
+
+  // Live counterpart to the explicit 'create'/'update' popup above — fires when a background
+  // bootstrap poll picks up that a manager has finally resolved (approved, or sent back for
+  // revision) one of THIS student's own requests, rather than something this session itself just
+  // did. previousExternalTrainingRequestStatuses is seeded silently on the first read so a request
+  // that was already resolved before this session even opened doesn't retroactively pop up.
+  private previousExternalTrainingRequestStatuses: Map<string, ExternalTrainingRequestStatus> | null = null;
+  private readonly externalTrainingRequestOutcomeEffect = effect(() => {
+    const requests = this.learnerExternalTrainingRequests();
+    const previous = this.previousExternalTrainingRequestStatuses;
+    this.previousExternalTrainingRequestStatuses = new Map(requests.map((request) => [request.id, request.status]));
+
+    if (previous === null) {
+      return;
+    }
+
+    for (const request of requests) {
+      const previousStatus = previous.get(request.id);
+      if (!previousStatus || previousStatus === request.status) {
+        continue;
+      }
+
+      if (request.status === 'Approved') {
+        this.showExternalTrainingOutcomePopup('approved', request.courseName);
+      } else if (request.status === 'Needs Revision') {
+        this.showExternalTrainingOutcomePopup('needs-revision', request.courseName);
+      }
+    }
+  });
+
+  private showExternalTrainingOutcomePopup(mode: 'approved' | 'needs-revision', courseName: string) {
+    this._externalTrainingSuccessPopupMode.set(mode);
+    this._externalTrainingSuccessPopupCourseName.set(courseName);
+    this.startExternalTrainingSuccessPopupSequence();
   }
 
   private startExternalTrainingSuccessPopupSequence() {

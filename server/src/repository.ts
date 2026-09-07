@@ -251,6 +251,28 @@ function createKpiYearOpenedNotification(year: number): StudentNotificationRecor
   };
 }
 
+function createTrainingRequestApprovedNotification(requestId: string, courseName: string): StudentNotificationRecord {
+  return {
+    id: `training-request-approved-${requestId}-${Date.now()}`,
+    badge: 'Training',
+    title: 'Training request approved',
+    body: `Your request for "${courseName}" has been approved.`,
+    dateLabel: 'Just now',
+    unread: true,
+  };
+}
+
+function createTrainingRequestNeedsRevisionNotification(requestId: string, courseName: string): StudentNotificationRecord {
+  return {
+    id: `training-request-revision-${requestId}-${Date.now()}`,
+    badge: 'Training',
+    title: 'Training request needs changes',
+    body: `Your request for "${courseName}" was sent back for changes. Edit and resubmit it for review.`,
+    dateLabel: 'Just now',
+    unread: true,
+  };
+}
+
 function createIdpYearOpenedNotification(year: number): StudentNotificationRecord {
   return {
     id: `idp-year-${year}`,
@@ -2545,6 +2567,10 @@ export class LmsRepository {
 
     const existing = data.externalTrainingRequests[existingIndex];
     const decidedAt = this.formatDisplayDate(new Date());
+    // Set only on a truly final outcome for the student (fully Approved, or rejected back to
+    // Needs Revision) — never on an intermediate "approved this step, moved to the next approver"
+    // update, since the student's own request isn't actually resolved yet at that point.
+    let studentNotification: StudentNotificationRecord | null = null;
 
     if (input.status !== 'Approved') {
       // A rejection at any step sends it all the way back to the first approver to revise and
@@ -2562,6 +2588,7 @@ export class LmsRepository {
         approvingManagerName: firstStep?.approverName ?? existing.approvingManagerName,
         approvingManagerEmail: firstStep?.approverEmail ?? existing.approvingManagerEmail,
       };
+      studentNotification = createTrainingRequestNeedsRevisionNotification(requestId, existing.courseName);
     } else {
       const approvalsRequired = existing.approvalsRequired ?? 1;
       const completedHistory: ApprovalChainStepRecord[] = [
@@ -2578,6 +2605,7 @@ export class LmsRepository {
           reviewedAt: decidedAt,
           approvalHistory: completedHistory,
         };
+        studentNotification = createTrainingRequestApprovedNotification(requestId, existing.courseName);
       } else {
         const candidates = nextApproverCandidates(resolveApprovingManagers(data), completedHistory.map((step) => step.approverId));
         const nextApprover = candidates.find((manager) => manager.id === input.nextApproverId);
@@ -2597,6 +2625,22 @@ export class LmsRepository {
           approvingManagerId: nextApprover.id,
           approvingManagerName: nextApprover.name,
           approvingManagerEmail: nextApprover.email,
+        };
+      }
+    }
+
+    // Same studentId-preferred, email-fallback match as the annual training report and other
+    // legacy-request lookups — older requests submitted before studentId existed on this record
+    // only have the email to go on.
+    if (studentNotification) {
+      const studentIndex = data.students.findIndex((student) =>
+        (existing.studentId && student.id === existing.studentId)
+        || student.email.trim().toLowerCase() === existing.studentEmail.trim().toLowerCase(),
+      );
+      if (studentIndex !== -1) {
+        data.students[studentIndex] = {
+          ...data.students[studentIndex],
+          notifications: [studentNotification, ...data.students[studentIndex].notifications],
         };
       }
     }
