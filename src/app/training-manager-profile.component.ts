@@ -1557,6 +1557,14 @@ type KpiEntryFormGroup = FormGroup<{
                   <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">No training requests are assigned to this manager yet.</div>
                 }
               </section>
+
+              @if (trainingRequestReviewToast(); as toastMessage) {
+                <div class="assign-toast" role="status" aria-live="polite">
+                  <span class="assign-toast-icon" aria-hidden="true">✓</span>
+                  <span class="assign-toast-message">{{ toastMessage }}</span>
+                  <button type="button" class="assign-toast-dismiss" aria-label="Dismiss notification" (click)="dismissTrainingRequestReviewToast()">×</button>
+                </div>
+              }
             </section>
           }
 
@@ -7749,6 +7757,10 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   // racing to clear each other's toast early.
   readonly assignWizardToast = signal<string | null>(null);
   private assignWizardToastTimer: ReturnType<typeof setTimeout> | null = null;
+  // Same fire-and-forget toast pattern as assignWizardToast above, for the "Requested Training"
+  // panel's approve/reject decision — see applyExternalTrainingRequestReview.
+  readonly trainingRequestReviewToast = signal<string | null>(null);
+  private trainingRequestReviewToastTimer: ReturnType<typeof setTimeout> | null = null;
   readonly thumbnailPreview = signal<string | null>(null);
   readonly thumbnailFileName = signal<string>('');
   readonly thumbnailUploading = signal(false);
@@ -8148,6 +8160,9 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     if (this.assignWizardToastTimer) {
       clearTimeout(this.assignWizardToastTimer);
     }
+    if (this.trainingRequestReviewToastTimer) {
+      clearTimeout(this.trainingRequestReviewToastTimer);
+    }
   }
 
   /** Shows the sidebar's scrollbar thumb only while actively scrolling, hiding it again
@@ -8376,6 +8391,12 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // Captured before closeExternalTrainingRequestReview() below clears
+    // selectedExternalTrainingRequestId, which would otherwise make
+    // trainingRequestApprovalIsFinalStep() recompute against a null request and default back to
+    // true regardless of what it actually was for this decision.
+    const isFinalStep = this.trainingRequestApprovalIsFinalStep();
+
     this.trainingRequestReviewError.set(null);
     const feedback = this.externalTrainingReviewForm.controls.feedback.value.trim();
     this.managerData.reviewExternalTrainingRequest({
@@ -8385,8 +8406,17 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       feedback,
       nextApproverId,
     });
-    this.externalTrainingReviewForm.reset({ feedback });
-    this.trainingRequestNextApproverId.set('');
+    // Closes the overlay and resets the form/next-approver selection/error state — see that
+    // method. Previously this stayed open after a decision, resetting only the feedback field, as
+    // if the manager might immediately review the SAME request again.
+    this.closeExternalTrainingRequestReview();
+    this.showTrainingRequestReviewToast(
+      status === 'Approved'
+        ? (isFinalStep
+          ? `Approved "${activeRequest.courseName}" for ${activeRequest.studentName}.`
+          : `Approved "${activeRequest.courseName}" and sent it to the next approver.`)
+        : `Sent "${activeRequest.courseName}" back to ${activeRequest.studentName} for revision.`,
+    );
   }
 
   async applyAssignmentReview(event: { submissionId: string; status: 'Approved' | 'Needs Revision'; feedback: string; awardedPoints: number | null }) {
@@ -10395,6 +10425,25 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       this.assignWizardToastTimer = null;
     }
     this.assignWizardToast.set(null);
+  }
+
+  private showTrainingRequestReviewToast(message: string) {
+    if (this.trainingRequestReviewToastTimer) {
+      clearTimeout(this.trainingRequestReviewToastTimer);
+    }
+    this.trainingRequestReviewToast.set(message);
+    this.trainingRequestReviewToastTimer = setTimeout(() => {
+      this.trainingRequestReviewToast.set(null);
+      this.trainingRequestReviewToastTimer = null;
+    }, 4000);
+  }
+
+  dismissTrainingRequestReviewToast() {
+    if (this.trainingRequestReviewToastTimer) {
+      clearTimeout(this.trainingRequestReviewToastTimer);
+      this.trainingRequestReviewToastTimer = null;
+    }
+    this.trainingRequestReviewToast.set(null);
   }
 
   toggleAssignWizardOffering(offeringId: string, checked: boolean) {
