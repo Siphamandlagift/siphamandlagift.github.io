@@ -5757,7 +5757,17 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
       ? this.managerData.updateExternalTrainingRequest({ requestId: editingRequestId, ...requestPayload })
       : this.managerData.submitExternalTrainingRequest(requestPayload);
 
+    // A null result means submitExternalTrainingRequest/updateExternalTrainingRequest rejected the
+    // payload before ever calling the server (e.g. the selected approving manager no longer
+    // matches a current entry in trainingManagers() — the pool this refreshes from every bootstrap
+    // poll, so a manager removed/deactivated, or a roster re-upload that changed their id, between
+    // opening this dialog and submitting would silently reach this branch). Previously this just
+    // `return`ed with no feedback at all — the dialog stayed open with no error, which looked
+    // identical to nothing happening on click, and the student had no way to know the request
+    // wasn't just delayed but was never even attempted. This is the same "looked submitted but the
+    // manager never got it" failure class the async branch below already guards against.
     if (!result) {
+      alert('Could not submit this training request — the selected training manager may no longer be available. Please choose a training manager again and resubmit.');
       return;
     }
 
