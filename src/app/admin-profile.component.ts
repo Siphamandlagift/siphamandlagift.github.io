@@ -3509,21 +3509,19 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                 <div class="section-heading-block">
                   <h1>Assign students to created courses</h1>
                 </div>
-                <button type="button" class="assign-btn assign-wizard-launch-btn" (click)="openAssignWizard()">+ New assignment</button>
+                <button type="button" class="admin-primary-btn" (click)="openAssignWizard()">+ New assignment</button>
               </div>
 
-              <div class="enrollment-tab-nav" aria-label="Enrollment views">
+              <div class="admin-report-actions succession-org-view-tabs" aria-label="Enrollment views">
                 <button
                   type="button"
-                  class="enrollment-tab-btn"
-                  [class.enrollment-tab-btn-active]="selectedEnrollmentView() === 'students'"
+                  [class]="selectedEnrollmentView() === 'students' ? 'admin-primary-btn' : 'admin-secondary-btn'"
                   (click)="selectEnrollmentView('students')">
                   Students
                 </button>
                 <button
                   type="button"
-                  class="enrollment-tab-btn"
-                  [class.enrollment-tab-btn-active]="selectedEnrollmentView() === 'groups'"
+                  [class]="selectedEnrollmentView() === 'groups' ? 'admin-primary-btn' : 'admin-secondary-btn'"
                   (click)="selectEnrollmentView('groups')">
                   Groups
                 </button>
@@ -3581,7 +3579,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           <span>{{ student.department }}</span>
                         </div>
                         <div class="roster-cell roster-actions" role="cell">
-                          <button type="button" class="courses-btn" (click)="openManageEnrollmentStudent(student)">Courses ({{ managerData.offeringsForStudent(student).length }})</button>
+                          <button type="button" class="admin-inline-btn" (click)="openManageEnrollmentStudent(student)">Courses ({{ managerData.offeringsForStudent(student).length }})</button>
                         </div>
                       </article>
                     }
@@ -3597,7 +3595,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     <p class="form-section-eyebrow">Groups</p>
                     <p class="enrollment-group-toolbar-copy">Create a group and choose which students should belong to it.</p>
                   </div>
-                  <button type="button" class="assign-btn" (click)="openCreateEnrollmentGroup()">Create group</button>
+                  <button type="button" class="admin-primary-btn" (click)="openCreateEnrollmentGroup()">Create group</button>
                 </div>
 
                 <div class="enrollment-groups-list" role="table" aria-label="Student groups list">
@@ -3618,13 +3616,13 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       <span class="enrollment-group-cell" role="cell">{{ group.startDate }}</span>
                       <span class="enrollment-group-cell" role="cell">{{ group.endDate }}</span>
                       <div class="enrollment-group-cell enrollment-group-action-cell" role="cell">
-                        <button type="button" class="courses-btn" (click)="openManageEnrollmentGroup(group)">{{ managerData.offeringsForGroup(group.members).length }}</button>
+                        <button type="button" class="admin-inline-btn" (click)="openManageEnrollmentGroup(group)">{{ managerData.offeringsForGroup(group.members).length }}</button>
                       </div>
                       <div class="enrollment-group-cell enrollment-group-action-cell" role="cell">
-                        <button type="button" class="edit-btn" (click)="openEnrollmentGroupEdit(group)">Edit</button>
+                        <button type="button" class="admin-inline-btn" (click)="openEnrollmentGroupEdit(group)">Edit</button>
                       </div>
                       <div class="enrollment-group-cell enrollment-group-action-cell" role="cell">
-                        <button type="button" class="group-delete-btn" (click)="deleteEnrollmentGroup(group)">Delete</button>
+                        <button type="button" class="admin-inline-btn admin-inline-btn-danger" (click)="deleteEnrollmentGroup(group)">Delete</button>
                       </div>
                     </article>
                   }
@@ -3646,7 +3644,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         <h3>Create a student group</h3>
                         <p class="enrollment-modal-copy">Set the shared group details, then select the students you want to add.</p>
                       </div>
-                      <button type="button" class="builder-secondary-btn" (click)="closeCreateEnrollmentGroup()">Close</button>
+                      <button type="button" class="admin-secondary-btn" (click)="closeCreateEnrollmentGroup()">Close</button>
                     </div>
 
                     <form class="form-grid form-grid-two enrollment-edit-form" [formGroup]="createEnrollmentGroupForm" (ngSubmit)="saveCreateEnrollmentGroup()">
@@ -3702,8 +3700,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       </div>
 
                       <div class="enrollment-modal-actions form-grid-span-two">
-                        <button type="button" class="builder-secondary-btn" (click)="closeCreateEnrollmentGroup()">Cancel</button>
-                        <button type="submit" class="assign-btn" [disabled]="createEnrollmentGroupForm.invalid || selectedStudentsForNewGroupCount() === 0">Create group</button>
+                        <button type="button" class="admin-secondary-btn" (click)="closeCreateEnrollmentGroup()">Cancel</button>
+                        <button type="submit" class="admin-primary-btn" [disabled]="createEnrollmentGroupForm.invalid || selectedStudentsForNewGroupCount() === 0">Create group</button>
                       </div>
                     </form>
                   </section>
@@ -3721,7 +3719,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         <h3>Edit {{ editingEnrollmentGroup()!.name }}</h3>
                         <p class="enrollment-modal-copy">Update the group name and shared dates for all learners in this group.</p>
                       </div>
-                      <button type="button" class="builder-secondary-btn" (click)="closeEnrollmentGroupEdit()">Close</button>
+                      <button type="button" class="admin-secondary-btn" (click)="closeEnrollmentGroupEdit()">Close</button>
                     </div>
 
                     <form class="form-grid form-grid-two enrollment-edit-form" [formGroup]="enrollmentGroupForm" (ngSubmit)="saveEnrollmentGroupEdit()">
@@ -3800,8 +3798,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       </div>
 
                       <div class="enrollment-modal-actions form-grid-span-two">
-                        <button type="button" class="builder-secondary-btn" (click)="closeEnrollmentGroupEdit()">Cancel</button>
-                        <button type="submit" class="assign-btn">Save group</button>
+                        <button type="button" class="admin-secondary-btn" (click)="closeEnrollmentGroupEdit()">Cancel</button>
+                        <button type="submit" class="admin-primary-btn">Save group</button>
                       </div>
                     </form>
                   </section>
@@ -3818,7 +3816,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         <p class="form-section-eyebrow">Assigned courses</p>
                         <h3>{{ managedStudent.name }} {{ managedStudent.surname }}</h3>
                       </div>
-                      <button type="button" class="builder-secondary-btn" (click)="closeManageEnrollmentStudent()">Close</button>
+                      <button type="button" class="admin-secondary-btn" (click)="closeManageEnrollmentStudent()">Close</button>
                     </div>
 
                     <div class="student-assignment-block">
@@ -3851,7 +3849,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         <h3>{{ managedGroup.name }}</h3>
                         <p class="enrollment-modal-copy">{{ managedGroup.members.length }} students</p>
                       </div>
-                      <button type="button" class="builder-secondary-btn" (click)="closeManageEnrollmentGroup()">Close</button>
+                      <button type="button" class="admin-secondary-btn" (click)="closeManageEnrollmentGroup()">Close</button>
                     </div>
 
                     <div class="student-assignment-block">
@@ -3883,7 +3881,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         <p class="form-section-eyebrow">New assignment</p>
                         <h3>Assign courses to students</h3>
                       </div>
-                      <button type="button" class="builder-secondary-btn" (click)="closeAssignWizard()">Close</button>
+                      <button type="button" class="admin-secondary-btn" (click)="closeAssignWizard()">Close</button>
                     </div>
 
                     <div class="course-builder-stepper assign-wizard-stepper">
@@ -4068,18 +4066,18 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
                     <div class="enrollment-modal-actions">
                       @if (assignWizardStep() > 1) {
-                        <button type="button" class="builder-secondary-btn" (click)="assignWizardBack()">Back</button>
+                        <button type="button" class="admin-secondary-btn" (click)="assignWizardBack()">Back</button>
                       }
                       @if (assignWizardStep() < 3) {
                         <button
                           type="button"
-                          class="assign-btn"
+                          class="admin-primary-btn"
                           [disabled]="assignWizardStep() === 1 ? assignWizardSelectedOfferingCount() === 0 : assignWizardSelectedStudentCount() === 0"
                           (click)="assignWizardNext()">
                           Next
                         </button>
                       } @else {
-                        <button type="button" class="assign-btn" [disabled]="assignWizardSaving()" (click)="confirmAssignWizard()">
+                        <button type="button" class="admin-primary-btn" [disabled]="assignWizardSaving()" (click)="confirmAssignWizard()">
                           {{ assignWizardSaving() ? 'Assigning…' : 'Confirm assignment' }}
                         </button>
                       }
@@ -6398,8 +6396,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       padding: calc(1rem * var(--ui-scale));
       box-sizing: border-box;
       background:
-        radial-gradient(circle at top left, var(--brand-tint), transparent 20%),
-        linear-gradient(180deg, #f6f8fc 0%, var(--brand-surface) 100%);
+        radial-gradient(circle at top left, var(--admin-tint), transparent 20%),
+        linear-gradient(180deg, #f6f8fc 0%, var(--admin-surface) 100%);
     }
 
     .manager-topbar,
@@ -6427,8 +6425,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       margin-bottom: calc(1rem * var(--ui-scale));
       padding: calc(0.9rem * var(--ui-scale)) calc(1.2rem * var(--ui-scale));
       border-radius: calc(22px * var(--ui-scale));
-      background: linear-gradient(180deg, var(--brand-tint) 0%, rgba(255, 255, 255, 0.92) 70%);
-      border-bottom: 3px solid var(--brand-primary);
+      background: linear-gradient(180deg, var(--admin-tint) 0%, rgba(255, 255, 255, 0.92) 70%);
+      border-bottom: 3px solid var(--admin-primary);
     }
 
     .manager-welcome-banner {
@@ -6440,7 +6438,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       padding: calc(0.95rem * var(--ui-scale)) calc(1.2rem * var(--ui-scale));
       border: 1px solid rgba(129, 140, 248, 0.18);
       border-radius: calc(20px * var(--ui-scale));
-      background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+      background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
       box-shadow: 0 20px 40px rgba(79, 70, 229, 0.24);
       color: #fff;
       text-align: center;
@@ -6515,23 +6513,23 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       justify-content: center;
       width: calc(2.8rem * var(--ui-scale));
       height: calc(2.8rem * var(--ui-scale));
-      border: 1px solid var(--brand-tint);
+      border: 1px solid var(--admin-tint);
       border-radius: calc(16px * var(--ui-scale));
-      background: var(--brand-surface);
+      background: var(--admin-surface);
       color: #64748b;
       cursor: pointer;
       transition: box-shadow 0.15s ease, background 0.15s ease;
     }
 
     .manager-icon-btn-active {
-      border-color: var(--brand-secondary);
-      background: var(--brand-tint);
+      border-color: var(--admin-secondary);
+      background: var(--admin-tint);
     }
 
     .manager-icon-btn:hover,
     .manager-icon-btn:focus-visible {
       outline: none;
-      background: var(--brand-tint);
+      background: var(--admin-tint);
       box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
     }
 
@@ -6570,8 +6568,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .manager-topbar-profile-btn:hover,
     .manager-topbar-profile-btn:focus-visible {
       outline: none;
-      background: var(--brand-surface);
-      border-color: var(--brand-tint);
+      background: var(--admin-surface);
+      border-color: var(--admin-tint);
       box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
     }
 
@@ -6589,7 +6587,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       width: min(17rem, calc(100vw - 2rem));
       padding: calc(0.4rem * var(--ui-scale)) 0;
       border-radius: calc(12px * var(--ui-scale));
-      border: 1px solid var(--brand-tint);
+      border: 1px solid var(--admin-tint);
       background: #ffffff;
       box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
       overflow: hidden;
@@ -6600,7 +6598,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       gap: calc(0.2rem * var(--ui-scale));
       padding: calc(0.7rem * var(--ui-scale)) calc(0.85rem * var(--ui-scale)) calc(0.8rem * var(--ui-scale));
       font-weight: 700;
-      color: var(--brand-primary);
+      color: var(--admin-primary);
       font-size: calc(0.94rem * var(--ui-scale));
     }
 
@@ -6657,8 +6655,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .manager-topbar-preview-item:hover,
     .manager-topbar-preview-item:focus-visible {
       outline: none;
-      background: var(--brand-tint);
-      color: var(--brand-primary);
+      background: var(--admin-tint);
+      color: var(--admin-primary);
     }
 
     .manager-topbar-preview-link {
@@ -6666,7 +6664,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       margin: calc(0.25rem * var(--ui-scale)) calc(0.38rem * var(--ui-scale)) 0;
       padding: calc(0.55rem * var(--ui-scale)) calc(0.62rem * var(--ui-scale));
       border: none;
-      border-top: 1px solid var(--brand-tint);
+      border-top: 1px solid var(--admin-tint);
       border-radius: calc(12px * var(--ui-scale));
       background: transparent;
       color: #475569;
@@ -6680,8 +6678,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .manager-topbar-preview-link:hover,
     .manager-topbar-preview-link:focus-visible {
       outline: none;
-      background: var(--brand-tint);
-      color: var(--brand-primary);
+      background: var(--admin-tint);
+      color: var(--admin-primary);
     }
 
     .manager-topbar-menu {
@@ -6692,7 +6690,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       min-width: calc(13rem * var(--ui-scale));
       display: grid;
       gap: calc(0.2rem * var(--ui-scale));
-      border: 1px solid var(--brand-tint);
+      border: 1px solid var(--admin-tint);
       border-radius: calc(12px * var(--ui-scale));
       background: #ffffff;
       box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
@@ -6720,8 +6718,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .manager-topbar-menu-item:hover,
     .manager-topbar-menu-item:focus-visible {
       outline: none;
-      background: var(--brand-tint);
-      color: var(--brand-primary);
+      background: var(--admin-tint);
+      color: var(--admin-primary);
     }
 
     .manager-topbar-menu-item-danger {
@@ -6742,7 +6740,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .manager-topbar-menu-divider {
       height: 1px;
-      background: var(--brand-tint);
+      background: var(--admin-tint);
       margin: calc(0.2rem * var(--ui-scale)) calc(0.6rem * var(--ui-scale));
     }
 
@@ -6785,7 +6783,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .manager-brand-mark {
-      background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+      background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
       overflow: hidden;
     }
 
@@ -6793,7 +6791,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       width: calc(2.25rem * var(--ui-scale));
       height: calc(2.25rem * var(--ui-scale));
       border-radius: 999px;
-      background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+      background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
       flex: 0 0 auto;
       font-size: calc(0.88rem * var(--ui-scale));
       overflow: hidden;
@@ -6884,7 +6882,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       border-radius: calc(14px * var(--ui-scale));
       /* Tinted by the chosen theme rather than a flat fixed navy — same recipe as the admin
          sidebar (color-mix keeps it dark enough for white text/icons across every theme). */
-      background: linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 32%, #12152f) 0%, color-mix(in srgb, var(--brand-primary) 16%, #12152f) 100%);
+      background: linear-gradient(180deg, color-mix(in srgb, var(--admin-primary) 32%, #12152f) 0%, color-mix(in srgb, var(--admin-primary) 16%, #12152f) 100%);
       border: 1px solid rgba(255, 255, 255, 0.06);
       box-shadow: 0 20px 45px rgba(8, 10, 26, 0.35);
       scrollbar-width: none;
@@ -7026,7 +7024,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .manager-sidebar button:not(.manager-sidebar-toggle).active {
-      background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+      background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
       color: #fff;
       box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
     }
@@ -7244,16 +7242,16 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .courses-tab-btn:hover,
     .courses-tab-btn:focus-visible {
-      color: var(--brand-primary);
+      color: var(--admin-primary);
       outline: none;
     }
 
     .courses-tab-btn-active {
-      color: var(--brand-primary);
+      color: var(--admin-primary);
     }
 
     .courses-tab-btn-active::after {
-      background: var(--brand-primary);
+      background: var(--admin-primary);
     }
 
     .courses-tab-icon {
@@ -7354,15 +7352,15 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .course-step-btn:hover,
     .course-step-btn:focus-visible {
-      border-color: #a5b4fc;
-      box-shadow: 0 10px 24px rgba(99, 102, 241, 0.12);
+      border-color: var(--admin-secondary);
+      box-shadow: 0 10px 24px rgba(23, 52, 70, 0.12);
       outline: none;
     }
 
     .course-step-btn-active {
-      border-color: #818cf8;
-      background: linear-gradient(180deg, #eef2ff 0%, #ffffff 100%);
-      box-shadow: 0 12px 28px rgba(99, 102, 241, 0.14);
+      border-color: var(--admin-primary);
+      background: linear-gradient(180deg, var(--admin-tint) 0%, #ffffff 100%);
+      box-shadow: 0 12px 28px rgba(23, 52, 70, 0.14);
     }
 
     .course-step-index {
@@ -7372,8 +7370,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       width: 1.72rem;
       height: 1.72rem;
       border-radius: 999px;
-      background: #e0e7ff;
-      color: #4338ca;
+      background: var(--admin-tint);
+      color: var(--admin-primary);
       font-size: 0.76rem;
       font-weight: 800;
       flex: 0 0 auto;
@@ -7483,8 +7481,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .doc-toggle-active {
-      border-color: var(--brand-primary);
-      background: var(--brand-tint);
+      border-color: var(--admin-primary);
+      background: var(--admin-tint);
     }
 
     .doc-toggle-input {
@@ -7506,7 +7504,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .doc-toggle-active .doc-toggle-track {
-      background: var(--brand-primary);
+      background: var(--admin-primary);
     }
 
     .doc-toggle-thumb {
@@ -7526,7 +7524,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .doc-toggle-input:focus-visible + .doc-toggle-track {
-      outline: 2px solid var(--brand-primary);
+      outline: 2px solid var(--admin-primary);
       outline-offset: 2px;
     }
 
@@ -7669,7 +7667,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .detail-action-btn:hover,
     .detail-action-btn:focus-visible {
       transform: translateY(-1px);
-      border-color: var(--brand-secondary);
+      border-color: var(--admin-secondary);
       box-shadow: 0 3px 10px rgba(15, 23, 42, 0.1);
       outline: none;
     }
@@ -7682,7 +7680,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .detail-action-btn-primary {
-      background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+      background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
       color: #fff;
       border-color: transparent;
       box-shadow: 0 2px 6px rgba(23, 52, 70, 0.14);
@@ -7903,7 +7901,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .courses-btn:hover,
     .courses-btn:focus-visible {
-      border-color: var(--brand-tint);
+      border-color: var(--admin-tint);
       box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
       outline: none;
     }
@@ -8067,7 +8065,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .roster-row:hover,
     .roster-row:focus-within {
-      border-color: var(--brand-tint);
+      border-color: var(--admin-tint);
       box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
     }
 
@@ -8096,7 +8094,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+      background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
       color: #fff;
       font-weight: 800;
       font-size: 0.78rem;
@@ -8198,7 +8196,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .enrollment-group-row:hover,
     .enrollment-group-row:focus-within {
-      border-color: var(--brand-tint);
+      border-color: var(--admin-tint);
       box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
     }
 
@@ -8239,7 +8237,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .edit-btn:hover,
     .edit-btn:focus-visible {
-      border-color: var(--brand-secondary);
+      border-color: var(--admin-secondary);
       box-shadow: 0 3px 10px rgba(15, 23, 42, 0.1);
       outline: none;
     }
@@ -8431,12 +8429,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .enrollment-offering-option:hover {
-      border-color: var(--brand-tint);
+      border-color: var(--admin-tint);
     }
 
     .enrollment-offering-option-selected {
-      border-color: var(--brand-primary);
-      background: var(--brand-tint);
+      border-color: var(--admin-primary);
+      background: var(--admin-tint);
       box-shadow: 0 2px 8px rgba(79, 70, 229, 0.12);
     }
 
@@ -8483,17 +8481,17 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .enrollment-offering-option-input:hover ~ .enrollment-offering-option-check {
-      border-color: var(--brand-primary);
+      border-color: var(--admin-primary);
     }
 
     .enrollment-offering-option-input:focus-visible ~ .enrollment-offering-option-check {
-      outline: 2px solid var(--brand-primary);
+      outline: 2px solid var(--admin-primary);
       outline-offset: 2px;
     }
 
     .enrollment-offering-option-input:checked ~ .enrollment-offering-option-check {
-      border-color: var(--brand-primary);
-      background: var(--brand-primary);
+      border-color: var(--admin-primary);
+      background: var(--admin-primary);
     }
 
     .enrollment-offering-option-input:checked ~ .enrollment-offering-option-check svg {
@@ -9066,7 +9064,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .course-studio-upload-progress-fill {
       display: block;
       height: 100%;
-      background: var(--brand-primary, #2563eb);
+      background: var(--admin-primary, #2563eb);
       border-radius: 999px;
       transition: width 0.2s ease;
     }
@@ -9074,7 +9072,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .course-studio-upload-progress-label {
       font-size: 0.78rem;
       font-weight: 700;
-      color: var(--brand-primary, #2563eb);
+      color: var(--admin-primary, #2563eb);
     }
 
     .course-studio-upload-card-link {
