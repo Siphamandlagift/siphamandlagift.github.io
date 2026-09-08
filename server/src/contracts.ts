@@ -929,3 +929,46 @@ export type ChangePasswordInput = {
   email: string;
   password: string;
 };
+
+// --- Multi-tenant / licensing (Phase 1: types only — not yet wired into LmsDataStore,
+// the repository, or any route. See the "Multi-Company / Multi-Tenant Retrofit" plan.) ---
+
+export type SubscriptionPlan = 'starter' | 'growth' | 'enterprise';
+
+// 'expired' is intentionally not a stored status — it's derived at request time from
+// endDate, matching the "fail-closed on anything other than exactly 'active'" convention
+// this system uses elsewhere for gating.
+export type SubscriptionStatus = 'active' | 'suspended' | 'cancelled';
+
+export type SubscriptionRecord = {
+  plan: SubscriptionPlan;
+  // Counts all users of every role (administrator + training-manager + student) combined.
+  licenseLimit: number;
+  startDate: string;
+  endDate: string;
+  status: SubscriptionStatus;
+};
+
+// Mirrors LmsDataStore's current root-singleton fields (branding, KPI/IDP year state, HR
+// integration, approval workflow settings) plus the new company identity/subscription
+// fields — this is what each `companies/{companyId}` document holds once the repository
+// is retargeted from the single shared `lmsStores/primary` document.
+export type CompanyRecord = {
+  id: string;
+  name: string;
+  createdAt: string;
+  createdBySuperAdminId: string;
+  subscription: SubscriptionRecord;
+};
+
+export type PlatformRole = 'super-admin';
+
+export type PlatformAdminRecord = {
+  id: string;
+  role: PlatformRole;
+  name: string;
+  email: string;
+  emailLower: string;
+  passwordHash: string;
+  passwordSalt: string;
+};
