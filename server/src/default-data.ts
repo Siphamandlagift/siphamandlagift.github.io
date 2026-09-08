@@ -73,7 +73,11 @@ function createStudentSettings(): LmsDataStore['students'][number]['settings'] {
 // Bootstraps a single administrator account so a brand-new deployment isn't unusable — this
 // weak default password only works locally: shouldBlockDefaultDemoCredentialLogin() (see
 // auth-utils.ts) refuses it on any hosted runtime unless LMS_ALLOW_DEMO_CREDENTIALS=true.
-function createAuthAccounts(): LmsDataStore['authAccounts'] {
+// companyId is only meaningful for the one call site that actually seeds a brand-new company's
+// Firestore document (FirestoreLmsRepository.read()) — every other caller (local single-tenant
+// dev, or a "defaults" object used only as a fallback source for unrelated fields) leaves it
+// blank, since nothing ever persists this particular authAccounts array under those paths.
+function createAuthAccounts(companyId: string): LmsDataStore['authAccounts'] {
   const administratorPassword = createPasswordCredentials('admin');
 
   return [
@@ -82,6 +86,9 @@ function createAuthAccounts(): LmsDataStore['authAccounts'] {
       role: 'administrator',
       username: 'admin',
       email: 'admin@skillsconnect.app',
+      usernameLower: 'admin',
+      emailLower: 'admin@skillsconnect.app',
+      companyId,
       route: '/admin-profile',
       passwordHash: administratorPassword.passwordHash,
       passwordSalt: administratorPassword.passwordSalt,
@@ -123,7 +130,7 @@ export function createDefaultStudentTemplate(): LmsDataStore['students'][number]
   };
 }
 
-export function createDefaultData(): LmsDataStore {
+export function createDefaultData(companyId = ''): LmsDataStore {
   return {
     offerings: [],
     students: [],
@@ -138,7 +145,7 @@ export function createDefaultData(): LmsDataStore {
       themeId: 'ocean',
       companyLogoDataUrl: null,
     },
-    authAccounts: createAuthAccounts(),
+    authAccounts: createAuthAccounts(companyId),
     passwordResetTokens: [],
     successionRoles: [],
     successorNominations: [],

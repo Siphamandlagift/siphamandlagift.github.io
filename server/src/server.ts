@@ -17,9 +17,29 @@ import { z } from 'zod';
 import { getApp, getApps, initializeApp } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 import { createDefaultData } from './default-data.js';
-import { createLmsRepository, maskAssessmentAnswerKey } from './repository.js';
+import { createLmsRepository, maskAssessmentAnswerKey, type LmsRepository } from './repository.js';
 import { PasswordResetEmailService } from './email-service.js';
 import { isStrongPassword, passwordPolicyMessage } from './auth-utils.js';
+import {
+  resolveCompanyIdForLoginIdentifier,
+  resolveCompanyIdForPasswordResetToken,
+  isCompanySubscriptionActive,
+} from './platform-repository.js';
+
+// Augments Express's Request with the two pieces of per-request state the middleware chain below
+// attaches after decoding the caller's JWT: their identity (including which company they belong
+// to) and a repository instance already scoped to that company's Firestore document. Every route
+// handler that used to read a module-level `repository` singleton now reads `request.repository`
+// instead — see attachRequestContext.
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      authIdentity?: AuthenticatedIdentity | null;
+      repository?: LmsRepository;
+    }
+  }
+}
 
 function requireEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -87,11 +107,16 @@ const corsOptions: cors.CorsOptions = {
 
 export const app = express();
 app.use(helmet());
-const repository = createLmsRepository();
 const emailService = new PasswordResetEmailService();
 const port = Number(process.env['PORT'] || process.env['LMS_API_PORT'] || 3000);
 const jwtSecret = requireEnv('LMS_JWT_SECRET');
 const jwtExpiresIn = '12h';
+// Interim bridge for the one public, pre-auth endpoint that still needs a company's data before
+// any login has happened (GET /api/branding, shown on the login screen). There's no way to know
+// which company an unauthenticated visitor belongs to, so this names a single fallback company —
+// set to the migrated company's id post-cutover. A real per-company-aware pre-login experience is
+// deliberately out of scope here (see the multi-tenant retrofit plan's Phase 4/client section).
+const defaultCompanyId = process.env['LMS_DEFAULT_COMPANY_ID']?.trim() || '';
 
 // Routes that do not require a JWT token.
 const publicPaths = new Set([
@@ -129,12 +154,13 @@ function requireAuth(request: express.Request, response: express.Response, next:
   }
 }
 
-type AuthenticatedIdentity = { role: string; username: string; email: string; studentId: string | null };
+type AuthenticatedIdentity = { role: string; username: string; email: string; studentId: string | null; companyId: string | null };
 
-// requireAuth only proves the caller has SOME valid session — it never checks role or ownership.
-// Route handlers that touch another user's data or a manager/admin-only action must call this
-// themselves and check the result; do not assume being logged in is enough authorization.
-function getAuthenticatedIdentity(request: express.Request): AuthenticatedIdentity | null {
+// Decodes the caller's JWT. Called exactly once per request, by attachRequestContext below —
+// every route handler and helper instead reads the cached result off request.authIdentity via
+// getAuthenticatedIdentity/readAuthenticatedSessionPayload (previously these two, plus requireAuth
+// itself, each independently re-verified the token).
+function decodeAuthenticatedIdentity(request: express.Request): AuthenticatedIdentity | null {
   const authHeader = request.headers['authorization'];
   const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
     ? authHeader.slice(7)
@@ -150,7 +176,7 @@ function getAuthenticatedIdentity(request: express.Request): AuthenticatedIdenti
       return null;
     }
 
-    const payload = decoded as { role?: unknown; username?: unknown; email?: unknown; studentId?: unknown };
+    const payload = decoded as { role?: unknown; username?: unknown; email?: unknown; studentId?: unknown; companyId?: unknown };
     return {
       role: typeof payload.role === 'string' ? payload.role : '',
       username: typeof payload.username === 'string' ? payload.username : '',
@@ -158,17 +184,62 @@ function getAuthenticatedIdentity(request: express.Request): AuthenticatedIdenti
       // Tokens issued before this claim existed won't have it — callers that check student
       // ownership must fall back to another signal (e.g. matching email) when this is null.
       studentId: typeof payload.studentId === 'string' && payload.studentId ? payload.studentId : null,
+      // Same story as studentId: absent on any token issued before the multi-tenant retrofit
+      // shipped. attachRequestContext treats that as an expired session (see below) rather than
+      // letting a route run with no company context at all.
+      companyId: typeof payload.companyId === 'string' && payload.companyId ? payload.companyId : null,
     };
   } catch {
     return null;
   }
 }
 
+// Runs once per request, right after requireAuth, for every non-public path. Resolves the
+// caller's company-scoped repository from their JWT's companyId claim and rejects requests for a
+// company whose subscription isn't active (fail-closed on anything other than exactly 'active'
+// and not yet past its end date — see isCompanySubscriptionActive). Public paths are skipped
+// entirely: those routes (login, password-reset, SSO, ...) have no token yet and resolve their
+// own company via platform-repository.ts's collection-group lookups instead.
+async function attachRequestContext(request: express.Request, response: express.Response, next: express.NextFunction) {
+  if (publicPaths.has(request.path) || request.path.startsWith('/api/files/') || request.path.startsWith('/api/storage/scorm')) {
+    next();
+    return;
+  }
+
+  const identity = decodeAuthenticatedIdentity(request);
+  request.authIdentity = identity;
+
+  if (!identity?.companyId) {
+    // requireAuth (registered just before this middleware) already rejected any request with a
+    // missing/invalid/expired token, so the only way to reach here without a companyId is a token
+    // issued before that claim existed — i.e. every session from before this retrofit shipped.
+    // Force a clean re-login rather than let a route handler run with no request.repository.
+    response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+    return;
+  }
+
+  const active = await isCompanySubscriptionActive(identity.companyId);
+  if (!active) {
+    response.status(403).json({ message: "This company's SkillsConnect subscription is not active. Please contact your administrator." });
+    return;
+  }
+
+  request.repository = createLmsRepository(identity.companyId);
+  next();
+}
+
+// requireAuth only proves the caller has SOME valid session — it never checks role or ownership.
+// Route handlers that touch another user's data or a manager/admin-only action must call this
+// themselves and check the result; do not assume being logged in is enough authorization.
+function getAuthenticatedIdentity(request: express.Request): AuthenticatedIdentity | null {
+  return request.authIdentity ?? null;
+}
+
 function requireRole(...allowedRoles: string[]) {
   return (request: express.Request, response: express.Response, next: express.NextFunction) => {
     const identity = getAuthenticatedIdentity(request);
 
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
@@ -186,7 +257,7 @@ const requireAdministrator = requireRole('administrator');
 const requireManagerOrAdministrator = requireRole('administrator', 'training-manager');
 const requireTrainingManager = requireRole('training-manager');
 
-async function isOwnStudentRecord(studentId: string, identity: AuthenticatedIdentity): Promise<boolean> {
+async function isOwnStudentRecord(repository: LmsRepository, studentId: string, identity: AuthenticatedIdentity): Promise<boolean> {
   // Prefer the studentId claim: it's the session's actual linked student record, set at login.
   if (identity.studentId === studentId) {
     return true;
@@ -211,7 +282,7 @@ async function isOwnStudentRecord(studentId: string, identity: AuthenticatedIden
 // (their team is every student whose lineManagerId points back at that id) — same email-match
 // resolution as the client's currentManagerStudentId (training-manager-data.service.ts) and
 // isOwnStudentRecord's fallback above, not the unrelated trainingManagers/approving-manager pool.
-async function resolveOwnManagerStudentId(identity: AuthenticatedIdentity): Promise<string | null> {
+async function resolveOwnManagerStudentId(repository: LmsRepository, identity: AuthenticatedIdentity): Promise<string | null> {
   if (identity.role !== 'training-manager') {
     return null;
   }
@@ -223,35 +294,17 @@ async function resolveOwnManagerStudentId(identity: AuthenticatedIdentity): Prom
 
 // Admin is fully view-only for succession planning — only the role's own flagging manager may
 // create/edit/withdraw its nominations or unflag it.
-async function isOwnManagedRole(roleId: string, identity: AuthenticatedIdentity): Promise<boolean> {
+async function isOwnManagedRole(repository: LmsRepository, roleId: string, identity: AuthenticatedIdentity): Promise<boolean> {
   const [role, ownManagerId] = await Promise.all([
     repository.getSuccessionRole(roleId),
-    resolveOwnManagerStudentId(identity),
+    resolveOwnManagerStudentId(repository, identity),
   ]);
 
   return Boolean(role && ownManagerId && role.ownerManagerId === ownManagerId);
 }
 
 function readAuthenticatedSessionPayload(request: express.Request) {
-  const authHeader = request.headers['authorization'];
-  const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
-    ? authHeader.slice(7)
-    : null;
-
-  if (!token) {
-    return null;
-  }
-
-  const decoded = jwt.verify(token, jwtSecret);
-  if (typeof decoded !== 'object' || decoded === null) {
-    return null;
-  }
-
-  return {
-    role: typeof decoded['role'] === 'string' ? decoded['role'] : '',
-    username: typeof decoded['username'] === 'string' ? decoded['username'] : '',
-    email: typeof decoded['email'] === 'string' ? decoded['email'] : '',
-  };
+  return request.authIdentity ?? null;
 }
 
 function fallbackSwitchableRolesForRole(role: string): Array<'administrator' | 'training-manager' | 'student'> {
@@ -1070,11 +1123,13 @@ function buildMicrosoftSsoRedirect(baseUrl: string, params: Record<string, strin
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(requireAuth);
+app.use(attachRequestContext);
 
 // --- LMS RESET ENDPOINTS ---
-app.post('/api/admin/reset-data', requireAdministrator, async (_request, response, next) => {
+app.post('/api/admin/reset-data', requireAdministrator, async (request, response, next) => {
   try {
-    await repository.write(createDefaultData());
+    const repository = request.repository!;
+    await repository.write(createDefaultData(request.authIdentity!.companyId!));
     response.json({ message: 'LMS data reset to default.' });
   } catch (error) {
     next(error);
@@ -1843,14 +1898,22 @@ app.get('/api/health', (_request, response) => {
 
 app.get('/api/bootstrap', async (request, response, next) => {
   try {
+    const repository = request.repository!;
     response.json(await repository.getBootstrap(getAuthenticatedIdentity(request)));
   } catch (error) {
     next(error);
   }
 });
 
+// Public, pre-login: falls back to defaultCompanyId (see its declaration above) since there's no
+// token yet to resolve a real company from. Returns a neutral default if that isn't configured.
 app.get('/api/branding', async (_request, response, next) => {
   try {
+    if (!defaultCompanyId) {
+      response.json({ themeId: 'ocean', companyLogoDataUrl: null });
+      return;
+    }
+    const repository = createLmsRepository(defaultCompanyId);
     response.json(await repository.getBranding());
   } catch (error) {
     next(error);
@@ -1859,6 +1922,7 @@ app.get('/api/branding', async (_request, response, next) => {
 
 app.put('/api/branding', requireAdministrator, async (request, response, next) => {
   try {
+    const repository = request.repository!;
     const payload = brandingSettingsSchema.parse(request.body);
     response.json(await repository.updateBranding(payload));
   } catch (error) {
@@ -1868,8 +1932,9 @@ app.put('/api/branding', requireAdministrator, async (request, response, next) =
 
 // Admin-only: the stored authHeaderValue is never included in this response — see
 // getHrIntegrationConfig/redactHrIntegrationConfig in repository.ts.
-app.get('/api/admin/hr-integration', requireAdministrator, async (_request, response, next) => {
+app.get('/api/admin/hr-integration', requireAdministrator, async (request, response, next) => {
   try {
+    const repository = request.repository!;
     response.json(await repository.getHrIntegrationConfig());
   } catch (error) {
     next(error);
@@ -1878,6 +1943,7 @@ app.get('/api/admin/hr-integration', requireAdministrator, async (_request, resp
 
 app.put('/api/admin/hr-integration', requireAdministrator, async (request, response, next) => {
   try {
+    const repository = request.repository!;
     const payload = hrIntegrationConfigUpdateSchema.parse(request.body);
     response.json(await repository.updateHrIntegrationConfig(payload));
   } catch (error) {
@@ -1890,6 +1956,7 @@ app.put('/api/admin/hr-integration', requireAdministrator, async (request, respo
 // a "Submit for Approval" action at all.
 app.put('/api/approval-workflow-settings', requireAdministrator, async (request, response, next) => {
   try {
+    const repository = request.repository!;
     const payload = approvalWorkflowSettingsUpdateSchema.parse(request.body);
     response.json(await repository.updateApprovalWorkflowSettings(payload));
   } catch (error) {
@@ -1897,8 +1964,9 @@ app.put('/api/approval-workflow-settings', requireAdministrator, async (request,
   }
 });
 
-app.post('/api/admin/hr-integration/sync', requireAdministrator, async (_request, response, next) => {
+app.post('/api/admin/hr-integration/sync', requireAdministrator, async (request, response, next) => {
   try {
+    const repository = request.repository!;
     const result = await repository.syncRosterFromHr();
     if ('error' in result) {
       response.status(result.error === 'not-configured' ? 400 : 502).json({ message: result.message });
@@ -1914,6 +1982,13 @@ app.post('/api/admin/hr-integration/sync', requireAdministrator, async (_request
 app.post('/api/auth/login', async (request, response, next) => {
   try {
     const credentials = loginRequestSchema.parse(request.body);
+    const companyId = await resolveCompanyIdForLoginIdentifier(credentials.username);
+    if (!companyId) {
+      response.status(401).json({ message: 'Invalid login credentials.' });
+      return;
+    }
+
+    const repository = createLmsRepository(companyId);
     const authenticated = await repository.authenticate(credentials);
 
     if (!authenticated) {
@@ -1922,7 +1997,7 @@ app.post('/api/auth/login', async (request, response, next) => {
     }
 
     const token = jwt.sign(
-      { role: authenticated.role, username: authenticated.username, email: authenticated.email, studentId: authenticated.studentId },
+      { role: authenticated.role, username: authenticated.username, email: authenticated.email, studentId: authenticated.studentId, companyId },
       jwtSecret,
       { expiresIn: jwtExpiresIn },
     );
@@ -1935,6 +2010,13 @@ app.post('/api/auth/login', async (request, response, next) => {
 app.post('/api/auth/resolve-roles', async (request, response, next) => {
   try {
     const credentials = resolveRolesRequestSchema.parse(request.body);
+    const companyId = await resolveCompanyIdForLoginIdentifier(credentials.username);
+    if (!companyId) {
+      response.status(401).json({ message: 'Invalid login credentials.' });
+      return;
+    }
+
+    const repository = createLmsRepository(companyId);
     let roles = await repository.resolveRoles(credentials);
 
     if (roles.length === 0) {
@@ -1964,7 +2046,7 @@ app.post('/api/auth/resolve-roles', async (request, response, next) => {
     const rolesWithTokens = roles.map((r) => ({
       ...r,
       token: jwt.sign(
-        { role: r.role, username: r.username, email: r.email, studentId: r.studentId },
+        { role: r.role, username: r.username, email: r.email, studentId: r.studentId, companyId },
         jwtSecret,
         { expiresIn: jwtExpiresIn },
       ),
@@ -1979,12 +2061,12 @@ app.post('/api/auth/resolve-roles', async (request, response, next) => {
 app.get('/api/auth/my-identity', async (request, response, next) => {
   try {
     const payload = readAuthenticatedSessionPayload(request);
-    if (!payload?.email) {
+    if (!payload?.email || !request.repository) {
       response.status(401).json({ message: 'Authentication required.' });
       return;
     }
 
-    const identity = await repository.resolveAccountIdentity(payload.email);
+    const identity = await request.repository.resolveAccountIdentity(payload.email);
     response.json({
       name: identity?.name ?? null,
       surname: identity?.surname ?? null,
@@ -2004,13 +2086,13 @@ const myProfileImageSchema = z.object({
 app.put('/api/auth/my-profile-image', async (request, response, next) => {
   try {
     const payload = readAuthenticatedSessionPayload(request);
-    if (!payload?.email) {
+    if (!payload?.email || !request.repository) {
       response.status(401).json({ message: 'Authentication required.' });
       return;
     }
 
     const image = myProfileImageSchema.parse(request.body);
-    const updated = await repository.updateAccountProfileImage(payload.email, {
+    const updated = await request.repository.updateAccountProfileImage(payload.email, {
       profileImageUrl: image.profileImageUrl ?? null,
       profileImageDataUrl: image.profileImageDataUrl ?? null,
     });
@@ -2029,7 +2111,7 @@ app.put('/api/auth/my-profile-image', async (request, response, next) => {
 app.get('/api/auth/switchable-roles', async (request, response, next) => {
   try {
     const payload = readAuthenticatedSessionPayload(request);
-    if (!payload?.email || !payload.role) {
+    if (!payload?.email || !payload.role || !request.repository) {
       response.status(401).json({ message: 'Authentication required.' });
       return;
     }
@@ -2038,7 +2120,7 @@ app.get('/api/auth/switchable-roles', async (request, response, next) => {
     // workspace still has their underlying 'administrator' access) with what each of those
     // roles is allowed to switch into — not just what the *current* session's role allows —
     // so the option to go back up is still there no matter which workspace they're currently in.
-    const realRoles = await repository.resolveRolesByEmail(payload.email);
+    const realRoles = await request.repository.resolveRolesByEmail(payload.email);
     const candidateRoles = new Set<string>();
     for (const entry of realRoles) {
       candidateRoles.add(entry.role);
@@ -2059,10 +2141,11 @@ app.post('/api/auth/switch-role', async (request, response, next) => {
     const { targetRole } = switchRoleRequestSchema.parse(request.body);
 
     const payload = readAuthenticatedSessionPayload(request);
-    if (!payload?.email) {
+    if (!payload?.email || !request.repository) {
       response.status(401).json({ message: 'Token payload is invalid.' });
       return;
     }
+    const repository = request.repository;
 
     const roles = await repository.resolveRolesByEmail(payload.email);
     // Every entry for this email shares the same underlying identity, so any resolved role
@@ -2122,7 +2205,7 @@ app.post('/api/auth/switch-role', async (request, response, next) => {
     }
 
     const newToken = jwt.sign(
-      { role: match.role, username: match.username, email: match.email, studentId: match.studentId },
+      { role: match.role, username: match.username, email: match.email, studentId: match.studentId, companyId: request.authIdentity!.companyId },
       jwtSecret,
       { expiresIn: jwtExpiresIn },
     );
@@ -2274,7 +2357,15 @@ app.get('/api/auth/sso/microsoft/callback', async (request, response, next) => {
       }
     }
 
-    const authenticated = await repository.authenticateSso({
+    const ssoCompanyId = await resolveCompanyIdForLoginIdentifier(email);
+    if (!ssoCompanyId) {
+      response.redirect(buildMicrosoftSsoRedirect(stateAppBaseUrl, {
+        ssoError: 'This Microsoft account is not linked to an LMS user.',
+      }));
+      return;
+    }
+
+    const authenticated = await createLmsRepository(ssoCompanyId).authenticateSso({
       email,
       role: verifiedState.role,
     });
@@ -2287,7 +2378,7 @@ app.get('/api/auth/sso/microsoft/callback', async (request, response, next) => {
     }
 
     const token = jwt.sign(
-      { role: authenticated.role, username: authenticated.username, email: authenticated.email, studentId: authenticated.studentId },
+      { role: authenticated.role, username: authenticated.username, email: authenticated.email, studentId: authenticated.studentId, companyId: ssoCompanyId },
       jwtSecret,
       { expiresIn: jwtExpiresIn },
     );
@@ -2316,7 +2407,10 @@ app.post('/api/auth/password-reset/request', async (request, response, next) => 
       return;
     }
 
-    const resetRequest = await repository.createPasswordResetRequest(payload.email);
+    const resetCompanyId = await resolveCompanyIdForLoginIdentifier(payload.email);
+    const resetRequest = resetCompanyId
+      ? await createLmsRepository(resetCompanyId).createPasswordResetRequest(payload.email)
+      : null;
 
     if (resetRequest) {
       const resetUrl = `${resolveAppBaseUrl(request)}/reset-password?token=${encodeURIComponent(resetRequest.token)}`;
@@ -2342,7 +2436,10 @@ app.get('/api/auth/password-reset/validate', async (request, response, next) => 
       return;
     }
 
-    const status = await repository.getPasswordResetTokenStatus(token);
+    const validateCompanyId = await resolveCompanyIdForPasswordResetToken(token);
+    const status = validateCompanyId
+      ? await createLmsRepository(validateCompanyId).getPasswordResetTokenStatus(token)
+      : { valid: false };
     response.json(status);
   } catch (error) {
     next(error);
@@ -2352,7 +2449,10 @@ app.get('/api/auth/password-reset/validate', async (request, response, next) => 
 app.post('/api/auth/password-reset/confirm', async (request, response, next) => {
   try {
     const payload = passwordResetConfirmSchema.parse(request.body);
-    const result = await repository.resetPassword(payload.token, payload.password);
+    const confirmCompanyId = await resolveCompanyIdForPasswordResetToken(payload.token);
+    const result = confirmCompanyId
+      ? await createLmsRepository(confirmCompanyId).resetPassword(payload.token, payload.password)
+      : null;
 
     if (!result) {
       response.status(400).json({ message: 'This password reset link is invalid or has expired.' });
@@ -2379,12 +2479,12 @@ app.post('/api/auth/change-password', async (request, response, next) => {
     // This endpoint has no current-password check, so it must only ever be usable on the
     // caller's own account — otherwise any authenticated session could take over any other
     // account (including an administrator's) just by knowing their email.
-    if (!identity || identity.email.trim().toLowerCase() !== payload.email.trim().toLowerCase()) {
+    if (!identity || !request.repository || identity.email.trim().toLowerCase() !== payload.email.trim().toLowerCase()) {
       response.status(403).json({ message: 'You can only change your own password.' });
       return;
     }
 
-    const result = await repository.changePassword(payload);
+    const result = await request.repository.changePassword(payload);
 
     if (!result) {
       response.status(400).json({ message: 'Password could not be updated.' });
@@ -2405,6 +2505,7 @@ app.post('/api/auth/change-password', async (request, response, next) => {
 
 app.post('/api/auth/managed-users/credentials', requireAdministrator, async (request, response, next) => {
   try {
+    const repository = request.repository!;
     const payload = managedUserCredentialsUpsertSchema.parse(request.body);
     response.json(await repository.upsertManagedUserCredentials(payload.users));
   } catch (error) {
@@ -2414,6 +2515,7 @@ app.post('/api/auth/managed-users/credentials', requireAdministrator, async (req
 
 app.get('/api/offerings', async (request, response, next) => {
   try {
+    const repository = request.repository!;
     const identity = getAuthenticatedIdentity(request);
     const isPrivileged = identity?.role === 'administrator' || identity?.role === 'training-manager';
     const offerings = await repository.listOfferings();
@@ -2425,6 +2527,7 @@ app.get('/api/offerings', async (request, response, next) => {
 
 app.post('/api/offerings', requireManagerOrAdministrator, async (request, response, next) => {
   try {
+    const repository = request.repository!;
     const offering = trainingOfferingSchema.parse(request.body);
     const created = await repository.createOffering(offering);
 
@@ -2441,6 +2544,7 @@ app.post('/api/offerings', requireManagerOrAdministrator, async (request, respon
 
 app.put('/api/offerings/:offeringId', requireManagerOrAdministrator, async (request, response, next) => {
   try {
+    const repository = request.repository!;
     const update = trainingOfferingUpdateSchema.parse({ ...request.body, id: request.params['offeringId'] });
     const saved = await repository.updateOffering(update);
 
@@ -2457,6 +2561,7 @@ app.put('/api/offerings/:offeringId', requireManagerOrAdministrator, async (requ
 
 app.delete('/api/offerings/:offeringId', requireManagerOrAdministrator, async (request, response, next) => {
   try {
+    const repository = request.repository!;
     const deleted = await repository.deleteOffering(request.params['offeringId'] as string);
 
     if (!deleted) {
@@ -2477,6 +2582,7 @@ app.delete('/api/offerings/:offeringId', requireManagerOrAdministrator, async (r
 // See LmsRepository.setStudentOfferingAssignment / its Firestore override for the actual fix.
 app.put('/api/students/:studentId/offering-assignment', requireManagerOrAdministrator, async (request, response, next) => {
   try {
+    const repository = request.repository!;
     const body = studentOfferingAssignmentSchema.parse(request.body);
     const student = await repository.setStudentOfferingAssignment(request.params['studentId'] as string, body.offeringId, body.assigned);
 
@@ -2494,14 +2600,15 @@ app.put('/api/students/:studentId/offering-assignment', requireManagerOrAdminist
 app.get('/api/students/:studentId/snapshot', async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     // A student may only read their own snapshot; managers/admins may read any student's.
     const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
-    if (!isPrivileged && !(await isOwnStudentRecord(request.params.studentId, identity))) {
+    if (!isPrivileged && !(await isOwnStudentRecord(repository, request.params.studentId, identity))) {
       response.status(403).json({ message: 'You do not have permission to view this student.' });
       return;
     }
@@ -2522,14 +2629,15 @@ app.get('/api/students/:studentId/snapshot', async (request, response, next) => 
 app.put('/api/students/:studentId/snapshot', async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     // A student may only write their own snapshot; managers/admins may write any student's.
     const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
-    if (!isPrivileged && !(await isOwnStudentRecord(request.params.studentId, identity))) {
+    if (!isPrivileged && !(await isOwnStudentRecord(repository, request.params.studentId, identity))) {
       response.status(403).json({ message: 'You do not have permission to update this student.' });
       return;
     }
@@ -2559,10 +2667,11 @@ app.put('/api/students/:studentId/snapshot', async (request, response, next) => 
 app.put('/api/students/:studentId/idp-entries', async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     if (identity.role !== 'administrator' && identity.role !== 'training-manager') {
       response.status(403).json({ message: 'Only a training manager or administrator can edit an IDP table.' });
@@ -2586,10 +2695,11 @@ app.put('/api/students/:studentId/idp-entries', async (request, response, next) 
 app.put('/api/students/:studentId/kpi-entries', async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     if (identity.role !== 'administrator' && identity.role !== 'training-manager') {
       response.status(403).json({ message: 'Only a training manager or administrator can edit a KPI table.' });
@@ -2631,14 +2741,15 @@ app.put('/api/students/:studentId/kpi-entries', async (request, response, next) 
 app.put('/api/students/:studentId/kpi-entries/employee-scoring', async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     // A student may only score their own KPI table; managers/admins may score any student's.
     const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
-    if (!isPrivileged && !(await isOwnStudentRecord(request.params.studentId, identity))) {
+    if (!isPrivileged && !(await isOwnStudentRecord(repository, request.params.studentId, identity))) {
       response.status(403).json({ message: 'You do not have permission to update this student.' });
       return;
     }
@@ -2682,10 +2793,11 @@ app.put('/api/students/:studentId/kpi-entries/employee-scoring', async (request,
 app.put('/api/students/:studentId/kpi-entries/gap-analysis', async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     if (identity.role !== 'administrator' && identity.role !== 'training-manager') {
       response.status(403).json({ message: 'Only a training manager or administrator can update a performance gap analysis.' });
@@ -2726,13 +2838,14 @@ app.put('/api/students/:studentId/kpi-entries/gap-analysis', async (request, res
 app.get('/api/students/:studentId/idp-entries/:year', async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
-    if (!isPrivileged && !(await isOwnStudentRecord(request.params.studentId, identity))) {
+    if (!isPrivileged && !(await isOwnStudentRecord(repository, request.params.studentId, identity))) {
       response.status(403).json({ message: 'You do not have permission to view this student.' });
       return;
     }
@@ -2762,10 +2875,11 @@ app.get('/api/students/:studentId/idp-entries/:year', async (request, response, 
 app.post('/api/idp-years/open', async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     if (identity.role !== 'administrator' && identity.role !== 'training-manager') {
       response.status(403).json({ message: 'Only a training manager or administrator can open a new IDP year.' });
@@ -2783,13 +2897,14 @@ app.post('/api/idp-years/open', async (request, response, next) => {
 app.get('/api/students/:studentId/kpi-entries/:year', async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
-    if (!isPrivileged && !(await isOwnStudentRecord(request.params.studentId, identity))) {
+    if (!isPrivileged && !(await isOwnStudentRecord(repository, request.params.studentId, identity))) {
       response.status(403).json({ message: 'You do not have permission to view this student.' });
       return;
     }
@@ -2820,10 +2935,11 @@ app.get('/api/students/:studentId/kpi-entries/:year', async (request, response, 
 app.post('/api/kpi-years/open', async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     if (identity.role !== 'administrator' && identity.role !== 'training-manager') {
       response.status(403).json({ message: 'Only a training manager or administrator can open a new KPI year.' });
@@ -2845,10 +2961,11 @@ app.post('/api/kpi-years/open', async (request, response, next) => {
 app.post('/api/students/:studentId/kpi-entries/submit-for-approval', async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     if (identity.role !== 'administrator' && identity.role !== 'training-manager') {
       response.status(403).json({ message: 'Only a training manager or administrator can submit a KPI table for approval.' });
@@ -2883,10 +3000,11 @@ app.post('/api/students/:studentId/kpi-entries/submit-for-approval', async (requ
 app.put('/api/students/:studentId/kpi-entries/approval', async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     const studentId = request.params['studentId'] as string;
     const isAdministrator = identity.role === 'administrator';
@@ -2920,12 +3038,13 @@ app.put('/api/students/:studentId/kpi-entries/approval', async (request, respons
 app.post('/api/succession/roles', requireTrainingManager, async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
-    const ownerManagerId = await resolveOwnManagerStudentId(identity);
+    const ownerManagerId = await resolveOwnManagerStudentId(repository, identity);
     if (!ownerManagerId) {
       response.status(403).json({ message: 'Could not resolve your own manager profile.' });
       return;
@@ -2947,13 +3066,14 @@ app.post('/api/succession/roles', requireTrainingManager, async (request, respon
 app.put('/api/succession/roles/:roleId', requireTrainingManager, async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     const roleId = request.params['roleId'] as string;
-    if (!(await isOwnManagedRole(roleId, identity))) {
+    if (!(await isOwnManagedRole(repository, roleId, identity))) {
       response.status(403).json({ message: 'You can only edit critical roles on your own team.' });
       return;
     }
@@ -2974,12 +3094,13 @@ app.put('/api/succession/roles/:roleId', requireTrainingManager, async (request,
 app.delete('/api/succession/roles/:roleId', requireTrainingManager, async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
-    if (!(await isOwnManagedRole(request.params['roleId'] as string, identity))) {
+    if (!(await isOwnManagedRole(repository, request.params['roleId'] as string, identity))) {
       response.status(403).json({ message: 'You can only un-flag critical roles on your own team.' });
       return;
     }
@@ -3002,18 +3123,19 @@ app.delete('/api/succession/roles/:roleId', requireTrainingManager, async (reque
 app.post('/api/succession/nominations', requireTrainingManager, async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     const body = successorNominationCreateSchema.parse(request.body);
-    if (!(await isOwnManagedRole(body.roleId, identity))) {
+    if (!(await isOwnManagedRole(repository, body.roleId, identity))) {
       response.status(403).json({ message: 'You can only nominate successors for roles you manage.' });
       return;
     }
 
-    const nominatedByManagerId = await resolveOwnManagerStudentId(identity) ?? '';
+    const nominatedByManagerId = await resolveOwnManagerStudentId(repository, identity) ?? '';
     const nomination = await repository.createSuccessorNomination(body, nominatedByManagerId);
     if (!nomination) {
       response.status(404).json({ message: 'That employee is not eligible as a successor — pick someone from the same team who isn\'t already the incumbent.' });
@@ -3029,13 +3151,14 @@ app.post('/api/succession/nominations', requireTrainingManager, async (request, 
 app.put('/api/succession/nominations/:nominationId', requireTrainingManager, async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     const existing = (await repository.listSuccessorNominations()).find((entry) => entry.id === request.params['nominationId']);
-    if (!existing || !(await isOwnManagedRole(existing.roleId, identity))) {
+    if (!existing || !(await isOwnManagedRole(repository, existing.roleId, identity))) {
       response.status(403).json({ message: 'You can only edit nominations for roles you manage.' });
       return;
     }
@@ -3059,13 +3182,14 @@ app.put('/api/succession/nominations/:nominationId', requireTrainingManager, asy
 app.put('/api/succession/nominations/:nominationId/status', requireTrainingManager, async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     const existing = (await repository.listSuccessorNominations()).find((entry) => entry.id === request.params['nominationId']);
-    if (!existing || !(await isOwnManagedRole(existing.roleId, identity))) {
+    if (!existing || !(await isOwnManagedRole(repository, existing.roleId, identity))) {
       response.status(403).json({ message: 'You can only change the status of nominations for roles you manage.' });
       return;
     }
@@ -3100,6 +3224,7 @@ function checkBulkReplaceGuard(currentCount: number, nextCount: number, label: s
 
 app.put('/api/manager-state', async (request, response, next) => {
   try {
+    const repository = request.repository!;
     const patch = managerStatePatchSchema.parse(request.body);
 
     if (patch.students || patch.externalTrainingRequests || patch.trainingManagers) {
@@ -3173,6 +3298,7 @@ app.put('/api/manager-state', async (request, response, next) => {
 
 app.get('/api/manager-messages', async (request, response, next) => {
   try {
+    const repository = request.repository!;
     const identity = getAuthenticatedIdentity(request);
     const isPrivileged = identity?.role === 'administrator' || identity?.role === 'training-manager';
     const data = await repository.read();
@@ -3207,6 +3333,7 @@ app.get('/api/manager-messages', async (request, response, next) => {
 
 app.post('/api/manager-messages', async (request, response, next) => {
   try {
+    const repository = request.repository!;
     const message = managerMessageSchema.parse(request.body);
     await repository.appendManagerMessage(message);
     response.status(201).json(message);
@@ -3217,6 +3344,7 @@ app.post('/api/manager-messages', async (request, response, next) => {
 
 app.post('/api/external-training-requests', async (request, response, next) => {
   try {
+    const repository = request.repository!;
     const externalTrainingRequest = externalTrainingRequestCreateSchema.parse(request.body);
     const identity = getAuthenticatedIdentity(request);
     const isPrivileged = identity?.role === 'administrator' || identity?.role === 'training-manager';
@@ -3260,6 +3388,7 @@ app.post('/api/external-training-requests', async (request, response, next) => {
 
 app.put('/api/external-training-requests/:requestId', async (request, response, next) => {
   try {
+    const repository = request.repository!;
     const externalTrainingRequest = externalTrainingRequestUpdateSchema.parse({
       ...request.body,
       requestId: request.params.requestId,
@@ -3295,10 +3424,11 @@ app.put('/api/external-training-requests/:requestId', async (request, response, 
 app.put('/api/external-training-requests/:requestId/review', requireManagerOrAdministrator, async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     const requestId = request.params['requestId'] as string;
     const data = await repository.read();
@@ -3344,6 +3474,7 @@ app.put('/api/external-training-requests/:requestId/review', requireManagerOrAdm
 
 app.put('/api/external-training-requests/:requestId/documents', requireManagerOrAdministrator, async (request, response, next) => {
   try {
+    const repository = request.repository!;
     const documents = externalTrainingRequestDocumentsSchema.parse({
       ...request.body,
       requestId: request.params['requestId'],
@@ -3365,8 +3496,9 @@ app.put('/api/external-training-requests/:requestId/documents', requireManagerOr
 // manager/admin UIs scoped, through bootstrap and the student snapshot) — gated to manager/admin
 // rather than left open to any authenticated session, which previously let any student pull every
 // other student's assignment submissions (responseText, uploaded documents, reviewer feedback).
-app.get('/api/assignment-submissions', requireManagerOrAdministrator, async (_request, response, next) => {
+app.get('/api/assignment-submissions', requireManagerOrAdministrator, async (request, response, next) => {
   try {
+    const repository = request.repository!;
     response.json(await repository.listAssignmentSubmissions());
   } catch (error) {
     next(error);
@@ -3375,8 +3507,9 @@ app.get('/api/assignment-submissions', requireManagerOrAdministrator, async (_re
 
 // Same reasoning as GET /api/assignment-submissions above — unused by any current frontend code,
 // previously reachable by any authenticated session including a plain student.
-app.get('/api/quiz-submissions', requireManagerOrAdministrator, async (_request, response, next) => {
+app.get('/api/quiz-submissions', requireManagerOrAdministrator, async (request, response, next) => {
   try {
+    const repository = request.repository!;
     response.json(await repository.listQuizSubmissions());
   } catch (error) {
     next(error);
@@ -3396,10 +3529,11 @@ function isReviewWrite(submission: { status: string; reviewerName: string | null
 app.post('/api/assignment-submissions', async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     const submission = assignmentSubmissionSchema.parse(request.body);
     const isManagerOrAdmin = identity.role === 'administrator' || identity.role === 'training-manager';
@@ -3409,7 +3543,7 @@ app.post('/api/assignment-submissions', async (request, response, next) => {
         response.status(403).json({ message: 'Only a training manager or administrator can review a submission.' });
         return;
       }
-    } else if (!isManagerOrAdmin && !(await isOwnStudentRecord(submission.studentId, identity))) {
+    } else if (!isManagerOrAdmin && !(await isOwnStudentRecord(repository, submission.studentId, identity))) {
       response.status(403).json({ message: 'You can only submit your own assignment.' });
       return;
     }
@@ -3435,13 +3569,14 @@ const quizAttemptRequestSchema = z.object({
 app.post('/api/students/:studentId/quiz-attempts/:contentItemId', async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
-    if (!isPrivileged && !(await isOwnStudentRecord(request.params.studentId, identity))) {
+    if (!isPrivileged && !(await isOwnStudentRecord(repository, request.params.studentId, identity))) {
       response.status(403).json({ message: 'You can only submit your own quiz attempts.' });
       return;
     }
@@ -3468,15 +3603,16 @@ app.post('/api/students/:studentId/quiz-attempts/:contentItemId', async (request
 app.post('/api/quiz-submissions', async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     const submission = quizSubmissionSchema.parse(request.body);
     const isManagerOrAdmin = identity.role === 'administrator' || identity.role === 'training-manager';
 
-    if (!isManagerOrAdmin && !(await isOwnStudentRecord(submission.studentId, identity))) {
+    if (!isManagerOrAdmin && !(await isOwnStudentRecord(repository, submission.studentId, identity))) {
       response.status(403).json({ message: 'You can only submit your own quiz.' });
       return;
     }
@@ -3490,10 +3626,11 @@ app.post('/api/quiz-submissions', async (request, response, next) => {
 app.post('/api/mentorship-submissions', async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
-    if (!identity) {
+    if (!identity || !request.repository) {
       response.status(401).json({ message: 'Your session has expired. Please log in again.' });
       return;
     }
+    const repository = request.repository;
 
     const submission = mentorshipSubmissionSchema.parse(request.body);
     const isManagerOrAdmin = identity.role === 'administrator' || identity.role === 'training-manager';
@@ -3503,7 +3640,7 @@ app.post('/api/mentorship-submissions', async (request, response, next) => {
         response.status(403).json({ message: 'Only a training manager or administrator can review a submission.' });
         return;
       }
-    } else if (!isManagerOrAdmin && !(await isOwnStudentRecord(submission.studentId, identity))) {
+    } else if (!isManagerOrAdmin && !(await isOwnStudentRecord(repository, submission.studentId, identity))) {
       response.status(403).json({ message: 'You can only submit your own mentorship response.' });
       return;
     }

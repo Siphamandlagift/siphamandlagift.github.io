@@ -82,7 +82,9 @@ const tempDataFilePath = path.join(dataDirectory, 'lms-data.json.tmp');
 const defaultCourseImage = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPSc0MDAnIGhlaWdodD0nMjI1Jz48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9J2cnIHgxPScwJyB5MT0nMCcgeDI9JzEnIHkyPScxJz48c3RvcCBvZmZzZXQ9JzAnIHN0b3AtY29sb3I9JyM2MzY2ZjEnLz48c3RvcCBvZmZzZXQ9JzEnIHN0b3AtY29sb3I9JyMzOGJkZjgnLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48cmVjdCB3aWR0aD0nNDAwJyBoZWlnaHQ9JzIyNScgZmlsbD0ndXJsKCNnKScvPjwvc3ZnPg==';
 const passwordResetLifetimeMs = 60 * 60 * 1000;
 const defaultStudentTemplate = createDefaultStudentTemplate();
-const firestoreCollectionNames = [
+// Exported so the one-time companies-migration script (migrate-to-companies.ts) can iterate the
+// same authoritative list rather than keeping a second, driftable copy.
+export const firestoreCollectionNames = [
   'offerings',
   'students',
   'trainingManagers',
@@ -1174,7 +1176,15 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
 }
 
 export class LmsRepository {
+  // '' for the local-dev JSON-file backend, which is single-tenant and has no real company
+  // concept — FirestoreLmsRepository's constructor always supplies a real one (see its own
+  // companyId field, which shadows this one for every Firestore-backed instance).
+  protected readonly companyId: string;
   private writeQueue = Promise.resolve();
+
+  constructor(companyId = '') {
+    this.companyId = companyId;
+  }
 
   protected static readonly successionStatusTransitions: Record<SuccessionNominationStatus, SuccessionNominationStatus[]> = {
     Draft: ['Active', 'Withdrawn'],
@@ -3103,6 +3113,9 @@ export class LmsRepository {
           role,
           username: email,
           email,
+          usernameLower: email,
+          emailLower: email,
+          companyId: this.companyId,
           route: routeForLoginRole(role),
           passwordHash: credentials.passwordHash,
           passwordSalt: credentials.passwordSalt,
@@ -3154,6 +3167,7 @@ export class LmsRepository {
       sentAt: issuedAt.toISOString(),
       expiresAt: expiresAt.toISOString(),
       consumedAt: null,
+      companyId: this.companyId,
     });
 
     await this.write(data);
@@ -3505,20 +3519,40 @@ export class LmsRepository {
   }
 }
 
+// Firestore write-serialization queues, one per company, keyed by companyId. This used to be a
+// single instance field back when FirestoreLmsRepository itself was a per-process singleton; now
+// that a fresh instance is constructed per request (see createLmsRepository), the queue has to
+// live outside any one instance so two requests for the SAME company landing on the same warm
+// Cloud Function instance still serialize against each other the same way they always have (see
+// the comment on write() below for why that serialization is load-bearing).
+const firestoreWriteQueues = new Map<string, Promise<void>>();
+
 class FirestoreLmsRepository extends LmsRepository {
   private readonly firestore: Firestore;
-  private firestoreWriteQueue = Promise.resolve();
-  private readonly rootCollectionId = process.env['LMS_FIRESTORE_COLLECTION']?.trim() || 'lmsStores';
-  private readonly rootDocumentId = process.env['LMS_FIRESTORE_DOCUMENT_ID']?.trim() || 'primary';
+  private static readonly companiesCollectionId = 'companies';
 
-  constructor() {
-    super();
+  constructor(companyId: string) {
+    if (!companyId) {
+      throw new Error('FirestoreLmsRepository requires a companyId.');
+    }
+    super(companyId);
     const app = getApps().length > 0 ? getApp() : initializeApp();
     this.firestore = getFirestore(app);
   }
 
   private get storeDocument() {
-    return this.firestore.collection(this.rootCollectionId).doc(this.rootDocumentId);
+    return this.firestore.collection(FirestoreLmsRepository.companiesCollectionId).doc(this.companyId);
+  }
+
+  // See the comment on firestoreWriteQueues above — this company's slot in that shared map is
+  // this instance's write-serialization queue, since the queue itself has to outlive any one
+  // per-request repository instance.
+  private getWriteQueue(): Promise<void> {
+    return firestoreWriteQueues.get(this.companyId) ?? Promise.resolve();
+  }
+
+  private setWriteQueue(next: Promise<void>): void {
+    firestoreWriteQueues.set(this.companyId, next);
   }
 
   private collection<Name extends FirestoreCollectionName>(collectionName: Name) {
@@ -3625,7 +3659,7 @@ class FirestoreLmsRepository extends LmsRepository {
     ].some((records) => records.length > 0);
 
     if (!storeSnapshot.exists && !hasStoredCollections) {
-      const seeded = normalizeData(createDefaultData());
+      const seeded = normalizeData(createDefaultData(this.companyId));
       await this.write(seeded);
       return seeded;
     }
@@ -3667,16 +3701,20 @@ class FirestoreLmsRepository extends LmsRepository {
     });
 
     // .catch(() => {}) before chaining the next write is load-bearing: without it, a single
-    // failed write (e.g. an oversized field) leaves this.firestoreWriteQueue permanently
-    // rejected, and every future write on this same warm instance silently no-ops (the
-    // .then() callback is skipped once the chain is rejected) while still rejecting its own
-    // caller with that same stale error — making one bad write look like the server is
-    // randomly broken for everyone until the instance recycles. Swallowing the previous
-    // failure here only resets the chain for the next write; it doesn't hide this write's own
-    // errors — those still propagate normally via the `await` below.
-    this.firestoreWriteQueue = this.firestoreWriteQueue.catch(() => {}).then(async () => {
+    // failed write (e.g. an oversized field) leaves the queue permanently rejected, and every
+    // future write for this company silently no-ops (the .then() callback is skipped once the
+    // chain is rejected) while still rejecting its own caller with that same stale error —
+    // making one bad write look like the server is randomly broken for everyone until the
+    // instance recycles. Swallowing the previous failure here only resets the chain for the
+    // next write; it doesn't hide this write's own errors — those still propagate normally via
+    // the `await` below.
+    const nextQueue = this.getWriteQueue().catch(() => {}).then(async () => {
       const batchOperations: FirestoreBatchOperation[] = [
         (batch) => {
+          // {merge: true} is required here: the company document also carries Super-Admin-managed
+          // identity/subscription fields (name, createdAt, subscription, ...) that this write
+          // never touches. Without merge, this ordinary app write would replace the whole document
+          // and silently wipe those fields out.
           batch.set(this.storeDocument, this.sanitizeForFirestore({
             branding: nextData.branding,
             updatedAt: nextData.updatedAt,
@@ -3686,7 +3724,7 @@ class FirestoreLmsRepository extends LmsRepository {
             idpYearsOpened: nextData.idpYearsOpened,
             hrIntegration: nextData.hrIntegration,
             approvalWorkflowSettings: nextData.approvalWorkflowSettings,
-          }));
+          }), { merge: true });
         },
       ];
 
@@ -3700,8 +3738,9 @@ class FirestoreLmsRepository extends LmsRepository {
 
       await this.commitBatchOperations(batchOperations);
     });
+    this.setWriteQueue(nextQueue);
 
-    await this.firestoreWriteQueue;
+    await nextQueue;
     return nextData;
   }
 
@@ -3928,7 +3967,7 @@ class FirestoreLmsRepository extends LmsRepository {
       throw new Error('Year must be a whole number.');
     }
 
-    const resultPromise = this.firestoreWriteQueue.catch(() => {}).then(async () => {
+    const resultPromise = this.getWriteQueue().catch(() => {}).then(async () => {
       const storeSnapshot = await this.storeDocument.get();
       const storeData = storeSnapshot.exists ? (storeSnapshot.data() as Partial<LmsDataStore>) : undefined;
       const currentKpiYear = this.readCurrentKpiYear(storeSnapshot);
@@ -3997,7 +4036,7 @@ class FirestoreLmsRepository extends LmsRepository {
       return { currentKpiYear: year, kpiYearsOpened: nextKpiYearsOpened };
     });
 
-    this.firestoreWriteQueue = resultPromise.then(() => {}, () => {});
+    this.setWriteQueue(resultPromise.then(() => {}, () => {}));
     return resultPromise;
   }
 
@@ -4049,7 +4088,7 @@ class FirestoreLmsRepository extends LmsRepository {
       throw new Error('Year must be a whole number.');
     }
 
-    const resultPromise = this.firestoreWriteQueue.catch(() => {}).then(async () => {
+    const resultPromise = this.getWriteQueue().catch(() => {}).then(async () => {
       const storeSnapshot = await this.storeDocument.get();
       const storeData = storeSnapshot.exists ? (storeSnapshot.data() as Partial<LmsDataStore>) : undefined;
       const currentIdpYear = this.readCurrentIdpYear(storeSnapshot);
@@ -4091,7 +4130,7 @@ class FirestoreLmsRepository extends LmsRepository {
       return { currentIdpYear: year, idpYearsOpened: nextIdpYearsOpened };
     });
 
-    this.firestoreWriteQueue = resultPromise.then(() => {}, () => {});
+    this.setWriteQueue(resultPromise.then(() => {}, () => {}));
     return resultPromise;
   }
 
@@ -4801,12 +4840,16 @@ class FirestoreLmsRepository extends LmsRepository {
   }
 }
 
-export function createLmsRepository() {
+// companyId selects which company's Firestore document (companies/{companyId}) this repository
+// instance reads and writes. It's ignored by the local-dev JSON-file backend (LmsRepository),
+// which remains single-tenant — there is no local multi-company dev story, only production
+// Firestore is company-scoped.
+export function createLmsRepository(companyId: string) {
   const configuredBackend = process.env['LMS_STORAGE_BACKEND']?.trim().toLowerCase();
   const isFirebaseRuntime = Boolean(process.env['FUNCTION_TARGET'] || process.env['FIREBASE_CONFIG']);
 
   if (configuredBackend === 'firestore' || (!configuredBackend && isFirebaseRuntime)) {
-    return new FirestoreLmsRepository();
+    return new FirestoreLmsRepository(companyId);
   }
 
   return new LmsRepository();

@@ -715,6 +715,15 @@ export type AuthAccountRecord = {
   passwordHash: string;
   passwordSalt: string;
   linkedStudentId?: string | null;
+  // Which company this account belongs to (companies/{companyId}, the same id this record's own
+  // document already lives under as companies/{companyId}/authAccounts/{id}). Stored explicitly,
+  // not just implied by the Firestore path, because login/resolve-roles/SSO run before any
+  // companyId is known — they resolve it via a collection-group query on usernameLower/emailLower
+  // across every company's authAccounts, then need it as an explicit JWT claim afterward (a JWT
+  // can't carry Firestore path ancestry).
+  companyId: string;
+  usernameLower: string;
+  emailLower: string;
 };
 
 export type PasswordResetTokenRecord = {
@@ -725,6 +734,10 @@ export type PasswordResetTokenRecord = {
   createdAt: string;
   sentAt: string;
   consumedAt: string | null;
+  // Same reasoning as AuthAccountRecord.companyId — password-reset validate/confirm only ever
+  // receive a token, so the company has to be resolved via a collection-group query on tokenHash
+  // before this record's own company-scoped repository can be constructed.
+  companyId: string;
 };
 
 export type QuizSubmissionAnswerRecord = {
