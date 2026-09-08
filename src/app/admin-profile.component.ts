@@ -3527,18 +3527,21 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                 </button>
               </div>
 
-              <div class="student-search-row">
-                <label class="student-search-field">
-                  <span class="student-search-label">Search students</span>
+              <div class="admin-toolbar">
+                <label class="admin-search-field">
+                  <span>Search students</span>
                   <input
                     type="search"
                     [value]="studentSearchTerm()"
                     (input)="studentSearchTerm.set($any($event.target).value)"
                     placeholder="Search by name, surname, group, email, department, or status" />
                 </label>
-                <span class="student-search-count">
-                  {{ selectedEnrollmentView() === 'students' ? filteredEnrollmentStudents().length : filteredEnrollmentGroups().length }} shown
-                </span>
+
+                <div class="admin-chip-row">
+                  <span class="admin-chip">
+                    {{ selectedEnrollmentView() === 'students' ? filteredEnrollmentStudents().length : filteredEnrollmentGroups().length }} shown
+                  </span>
+                </div>
               </div>
 
               @if (selectedEnrollmentView() === 'students') {
