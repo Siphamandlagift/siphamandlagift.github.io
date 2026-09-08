@@ -985,3 +985,50 @@ export type PlatformAdminRecord = {
   passwordHash: string;
   passwordSalt: string;
 };
+
+// --- Phase 3: Super Admin API request/response shapes ---
+
+export type PlatformLoginInput = {
+  email: string;
+  password: string;
+};
+
+export type PlatformAuthenticatedResponse = {
+  adminId: string;
+  name: string;
+  email: string;
+  token: string;
+};
+
+export type CreateCompanyInput = {
+  name: string;
+  plan: SubscriptionPlan;
+  licenseLimit: number;
+  startDate: string;
+  endDate: string;
+};
+
+export type UpdateCompanySubscriptionInput = {
+  plan?: SubscriptionPlan;
+  licenseLimit?: number;
+  startDate?: string;
+  endDate?: string;
+  status?: SubscriptionStatus;
+};
+
+// No name field — AuthAccountRecord itself has none (an account's display name is always derived
+// from a linked student profile, created on that admin's first login; see ensureSwitchStudentProfile
+// in repository.ts). Matches how the system's own default seeded admin account already behaves.
+export type CreateCompanyAdminInput = {
+  email: string;
+  password: string;
+};
+
+export type CompanyUsageSummary = {
+  userCount: number;
+  licenseLimit: number;
+};
+
+export type CompanyWithUsage = CompanyRecord & {
+  usage: CompanyUsageSummary;
+};

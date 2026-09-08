@@ -1,4 +1,5 @@
 import { copyFile, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { getApp, getApps, initializeApp } from 'firebase-admin/app';
 import { FieldPath, FieldValue, getFirestore, type DocumentReference, type DocumentSnapshot, type Firestore, type WriteBatch } from 'firebase-admin/firestore';
@@ -3068,7 +3069,13 @@ export class LmsRepository {
     return { studentId };
   }
 
-  async upsertManagedUserCredentials(inputs: ManagedUserCredentialInput[]): Promise<ManagedUserCredentialsUpsertResponse> {
+  // licenseLimit counts ALL authAccounts in this company (administrator + training-manager +
+  // student combined) — a Super-Admin-set cap on the subscription (see CompanyRecord.subscription
+  // in contracts.ts), passed in by the caller (server.ts's route handler, which is the layer that
+  // actually knows the company's subscription — LmsDataStore itself has no subscription field, by
+  // design; see the multi-tenant retrofit plan). Undefined/omitted means unlimited, so existing
+  // callers that don't pass it (there are none left, but future ones) aren't silently capped.
+  async upsertManagedUserCredentials(inputs: ManagedUserCredentialInput[], licenseLimit?: number): Promise<ManagedUserCredentialsUpsertResponse> {
     const data = await this.read();
     let created = 0;
     let updated = 0;
@@ -3095,6 +3102,13 @@ export class LmsRepository {
       const accountIndex = data.authAccounts.findIndex(
         (entry) => entry.linkedStudentId === studentId || entry.email.toLowerCase() === email,
       );
+
+      // Only a genuinely NEW account counts against the license — an existing account being
+      // updated (password reset, role change) isn't adding a seat.
+      if (accountIndex === -1 && typeof licenseLimit === 'number' && data.authAccounts.length >= licenseLimit) {
+        skipped += 1;
+        continue;
+      }
 
       if (accountIndex >= 0) {
         data.authAccounts[accountIndex] = {
@@ -3140,6 +3154,50 @@ export class LmsRepository {
     syncLinkedAuthAccounts(data);
     await this.write(data);
     return { created, updated, skipped };
+  }
+
+  // Creates a bare administrator login with no linked student record — the Super Admin's "create
+  // this company's first admin" action (POST /api/platform/companies/:id/admins in
+  // super-admin-routes.ts). Distinct from upsertManagedUserCredentials above, which always
+  // requires an existing student roster entry to attach credentials to; a brand-new company has
+  // no roster yet. Returns null on an email collision within this company (email is unique per
+  // company, enforced the same way login/password-reset already assume) or if the license limit
+  // is already reached.
+  async createAdministratorAccount(input: { email: string; password: string }, licenseLimit?: number): Promise<AuthAccountRecord | null> {
+    const email = input.email.trim().toLowerCase();
+    const password = input.password.trim();
+
+    if (!email || !isStrongPassword(password)) {
+      return null;
+    }
+
+    const data = await this.read();
+
+    if (data.authAccounts.some((entry) => entry.emailLower === email || entry.email.toLowerCase() === email)) {
+      return null;
+    }
+
+    if (typeof licenseLimit === 'number' && data.authAccounts.length >= licenseLimit) {
+      return null;
+    }
+
+    const credentials = createPasswordCredentials(password);
+    const account: AuthAccountRecord = {
+      id: `auth-admin-${randomUUID()}`,
+      role: 'administrator',
+      username: email,
+      email,
+      usernameLower: email,
+      emailLower: email,
+      companyId: this.companyId,
+      route: '/admin-profile',
+      passwordHash: credentials.passwordHash,
+      passwordSalt: credentials.passwordSalt,
+    };
+
+    data.authAccounts.unshift(account);
+    await this.write(data);
+    return account;
   }
 
   async createPasswordResetRequest(emailAddress: string) {

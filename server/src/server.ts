@@ -24,7 +24,9 @@ import {
   resolveCompanyIdForLoginIdentifier,
   resolveCompanyIdForPasswordResetToken,
   isCompanySubscriptionActive,
+  getCompanyUsage,
 } from './platform-repository.js';
+import { createSuperAdminRouter } from './super-admin-routes.js';
 
 // Augments Express's Request with the two pieces of per-request state the middleware chain below
 // attaches after decoding the caller's JWT: their identity (including which company they belong
@@ -130,6 +132,7 @@ const publicPaths = new Set([
   '/api/auth/password-reset/request',
   '/api/auth/password-reset/validate',
   '/api/auth/password-reset/confirm',
+  '/api/platform/auth/login',
 ]);
 
 function requireAuth(request: express.Request, response: express.Response, next: express.NextFunction) {
@@ -201,7 +204,15 @@ function decodeAuthenticatedIdentity(request: express.Request): AuthenticatedIde
 // entirely: those routes (login, password-reset, SSO, ...) have no token yet and resolve their
 // own company via platform-repository.ts's collection-group lookups instead.
 async function attachRequestContext(request: express.Request, response: express.Response, next: express.NextFunction) {
-  if (publicPaths.has(request.path) || request.path.startsWith('/api/files/') || request.path.startsWith('/api/storage/scorm')) {
+  // /api/platform/* carries its own, entirely separate auth (a Super Admin token has no
+  // companyId at all — see super-admin-routes.ts's own requireSuperAdmin) — this middleware's
+  // company-scoping logic doesn't apply there and must not run against those tokens.
+  if (
+    publicPaths.has(request.path)
+    || request.path.startsWith('/api/files/')
+    || request.path.startsWith('/api/storage/scorm')
+    || request.path.startsWith('/api/platform/')
+  ) {
     next();
     return;
   }
@@ -1135,6 +1146,9 @@ app.post('/api/admin/reset-data', requireAdministrator, async (request, response
     next(error);
   }
 });
+
+// --- SUPER ADMIN PLATFORM (see super-admin-routes.ts) ---
+app.use('/api/platform', createSuperAdminRouter({ jwtSecret, jwtExpiresIn }));
 
 // Rate-limit the login endpoint: max 10 attempts per 15 minutes per IP.
 const loginRateLimiter = rateLimit({
@@ -2507,7 +2521,8 @@ app.post('/api/auth/managed-users/credentials', requireAdministrator, async (req
   try {
     const repository = request.repository!;
     const payload = managedUserCredentialsUpsertSchema.parse(request.body);
-    response.json(await repository.upsertManagedUserCredentials(payload.users));
+    const usage = await getCompanyUsage(request.authIdentity!.companyId!);
+    response.json(await repository.upsertManagedUserCredentials(payload.users, usage?.licenseLimit));
   } catch (error) {
     next(error);
   }
