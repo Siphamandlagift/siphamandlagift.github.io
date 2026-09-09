@@ -1,8 +1,6 @@
 
 import { Routes } from '@angular/router';
 import { authGuard } from './auth.guard';
-import { tenantAuthGuard } from './multi-tenant/tenant-auth.guard';
-import { tenantRoleGuard } from './multi-tenant/tenant-role.guard';
 import { superAdminAuthGuard } from './super-admin/super-admin-auth.guard';
 
 export const routes: Routes = [
@@ -12,32 +10,6 @@ export const routes: Routes = [
     path: 'super-admin/dashboard',
     loadComponent: () => import('./super-admin/super-admin-dashboard.component').then((m) => m.SuperAdminDashboardComponent),
     canActivate: [superAdminAuthGuard],
-  },
-  { path: 'tenant/login', loadComponent: () => import('./multi-tenant/tenant-login.component').then((m) => m.TenantLoginComponent) },
-  { path: 'tenant/register', loadComponent: () => import('./multi-tenant/tenant-register.component').then((m) => m.TenantRegisterComponent) },
-  {
-    path: 'tenant/dashboard',
-    loadComponent: () => import('./multi-tenant/tenant-dashboard.component').then((m) => m.TenantDashboardComponent),
-    canActivate: [tenantAuthGuard, tenantRoleGuard],
-    data: { permissions: ['dashboard:read'] },
-  },
-  {
-    path: 'tenant/dashboard/admin',
-    loadComponent: () => import('./multi-tenant/tenant-dashboard.component').then((m) => m.TenantDashboardComponent),
-    canActivate: [tenantAuthGuard, tenantRoleGuard],
-    data: { roles: ['admin'], permissions: ['dashboard:read', 'courses:create', 'users:read'] },
-  },
-  {
-    path: 'tenant/dashboard/manager',
-    loadComponent: () => import('./multi-tenant/tenant-dashboard.component').then((m) => m.TenantDashboardComponent),
-    canActivate: [tenantAuthGuard, tenantRoleGuard],
-    data: { roles: ['manager'], permissions: ['dashboard:read', 'users:read', 'enrollments:company:read'] },
-  },
-  {
-    path: 'tenant/dashboard/learner',
-    loadComponent: () => import('./multi-tenant/tenant-dashboard.component').then((m) => m.TenantDashboardComponent),
-    canActivate: [tenantAuthGuard, tenantRoleGuard],
-    data: { roles: ['learner'], permissions: ['dashboard:read', 'enrollments:self:read'] },
   },
   { path: 'reset-password', loadComponent: () => import('./reset-password/reset-password').then((m) => m.ResetPasswordComponent) },
   { path: 'admin-profile', loadComponent: () => import('./admin-profile.component').then((m) => m.AdminProfileComponent), canActivate: [authGuard] },

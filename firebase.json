@@ -30,10 +30,6 @@
         "function": "api"
       },
       {
-        "source": "tenant-api{,/**}",
-        "function": "tenantApi"
-      },
-      {
         "source": "**",
         "destination": "/index.html"
       }

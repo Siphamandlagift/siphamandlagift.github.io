@@ -1,4 +1,3 @@
 {
-	"lmsApiBaseUrl": "/api",
-	"tenantApiBaseUrl": "/tenant-api"
+	"lmsApiBaseUrl": "/api"
 }

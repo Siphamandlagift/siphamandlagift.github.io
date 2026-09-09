@@ -102,8 +102,7 @@ If you want the deployed frontend to call a public API instead of localhost, add
 
 ```json
 {
-	"lmsApiBaseUrl": "https://your-api-host.example.com/api",
-	"tenantApiBaseUrl": "https://your-tenant-api-host.example.com"
+	"lmsApiBaseUrl": "https://your-api-host.example.com/api"
 }
 ```
 
@@ -205,126 +204,6 @@ Manual Render deployment flow:
 6. Update `public/app-config.json` with that URL as `lmsApiBaseUrl`, then rebuild and redeploy Firebase Hosting.
 
 The backend uses `LMS_DATA_DIRECTORY` for its JSON store, so the Render service can keep `lms-data.json` and its backups on the mounted disk.
-
-The separate PostgreSQL-backed multi-tenant backend is not part of the Firebase Functions deployment described above.
-
-## Multi-tenant LMS starter
-
-The repository also now includes a separate PostgreSQL-backed multi-tenant LMS slice with:
-
-- Angular login, register, and role-based dashboard routes under `/tenant/*`
-- Express REST API with JWT authentication on `server/src/multitenant-server.ts`
-- Company-scoped middleware that filters users, courses, and enrollments by `company_id`
-- SQL schema plus demo seed data in [server/sql/multitenant-lms.sql](server/sql/multitenant-lms.sql)
-
-### Folder structure
-
-```text
-server/
-	sql/
-		multitenant-lms.sql
-	src/
-		multitenant-server.ts
-		multitenant/
-			controllers/
-			auth/
-			middleware/
-			repositories/
-			routes/
-			schemas/
-			services/
-src/app/
-	multi-tenant/
-		models.ts
-		tenant-api.config.ts
-		tenant-api.service.ts
-		tenant-auth.guard.ts
-		tenant-auth.interceptor.ts
-		tenant-auth.service.ts
-		tenant-dashboard.component.ts
-		tenant-login.component.ts
-		tenant-register.component.ts
-		tenant-role.guard.ts
-```
-
-### Multi-tenant API endpoints
-
-- `POST /auth/register`
-- `POST /auth/login`
-- `GET /dashboard`
-- `GET /users`
-- `GET /courses`
-- `POST /courses`
-
-### Company scoping
-
-All tenant data queries in the multitenant repository now accept `company_id` as the first bound parameter and fail closed when that scope is missing. See [server/src/multitenant/repositories/multitenant.repository.ts](server/src/multitenant/repositories/multitenant.repository.ts) for the shared `queryForCompany` and `queryOneForCompany` helpers.
-
-The only non-company-filtered lookup is the pre-auth email check during login, because that query resolves the user's company before the JWT is issued. After authentication, the `company_id` from the token is required on every tenant route and every tenant-scoped query.
-
-### Secure middleware examples
-
-Authentication middleware verifies the JWT and reloads the user in the same tenant before any protected route is executed:
-
-```ts
-app.use(authenticateRequest(repository, config));
-```
-
-Company-scope middleware fails closed if the authenticated request does not contain a valid tenant context:
-
-```ts
-app.use('/dashboard', requireCompanyScope(), createDashboardRoutes(dashboardController));
-```
-
-Role middleware can be composed with company scope to protect administrative endpoints:
-
-```ts
-app.use('/users', requireCompanyScope(), requireRole('admin', 'manager'), createUserRoutes(userController));
-```
-
-Request validation middleware rejects malformed payloads before they reach controllers:
-
-```ts
-router.post('/courses', requireRole('admin'), validateRequest({ body: createCourseSchema }), asyncHandler(controller.createCourse));
-```
-
-### Run locally
-
-1. Create a PostgreSQL database named `lms_multitenant`.
-2. Apply the schema and demo seed file:
-
-```bash
-psql postgresql://postgres:postgres@localhost:5432/lms_multitenant -f server/sql/multitenant-lms.sql
-```
-
-3. Copy `.env.example` to `.env` and set the `MULTITENANT_*` variables for your database and JWT secret.
-4. Start the Angular frontend:
-
-```bash
-npm start
-```
-
-5. Start the PostgreSQL/JWT multi-tenant API:
-
-```bash
-npm run tenant:server:dev
-```
-
-6. Open the tenant routes in the browser:
-
-- `http://localhost:4200/tenant/login`
-- `http://localhost:4200/tenant/register`
-- `http://localhost:4200/tenant/dashboard/admin`
-- `http://localhost:4200/tenant/dashboard/manager`
-- `http://localhost:4200/tenant/dashboard/learner`
-
-### Demo logins
-
-- Admin: `admin@acme-learning.test` / `Admin123!`
-- Manager: `manager@acme-learning.test` / `Manager123!`
-- Learner: `learner@acme-learning.test` / `Learner123!`
-
-The register page creates a brand-new company and its first admin user. The manager and learner dashboards are available from the seeded SQL accounts or from additional users you insert into the same company.
 
 ## Backend data coverage
 

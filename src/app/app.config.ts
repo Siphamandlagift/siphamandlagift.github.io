@@ -4,31 +4,23 @@ import { provideRouter } from '@angular/router';
 
 import { routes } from './app.routes';
 import { provideLmsApiConfig } from './lms-api.config';
-import { provideTenantApiConfig } from './multi-tenant/tenant-api.config';
-import { tenantAuthInterceptor } from './multi-tenant/tenant-auth.interceptor';
 import { lmsAuthInterceptor } from './lms-auth.interceptor';
 import { platformAuthInterceptor } from './super-admin/platform-auth.interceptor';
 
 export type RuntimeAppConfig = {
   lmsApiBaseUrl?: string;
-  tenantApiBaseUrl?: string;
   defaultStudentId?: string;
-  tenantSessionStorageKey?: string;
 };
 
 export function createAppConfig(runtimeConfig: RuntimeAppConfig = {}): ApplicationConfig {
   return {
     providers: [
       provideBrowserGlobalErrorListeners(),
-      provideHttpClient(withInterceptors([lmsAuthInterceptor, platformAuthInterceptor, tenantAuthInterceptor])),
+      provideHttpClient(withInterceptors([lmsAuthInterceptor, platformAuthInterceptor])),
       provideRouter(routes),
       provideLmsApiConfig({
         baseUrl: runtimeConfig.lmsApiBaseUrl,
         defaultStudentId: runtimeConfig.defaultStudentId,
-      }),
-      provideTenantApiConfig({
-        baseUrl: runtimeConfig.tenantApiBaseUrl,
-        sessionStorageKey: runtimeConfig.tenantSessionStorageKey,
       }),
     ],
   };
