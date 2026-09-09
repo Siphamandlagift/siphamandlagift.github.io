@@ -1944,6 +1944,21 @@ app.put('/api/branding', requireAdministrator, async (request, response, next) =
   }
 });
 
+// Authenticated counterpart of the public GET /api/branding above: returns the CALLER'S OWN
+// company's branding via request.repository, instead of always falling back to defaultCompanyId.
+// Any logged-in role may read it (matches the public route's own no-role-restriction convention) —
+// used once a session exists (see LmsBrandingService.refreshForAuthenticatedSession on the
+// client), so a non-default company's admin/manager/student sees their own real logo/theme
+// instead of another company's.
+app.get('/api/auth/branding', async (request, response, next) => {
+  try {
+    const repository = request.repository!;
+    response.json(await repository.getBranding());
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Admin-only: the stored authHeaderValue is never included in this response — see
 // getHrIntegrationConfig/redactHrIntegrationConfig in repository.ts.
 app.get('/api/admin/hr-integration', requireAdministrator, async (request, response, next) => {

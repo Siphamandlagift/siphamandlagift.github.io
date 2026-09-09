@@ -360,6 +360,12 @@ export class LmsBackendService {
     return this.http.get<BrandingSettings>(`${this.config.baseUrl}/branding`);
   }
 
+  // Authenticated counterpart of getBranding() above — returns the caller's own company's
+  // branding instead of always the default company's. See LmsBrandingService.
+  getMyBranding(): Observable<BrandingSettings> {
+    return this.http.get<BrandingSettings>(`${this.config.baseUrl}/auth/branding`);
+  }
+
   updateBranding(input: BrandingSettings): Observable<BrandingSettings> {
     return this.http.put<BrandingSettings>(`${this.config.baseUrl}/branding`, input);
   }

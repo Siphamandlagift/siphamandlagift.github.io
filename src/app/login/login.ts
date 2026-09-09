@@ -254,5 +254,11 @@ export class Login implements OnInit {
       displayName: combineDisplayName(payload.name, payload.surname),
     })));
     localStorage.setItem('lms-token', payload.token);
+
+    // This service instance's constructor already ran (before any login existed) and fetched the
+    // pre-auth default-company branding for the login screen's own chrome — refresh it now to the
+    // just-authenticated caller's real company branding, since Angular won't reconstruct this
+    // root-provided singleton on the client-side navigation that follows.
+    this.branding.refreshForAuthenticatedSession();
   }
 }

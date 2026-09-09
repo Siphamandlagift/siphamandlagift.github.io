@@ -1,5 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { BrandingSettings, LmsBackendService, LmsBrandThemeId } from './lms-backend.service';
+import { hasActiveLmsSession } from './session-auth';
 
 export type { LmsBrandThemeId } from './lms-backend.service';
 
@@ -93,15 +94,52 @@ export class LmsBrandingService {
   readonly companyLogoDataUrl = this.companyLogoDataUrlSignal.asReadonly();
 
   constructor() {
+    // Fresh app load with an existing session already in localStorage (a page refresh on
+    // /admin-profile, or a bookmarked/direct URL) means this constructor's own fetch can go
+    // straight to the authenticated, company-scoped endpoint. A fresh load with NO session yet
+    // (visiting / for the first time) still needs the public one for the login screen's own
+    // pre-auth chrome. Either way, this only covers "fresh app load" — a login that happens
+    // WITHOUT a full reload (the normal SPA flow) needs refreshForAuthenticatedSession() called
+    // explicitly right after (see login.ts), since this constructor runs exactly once per app
+    // load and won't re-run just because the user subsequently logs in.
+    if (hasActiveLmsSession()) {
+      this.fetchAuthenticatedBranding();
+    } else {
+      this.fetchPublicBranding();
+    }
+  }
+
+  // Called once, right after a successful login (see login.ts) — the one case the constructor
+  // above can't cover, since Angular doesn't reconstruct root-provided singletons on client-side
+  // navigation, so switching from the pre-auth default-company branding to the caller's own real
+  // company's branding has to happen explicitly at that moment instead.
+  refreshForAuthenticatedSession() {
+    this.fetchAuthenticatedBranding();
+  }
+
+  private fetchPublicBranding() {
     this.backend.getBranding().subscribe({
-      next: (branding) => {
-        this.selectedThemeIdSignal.set(branding.themeId);
-        this.companyLogoDataUrlSignal.set(branding.companyLogoDataUrl);
-      },
+      next: (branding) => this.applyBranding(branding),
       error: () => {
         // Neutral default (already set above) stays in place if the API is unavailable.
       },
     });
+  }
+
+  private fetchAuthenticatedBranding() {
+    this.backend.getMyBranding().subscribe({
+      next: (branding) => this.applyBranding(branding),
+      error: () => {
+        // Keep whatever was showing (neutral default, or the last successful fetch) if this
+        // one fails — never fall back to the public/default-company endpoint here, since that
+        // would silently show a DIFFERENT company's branding to an authenticated user.
+      },
+    });
+  }
+
+  private applyBranding(branding: BrandingSettings) {
+    this.selectedThemeIdSignal.set(branding.themeId);
+    this.companyLogoDataUrlSignal.set(branding.companyLogoDataUrl);
   }
 
   selectTheme(themeId: LmsBrandThemeId): Promise<boolean> {
