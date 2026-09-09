@@ -7,6 +7,7 @@ import { provideLmsApiConfig } from './lms-api.config';
 import { provideTenantApiConfig } from './multi-tenant/tenant-api.config';
 import { tenantAuthInterceptor } from './multi-tenant/tenant-auth.interceptor';
 import { lmsAuthInterceptor } from './lms-auth.interceptor';
+import { platformAuthInterceptor } from './super-admin/platform-auth.interceptor';
 
 export type RuntimeAppConfig = {
   lmsApiBaseUrl?: string;
@@ -19,7 +20,7 @@ export function createAppConfig(runtimeConfig: RuntimeAppConfig = {}): Applicati
   return {
     providers: [
       provideBrowserGlobalErrorListeners(),
-      provideHttpClient(withInterceptors([lmsAuthInterceptor, tenantAuthInterceptor])),
+      provideHttpClient(withInterceptors([lmsAuthInterceptor, platformAuthInterceptor, tenantAuthInterceptor])),
       provideRouter(routes),
       provideLmsApiConfig({
         baseUrl: runtimeConfig.lmsApiBaseUrl,

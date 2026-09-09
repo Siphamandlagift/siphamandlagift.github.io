@@ -8,8 +8,9 @@ export const lmsAuthInterceptor: HttpInterceptorFn = (request, next) => {
   const config = inject(LMS_API_CONFIG);
   const router = inject(Router);
 
-  // Only attach auth header for LMS API requests.
-  if (!request.url.startsWith(config.baseUrl)) {
+  // Only attach auth header for LMS API requests — and never for /api/platform/*, which carries
+  // its own, entirely separate Super Admin session (see super-admin/platform-auth.interceptor.ts).
+  if (!request.url.startsWith(config.baseUrl) || request.url.startsWith(`${config.baseUrl}/platform`)) {
     return next(request);
   }
 

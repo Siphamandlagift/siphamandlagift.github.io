@@ -3,9 +3,16 @@ import { Routes } from '@angular/router';
 import { authGuard } from './auth.guard';
 import { tenantAuthGuard } from './multi-tenant/tenant-auth.guard';
 import { tenantRoleGuard } from './multi-tenant/tenant-role.guard';
+import { superAdminAuthGuard } from './super-admin/super-admin-auth.guard';
 
 export const routes: Routes = [
   { path: '', loadComponent: () => import('./login/login').then((m) => m.Login) },
+  { path: 'super-admin', loadComponent: () => import('./super-admin/super-admin-login.component').then((m) => m.SuperAdminLoginComponent) },
+  {
+    path: 'super-admin/dashboard',
+    loadComponent: () => import('./super-admin/super-admin-dashboard.component').then((m) => m.SuperAdminDashboardComponent),
+    canActivate: [superAdminAuthGuard],
+  },
   { path: 'tenant/login', loadComponent: () => import('./multi-tenant/tenant-login.component').then((m) => m.TenantLoginComponent) },
   { path: 'tenant/register', loadComponent: () => import('./multi-tenant/tenant-register.component').then((m) => m.TenantRegisterComponent) },
   {

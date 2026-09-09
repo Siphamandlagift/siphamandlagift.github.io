@@ -76,13 +76,20 @@ export class LmsBrandingService {
     },
   ];
 
-  private readonly selectedThemeIdSignal = signal<LmsBrandThemeId>(this.loadTheme());
+  // Starts from a neutral default rather than seeding from localStorage — GET /api/branding is
+  // now company-scoped (see the multi-tenant retrofit plan), so a value cached here from a
+  // PREVIOUS browser session could belong to a different company than whoever loads the app next
+  // on a shared/kiosk device. Only a deliberate in-app edit (selectTheme/setCompanyLogo below,
+  // both always scoped to the current session's own authenticated company) writes to localStorage
+  // now — this constructor's own read-only fetch no longer does, so it can't be the source of a
+  // stale cross-company flash on the NEXT session's pre-paint.
+  private readonly selectedThemeIdSignal = signal<LmsBrandThemeId>('ocean');
   readonly selectedThemeId = this.selectedThemeIdSignal.asReadonly();
   readonly currentTheme = computed(
     () => this.themeOptions.find((theme) => theme.id === this.selectedThemeIdSignal()) ?? this.themeOptions[0],
   );
 
-  private readonly companyLogoDataUrlSignal = signal<string | null>(this.loadLogo());
+  private readonly companyLogoDataUrlSignal = signal<string | null>(null);
   readonly companyLogoDataUrl = this.companyLogoDataUrlSignal.asReadonly();
 
   constructor() {
@@ -90,10 +97,9 @@ export class LmsBrandingService {
       next: (branding) => {
         this.selectedThemeIdSignal.set(branding.themeId);
         this.companyLogoDataUrlSignal.set(branding.companyLogoDataUrl);
-        this.saveToLocalStorage(branding);
       },
       error: () => {
-        // Keep local fallback if the API is temporarily unavailable.
+        // Neutral default (already set above) stays in place if the API is unavailable.
       },
     });
   }
@@ -130,23 +136,6 @@ export class LmsBrandingService {
 
   clearCompanyLogo(): Promise<boolean> {
     return this.setCompanyLogo(null);
-  }
-
-  private loadTheme(): LmsBrandThemeId {
-    try {
-      const storedTheme = localStorage.getItem(LmsBrandingService.themeStorageKey) as LmsBrandThemeId | null;
-      return this.themeOptions.some((theme) => theme.id === storedTheme) ? storedTheme! : 'ocean';
-    } catch {
-      return 'ocean';
-    }
-  }
-
-  private loadLogo() {
-    try {
-      return localStorage.getItem(LmsBrandingService.logoStorageKey);
-    } catch {
-      return null;
-    }
   }
 
   private persistBranding(): Promise<boolean> {
