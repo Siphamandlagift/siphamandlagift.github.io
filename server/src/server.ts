@@ -1313,7 +1313,7 @@ app.post('/api/storage/upload-file', upload.single('file'), async (request, resp
     const folder = (request.body as { folder?: string }).folder?.replace(/[^a-zA-Z0-9_-]/g, '') || 'uploads';
     const ext = request.file.originalname.split('.').pop() ?? '';
     const safeName = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext ? '.' + ext : ''}`;
-    const filePath = `lms-uploads/${folder}/${safeName}`;
+    const filePath = `lms-uploads/${request.authIdentity!.companyId}/${folder}/${safeName}`;
 
     const adminApp = getApps().length > 0 ? getApp() : initializeApp();
     const bucket = getStorage(adminApp).bucket(storageBucket);
@@ -1393,7 +1393,7 @@ app.post('/api/storage/upload', upload.single('file'), async (request, response,
     const folder = (request.body as { folder?: string }).folder?.replace(/[^a-zA-Z0-9_-]/g, '') || 'uploads';
     const ext = request.file.originalname.split('.').pop() ?? '';
     const safeName = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext ? '.' + ext : ''}`;
-    const filePath = `lms-uploads/${folder}/${safeName}`;
+    const filePath = `lms-uploads/${request.authIdentity!.companyId}/${folder}/${safeName}`;
 
     const adminApp = getApps().length > 0 ? getApp() : initializeApp();
     const bucket = getStorage(adminApp).bucket(storageBucket);
@@ -1422,6 +1422,15 @@ app.post('/api/storage/upload-scorm', scormUpload.single('file'), async (request
       return;
     }
 
+    // Deliberately NOT company-scoped, unlike the lms-uploads/* paths below — SCORM asset
+    // streaming (streamScormAsset, GET /api/storage/scorm/*) is intentionally public/unauthenticated
+    // (see requireAuth/attachRequestContext's shared bypass list), since it's loaded via browser-
+    // native resource requests (iframes etc.) that can't attach an Authorization header. There is
+    // therefore no authenticated companyId available on the READ side to match a scoped WRITE path
+    // against, and the existing query-string legacy route makes changing this URL shape again a
+    // real migration, not a one-line change. packageId's own randomness (timestamp + random
+    // suffix) already makes a same-instant collision between two different companies practically
+    // impossible, which is what this scoping is actually protecting against for lms-uploads/* too.
     const packageId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const packagePrefix = `lms-scorm/${packageId}`;
 
@@ -1558,7 +1567,7 @@ app.post('/api/storage/upload-url', async (request, response, next) => {
 
     const ext = fileName.split('.').pop() ?? '';
     const safeName = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext ? '.' + ext : ''}`;
-    const filePath = `lms-uploads/${folder}/${safeName}`;
+    const filePath = `lms-uploads/${request.authIdentity!.companyId}/${folder}/${safeName}`;
 
     const adminApp = getApps().length > 0 ? getApp() : initializeApp();
     const bucket = getStorage(adminApp).bucket(storageBucket);
@@ -1609,7 +1618,7 @@ app.post('/api/storage/upload-base64', async (request, response, next) => {
 
     const ext = fileName.split('.').pop() ?? '';
     const safeName = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext ? '.' + ext : ''}`;
-    const filePath = `lms-uploads/${folder}/${safeName}`;
+    const filePath = `lms-uploads/${request.authIdentity!.companyId}/${folder}/${safeName}`;
 
     const adminApp = getApps().length > 0 ? getApp() : initializeApp();
     const bucket = getStorage(adminApp).bucket(storageBucket);
@@ -1661,7 +1670,7 @@ app.post('/api/storage/chunked-upload/start', async (request, response, next) =>
 
     const ext = fileName.split('.').pop() ?? '';
     const safeName = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext ? '.' + ext : ''}`;
-    const filePath = `lms-uploads/${folder}/${safeName}`;
+    const filePath = `lms-uploads/${request.authIdentity!.companyId}/${folder}/${safeName}`;
 
     const adminApp = getApps().length > 0 ? getApp() : initializeApp();
     const bucket = getStorage(adminApp).bucket(storageBucket);
@@ -1882,7 +1891,7 @@ app.post('/api/storage/convert-pptx', pptxUpload.single('file'), async (request,
       return;
     }
 
-    const filePath = `lms-uploads/content-items/${safeName}`;
+    const filePath = `lms-uploads/${request.authIdentity!.companyId}/content-items/${safeName}`;
     const adminApp = getApps().length > 0 ? getApp() : initializeApp();
     const bucket = getStorage(adminApp).bucket(storageBucket);
     const storageFile = bucket.file(filePath);
