@@ -132,7 +132,11 @@ export function createSuperAdminRouter(options: { jwtSecret: string; jwtExpiresI
     try {
       const input = createCompanySchema.parse(request.body);
       const company = await createCompanyRecord(input, request.platformAuth!.adminId);
-      response.status(201).json(company);
+      // A brand-new company always starts at 0 users — filled in directly rather than a
+      // redundant getCompanyUsage() read, and required to match this route's own declared
+      // response type, CompanyWithUsage (see the import above).
+      const withUsage: CompanyWithUsage = { ...company, usage: { userCount: 0, licenseLimit: company.subscription.licenseLimit } };
+      response.status(201).json(withUsage);
     } catch (error) {
       next(error);
     }

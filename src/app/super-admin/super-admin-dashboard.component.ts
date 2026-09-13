@@ -234,7 +234,7 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'add-admin'
 
           <label>
             <span>Temporary password</span>
-            <input type="text" name="newAdminPassword" [(ngModel)]="newAdminPassword" required />
+            <input type="password" name="newAdminPassword" [(ngModel)]="newAdminPassword" required autocomplete="new-password" />
           </label>
 
           @if (addAdminError()) {
@@ -646,7 +646,15 @@ export class SuperAdminDashboardComponent implements OnInit {
 
   readonly activePanel = signal<ActivePanel>('none');
   private readonly activeCompanyId = signal<string | null>(null);
-  readonly editingCompany = computed(() => this.companies().find((company) => company.id === this.activeCompanyId()) ?? null);
+  // Falls back to a snapshot taken at open-time when the id isn't in `companies()` yet — the
+  // gap right after creating a company, before its own list-refresh (fired but not awaited)
+  // resolves. Without this fallback, opening "Add admin" immediately after creating a company
+  // would find nothing, and the panel content (gated on this being non-null) would silently
+  // never render behind the dimmed backdrop — permanently, if that refresh happens to fail.
+  private readonly activeCompanySnapshot = signal<CompanyWithUsage | null>(null);
+  readonly editingCompany = computed(() =>
+    this.companies().find((company) => company.id === this.activeCompanyId()) ?? this.activeCompanySnapshot(),
+  );
 
   newCompanyName = '';
   newCompanyPlan: SubscriptionPlan = 'starter';
@@ -733,7 +741,7 @@ export class SuperAdminDashboardComponent implements OnInit {
         next: (company) => {
           this.closePanel();
           this.loadAll();
-          this.openAddAdmin(company as CompanyWithUsage);
+          this.openAddAdmin(company);
         },
         error: (error) => {
           this.createCompanyError.set(error?.error?.message || 'Could not create this company.');
@@ -743,6 +751,7 @@ export class SuperAdminDashboardComponent implements OnInit {
 
   openEditSubscription(company: CompanyWithUsage) {
     this.activeCompanyId.set(company.id);
+    this.activeCompanySnapshot.set(company);
     this.editPlan = company.subscription.plan;
     this.editLicenseLimit = company.subscription.licenseLimit;
     this.editStartDate = company.subscription.startDate;
@@ -782,6 +791,7 @@ export class SuperAdminDashboardComponent implements OnInit {
 
   openAddAdmin(company: CompanyWithUsage) {
     this.activeCompanyId.set(company.id);
+    this.activeCompanySnapshot.set(company);
     this.newAdminEmail = '';
     this.newAdminPassword = '';
     this.addAdminError.set('');
@@ -818,6 +828,7 @@ export class SuperAdminDashboardComponent implements OnInit {
   closePanel() {
     this.activePanel.set('none');
     this.activeCompanyId.set(null);
+    this.activeCompanySnapshot.set(null);
   }
 
   logout() {
