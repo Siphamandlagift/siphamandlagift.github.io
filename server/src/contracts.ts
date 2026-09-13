@@ -1028,6 +1028,15 @@ export type CreateCompanyAdminInput = {
   password: string;
 };
 
+// Discriminated so the caller (super-admin-routes.ts) can tell an email collision apart from a
+// license-limit rejection, rather than a single ambiguous null for both — see
+// LmsRepository.createAdministratorAccount.
+export type CreateAdministratorAccountResult =
+  | { status: 'created'; account: AuthAccountRecord }
+  | { status: 'invalid-input' }
+  | { status: 'email-taken' }
+  | { status: 'license-limit-reached' };
+
 export type CompanyUsageSummary = {
   userCount: number;
   licenseLimit: number;

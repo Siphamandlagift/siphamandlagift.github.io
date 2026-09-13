@@ -20,6 +20,7 @@ import {
   AuthAccountRecord,
   AssignmentSubmissionRecord,
   BrandingSettingsUpdateInput,
+  CreateAdministratorAccountResult,
   ChangePasswordInput,
   EnrollmentStudentRecord,
   ExternalTrainingRequestCreateInput,
@@ -3160,25 +3161,26 @@ export class LmsRepository {
   // this company's first admin" action (POST /api/platform/companies/:id/admins in
   // super-admin-routes.ts). Distinct from upsertManagedUserCredentials above, which always
   // requires an existing student roster entry to attach credentials to; a brand-new company has
-  // no roster yet. Returns null on an email collision within this company (email is unique per
-  // company, enforced the same way login/password-reset already assume) or if the license limit
-  // is already reached.
-  async createAdministratorAccount(input: { email: string; password: string }, licenseLimit?: number): Promise<AuthAccountRecord | null> {
+  // no roster yet. Discriminated result (rather than a bare null) so the caller can tell an email
+  // collision within this company (email is unique per company, enforced the same way login/
+  // password-reset already assume) apart from the license limit already being reached, instead of
+  // reporting one ambiguous "could be either" message for both.
+  async createAdministratorAccount(input: { email: string; password: string }, licenseLimit?: number): Promise<CreateAdministratorAccountResult> {
     const email = input.email.trim().toLowerCase();
     const password = input.password.trim();
 
     if (!email || !isStrongPassword(password)) {
-      return null;
+      return { status: 'invalid-input' };
     }
 
     const data = await this.read();
 
     if (data.authAccounts.some((entry) => entry.emailLower === email || entry.email.toLowerCase() === email)) {
-      return null;
+      return { status: 'email-taken' };
     }
 
     if (typeof licenseLimit === 'number' && data.authAccounts.length >= licenseLimit) {
-      return null;
+      return { status: 'license-limit-reached' };
     }
 
     const credentials = createPasswordCredentials(password);
@@ -3197,7 +3199,7 @@ export class LmsRepository {
 
     data.authAccounts.unshift(account);
     await this.write(data);
-    return account;
+    return { status: 'created', account };
   }
 
   async createPasswordResetRequest(emailAddress: string) {

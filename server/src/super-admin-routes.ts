@@ -13,6 +13,7 @@ import {
   findPlatformAdminByEmail,
   getCompanyRecord,
   getCompanyUsage,
+  getCompanyUserCount,
   listCompanies,
   updateCompanySubscription,
 } from './platform-repository.js';
@@ -116,10 +117,12 @@ export function createSuperAdminRouter(options: { jwtSecret: string; jwtExpiresI
   router.get('/companies', requireSuperAdmin, async (_request, response, next) => {
     try {
       const companies = await listCompanies();
+      // getCompanyUserCount rather than getCompanyUsage here — the latter would re-fetch each
+      // company's own document, which listCompanies() already returned every field of.
       const withUsage: CompanyWithUsage[] = await Promise.all(
         companies.map(async (company) => ({
           ...company,
-          usage: (await getCompanyUsage(company.id)) ?? { userCount: 0, licenseLimit: company.subscription.licenseLimit },
+          usage: { userCount: await getCompanyUserCount(company.id), licenseLimit: company.subscription.licenseLimit },
         })),
       );
       response.json(withUsage);
@@ -193,14 +196,21 @@ export function createSuperAdminRouter(options: { jwtSecret: string; jwtExpiresI
       }
 
       const repository = createLmsRepository(companyId);
-      const account = await repository.createAdministratorAccount(input, company.subscription.licenseLimit);
+      const result = await repository.createAdministratorAccount(input, company.subscription.licenseLimit);
 
-      if (!account) {
-        response.status(409).json({ message: 'Could not create this administrator account — the email may already be in use, or this company has reached its license limit.' });
-        return;
+      switch (result.status) {
+        case 'email-taken':
+          response.status(409).json({ message: 'An account with this email already exists for this company.' });
+          return;
+        case 'license-limit-reached':
+          response.status(409).json({ message: 'This company has reached its license limit — raise the limit before adding another user.' });
+          return;
+        case 'invalid-input':
+          response.status(400).json({ message: 'Invalid email or password.' });
+          return;
       }
 
-      response.status(201).json({ id: account.id, email: account.email, role: account.role });
+      response.status(201).json({ id: result.account.id, email: result.account.email, role: result.account.role });
     } catch (error) {
       next(error);
     }
@@ -224,11 +234,12 @@ export function createSuperAdminRouter(options: { jwtSecret: string; jwtExpiresI
   router.get('/usage', requireSuperAdmin, async (_request, response, next) => {
     try {
       const companies = await listCompanies();
+      // Same reasoning as GET /companies above — avoid re-fetching each company's own document.
       const perCompany = await Promise.all(
         companies.map(async (company) => ({
           companyId: company.id,
           name: company.name,
-          usage: (await getCompanyUsage(company.id)) ?? { userCount: 0, licenseLimit: company.subscription.licenseLimit },
+          usage: { userCount: await getCompanyUserCount(company.id), licenseLimit: company.subscription.licenseLimit },
           status: company.subscription.status,
         })),
       );

@@ -3749,7 +3749,12 @@ app.post('/api/mentorship-submissions', requirePlanFeature('student-mentorship')
 
 app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {
   if (error instanceof z.ZodError) {
-    response.status(400).json({ message: 'Invalid request payload.', issues: error.issues });
+    // Surfaces the first issue's own message (e.g. a schema's .refine() message, like "endDate
+    // must be after startDate") instead of always the same generic string — every route that
+    // parses its body/query with zod benefits, not just the one this was first noticed on. Full
+    // detail stays available in `issues` for any caller that wants it.
+    const message = error.issues[0]?.message || 'Invalid request payload.';
+    response.status(400).json({ message, issues: error.issues });
     return;
   }
 
