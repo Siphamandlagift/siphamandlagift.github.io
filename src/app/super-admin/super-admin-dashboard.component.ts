@@ -6,11 +6,13 @@ import { finalize } from 'rxjs';
 import {
   CompanyWithUsage,
   PlatformBackendService,
+  PlatformBrandingSettings,
   PlatformUsageOverview,
   SubscriptionPlan,
   SubscriptionStatus,
 } from './platform-backend.service';
 import { clearPlatformAuthSession, readPlatformSessionRecord } from './platform-session-auth';
+import { LMS_BRAND_THEME_OPTIONS, type LmsBrandThemeId } from '../lms-brand-themes';
 
 type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'add-admin';
 
@@ -52,6 +54,53 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'add-admin'
             <span class="stat-label">Total users</span>
             <span class="stat-value">{{ usageOverview()?.totalUsers ?? '—' }}</span>
           </div>
+        </section>
+
+        <section class="companies-section">
+          <div class="section-heading">
+            <h2>Login page branding</h2>
+          </div>
+
+          <p class="branding-hint">
+            Every company signs in through the same login screen — this is the one look shown
+            before anyone signs in. Each company's own branding still applies once they're inside.
+          </p>
+
+          @if (platformBrandingLoading()) {
+            <div class="empty-state">Loading…</div>
+          } @else {
+            <div class="branding-editor">
+              <div class="branding-logo-block">
+                <div class="branding-logo-preview" [class.branding-logo-preview-has-image]="!!platformBranding()?.companyLogoDataUrl">
+                  @if (platformBranding()?.companyLogoDataUrl) {
+                    <img [src]="platformBranding()!.companyLogoDataUrl!" alt="" />
+                  } @else {
+                    <span>SC</span>
+                  }
+                </div>
+                <div class="branding-logo-actions">
+                  <label class="secondary-btn branding-upload-btn" [class.branding-upload-btn-disabled]="platformBrandingLogoUploading()">
+                    <span>{{ platformBrandingLogoUploading() ? 'Uploading…' : 'Upload logo' }}</span>
+                    <input type="file" accept="image/*" [disabled]="platformBrandingLogoUploading()" (change)="onPlatformLogoSelected($event)" />
+                  </label>
+                  <button type="button" class="secondary-btn" [disabled]="!platformBranding()?.companyLogoDataUrl || platformBrandingLogoUploading()" (click)="removePlatformLogo()">Remove logo</button>
+                </div>
+              </div>
+
+              <label class="branding-theme-field">
+                <span>Theme colour</span>
+                <select [value]="platformBranding()?.themeId" (change)="onPlatformThemeChange($event)" [disabled]="platformBrandingSaving()">
+                  @for (theme of themeOptions; track theme.id) {
+                    <option [value]="theme.id">{{ theme.label }}</option>
+                  }
+                </select>
+              </label>
+
+              @if (platformBrandingError()) {
+                <div class="error">{{ platformBrandingError() }}</div>
+              }
+            </div>
+          }
         </section>
 
         <section class="companies-section">
@@ -405,6 +454,90 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'add-admin'
       font-size: 0.9rem;
     }
 
+    .branding-hint {
+      margin: -0.4rem 0 1.1rem;
+      font-size: 0.84rem;
+      color: #64748b;
+      line-height: 1.5;
+    }
+
+    .branding-editor {
+      display: grid;
+      gap: 1.1rem;
+    }
+
+    .branding-logo-block {
+      display: flex;
+      align-items: center;
+      gap: 1.1rem;
+      flex-wrap: wrap;
+    }
+
+    .branding-logo-preview {
+      width: 4rem;
+      height: 4rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(145deg, #eef2ff 0%, #e0f2fe 100%);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .branding-logo-preview span {
+      font-size: 0.9rem;
+      font-weight: 800;
+      color: #3730a3;
+    }
+
+    .branding-logo-preview-has-image {
+      background: #fff;
+      border-color: rgba(100, 116, 139, 0.25);
+    }
+
+    .branding-logo-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .branding-logo-actions {
+      display: flex;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+    }
+
+    .branding-upload-btn {
+      position: relative;
+      overflow: hidden;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .branding-upload-btn input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .branding-upload-btn-disabled {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    .branding-theme-field {
+      display: grid;
+      gap: 0.35rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #334155;
+      max-width: 16rem;
+    }
+
     .company-table {
       display: grid;
       gap: 0.5rem;
@@ -644,6 +777,13 @@ export class SuperAdminDashboardComponent implements OnInit {
   readonly loading = signal(true);
   readonly loadError = signal('');
 
+  readonly themeOptions = LMS_BRAND_THEME_OPTIONS;
+  readonly platformBranding = signal<PlatformBrandingSettings | null>(null);
+  readonly platformBrandingLoading = signal(true);
+  readonly platformBrandingSaving = signal(false);
+  readonly platformBrandingLogoUploading = signal(false);
+  readonly platformBrandingError = signal('');
+
   readonly activePanel = signal<ActivePanel>('none');
   private readonly activeCompanyId = signal<string | null>(null);
   // Falls back to a snapshot taken at open-time when the id isn't in `companies()` yet — the
@@ -680,6 +820,7 @@ export class SuperAdminDashboardComponent implements OnInit {
 
   ngOnInit() {
     this.loadAll();
+    this.loadPlatformBranding();
   }
 
   private loadAll() {
@@ -697,6 +838,16 @@ export class SuperAdminDashboardComponent implements OnInit {
       next: (overview) => this.usageOverview.set(overview),
       error: () => { /* stat row just shows a dash — non-critical */ },
     });
+  }
+
+  private loadPlatformBranding() {
+    this.platformBrandingLoading.set(true);
+    this.backend.getBranding()
+      .pipe(finalize(() => this.platformBrandingLoading.set(false)))
+      .subscribe({
+        next: (branding) => this.platformBranding.set(branding),
+        error: () => this.platformBrandingError.set('Could not load the login page branding right now.'),
+      });
   }
 
   // The server's own gate (getCompanySubscriptionContext) already treats a company outside its
@@ -843,6 +994,79 @@ export class SuperAdminDashboardComponent implements OnInit {
         },
         error: (error) => {
           this.addAdminError.set(error?.error?.message || 'Could not create this administrator account.');
+        },
+      });
+  }
+
+  onPlatformThemeChange(event: Event) {
+    const themeId = (event.target as HTMLSelectElement).value as LmsBrandThemeId;
+    const current = this.platformBranding();
+    if (!current || current.themeId === themeId) {
+      return;
+    }
+
+    this.savePlatformBranding({ ...current, themeId });
+  }
+
+  onPlatformLogoSelected(event: Event) {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    if (input) {
+      input.value = '';
+    }
+
+    const current = this.platformBranding();
+    if (!current) {
+      return;
+    }
+
+    this.platformBrandingError.set('');
+    this.platformBrandingLogoUploading.set(true);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+      this.savePlatformBranding({ ...current, companyLogoDataUrl: dataUrl }, () => this.platformBrandingLogoUploading.set(false));
+    };
+    reader.onerror = () => {
+      this.platformBrandingLogoUploading.set(false);
+      this.platformBrandingError.set('Could not read the selected file.');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  removePlatformLogo() {
+    const current = this.platformBranding();
+    if (!current || !current.companyLogoDataUrl) {
+      return;
+    }
+
+    this.savePlatformBranding({ ...current, companyLogoDataUrl: null });
+  }
+
+  // Shared by all three edits above — optimistic update with rollback on failure, same pattern
+  // LmsBrandingService uses for a company's own branding. onSettled (only the logo upload passes
+  // one) always fires once the save resolves either way, so the "Uploading…" state can't get
+  // stuck if the PUT fails.
+  private savePlatformBranding(next: PlatformBrandingSettings, onSettled?: () => void) {
+    const previous = this.platformBranding();
+    this.platformBranding.set(next);
+    this.platformBrandingSaving.set(true);
+    this.platformBrandingError.set('');
+
+    this.backend.updateBranding(next)
+      .pipe(finalize(() => {
+        this.platformBrandingSaving.set(false);
+        onSettled?.();
+      }))
+      .subscribe({
+        error: () => {
+          this.platformBranding.set(previous);
+          this.platformBrandingError.set('Could not save the login page branding. Please try again.');
         },
       });
   }

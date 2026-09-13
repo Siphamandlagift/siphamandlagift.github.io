@@ -11,7 +11,7 @@ type LoginRole = 'administrator' | 'training-manager' | 'student';
 
 type LoginDialog = 'forgot-password' | 'contact-admin' | null;
 
-type LoginStep = 'identify' | 'credentials' | 'pick-role';
+type LoginStep = 'credentials' | 'pick-role';
 
 type SsoLoginPayload = {
   role: LoginRole;
@@ -49,7 +49,7 @@ export class Login implements OnInit {
     'student': 'Student',
   };
 
-  loginStep: LoginStep = 'identify';
+  loginStep: LoginStep = 'credentials';
   resolvedRoles: ResolveRolesEntry[] = [];
 
   username = '';
@@ -71,28 +71,6 @@ export class Login implements OnInit {
 
   togglePassword() {
     this.showPassword = !this.showPassword;
-  }
-
-  // Step 1 of login: kick off resolving the identifier's own company branding, then move straight
-  // to the password step without waiting for it — this is cosmetic (see
-  // fetchBrandingForIdentifier), so a slow or failed lookup must never hold up actually signing
-  // in, it just means the theme/logo pop in a moment after the password field does, or not at all.
-  submitIdentifier() {
-    const identifier = this.username.trim();
-    if (!identifier) {
-      return;
-    }
-
-    this.branding.fetchBrandingForIdentifier(identifier);
-    this.loginStep = 'credentials';
-  }
-
-  backToIdentify(event?: Event) {
-    event?.preventDefault();
-    this.password = '';
-    this.errorMessage = '';
-    this.loginStep = 'identify';
-    this.branding.resetToDefaultBranding();
   }
 
   onSubmit() {

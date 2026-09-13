@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { LMS_API_CONFIG } from '../lms-api.config';
+import type { LmsBrandThemeId } from '../lms-backend.service';
 
 export type SubscriptionPlan = 'starter' | 'growth' | 'enterprise';
 export type SubscriptionStatus = 'active' | 'suspended' | 'cancelled';
@@ -72,6 +73,13 @@ export type PlatformUsageOverview = {
   }>;
 };
 
+// The one login screen's branding, shared by every company — see server/src/platform-repository's
+// getPlatformBranding/updatePlatformBranding.
+export type PlatformBrandingSettings = {
+  themeId: LmsBrandThemeId;
+  companyLogoDataUrl: string | null;
+};
+
 @Injectable({ providedIn: 'root' })
 export class PlatformBackendService {
   private readonly http = inject(HttpClient);
@@ -107,5 +115,13 @@ export class PlatformBackendService {
 
   getUsageOverview(): Observable<PlatformUsageOverview> {
     return this.http.get<PlatformUsageOverview>(`${this.baseUrl}/usage`);
+  }
+
+  getBranding(): Observable<PlatformBrandingSettings> {
+    return this.http.get<PlatformBrandingSettings>(`${this.baseUrl}/branding`);
+  }
+
+  updateBranding(input: PlatformBrandingSettings): Observable<PlatformBrandingSettings> {
+    return this.http.put<PlatformBrandingSettings>(`${this.baseUrl}/branding`, input);
   }
 }

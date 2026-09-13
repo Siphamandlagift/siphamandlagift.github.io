@@ -26,7 +26,7 @@ import {
   getCompanySubscriptionContext,
   getCompanyPlan,
   getCompanyUsage,
-  getCompanyRecord,
+  getPlatformBranding,
 } from './platform-repository.js';
 import { createSuperAdminRouter } from './super-admin-routes.js';
 import { isFeatureAllowedForPlan, type GatedFeature } from './plan-features.js';
@@ -119,19 +119,12 @@ const emailService = new PasswordResetEmailService();
 const port = Number(process.env['PORT'] || process.env['LMS_API_PORT'] || 3000);
 const jwtSecret = requireEnv('LMS_JWT_SECRET');
 const jwtExpiresIn = '12h';
-// Interim bridge for the one public, pre-auth endpoint that still needs a company's data before
-// any login has happened (GET /api/branding, shown on the login screen). There's no way to know
-// which company an unauthenticated visitor belongs to, so this names a single fallback company —
-// set to the migrated company's id post-cutover. A real per-company-aware pre-login experience is
-// deliberately out of scope here (see the multi-tenant retrofit plan's Phase 4/client section).
-const defaultCompanyId = process.env['LMS_DEFAULT_COMPANY_ID']?.trim() || '';
 
 // Routes that do not require a JWT token.
 const publicPaths = new Set([
   '/health',
   '/api/health',
   '/api/branding',
-  '/api/branding/by-identifier',
   '/api/auth/login',
   '/api/auth/resolve-roles',
   '/api/auth/sso/microsoft/start',
@@ -982,10 +975,6 @@ const studentSettingsSchema = z.object({
 const brandingSettingsSchema = z.object({
   themeId: z.enum(['ocean', 'forest', 'sunrise', 'purple', 'black', 'grey']),
   companyLogoDataUrl: z.string().nullable(),
-});
-
-const brandingByIdentifierQuerySchema = z.object({
-  identifier: z.string().trim().min(1),
 });
 
 const hrIntegrationConfigUpdateSchema = z.object({
@@ -1958,44 +1947,14 @@ app.get('/api/bootstrap', async (request, response, next) => {
   }
 });
 
-// Public, pre-login: falls back to defaultCompanyId (see its declaration above) since there's no
-// token yet to resolve a real company from. Returns a neutral default if that isn't configured.
+// Public, pre-login: every company's login screen shows this SAME branding — there's no way to
+// know which company an unauthenticated visitor belongs to without asking them to type something
+// first, and a company-aware pre-login screen was deliberately tried and reverted (see the
+// login-screen retrofit plan) in favor of one shared look, managed by a Super Admin (see
+// super-admin-routes.ts's own branding routes) rather than any one company's own settings.
 app.get('/api/branding', async (_request, response, next) => {
   try {
-    if (!defaultCompanyId) {
-      response.json({ themeId: 'ocean', companyLogoDataUrl: null });
-      return;
-    }
-    const repository = createLmsRepository(defaultCompanyId);
-    response.json(await repository.getBranding());
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Public, pre-login: resolves branding (and the company's display name) for whichever company
-// the given login identifier (username or email) belongs to, so the login screen can show that
-// company's own logo/theme while the password is still being typed — the two-step login flow this
-// backs (see login.ts's 'identify' step) is the per-company pre-login experience defaultCompanyId's
-// own comment above calls "deliberately out of scope" for the single-company fallback. Falls back
-// to the same neutral default GET /api/branding uses when the identifier doesn't resolve, rather
-// than a 404 — this must never reveal whether an account exists, only ever what to *look like*
-// while a password is entered, same as every other login-adjacent endpoint in this app already
-// treating "not found" as indistinguishable from "wrong password" to avoid account enumeration.
-app.get('/api/branding/by-identifier', async (request, response, next) => {
-  try {
-    const { identifier } = brandingByIdentifierQuerySchema.parse(request.query);
-    const companyId = await resolveCompanyIdForLoginIdentifier(identifier);
-    if (!companyId) {
-      response.json({ themeId: 'ocean', companyLogoDataUrl: null, companyName: null });
-      return;
-    }
-
-    const [branding, company] = await Promise.all([
-      createLmsRepository(companyId).getBranding(),
-      getCompanyRecord(companyId),
-    ]);
-    response.json({ ...branding, companyName: company?.name ?? null });
+    response.json(await getPlatformBranding());
   } catch (error) {
     next(error);
   }

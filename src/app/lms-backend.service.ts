@@ -258,10 +258,6 @@ export type BrandingSettings = {
   companyLogoDataUrl: string | null;
 };
 
-export type IdentifierBrandingSettings = BrandingSettings & {
-  companyName: string | null;
-};
-
 export type HrIntegrationSyncSummary = {
   added: number;
   updated: number;
@@ -370,14 +366,6 @@ export class LmsBackendService {
 
   getBranding(): Observable<BrandingSettings> {
     return this.http.get<BrandingSettings>(`${this.config.baseUrl}/branding`);
-  }
-
-  // Public, pre-login: resolves branding for whichever company a login identifier (username or
-  // email) belongs to, before any password is entered — backs login.ts's two-step 'identify' flow.
-  getBrandingForIdentifier(identifier: string): Observable<IdentifierBrandingSettings> {
-    return this.http.get<IdentifierBrandingSettings>(`${this.config.baseUrl}/branding/by-identifier`, {
-      params: { identifier },
-    });
   }
 
   // Authenticated counterpart of getBranding() above — returns the caller's own company's

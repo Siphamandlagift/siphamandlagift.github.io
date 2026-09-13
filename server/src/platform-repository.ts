@@ -3,6 +3,7 @@ import { getApp, getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, type Firestore, type DocumentReference } from 'firebase-admin/firestore';
 import { hashPasswordResetToken } from './auth-utils.js';
 import type {
+  BrandingSettingsRecord,
   CompanyRecord,
   CompanyUsageSummary,
   CreateCompanyInput,
@@ -13,6 +14,9 @@ import type {
 
 const COMPANIES_COLLECTION_ID = 'companies';
 const PLATFORM_ADMINS_COLLECTION_ID = 'platformAdmins';
+const PLATFORM_SETTINGS_COLLECTION_ID = 'platformSettings';
+const PLATFORM_BRANDING_DOC_ID = 'branding';
+const defaultPlatformBranding: BrandingSettingsRecord = { themeId: 'ocean', companyLogoDataUrl: null };
 
 // Company-agnostic Firestore operations — things that have to run BEFORE any companyId is known,
 // so they can't go through FirestoreLmsRepository (which always operates inside one already-known
@@ -243,4 +247,30 @@ export async function getCompanyUsage(companyId: string): Promise<CompanyUsageSu
 
   const userCount = await getCompanyUserCount(companyId);
   return { userCount, licenseLimit: company.subscription.licenseLimit };
+}
+
+// The ONE login screen's branding, shared by every company (see the login-screen retrofit plan:
+// per-company pre-login branding was tried and deliberately reverted — every visitor sees the
+// same SkillsConnect look until they actually sign in, at which point their own company's
+// branding takes over via GET /api/auth/branding). Lives in its own top-level singleton document
+// rather than any one company's, since it isn't owned by a company at all — only a Super Admin
+// (see super-admin-routes.ts's own branding routes) may change it.
+export async function getPlatformBranding(): Promise<BrandingSettingsRecord> {
+  const firestore = getFirestoreClient();
+  const snapshot = await firestore.collection(PLATFORM_SETTINGS_COLLECTION_ID).doc(PLATFORM_BRANDING_DOC_ID).get();
+  if (!snapshot.exists) {
+    return defaultPlatformBranding;
+  }
+
+  const data = snapshot.data() as Partial<BrandingSettingsRecord> | undefined;
+  return {
+    themeId: data?.themeId ?? defaultPlatformBranding.themeId,
+    companyLogoDataUrl: data?.companyLogoDataUrl ?? null,
+  };
+}
+
+export async function updatePlatformBranding(input: BrandingSettingsRecord): Promise<BrandingSettingsRecord> {
+  const firestore = getFirestoreClient();
+  await firestore.collection(PLATFORM_SETTINGS_COLLECTION_ID).doc(PLATFORM_BRANDING_DOC_ID).set(input);
+  return input;
 }

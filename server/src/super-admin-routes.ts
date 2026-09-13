@@ -14,8 +14,10 @@ import {
   getCompanyRecord,
   getCompanyUsage,
   getCompanyUserCount,
+  getPlatformBranding,
   listCompanies,
   updateCompanySubscription,
+  updatePlatformBranding,
 } from './platform-repository.js';
 import type { CompanyWithUsage, PlatformAdminRecord } from './contracts.js';
 
@@ -59,6 +61,16 @@ const updateSubscriptionSchema = z.object({
 const createCompanyAdminSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+});
+
+// The one login screen's branding, shared by every company (see platform-repository.ts's
+// getPlatformBranding/updatePlatformBranding) — a data: URI stored directly on the settings
+// document rather than a Storage upload, since this is a single small, rarely-changed image with
+// no per-company scoping to route it through; the length cap leaves generous headroom under
+// Firestore's 1 MiB document limit once base64's ~4/3 overhead is accounted for.
+const platformBrandingUpdateSchema = z.object({
+  themeId: z.enum(['ocean', 'forest', 'sunrise', 'purple', 'black', 'grey']),
+  companyLogoDataUrl: z.string().max(1_000_000).regex(/^data:image\//, 'Logo must be an image file.').nullable(),
 });
 
 export function createSuperAdminRouter(options: { jwtSecret: string; jwtExpiresIn: jwt.SignOptions['expiresIn'] }): express.Router {
@@ -249,6 +261,27 @@ export function createSuperAdminRouter(options: { jwtSecret: string; jwtExpiresI
         totalUsers: perCompany.reduce((total, entry) => total + entry.usage.userCount, 0),
         companies: perCompany,
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // The one login screen's branding — GET is intentionally also gated to requireSuperAdmin (the
+  // dashboard's own edit panel needs to read the current value before showing it), unlike
+  // GET /api/branding in server.ts, which is the public, unauthenticated route every visitor's
+  // login screen actually renders from.
+  router.get('/branding', requireSuperAdmin, async (_request, response, next) => {
+    try {
+      response.json(await getPlatformBranding());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put('/branding', requireSuperAdmin, async (request, response, next) => {
+    try {
+      const payload = platformBrandingUpdateSchema.parse(request.body);
+      response.json(await updatePlatformBranding(payload));
     } catch (error) {
       next(error);
     }
