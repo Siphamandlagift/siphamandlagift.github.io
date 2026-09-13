@@ -673,7 +673,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                   <label>
                     Role
                     <select formControlName="managerAccess" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
-                      @for (option of managerAccessOptions; track option.value) {
+                      @for (option of availableManagerAccessOptions(); track option.value) {
                         <option [value]="option.value">{{ option.label }}</option>
                       }
                     </select>
@@ -881,7 +881,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                   <label>
                     Role
                     <select formControlName="managerAccess" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
-                      @for (option of managerAccessOptions; track option.value) {
+                      @for (option of availableManagerAccessOptions(); track option.value) {
                         <option [value]="option.value">{{ option.label }}</option>
                       }
                     </select>
@@ -10615,6 +10615,18 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     { value: 'No', label: 'Student' },
     { value: 'Yes', label: 'Manager' },
   ];
+  // No Training Manager profile at all on a Starter plan (see plan-features.ts and the
+  // login/resolve-roles/switch-role/switchable-roles server-side checks) — this dropdown was the
+  // one place still offering to pick that role with no plan check at all: a Starter admin could
+  // select "Manager" here, save, and have it silently do nothing (upsertManagedUserCredentials
+  // already drops role 'manager' for a Starter company), with no indication why. Hidden here
+  // instead of just disabled, matching how the Succession Planning nav item is hidden rather than
+  // shown-but-blocked elsewhere in this same component.
+  readonly availableManagerAccessOptions = computed(() =>
+    isFeatureAllowedForPlan(this.managerData.plan(), 'training-manager-profile')
+      ? this.managerAccessOptions
+      : this.managerAccessOptions.filter((option) => option.value !== 'Yes'),
+  );
   readonly adminAccessOptions: ReadonlyArray<{ value: 'Yes' | 'No'; label: string }> = [
     { value: 'No', label: 'No' },
     { value: 'Yes', label: 'Yes' },

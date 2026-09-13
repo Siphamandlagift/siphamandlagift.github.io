@@ -2207,6 +2207,15 @@ app.get('/api/auth/switchable-roles', async (request, response, next) => {
     }
     candidateRoles.delete(payload.role);
 
+    // No Training Manager profile at all on a Starter plan (see login/resolve-roles/switch-role
+    // above) — but resolveRolesByEmail reads real authAccounts rows, which still have role
+    // 'training-manager' for anyone whose account was created before a later downgrade to
+    // Starter. Login and switch-role both already refuse that role outright, so without this
+    // filter here too, this list would keep offering a switch target that only ever 403s.
+    if (!isFeatureAllowedForPlan(request.companyPlan!, 'training-manager-profile')) {
+      candidateRoles.delete('training-manager');
+    }
+
     response.json({ roles: Array.from(candidateRoles) });
   } catch (error) {
     next(error);
