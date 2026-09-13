@@ -93,6 +93,19 @@ export class LmsBrandingService {
   private readonly companyLogoDataUrlSignal = signal<string | null>(null);
   readonly companyLogoDataUrl = this.companyLogoDataUrlSignal.asReadonly();
 
+  // Guards against a real race: the constructor's own public fetch (fired at page load, before
+  // any login) and refreshForAuthenticatedSession()'s fetch (fired right after a successful
+  // login) run as two independent, uncoordinated HTTP calls. If the EARLIER one (public) is
+  // slower — e.g. it happens to land on a cold Cloud Function instance — its response can arrive
+  // AFTER the later, correct, authenticated one, and silently overwrite the just-logged-in
+  // company's real branding with the pre-auth default company's. Each fetch stamps the request
+  // counter it started with; a response is only applied if that stamp still matches the counter
+  // at the moment it resolves — i.e. no newer fetch has started since. This is exactly the "ignore
+  // stale responses" pattern RxJS's switchMap gives you automatically; done by hand here since
+  // the two fetches come from otherwise-independent call sites (the constructor vs. an explicit
+  // later call), not one continuous observable chain switchMap could sit in front of.
+  private fetchGeneration = 0;
+
   constructor() {
     // Fresh app load with an existing session already in localStorage (a page refresh on
     // /admin-profile, or a bookmarked/direct URL) means this constructor's own fetch can go
@@ -118,8 +131,9 @@ export class LmsBrandingService {
   }
 
   private fetchPublicBranding() {
+    const generation = ++this.fetchGeneration;
     this.backend.getBranding().subscribe({
-      next: (branding) => this.applyBranding(branding),
+      next: (branding) => this.applyBranding(branding, generation),
       error: () => {
         // Neutral default (already set above) stays in place if the API is unavailable.
       },
@@ -127,8 +141,9 @@ export class LmsBrandingService {
   }
 
   private fetchAuthenticatedBranding() {
+    const generation = ++this.fetchGeneration;
     this.backend.getMyBranding().subscribe({
-      next: (branding) => this.applyBranding(branding),
+      next: (branding) => this.applyBranding(branding, generation),
       error: () => {
         // Keep whatever was showing (neutral default, or the last successful fetch) if this
         // one fails — never fall back to the public/default-company endpoint here, since that
@@ -137,7 +152,14 @@ export class LmsBrandingService {
     });
   }
 
-  private applyBranding(branding: BrandingSettings) {
+  private applyBranding(branding: BrandingSettings, generation: number) {
+    if (generation !== this.fetchGeneration) {
+      // A newer fetch (almost always the post-login authenticated one) has started since this
+      // one did — this response is stale, discard it rather than let it clobber whatever the
+      // newer request already applied or is about to.
+      return;
+    }
+
     this.selectedThemeIdSignal.set(branding.themeId);
     this.companyLogoDataUrlSignal.set(branding.companyLogoDataUrl);
   }
