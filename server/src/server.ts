@@ -3131,7 +3131,7 @@ app.put('/api/students/:studentId/kpi-entries/approval', requirePlanFeature('stu
 // id). There's no admin-managed catalog any more — admin is fully view-only for succession
 // planning (see the GET /api/bootstrap scoping in repository.ts, which already hands an admin
 // caller every role/nomination unfiltered for reporting).
-app.post('/api/succession/roles', requireTrainingManager, async (request, response, next) => {
+app.post('/api/succession/roles', requireTrainingManager, requirePlanFeature('admin-succession'), async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
     if (!identity || !request.repository) {
@@ -3159,7 +3159,7 @@ app.post('/api/succession/roles', requireTrainingManager, async (request, respon
   }
 });
 
-app.put('/api/succession/roles/:roleId', requireTrainingManager, async (request, response, next) => {
+app.put('/api/succession/roles/:roleId', requireTrainingManager, requirePlanFeature('admin-succession'), async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
     if (!identity || !request.repository) {
@@ -3187,7 +3187,7 @@ app.put('/api/succession/roles/:roleId', requireTrainingManager, async (request,
   }
 });
 
-app.delete('/api/succession/roles/:roleId', requireTrainingManager, async (request, response, next) => {
+app.delete('/api/succession/roles/:roleId', requireTrainingManager, requirePlanFeature('admin-succession'), async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
     if (!identity || !request.repository) {
@@ -3216,7 +3216,7 @@ app.delete('/api/succession/roles/:roleId', requireTrainingManager, async (reque
 // Successor nominations: only the role's own flagging manager may create/edit — see
 // isOwnManagedRole. A learner never reaches these routes at all; their own earmarked status comes
 // read-only through their student snapshot's successionStatus field instead.
-app.post('/api/succession/nominations', requireTrainingManager, async (request, response, next) => {
+app.post('/api/succession/nominations', requireTrainingManager, requirePlanFeature('admin-succession'), async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
     if (!identity || !request.repository) {
@@ -3244,7 +3244,7 @@ app.post('/api/succession/nominations', requireTrainingManager, async (request, 
   }
 });
 
-app.put('/api/succession/nominations/:nominationId', requireTrainingManager, async (request, response, next) => {
+app.put('/api/succession/nominations/:nominationId', requireTrainingManager, requirePlanFeature('admin-succession'), async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
     if (!identity || !request.repository) {
@@ -3275,7 +3275,7 @@ app.put('/api/succession/nominations/:nominationId', requireTrainingManager, asy
 // Draft -> Active makes the nomination live and visible to the learner (and fires their
 // notification); Active/Draft -> Withdrawn takes it down but never deletes it, preserving audit
 // history — see LmsRepository.successionStatusTransitions for the allowed moves.
-app.put('/api/succession/nominations/:nominationId/status', requireTrainingManager, async (request, response, next) => {
+app.put('/api/succession/nominations/:nominationId/status', requireTrainingManager, requirePlanFeature('admin-succession'), async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
     if (!identity || !request.repository) {
@@ -3517,7 +3517,7 @@ app.put('/api/external-training-requests/:requestId', requirePlanFeature('studen
   }
 });
 
-app.put('/api/external-training-requests/:requestId/review', requireManagerOrAdministrator, async (request, response, next) => {
+app.put('/api/external-training-requests/:requestId/review', requireManagerOrAdministrator, requirePlanFeature('student-external-training'), async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
     if (!identity || !request.repository) {
@@ -3568,7 +3568,7 @@ app.put('/api/external-training-requests/:requestId/review', requireManagerOrAdm
   }
 });
 
-app.put('/api/external-training-requests/:requestId/documents', requireManagerOrAdministrator, async (request, response, next) => {
+app.put('/api/external-training-requests/:requestId/documents', requireManagerOrAdministrator, requirePlanFeature('student-external-training'), async (request, response, next) => {
   try {
     const repository = request.repository!;
     const documents = externalTrainingRequestDocumentsSchema.parse({

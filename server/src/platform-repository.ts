@@ -76,10 +76,10 @@ export async function resolveCompanyIdForPasswordResetToken(token: string): Prom
 export type CompanySubscriptionContext = { active: boolean; plan: SubscriptionPlan };
 
 // Fail-closed subscription gate applied to every authenticated, company-scoped request (see
-// attachRequestContext in server.ts): a company must have status exactly 'active' AND not be
-// past its subscription end date, or every route for that company is rejected. Also returns the
-// plan, so attachRequestContext can attach it to the request for the plan-feature checks in
-// plan-features.ts, without a second Firestore read for the same document. Reads the
+// attachRequestContext in server.ts): a company must have status exactly 'active' AND be within
+// its subscription's start/end date window, or every route for that company is rejected. Also
+// returns the plan, so attachRequestContext can attach it to the request for the plan-feature
+// checks in plan-features.ts, without a second Firestore read for the same document. Reads the
 // companies/{companyId} document directly (bypassing FirestoreLmsRepository, which only knows
 // about the LmsDataStore-shaped fields, not the company identity/subscription fields that live
 // alongside them on the same document) — cheap at the "Super-Admin-managed, small number of
@@ -95,17 +95,21 @@ export async function getCompanySubscriptionContext(companyId: string): Promise<
     return { active: false, plan: 'enterprise' };
   }
 
-  const subscription = (snapshot.data() as { subscription?: { status?: string; endDate?: string; plan?: SubscriptionPlan } } | undefined)?.subscription;
+  const subscription = (snapshot.data() as { subscription?: { status?: string; startDate?: string; endDate?: string; plan?: SubscriptionPlan } } | undefined)?.subscription;
   // Fails open on plan (defaults to the unrestricted tier) when the field is missing/malformed —
   // this is a display/access-shaping value, not the security boundary (that's `active` below,
-  // which fails closed on anything other than exactly 'active' and not yet expired).
+  // which fails closed on anything other than exactly 'active' and currently within its window).
   const plan: SubscriptionPlan = subscription?.plan ?? 'enterprise';
 
-  if (!subscription || subscription.status !== 'active' || !subscription.endDate) {
+  if (!subscription || subscription.status !== 'active' || !subscription.endDate || !subscription.startDate) {
     return { active: false, plan };
   }
 
-  const active = new Date(subscription.endDate).getTime() >= Date.now();
+  const now = Date.now();
+  // A Super Admin can schedule a subscription to begin in the future (e.g. onboarding set up
+  // ahead of the agreed start date) — the "Start date" field means nothing if access is granted
+  // the moment status flips to 'active', regardless of whether that date has actually arrived yet.
+  const active = now >= new Date(subscription.startDate).getTime() && now <= new Date(subscription.endDate).getTime();
   return { active, plan };
 }
 

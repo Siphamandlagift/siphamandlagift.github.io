@@ -90,7 +90,7 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'add-admin'
                     </span>
                   </div>
                   <div class="company-cell">
-                    <span class="pill" [class]="statusPillClass(company.subscription.status)">{{ company.subscription.status }}</span>
+                    <span class="pill" [class]="statusPillClass(effectiveStatusLabel(company))">{{ effectiveStatusLabel(company) }}</span>
                   </div>
                   <div class="company-cell company-cell-dates">
                     {{ company.subscription.startDate }} → {{ company.subscription.endDate }}
@@ -699,8 +699,30 @@ export class SuperAdminDashboardComponent implements OnInit {
     });
   }
 
-  statusPillClass(status: SubscriptionStatus) {
-    return status === 'active' ? 'pill-active' : status === 'suspended' ? 'pill-suspended' : 'pill-cancelled';
+  // The server's own gate (getCompanySubscriptionContext) already treats a company outside its
+  // start/end date window as inactive regardless of the stored status field — but that field
+  // itself is never updated to say so, so a lapsed or not-yet-started subscription still reads
+  // "active" here unless this view derives the same condition itself. Without this, a Super Admin
+  // has no way to tell "still active" apart from "silently locking out every user in this
+  // company" just by scanning the list.
+  effectiveStatusLabel(company: CompanyWithUsage): SubscriptionStatus | 'expired' | 'scheduled' {
+    if (company.subscription.status !== 'active') {
+      return company.subscription.status;
+    }
+
+    const now = Date.now();
+    if (now < new Date(company.subscription.startDate).getTime()) {
+      return 'scheduled';
+    }
+    if (now > new Date(company.subscription.endDate).getTime()) {
+      return 'expired';
+    }
+
+    return 'active';
+  }
+
+  statusPillClass(status: SubscriptionStatus | 'expired' | 'scheduled') {
+    return status === 'active' ? 'pill-active' : status === 'suspended' || status === 'expired' || status === 'scheduled' ? 'pill-suspended' : 'pill-cancelled';
   }
 
   openCreateCompany() {
