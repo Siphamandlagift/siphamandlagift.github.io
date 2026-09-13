@@ -362,6 +362,8 @@ type UserFormControls = {
   municipality: FormControl<string>;
   dateOfBirth: FormControl<string>;
   nqfLevel: FormControl<string>;
+  disability: FormControl<'Yes' | 'No'>;
+  disabilityType: FormControl<string>;
   department: FormControl<string>;
   lineManagerId: FormControl<string>;
   group: FormControl<string>;
@@ -646,6 +648,19 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     </select>
                   </label>
                   <label>
+                    Disability
+                    <select formControlName="disability" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
+                      <option value="No">No</option>
+                      <option value="Yes">Yes</option>
+                    </select>
+                  </label>
+                  @if (userEditForm.controls.disability.value === 'Yes') {
+                    <label>
+                      Type of Disability
+                      <input type="text" formControlName="disabilityType" placeholder="e.g. Visual, Hearing, Physical, Intellectual" />
+                    </label>
+                  }
+                  <label>
                     Department
                     <input type="text" formControlName="department" />
                   </label>
@@ -853,6 +868,19 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       <option value="Level 10">Level 10</option>
                     </select>
                   </label>
+                  <label>
+                    Disability
+                    <select formControlName="disability" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
+                      <option value="No">No</option>
+                      <option value="Yes">Yes</option>
+                    </select>
+                  </label>
+                  @if (singleUserForm.controls.disability.value === 'Yes') {
+                    <label>
+                      Type of Disability
+                      <input type="text" formControlName="disabilityType" placeholder="e.g. Visual, Hearing, Physical, Intellectual" />
+                    </label>
+                  }
                   <label>
                     Department
                     <input type="text" formControlName="department" />
@@ -12637,6 +12665,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       municipality: student.municipality ?? '',
       dateOfBirth: student.dateOfBirth ?? '',
       nqfLevel: student.nqfLevel ?? '',
+      disability: student.disability ?? 'No',
+      disabilityType: student.disabilityType ?? '',
       department: student.department,
       lineManagerId: student.lineManagerId ?? '',
       group: student.group,
@@ -12972,6 +13002,13 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       case 'adminaccess':
       case 'adminyesno':
         return 'admin';
+      case 'hasdisability':
+      case 'disabilityyesno':
+        return 'disability';
+      case 'typeofdisability':
+      case 'disabilitydetails':
+      case 'disabilitydescription':
+        return 'disabilitytype';
       default:
         return normalizedHeader;
     }
@@ -12991,6 +13028,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       municipality: new FormControl('', { nonNullable: true }),
       dateOfBirth: new FormControl('', { nonNullable: true }),
       nqfLevel: new FormControl('', { nonNullable: true }),
+      disability: new FormControl<'Yes' | 'No'>('No', { nonNullable: true, validators: [Validators.required] }),
+      disabilityType: new FormControl('', { nonNullable: true }),
       department: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
       lineManagerId: new FormControl('', { nonNullable: true }),
       group: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -13016,6 +13055,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       municipality: '',
       dateOfBirth: '',
       nqfLevel: '',
+      disability: 'No',
+      disabilityType: '',
       department: '',
       lineManagerId: '',
       group: '',
@@ -13043,6 +13084,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       municipality: form.controls.municipality.value.trim(),
       dateOfBirth: form.controls.dateOfBirth.value,
       nqfLevel: form.controls.nqfLevel.value.trim(),
+      disability: form.controls.disability.value,
+      // Cleared rather than saved verbatim when disability is 'No' — otherwise toggling Yes to
+      // No without also clearing the type field would silently keep it around underneath.
+      disabilityType: form.controls.disability.value === 'Yes' ? form.controls.disabilityType.value.trim() : '',
       activeStatus: form.controls.activeStatus.value,
       department: form.controls.department.value.trim(),
       lineManagerId: form.controls.lineManagerId.value || undefined,
@@ -13074,6 +13119,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     const municipality = record.has('municipality') ? (record.get('municipality') ?? '').trim() : undefined;
     const dateOfBirth = record.has('dateofbirth') ? (this.normalizeBulkUploadDate(record.get('dateofbirth') ?? '') ?? '') : undefined;
     const nqfLevel = record.has('nqflevel') ? (record.get('nqflevel') ?? '').trim() : undefined;
+    const rawDisability = (record.get('disability') ?? '').trim().toLowerCase();
+    const disability: 'Yes' | 'No' = ['yes', 'y', 'true'].includes(rawDisability) ? 'Yes' : 'No';
+    const disabilityType = record.has('disabilitytype') ? (record.get('disabilitytype') ?? '').trim() : undefined;
     const department = record.get('department') ?? '';
     const lineManager = record.has('linemanager') ? (record.get('linemanager') ?? '').trim() : undefined;
     // The single "add/edit user" form resolves Line Manager to an id via a dropdown of existing
@@ -13140,6 +13188,14 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         ...(municipality !== undefined ? { municipality } : {}),
         ...(dateOfBirth !== undefined ? { dateOfBirth } : {}),
         ...(nqfLevel !== undefined ? { nqfLevel } : {}),
+        // Only recorded when a Disability column is actually present in the file — an absent
+        // column must not silently overwrite an existing 'Yes' with 'No' on a re-upload/update,
+        // the same reasoning as every other optional column above (jobTitle, ofoCode, race, ...).
+        ...(record.has('disability') ? { disability } : {}),
+        // Cleared rather than kept when disability is 'No', same as the single-user form —
+        // otherwise a stray value in this column would linger unused, or worse, get restored the
+        // next time disability flips back to 'Yes' from a completely unrelated row edit.
+        ...(disabilityType !== undefined ? { disabilityType: disability === 'Yes' ? disabilityType : '' } : {}),
         department: department.trim(),
         ...(lineManager !== undefined ? { lineManager } : {}),
         ...(lineManagerId !== undefined ? { lineManagerId } : {}),
@@ -13201,8 +13257,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   private getBulkUploadTemplateRows() {
     return [
-      ['Name', 'Surname', 'Email', 'Password', 'Job Title', 'ID Number', 'OFO Code', 'Race', 'Gender', 'Municipality', 'Date of Birth', 'NQF Level', 'Department', 'Line Manager', 'Group', 'Start Date', 'End Date', 'Training Manager', 'Admin', 'Access'],
-      ['Lebo', 'Mokoena', 'lebo.mokoena@example.com', 'Welcome@123', 'Operations Coordinator', '9201015800083', '2021-121202 - Education Training and Skills Development Manager', 'African', 'Female', 'Buffalo City', '1992-04-15', 'Level 07', 'Operations', 'Nandi Khumalo', 'Cohort A', '2026-04-01', '2026-10-30', 'No', 'No', 'Active'],
+      ['Name', 'Surname', 'Email', 'Password', 'Job Title', 'ID Number', 'OFO Code', 'Race', 'Gender', 'Municipality', 'Date of Birth', 'NQF Level', 'Disability', 'Type of Disability', 'Department', 'Line Manager', 'Group', 'Start Date', 'End Date', 'Training Manager', 'Admin', 'Access'],
+      ['Lebo', 'Mokoena', 'lebo.mokoena@example.com', 'Welcome@123', 'Operations Coordinator', '9201015800083', '2021-121202 - Education Training and Skills Development Manager', 'African', 'Female', 'Buffalo City', '1992-04-15', 'Level 07', 'No', '', 'Operations', 'Nandi Khumalo', 'Cohort A', '2026-04-01', '2026-10-30', 'No', 'No', 'Active'],
     ];
   }
 
@@ -13546,10 +13602,12 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   }
 
   /** Buckets one student into the SETA templates' race x gender x disability x age-group count
-   *  columns. Disability status isn't captured by this LMS, so the *Disabled columns always stay
-   *  0 — beneficiaries are counted under their race/gender combination only. A student whose race
-   *  is 'Foreign' or unset, or whose gender is unset, contributes to none of the race/gender
-   *  columns (the official templates only have African/Coloured/Indian/White buckets). */
+   *  columns. A student with disability set to 'Yes' is counted under their race's *Disabled
+   *  column instead of Male/Female, matching the official WSP/ATR templates' own convention
+   *  (disability status takes priority over the gender split). A student whose race is 'Foreign'
+   *  or unset, or whose gender is unset (and disability isn't 'Yes'), contributes to none of the
+   *  race/gender columns (the official templates only have African/Coloured/Indian/White
+   *  buckets). */
   /** Computes a whole-number age in years from a YYYY-MM-DD date of birth — used both for the
    *  "Age: X" hint shown next to the Date of Birth field in the user form, and (via
    *  resolveAgeGroup) to bucket beneficiaries into the SETA reports' age-group columns. Returns
@@ -13597,7 +13655,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     return student.idNumber ? this.deriveAgeGroupFromIdNumber(student.idNumber) : null;
   }
 
-  private resolveBeneficiaryDemographics(student: Pick<EnrollmentStudent, 'race' | 'gender' | 'idNumber' | 'dateOfBirth'>): BeneficiaryDemographicCounts {
+  private resolveBeneficiaryDemographics(student: Pick<EnrollmentStudent, 'race' | 'gender' | 'idNumber' | 'dateOfBirth' | 'disability'>): BeneficiaryDemographicCounts {
     const counts: BeneficiaryDemographicCounts = {
       africanMale: 0, africanFemale: 0, africanDisabled: 0,
       colouredMale: 0, colouredFemale: 0, colouredDisabled: 0,
@@ -13608,13 +13666,18 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
     const race = student.race?.trim();
     const gender = student.gender?.trim();
+    const isDisabled = student.disability === 'Yes';
     const key: keyof BeneficiaryDemographicCounts | null =
-      race === 'African' && gender === 'Male' ? 'africanMale'
+      race === 'African' && isDisabled ? 'africanDisabled'
+      : race === 'African' && gender === 'Male' ? 'africanMale'
       : race === 'African' && gender === 'Female' ? 'africanFemale'
+      : race === 'Coloured' && isDisabled ? 'colouredDisabled'
       : race === 'Coloured' && gender === 'Male' ? 'colouredMale'
       : race === 'Coloured' && gender === 'Female' ? 'colouredFemale'
+      : race === 'Indian' && isDisabled ? 'indianDisabled'
       : race === 'Indian' && gender === 'Male' ? 'indianMale'
       : race === 'Indian' && gender === 'Female' ? 'indianFemale'
+      : race === 'White' && isDisabled ? 'whiteDisabled'
       : race === 'White' && gender === 'Male' ? 'whiteMale'
       : race === 'White' && gender === 'Female' ? 'whiteFemale'
       : null;

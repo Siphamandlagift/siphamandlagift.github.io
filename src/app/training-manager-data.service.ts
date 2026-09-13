@@ -166,6 +166,10 @@ export type EnrollmentStudent = {
   municipality?: string;
   dateOfBirth?: string;
   nqfLevel?: string;
+  disability?: 'Yes' | 'No';
+  // Only meaningful when disability is 'Yes' — left blank/ignored otherwise, same as the SETA
+  // reporting templates only ever ask for this alongside a 'Yes' disability status.
+  disabilityType?: string;
 };
 
 export type EnrollmentStudentInput = Omit<EnrollmentStudent, 'id' | 'status' | 'assignedOfferingIds' | 'jobTitle' | 'idNumber' | 'lineManager'> & {
@@ -1633,6 +1637,8 @@ export class TrainingManagerDataService {
               municipality: input.municipality === undefined ? student.municipality : input.municipality.trim(),
               dateOfBirth: input.dateOfBirth === undefined ? student.dateOfBirth : input.dateOfBirth.trim(),
               nqfLevel: input.nqfLevel === undefined ? student.nqfLevel : input.nqfLevel.trim(),
+              disability: input.disability === undefined ? student.disability : input.disability,
+              disabilityType: input.disabilityType === undefined ? student.disabilityType : input.disabilityType.trim(),
               role: input.role,
               isAdmin: input.isAdmin,
             }
@@ -1694,6 +1700,8 @@ export class TrainingManagerDataService {
           race: input.race?.trim() ?? '',
           gender: input.gender?.trim() ?? '',
           municipality: input.municipality?.trim() ?? '',
+          disability: input.disability ?? 'No',
+          disabilityType: input.disabilityType?.trim() ?? '',
         };
 
         nextStudents.push(newStudent);
@@ -3310,6 +3318,8 @@ export class TrainingManagerDataService {
       ...(input.municipality !== undefined ? { municipality: input.municipality.trim() } : {}),
       ...(input.dateOfBirth !== undefined ? { dateOfBirth: input.dateOfBirth.trim() } : {}),
       ...(input.nqfLevel !== undefined ? { nqfLevel: input.nqfLevel.trim() } : {}),
+      ...(input.disability !== undefined ? { disability: input.disability } : {}),
+      ...(input.disabilityType !== undefined ? { disabilityType: input.disabilityType.trim() } : {}),
       role: input.role,
       isAdmin: input.isAdmin,
     };

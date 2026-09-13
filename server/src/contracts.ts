@@ -361,6 +361,8 @@ export type EnrollmentStudentRecord = {
   municipality?: string;
   dateOfBirth?: string;
   nqfLevel?: string;
+  disability?: 'Yes' | 'No';
+  disabilityType?: string;
 };
 
 export type StudentIdpStatusRecord = 'Not Started' | 'In Progress' | 'Completed' | 'On Hold';
@@ -647,6 +649,8 @@ export type HrIntegrationRosterRecord = {
   municipality?: string;
   dateOfBirth?: string;
   nqfLevel?: string;
+  disability?: 'Yes' | 'No';
+  disabilityType?: string;
   activeStatus?: 'Active' | 'Inactive';
 };
 

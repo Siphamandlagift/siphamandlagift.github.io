@@ -693,6 +693,8 @@ const enrollmentStudentSchema = z.object({
   municipality: z.string().optional(),
   dateOfBirth: z.string().optional(),
   nqfLevel: z.string().optional(),
+  disability: z.enum(['Yes', 'No']).optional(),
+  disabilityType: z.string().optional(),
 });
 
 const studentMessageReplySchema = z.object({

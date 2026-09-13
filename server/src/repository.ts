@@ -2101,6 +2101,10 @@ export class LmsRepository {
             municipality: record.municipality?.trim() || existing.municipality,
             dateOfBirth: record.dateOfBirth?.trim() || existing.dateOfBirth,
             nqfLevel: record.nqfLevel?.trim() || existing.nqfLevel,
+            disability: record.disability === 'Yes' || record.disability === 'No' ? record.disability : existing.disability,
+            disabilityType: record.disability === 'Yes'
+              ? (record.disabilityType?.trim() || existing.disabilityType)
+              : record.disability === 'No' ? undefined : existing.disabilityType,
             activeStatus: record.activeStatus ? activeStatus : existing.activeStatus,
           }
         : {
@@ -2126,6 +2130,8 @@ export class LmsRepository {
             municipality: record.municipality?.trim(),
             dateOfBirth: record.dateOfBirth?.trim(),
             nqfLevel: record.nqfLevel?.trim(),
+            disability: record.disability === 'Yes' || record.disability === 'No' ? record.disability : undefined,
+            disabilityType: record.disability === 'Yes' ? record.disabilityType?.trim() : undefined,
           };
 
       const merged = mergeEnrollmentStudentRecord(existing, enrollmentInput);
