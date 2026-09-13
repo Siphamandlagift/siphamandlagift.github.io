@@ -39,12 +39,17 @@ const STARTER_EXCLUDED_FEATURES: ReadonlySet<GatedFeature> = new Set([
 ]);
 
 export function isFeatureAllowedForPlan(plan: SubscriptionPlan | null | undefined, feature: GatedFeature): boolean {
-  if (plan === 'starter') {
+  // Undefined/null plan (bootstrap hasn't resolved yet, right after login/on every fresh page
+  // load) is treated the same as the most restricted tier until the real plan is known — the
+  // previous fail-open default meant a Starter company's admin briefly saw every growth/
+  // enterprise-only nav item (Succession Planning, HR integration, ...) flash on screen the
+  // instant the page loaded, before disappearing once the real 'starter' plan value arrived a
+  // moment later. That's a business-tier leak, not just a cosmetic flicker, so it's worth eating
+  // the (much less consequential) opposite flash this causes for genuine growth/enterprise
+  // accounts — their own gated items are briefly absent for that same instant instead.
+  if (plan === 'starter' || plan == null) {
     return !STARTER_EXCLUDED_FEATURES.has(feature);
   }
 
-  // Undefined/null plan (e.g. bootstrap hasn't resolved yet) fails open, same as the server's own
-  // default — this is a display gate, not a security boundary, and failing closed here would
-  // flash every nav item as hidden for a moment on every page load.
   return true;
 }
