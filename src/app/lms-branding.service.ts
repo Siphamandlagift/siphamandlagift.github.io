@@ -1,5 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { BrandingSettings, LmsBackendService, LmsBrandThemeId } from './lms-backend.service';
+import { BrandingSettings, IdentifierBrandingSettings, LmsBackendService, LmsBrandThemeId } from './lms-backend.service';
 import { hasActiveLmsSession } from './session-auth';
 
 export type { LmsBrandThemeId } from './lms-backend.service';
@@ -93,6 +93,12 @@ export class LmsBrandingService {
   private readonly companyLogoDataUrlSignal = signal<string | null>(null);
   readonly companyLogoDataUrl = this.companyLogoDataUrlSignal.asReadonly();
 
+  // Set only by fetchBrandingForIdentifier below (the login screen's two-step "identify your
+  // company, then enter your password" flow) — null everywhere else, including for an
+  // authenticated session, since there's no login identifier being typed once already signed in.
+  private readonly identifiedCompanyNameSignal = signal<string | null>(null);
+  readonly identifiedCompanyName = this.identifiedCompanyNameSignal.asReadonly();
+
   // Guards against a real race: the constructor's own public fetch (fired at page load, before
   // any login) and refreshForAuthenticatedSession()'s fetch (fired right after a successful
   // login) run as two independent, uncoordinated HTTP calls. If the EARLIER one (public) is
@@ -130,6 +136,30 @@ export class LmsBrandingService {
     this.fetchAuthenticatedBranding();
   }
 
+  // Login screen's "identify" step: once a username/email has been typed (before any password),
+  // show that company's own logo/theme rather than the generic pre-auth default for the rest of
+  // the login form. Same stale-response guard as every other fetch here — if the visitor edits
+  // the identifier and resubmits (or logs in) before this resolves, a late response must not
+  // clobber whatever the newer request already applied.
+  fetchBrandingForIdentifier(identifier: string) {
+    const generation = ++this.fetchGeneration;
+    this.backend.getBrandingForIdentifier(identifier).subscribe({
+      next: (branding) => this.applyIdentifierBranding(branding, generation),
+      error: () => {
+        // Neutral default stays in place if the lookup fails — this is cosmetic, never blocks
+        // actually submitting the login form itself.
+      },
+    });
+  }
+
+  // Login screen's "change email" / back action: drop back to the generic pre-auth default
+  // rather than leaving a previously-identified company's branding lingering once the visitor has
+  // said they want to try a different account.
+  resetToDefaultBranding() {
+    this.identifiedCompanyNameSignal.set(null);
+    this.fetchPublicBranding();
+  }
+
   private fetchPublicBranding() {
     const generation = ++this.fetchGeneration;
     this.backend.getBranding().subscribe({
@@ -162,6 +192,20 @@ export class LmsBrandingService {
 
     this.selectedThemeIdSignal.set(branding.themeId);
     this.companyLogoDataUrlSignal.set(branding.companyLogoDataUrl);
+    // identifiedCompanyName is only ever meaningful on the login screen's own "identify" step —
+    // every other fetch (pre-auth default, post-login authenticated) goes through here, so clear
+    // it here rather than leaving a stale name from a login attempt sitting in this singleton.
+    this.identifiedCompanyNameSignal.set(null);
+  }
+
+  private applyIdentifierBranding(branding: IdentifierBrandingSettings, generation: number) {
+    if (generation !== this.fetchGeneration) {
+      return;
+    }
+
+    this.selectedThemeIdSignal.set(branding.themeId);
+    this.companyLogoDataUrlSignal.set(branding.companyLogoDataUrl);
+    this.identifiedCompanyNameSignal.set(branding.companyName);
   }
 
   selectTheme(themeId: LmsBrandThemeId): Promise<boolean> {

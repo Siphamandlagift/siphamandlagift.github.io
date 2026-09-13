@@ -11,9 +11,9 @@
 			}
 		</div>
 
-		@if (loginStep === 'credentials') {
+		@if (loginStep === 'identify') {
 			<h2 class="login-title">Sign in to your account</h2>
-			<form (ngSubmit)="onSubmit()" #loginForm="ngForm" autocomplete="off">
+			<form (ngSubmit)="submitIdentifier()" #identifyForm="ngForm" autocomplete="off">
 				<div class="field-group">
 					<label class="field-label" for="username">Username or email</label>
 					<div class="input-wrap">
@@ -23,13 +23,44 @@
 						<input type="text" id="username" name="username" [(ngModel)]="username" required placeholder="Enter your username or email" />
 					</div>
 				</div>
+				<button type="submit" class="login-btn" [disabled]="!identifyForm.form.valid">
+					<span>Continue</span>
+					<span class="btn-arrow">&#x2192;</span>
+				</button>
+				<div class="login-alt-divider" role="presentation">or</div>
+				<button type="button" class="sso-btn" (click)="startMicrosoftSso()">
+					<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+						<rect x="2" y="2" width="9" height="9" fill="#f25022"></rect>
+						<rect x="13" y="2" width="9" height="9" fill="#7fba00"></rect>
+						<rect x="2" y="13" width="9" height="9" fill="#00a4ef"></rect>
+						<rect x="13" y="13" width="9" height="9" fill="#ffb900"></rect>
+					</svg>
+					<span>Sign in with Microsoft</span>
+				</button>
+				@if (errorMessage) {
+					<div class="error">{{ errorMessage }}</div>
+				}
+			</form>
+			<div class="login-footer">
+				<span>Need access?</span>
+				<a href="#" (click)="openContactAdmin($event)">Contact your LMS administrator</a>
+			</div>
+		}
+
+		@if (loginStep === 'credentials') {
+			<h2 class="login-title">Enter your password</h2>
+			<p class="login-role-hint">
+				Signing in as <strong>{{ username }}</strong>@if (branding.identifiedCompanyName()) { &middot; {{ branding.identifiedCompanyName() }} }.
+				<a href="#" (click)="backToIdentify($event)">Not you?</a>
+			</p>
+			<form (ngSubmit)="onSubmit()" #loginForm="ngForm" autocomplete="off">
 				<div class="field-group">
 					<label class="field-label" for="password">Password</label>
 					<div class="input-wrap has-eye">
 						<span class="field-icon">
 							<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path fill="#6366f1" d="M12 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm6-8h-1V7a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2Zm-6-4a3 3 0 0 1 3 3v2H9V8a3 3 0 0 1 3-3Z"/></svg>
 						</span>
-						<input [type]="showPassword ? 'text' : 'password'" id="password" name="password" [(ngModel)]="password" required placeholder="Enter your password" />
+						<input [type]="showPassword ? 'text' : 'password'" id="password" name="password" [(ngModel)]="password" required placeholder="Enter your password" autofocus />
 						<button type="button" class="eye-btn" (click)="togglePassword()" [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'">
 							@if (showPassword) {
 								<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path fill="#9ca3af" d="M12 7c2.8 0 5 2.2 5 5 0 .6-.1 1.2-.4 1.8l2.9 2.9c1.5-1.3 2.7-3 3.4-4.7C21.3 8.2 17 5 12 5c-1.4 0-2.7.3-3.9.7l2.1 2.1c.6-.5 1.2-.8 1.8-.8ZM2 4.3l2.3 2.3.5.5C3.1 8.4 1.9 10.1 1 12c1.7 3.8 6 6 11 6 1.5 0 3-.3 4.4-.8l.4.4 3 3 1.2-1.2L3.2 3 2 4.3ZM7 9.3l1.5 1.5c-.1.4-.1.8-.1 1.2 0 1.9 1.6 3.5 3.5 3.5.4 0 .8 0 1.2-.1l1.5 1.5c-.7.3-1.5.5-2.4.5C9.2 17.5 7 15.3 7 12.5v-.5l-.1-.2L7 9.3Z"/></svg>
@@ -46,22 +77,11 @@
 					<span>{{ signingIn ? 'Signing in...' : 'Login' }}</span>
 					@if (!signingIn) {<span class="btn-arrow">&#x2192;</span>}
 				</button>
-				<div class="login-alt-divider" role="presentation">or</div>
-				<button type="button" class="sso-btn" (click)="startMicrosoftSso()">
-					<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-						<rect x="2" y="2" width="9" height="9" fill="#f25022"></rect>
-						<rect x="13" y="2" width="9" height="9" fill="#7fba00"></rect>
-						<rect x="2" y="13" width="9" height="9" fill="#00a4ef"></rect>
-						<rect x="13" y="13" width="9" height="9" fill="#ffb900"></rect>
-					</svg>
-					<span>Sign in with Microsoft</span>
-				</button>
-				<div *ngIf="errorMessage" class="error">{{ errorMessage }}</div>
+				@if (errorMessage) {
+					<div class="error">{{ errorMessage }}</div>
+				}
 			</form>
-			<div class="login-footer">
-				<span>Need access?</span>
-				<a href="#" (click)="openContactAdmin($event)">Contact your LMS administrator</a>
-			</div>
+			<button type="button" class="login-back-btn" (click)="backToIdentify()">&#x2190; Back</button>
 		}
 
 		@if (loginStep === 'pick-role') {
