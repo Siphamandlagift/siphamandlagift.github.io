@@ -33,6 +33,7 @@ import { PublishedOfferingDetailComponent } from './published-offering-detail.co
 import { PublishedOfferingCardComponent } from './published-offering-card.component';
 import { PowerPointWindowComponent } from './powerpoint-window.component';
 import { resolvePowerPointUploadType } from './powerpoint-preview';
+import { isFeatureAllowedForPlan } from './plan-features';
 
 type AdminPanel = 'dashboard' | 'users' | 'reports' | 'succession' | 'settings' | 'courses' | 'enrollment';
 
@@ -497,7 +498,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
             </button>
           </div>
 
-          <ng-container *ngFor="let item of navItems">
+          <ng-container *ngFor="let item of navItems()">
             <button type="button" [class.active]="selectedPanel() === item.value" [attr.aria-label]="item.label" (click)="selectPanel(item.value)">
               <span class="admin-nav-icon" aria-hidden="true">
                 @switch (item.value) {
@@ -1223,7 +1224,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                   <article class="admin-section-card admin-report-menu-card admin-report-menu-card-primary">
                     <div class="admin-section-card-header">
                       <h2>Report List</h2>
-                      <span>5 available</span>
+                      <span>{{ extendedReportsAllowed() ? '5 available' : '1 available' }}</span>
                     </div>
 
                     <div class="admin-report-menu" role="list" aria-label="Admin report list">
@@ -1244,70 +1245,72 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                         </span>
                       </button>
-                      <button type="button" class="admin-report-menu-item admin-report-menu-item-idp" (click)="selectReportView('idp-report')">
-                        <span class="admin-report-menu-icon" aria-hidden="true">
-                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                            <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/>
-                            <circle cx="12" cy="12" r="4.5" stroke="currentColor" stroke-width="1.8"/>
-                            <circle cx="12" cy="12" r="1.4" fill="currentColor"/>
-                          </svg>
-                        </span>
-                        <span class="admin-report-menu-text">
-                          <strong>IDP Report</strong>
-                          <span>Employee IDP entries with manager and development details.</span>
-                        </span>
-                        <span class="admin-report-menu-cta">View report
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        </span>
-                      </button>
-                      <button type="button" class="admin-report-menu-item admin-report-menu-item-performance" (click)="selectReportView('performance-report')">
-                        <span class="admin-report-menu-icon" aria-hidden="true">
-                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                            <path d="M4 20V5.5a1.5 1.5 0 0 1 1.5-1.5h13A1.5 1.5 0 0 1 20 5.5V20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M7.5 16.5v-4M12 16.5v-7M16.5 16.5v-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                            <path d="M2.5 20h19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                          </svg>
-                        </span>
-                        <span class="admin-report-menu-text">
-                          <strong>Performance Report</strong>
-                          <span>KPI standing per employee — weighting, overall rating, and last review date.</span>
-                        </span>
-                        <span class="admin-report-menu-cta">View report
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        </span>
-                      </button>
-                      <button type="button" class="admin-report-menu-item admin-report-menu-item-certs" (click)="selectReportView('certificate-licence-report')">
-                        <span class="admin-report-menu-icon" aria-hidden="true">
-                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                            <circle cx="12" cy="9" r="5.5" stroke="currentColor" stroke-width="1.8"/>
-                            <path d="M12 6.7l.95 1.93 2.13.31-1.54 1.5.36 2.12L12 11.5l-1.9 1.06.36-2.12-1.54-1.5 2.13-.31L12 6.7Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-                            <path d="M9 13.5 7.5 20l4.5-2 4.5 2-1.5-6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                          </svg>
-                        </span>
-                        <span class="admin-report-menu-text">
-                          <strong>Certificates and Licences Report</strong>
-                          <span>Track employee certificate and licence expiry, renewal, and status.</span>
-                        </span>
-                        <span class="admin-report-menu-cta">View report
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        </span>
-                      </button>
-                      <button type="button" class="admin-report-menu-item admin-report-menu-item-seta" (click)="selectReportView('seta-report')">
-                        <span class="admin-report-menu-icon" aria-hidden="true">
-                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                            <path d="M4 20V6.5A2.5 2.5 0 0 1 6.5 4H16l4 4v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-                            <path d="M16 4v3.5A1.5 1.5 0 0 0 17.5 9H20" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-                            <path d="M7.5 13h9M7.5 16.5h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                          </svg>
-                        </span>
-                        <span class="admin-report-menu-text">
-                          <strong>SETA Report</strong>
-                          <span>ATR and WSP training schedules for SETA submission.</span>
-                        </span>
-                        <span class="admin-report-menu-cta">View report
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        </span>
-                      </button>
+                      @if (extendedReportsAllowed()) {
+                        <button type="button" class="admin-report-menu-item admin-report-menu-item-idp" (click)="selectReportView('idp-report')">
+                          <span class="admin-report-menu-icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                              <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/>
+                              <circle cx="12" cy="12" r="4.5" stroke="currentColor" stroke-width="1.8"/>
+                              <circle cx="12" cy="12" r="1.4" fill="currentColor"/>
+                            </svg>
+                          </span>
+                          <span class="admin-report-menu-text">
+                            <strong>IDP Report</strong>
+                            <span>Employee IDP entries with manager and development details.</span>
+                          </span>
+                          <span class="admin-report-menu-cta">View report
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                          </span>
+                        </button>
+                        <button type="button" class="admin-report-menu-item admin-report-menu-item-performance" (click)="selectReportView('performance-report')">
+                          <span class="admin-report-menu-icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                              <path d="M4 20V5.5a1.5 1.5 0 0 1 1.5-1.5h13A1.5 1.5 0 0 1 20 5.5V20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                              <path d="M7.5 16.5v-4M12 16.5v-7M16.5 16.5v-2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                              <path d="M2.5 20h19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                            </svg>
+                          </span>
+                          <span class="admin-report-menu-text">
+                            <strong>Performance Report</strong>
+                            <span>KPI standing per employee — weighting, overall rating, and last review date.</span>
+                          </span>
+                          <span class="admin-report-menu-cta">View report
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                          </span>
+                        </button>
+                        <button type="button" class="admin-report-menu-item admin-report-menu-item-certs" (click)="selectReportView('certificate-licence-report')">
+                          <span class="admin-report-menu-icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                              <circle cx="12" cy="9" r="5.5" stroke="currentColor" stroke-width="1.8"/>
+                              <path d="M12 6.7l.95 1.93 2.13.31-1.54 1.5.36 2.12L12 11.5l-1.9 1.06.36-2.12-1.54-1.5 2.13-.31L12 6.7Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+                              <path d="M9 13.5 7.5 20l4.5-2 4.5 2-1.5-6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                          </span>
+                          <span class="admin-report-menu-text">
+                            <strong>Certificates and Licences Report</strong>
+                            <span>Track employee certificate and licence expiry, renewal, and status.</span>
+                          </span>
+                          <span class="admin-report-menu-cta">View report
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                          </span>
+                        </button>
+                        <button type="button" class="admin-report-menu-item admin-report-menu-item-seta" (click)="selectReportView('seta-report')">
+                          <span class="admin-report-menu-icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                              <path d="M4 20V6.5A2.5 2.5 0 0 1 6.5 4H16l4 4v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                              <path d="M16 4v3.5A1.5 1.5 0 0 0 17.5 9H20" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                              <path d="M7.5 13h9M7.5 16.5h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                            </svg>
+                          </span>
+                          <span class="admin-report-menu-text">
+                            <strong>SETA Report</strong>
+                            <span>ATR and WSP training schedules for SETA submission.</span>
+                          </span>
+                          <span class="admin-report-menu-cta">View report
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                          </span>
+                        </button>
+                      }
                     </div>
                   </article>
                 }
@@ -2392,16 +2395,20 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       <span class="admin-settings-menu-item-copy">Choose the colour theme used across the admin, manager and student workspaces.</span>
                       <span class="admin-settings-menu-item-status">{{ branding.currentTheme().label }}</span>
                     </button>
-                    <button type="button" class="admin-settings-menu-item" role="listitem" (click)="selectSettingsSection('hr-integration')">
-                      <span class="admin-settings-menu-item-title">HR system integration</span>
-                      <span class="admin-settings-menu-item-copy">Pull roster data automatically from an external HR system's API.</span>
-                      <span class="admin-settings-menu-item-status">{{ hrIntegrationConfig()?.enabled ? 'Enabled' : 'Not connected' }}</span>
-                    </button>
-                    <button type="button" class="admin-settings-menu-item" role="listitem" (click)="selectSettingsSection('approval-settings')">
-                      <span class="admin-settings-menu-item-title">Approval &amp; Reporting Settings</span>
-                      <span class="admin-settings-menu-item-copy">Set how many people must sign off on KPI ratings and training requests, and manage who can approve them.</span>
-                      <span class="admin-settings-menu-item-status">{{ managerData.explicitTrainingManagers().length }} approving {{ managerData.explicitTrainingManagers().length === 1 ? 'manager' : 'managers' }}</span>
-                    </button>
+                    @if (hrIntegrationSettingsAllowed()) {
+                      <button type="button" class="admin-settings-menu-item" role="listitem" (click)="selectSettingsSection('hr-integration')">
+                        <span class="admin-settings-menu-item-title">HR system integration</span>
+                        <span class="admin-settings-menu-item-copy">Pull roster data automatically from an external HR system's API.</span>
+                        <span class="admin-settings-menu-item-status">{{ hrIntegrationConfig()?.enabled ? 'Enabled' : 'Not connected' }}</span>
+                      </button>
+                    }
+                    @if (approvalSettingsAllowed()) {
+                      <button type="button" class="admin-settings-menu-item" role="listitem" (click)="selectSettingsSection('approval-settings')">
+                        <span class="admin-settings-menu-item-title">Approval &amp; Reporting Settings</span>
+                        <span class="admin-settings-menu-item-copy">Set how many people must sign off on KPI ratings and training requests, and manage who can approve them.</span>
+                        <span class="admin-settings-menu-item-status">{{ managerData.explicitTrainingManagers().length }} approving {{ managerData.explicitTrainingManagers().length === 1 ? 'manager' : 'managers' }}</span>
+                      </button>
+                    }
                   </div>
                 }
 
@@ -10583,6 +10590,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 })
 export class AdminProfileComponent implements OnInit, OnDestroy {
   selectPanel(panel: AdminPanel) {
+    if (panel === 'succession' && !isFeatureAllowedForPlan(this.managerData.plan(), 'admin-succession')) {
+      return;
+    }
     // Mirrors training-manager-profile.component.ts's own selectPanel teardown for the same
     // reason it existed there: leaving the course builder open mid-edit while browsing away to
     // another panel and back would otherwise resurface stale in-progress state.
@@ -10625,7 +10635,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   private readonly _welcomeBannerLeaving = signal(false);
   readonly welcomeBannerLeaving = computed(() => this._welcomeBannerLeaving());
 
-  readonly navItems: ReadonlyArray<{ label: string; value: AdminPanel }> = [
+  private readonly allNavItems: ReadonlyArray<{ label: string; value: AdminPanel }> = [
     { label: 'Dashboard', value: 'dashboard' },
     { label: 'Courses', value: 'courses' },
     { label: 'Student Enrollment', value: 'enrollment' },
@@ -10634,6 +10644,15 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     { label: 'Succession Planning', value: 'succession' },
     { label: 'LMS Settings', value: 'settings' },
   ];
+  // Succession Planning is the only whole nav item a plan can hide today (see plan-features.ts)
+  // — Reports and LMS Settings stay visible but show a narrower menu inside themselves for a
+  // restricted plan (see selectedReportView's/selectedSettingsSection's own menus).
+  readonly navItems = computed(() => this.allNavItems.filter((item) =>
+    item.value !== 'succession' || isFeatureAllowedForPlan(this.managerData.plan(), 'admin-succession'),
+  ));
+  readonly extendedReportsAllowed = computed(() => isFeatureAllowedForPlan(this.managerData.plan(), 'admin-reports-extended'));
+  readonly hrIntegrationSettingsAllowed = computed(() => isFeatureAllowedForPlan(this.managerData.plan(), 'admin-hr-integration'));
+  readonly approvalSettingsAllowed = computed(() => isFeatureAllowedForPlan(this.managerData.plan(), 'admin-approval-settings'));
   // ── Succession Planning ───────────────────────────────────────────────
   // Fully read-only for admin — see server.ts's succession routes, all gated to
   // requireTrainingManager. ownerManagerId/nominatedByManagerId are the flagging/nominating
@@ -11692,6 +11711,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   }
 
   selectReportView(view: AdminReportView) {
+    if (view !== 'annual-training' && !this.extendedReportsAllowed()) {
+      return;
+    }
     this.selectedReportView.set(view);
     this.selectedSetaReportTab.set(null);
     this.selectedAtrSubReport.set(null);
@@ -11739,6 +11761,12 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   }
 
   selectSettingsSection(section: AdminSettingsSection) {
+    if (
+      (section === 'hr-integration' && !this.hrIntegrationSettingsAllowed())
+      || (section === 'approval-settings' && !this.approvalSettingsAllowed())
+    ) {
+      return;
+    }
     this.selectedSettingsSection.set(section);
     if (section === 'hr-integration') {
       this.loadHrIntegrationConfig();

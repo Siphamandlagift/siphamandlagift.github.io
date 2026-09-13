@@ -802,6 +802,10 @@ export type LmsDataStore = {
 export type LmsBootstrapResponse = {
   offerings: TrainingOffering[];
   branding: BrandingSettingsRecord;
+  // Added by the /api/bootstrap route handler itself, not repository.getBootstrap() — the
+  // repository has no concept of subscription/plan (see the multi-tenant retrofit's licensing
+  // design). Optional since this type is also used server-side before that merge happens.
+  plan?: SubscriptionPlan;
   students: EnrollmentStudentRecord[];
   // Only the current year's entries — same "fetch a past year on demand" convention as
   // kpiEntriesByStudent below (GET /students/:studentId/idp-entries/:year).

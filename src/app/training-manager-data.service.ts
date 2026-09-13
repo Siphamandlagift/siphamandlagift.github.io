@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { finalize, firstValueFrom, interval, tap, throwError, type Observable } from 'rxjs';
-import { LmsBackendService } from './lms-backend.service';
+import { LmsBackendService, type SubscriptionPlan } from './lms-backend.service';
 import { combineDisplayName, readLmsSessionRecord } from './session-auth';
 import type { StudentMessage } from './student-data.service';
 
@@ -468,6 +468,11 @@ export class TrainingManagerDataService {
 
   private readonly offeringsSignal = signal<TrainingOffering[]>([]);
   private readonly trainingManagersSignal = signal<SystemTrainingManager[]>([]);
+  // The current company's subscription plan, for hiding plan-gated nav items (see
+  // plan-features.ts). Set from bootstrap's own response, not persisted/cached locally like the
+  // rest of this service's signals — always fresh from whatever the server just returned.
+  private readonly planSignal = signal<SubscriptionPlan | null>(null);
+  readonly plan = this.planSignal.asReadonly();
 
   // Show the real logged-in manager's own identity — falling back to the matching directory
   // entry above when this account is one of the known managers, otherwise deriving a display
@@ -1115,6 +1120,9 @@ export class TrainingManagerDataService {
         }
         if (bootstrap.kpiApprovalByStudent) {
           this.kpiApprovalByStudentSignal.set(bootstrap.kpiApprovalByStudent);
+        }
+        if (bootstrap.plan) {
+          this.planSignal.set(bootstrap.plan);
         }
         this.backendHydrated = true;
         this.offeringsHydratedSignal.set(true);
@@ -3045,6 +3053,9 @@ export class TrainingManagerDataService {
                 requestStartedAt,
               ),
             );
+          }
+          if (bootstrap.plan) {
+            this.planSignal.set(bootstrap.plan);
           }
           resolve();
         },

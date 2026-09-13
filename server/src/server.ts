@@ -23,22 +23,27 @@ import { isStrongPassword, passwordPolicyMessage } from './auth-utils.js';
 import {
   resolveCompanyIdForLoginIdentifier,
   resolveCompanyIdForPasswordResetToken,
-  isCompanySubscriptionActive,
+  getCompanySubscriptionContext,
+  getCompanyPlan,
   getCompanyUsage,
 } from './platform-repository.js';
 import { createSuperAdminRouter } from './super-admin-routes.js';
+import { isFeatureAllowedForPlan, type GatedFeature } from './plan-features.js';
+import type { SubscriptionPlan } from './contracts.js';
 
-// Augments Express's Request with the two pieces of per-request state the middleware chain below
-// attaches after decoding the caller's JWT: their identity (including which company they belong
-// to) and a repository instance already scoped to that company's Firestore document. Every route
-// handler that used to read a module-level `repository` singleton now reads `request.repository`
-// instead — see attachRequestContext.
+// Augments Express's Request with the per-request state the middleware chain below attaches
+// after decoding the caller's JWT: their identity (including which company they belong to), a
+// repository instance already scoped to that company's Firestore document, and that company's
+// subscription plan (for the plan-feature gates in plan-features.ts). Every route handler that
+// used to read a module-level `repository` singleton now reads `request.repository` instead —
+// see attachRequestContext.
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       authIdentity?: AuthenticatedIdentity | null;
       repository?: LmsRepository;
+      companyPlan?: SubscriptionPlan;
     }
   }
 }
@@ -229,14 +234,29 @@ async function attachRequestContext(request: express.Request, response: express.
     return;
   }
 
-  const active = await isCompanySubscriptionActive(identity.companyId);
+  const { active, plan } = await getCompanySubscriptionContext(identity.companyId);
   if (!active) {
     response.status(403).json({ message: "This company's SkillsConnect subscription is not active. Please contact your administrator." });
     return;
   }
 
   request.repository = createLmsRepository(identity.companyId);
+  request.companyPlan = plan;
   next();
+}
+
+// Applied to the write-side routes for each plan-gated feature (see plan-features.ts) —
+// registered as normal Express middleware alongside requireAdministrator/requireRole etc.,
+// after attachRequestContext has already set request.companyPlan.
+function requirePlanFeature(feature: GatedFeature) {
+  return (request: express.Request, response: express.Response, next: express.NextFunction) => {
+    if (!request.companyPlan || !isFeatureAllowedForPlan(request.companyPlan, feature)) {
+      response.status(403).json({ message: 'This feature is not included in your company\'s current plan.' });
+      return;
+    }
+
+    next();
+  };
 }
 
 // requireAuth only proves the caller has SOME valid session — it never checks role or ownership.
@@ -1922,7 +1942,11 @@ app.get('/api/health', (_request, response) => {
 app.get('/api/bootstrap', async (request, response, next) => {
   try {
     const repository = request.repository!;
-    response.json(await repository.getBootstrap(getAuthenticatedIdentity(request)));
+    const bootstrap = await repository.getBootstrap(getAuthenticatedIdentity(request));
+    // plan rides along here (rather than a separate endpoint) since bootstrap is already the
+    // "give the client everything it needs on load" call every profile makes — the client uses
+    // it to hide plan-gated nav items (see plan-features.ts on both sides).
+    response.json({ ...bootstrap, plan: request.companyPlan });
   } catch (error) {
     next(error);
   }
@@ -1979,7 +2003,7 @@ app.get('/api/admin/hr-integration', requireAdministrator, async (request, respo
   }
 });
 
-app.put('/api/admin/hr-integration', requireAdministrator, async (request, response, next) => {
+app.put('/api/admin/hr-integration', requireAdministrator, requirePlanFeature('admin-hr-integration'), async (request, response, next) => {
   try {
     const repository = request.repository!;
     const payload = hrIntegrationConfigUpdateSchema.parse(request.body);
@@ -1992,7 +2016,7 @@ app.put('/api/admin/hr-integration', requireAdministrator, async (request, respo
 // Admin-only write side — reading the current counts rides along in bootstrap for every role
 // instead (see repository.getBootstrap), since a manager needs them just to know whether to show
 // a "Submit for Approval" action at all.
-app.put('/api/approval-workflow-settings', requireAdministrator, async (request, response, next) => {
+app.put('/api/approval-workflow-settings', requireAdministrator, requirePlanFeature('admin-approval-settings'), async (request, response, next) => {
   try {
     const repository = request.repository!;
     const payload = approvalWorkflowSettingsUpdateSchema.parse(request.body);
@@ -2002,7 +2026,7 @@ app.put('/api/approval-workflow-settings', requireAdministrator, async (request,
   }
 });
 
-app.post('/api/admin/hr-integration/sync', requireAdministrator, async (request, response, next) => {
+app.post('/api/admin/hr-integration/sync', requireAdministrator, requirePlanFeature('admin-hr-integration'), async (request, response, next) => {
   try {
     const repository = request.repository!;
     const result = await repository.syncRosterFromHr();
@@ -2034,6 +2058,14 @@ app.post('/api/auth/login', async (request, response, next) => {
       return;
     }
 
+    // No Training Manager profile at all on a Starter plan — treated as an ordinary invalid-
+    // credentials response rather than a distinct error, so this doesn't double as a way to
+    // probe which plan a company is on.
+    if (authenticated.role === 'training-manager' && !isFeatureAllowedForPlan(await getCompanyPlan(companyId), 'training-manager-profile')) {
+      response.status(401).json({ message: 'Invalid login credentials.' });
+      return;
+    }
+
     const token = jwt.sign(
       { role: authenticated.role, username: authenticated.username, email: authenticated.email, studentId: authenticated.studentId, companyId },
       jwtSecret,
@@ -2056,6 +2088,13 @@ app.post('/api/auth/resolve-roles', async (request, response, next) => {
 
     const repository = createLmsRepository(companyId);
     let roles = await repository.resolveRoles(credentials);
+
+    // No Training Manager profile at all on a Starter plan — dropped before any of the logic
+    // below, so a multi-role account (e.g. training-manager + student) simply never offers the
+    // training-manager option rather than needing to be filtered out of it separately.
+    if (!isFeatureAllowedForPlan(await getCompanyPlan(companyId), 'training-manager-profile')) {
+      roles = roles.filter((entry) => entry.role !== 'training-manager');
+    }
 
     if (roles.length === 0) {
       response.status(401).json({ message: 'Invalid login credentials.' });
@@ -2177,6 +2216,14 @@ app.get('/api/auth/switchable-roles', async (request, response, next) => {
 app.post('/api/auth/switch-role', async (request, response, next) => {
   try {
     const { targetRole } = switchRoleRequestSchema.parse(request.body);
+
+    // No Training Manager profile at all on a Starter plan (see requirePlanFeature and the
+    // login/resolve-roles checks above) — a Starter account should never actually have this
+    // role to switch to, but reject explicitly rather than relying on that.
+    if (targetRole === 'training-manager' && !isFeatureAllowedForPlan(request.companyPlan!, 'training-manager-profile')) {
+      response.status(403).json({ message: 'Your account does not have access to this role.' });
+      return;
+    }
 
     const payload = readAuthenticatedSessionPayload(request);
     if (!payload?.email || !request.repository) {
@@ -2545,8 +2592,18 @@ app.post('/api/auth/managed-users/credentials', requireAdministrator, async (req
   try {
     const repository = request.repository!;
     const payload = managedUserCredentialsUpsertSchema.parse(request.body);
+
+    // No Training Manager profile at all on a Starter plan — filtered out here rather than in
+    // the repository, since this same upsert both creates NEW accounts and can promote an
+    // EXISTING student account's role to 'manager', and neither should succeed under Starter.
+    const allowedUsers = isFeatureAllowedForPlan(request.companyPlan!, 'training-manager-profile')
+      ? payload.users
+      : payload.users.filter((user) => user.role !== 'manager');
+    const blockedByPlan = payload.users.length - allowedUsers.length;
+
     const usage = await getCompanyUsage(request.authIdentity!.companyId!);
-    response.json(await repository.upsertManagedUserCredentials(payload.users, usage?.licenseLimit));
+    const result = await repository.upsertManagedUserCredentials(allowedUsers, usage?.licenseLimit);
+    response.json({ ...result, skipped: result.skipped + blockedByPlan });
   } catch (error) {
     next(error);
   }
@@ -2703,7 +2760,7 @@ app.put('/api/students/:studentId/snapshot', async (request, response, next) => 
 // Full replace of a student's IDP table for the current IDP year — see repository.
 // setIdpEntriesForStudent. Same permission gate as the KPI equivalent below, minus the
 // weight-sum validation (IDP rows have no weight field).
-app.put('/api/students/:studentId/idp-entries', async (request, response, next) => {
+app.put('/api/students/:studentId/idp-entries', requirePlanFeature('student-idp'), async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
     if (!identity || !request.repository) {
@@ -2718,7 +2775,7 @@ app.put('/api/students/:studentId/idp-entries', async (request, response, next) 
     }
 
     const body = idpEntriesReplaceSchema.parse(request.body);
-    const entries = await repository.setIdpEntriesForStudent(request.params.studentId, body.entries);
+    const entries = await repository.setIdpEntriesForStudent(request.params['studentId'] as string, body.entries);
 
     if (entries === null) {
       response.status(404).json({ message: 'Student not found.' });
@@ -2731,7 +2788,7 @@ app.put('/api/students/:studentId/idp-entries', async (request, response, next) 
   }
 });
 
-app.put('/api/students/:studentId/kpi-entries', async (request, response, next) => {
+app.put('/api/students/:studentId/kpi-entries', requirePlanFeature('student-performance'), async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
     if (!identity || !request.repository) {
@@ -2764,7 +2821,7 @@ app.put('/api/students/:studentId/kpi-entries', async (request, response, next) 
       return;
     }
 
-    const entries = await repository.setKpiEntriesForStudent(request.params.studentId, body.entries);
+    const entries = await repository.setKpiEntriesForStudent(request.params['studentId'] as string, body.entries);
 
     if (entries === null) {
       response.status(404).json({ message: 'Student not found.' });
@@ -2777,7 +2834,7 @@ app.put('/api/students/:studentId/kpi-entries', async (request, response, next) 
   }
 });
 
-app.put('/api/students/:studentId/kpi-entries/employee-scoring', async (request, response, next) => {
+app.put('/api/students/:studentId/kpi-entries/employee-scoring', requirePlanFeature('student-performance'), async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
     if (!identity || !request.repository) {
@@ -2788,13 +2845,13 @@ app.put('/api/students/:studentId/kpi-entries/employee-scoring', async (request,
 
     // A student may only score their own KPI table; managers/admins may score any student's.
     const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
-    if (!isPrivileged && !(await isOwnStudentRecord(repository, request.params.studentId, identity))) {
+    if (!isPrivileged && !(await isOwnStudentRecord(repository, request.params['studentId'] as string, identity))) {
       response.status(403).json({ message: 'You do not have permission to update this student.' });
       return;
     }
 
     const body = kpiEmployeeScoringUpdateSchema.parse(request.body);
-    const entries = await repository.updateKpiEmployeeScoring(request.params.studentId, body.entries);
+    const entries = await repository.updateKpiEmployeeScoring(request.params['studentId'] as string, body.entries);
 
     if (entries === null) {
       response.status(404).json({ message: 'Student not found.' });
@@ -2829,7 +2886,7 @@ app.put('/api/students/:studentId/kpi-entries/employee-scoring', async (request,
 // scoring — it merges only these three fields onto rows that already exist in the CURRENT year's
 // table, matched by id, so it can't be used to sneak an edit to the KPI text, weight, or any
 // scoring field through this endpoint.
-app.put('/api/students/:studentId/kpi-entries/gap-analysis', async (request, response, next) => {
+app.put('/api/students/:studentId/kpi-entries/gap-analysis', requirePlanFeature('student-performance'), async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
     if (!identity || !request.repository) {
@@ -2844,7 +2901,7 @@ app.put('/api/students/:studentId/kpi-entries/gap-analysis', async (request, res
     }
 
     const body = kpiGapAnalysisUpdateSchema.parse(request.body);
-    const entries = await repository.updateKpiGapAnalysis(request.params.studentId, body.entries);
+    const entries = await repository.updateKpiGapAnalysis(request.params['studentId'] as string, body.entries);
 
     if (entries === null) {
       response.status(404).json({ message: 'Student not found.' });
@@ -2911,7 +2968,7 @@ app.get('/api/students/:studentId/idp-entries/:year', async (request, response, 
 // administrator may call it. See repository.openIdpYear: unlike KPI, nothing carries forward —
 // every student's plan starts blank under the new year, the year being closed is left exactly as
 // it was, and currentIdpYear moves forward to the new year.
-app.post('/api/idp-years/open', async (request, response, next) => {
+app.post('/api/idp-years/open', requirePlanFeature('student-idp'), async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
     if (!identity || !request.repository) {
@@ -2971,7 +3028,7 @@ app.get('/api/students/:studentId/kpi-entries/:year', async (request, response, 
 // student's current-year KPI definitions are copied forward into a brand-new year with every
 // score cleared, the year being closed is left exactly as it was, and currentKpiYear moves
 // forward to the new year.
-app.post('/api/kpi-years/open', async (request, response, next) => {
+app.post('/api/kpi-years/open', requirePlanFeature('student-performance'), async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
     if (!identity || !request.repository) {
@@ -2997,7 +3054,7 @@ app.post('/api/kpi-years/open', async (request, response, next) => {
 // approvalWorkflowSettings.kpiApproversRequired >= 2, though nothing here actually needs to check
 // that: submitting a table when it's still 1 just creates an approval chain of length 1, which
 // decideKpiApproval immediately resolves to Approved on its very next (only) step.
-app.post('/api/students/:studentId/kpi-entries/submit-for-approval', async (request, response, next) => {
+app.post('/api/students/:studentId/kpi-entries/submit-for-approval', requirePlanFeature('student-performance'), async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
     if (!identity || !request.repository) {
@@ -3036,7 +3093,7 @@ app.post('/api/students/:studentId/kpi-entries/submit-for-approval', async (requ
 // currentApproverEmail (or an administrator) may decide it; every other authenticated session,
 // including the manager who submitted it, is rejected. See KpiApprovalRecord for why authorization
 // resolves by email rather than the approver-pool id.
-app.put('/api/students/:studentId/kpi-entries/approval', async (request, response, next) => {
+app.put('/api/students/:studentId/kpi-entries/approval', requirePlanFeature('student-performance'), async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
     if (!identity || !request.repository) {
@@ -3370,7 +3427,7 @@ app.get('/api/manager-messages', async (request, response, next) => {
   }
 });
 
-app.post('/api/manager-messages', async (request, response, next) => {
+app.post('/api/manager-messages', requirePlanFeature('student-messages'), async (request, response, next) => {
   try {
     const repository = request.repository!;
     const message = managerMessageSchema.parse(request.body);
@@ -3381,7 +3438,7 @@ app.post('/api/manager-messages', async (request, response, next) => {
   }
 });
 
-app.post('/api/external-training-requests', async (request, response, next) => {
+app.post('/api/external-training-requests', requirePlanFeature('student-external-training'), async (request, response, next) => {
   try {
     const repository = request.repository!;
     const externalTrainingRequest = externalTrainingRequestCreateSchema.parse(request.body);
@@ -3425,12 +3482,12 @@ app.post('/api/external-training-requests', async (request, response, next) => {
   }
 });
 
-app.put('/api/external-training-requests/:requestId', async (request, response, next) => {
+app.put('/api/external-training-requests/:requestId', requirePlanFeature('student-external-training'), async (request, response, next) => {
   try {
     const repository = request.repository!;
     const externalTrainingRequest = externalTrainingRequestUpdateSchema.parse({
       ...request.body,
-      requestId: request.params.requestId,
+      requestId: request.params['requestId'],
     });
     const identity = getAuthenticatedIdentity(request);
     const isPrivileged = identity?.role === 'administrator' || identity?.role === 'training-manager';
@@ -3662,7 +3719,7 @@ app.post('/api/quiz-submissions', async (request, response, next) => {
   }
 });
 
-app.post('/api/mentorship-submissions', async (request, response, next) => {
+app.post('/api/mentorship-submissions', requirePlanFeature('student-mentorship'), async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
     if (!identity || !request.repository) {

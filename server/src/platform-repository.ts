@@ -7,6 +7,7 @@ import type {
   CompanyUsageSummary,
   CreateCompanyInput,
   PlatformAdminRecord,
+  SubscriptionPlan,
   UpdateCompanySubscriptionInput,
 } from './contracts.js';
 
@@ -72,30 +73,44 @@ export async function resolveCompanyIdForPasswordResetToken(token: string): Prom
   return companyIdFromSubcollectionDoc(snapshot.docs[0]!.ref);
 }
 
+export type CompanySubscriptionContext = { active: boolean; plan: SubscriptionPlan };
+
 // Fail-closed subscription gate applied to every authenticated, company-scoped request (see
 // attachRequestContext in server.ts): a company must have status exactly 'active' AND not be
-// past its subscription end date, or every route for that company is rejected. Reads the
+// past its subscription end date, or every route for that company is rejected. Also returns the
+// plan, so attachRequestContext can attach it to the request for the plan-feature checks in
+// plan-features.ts, without a second Firestore read for the same document. Reads the
 // companies/{companyId} document directly (bypassing FirestoreLmsRepository, which only knows
 // about the LmsDataStore-shaped fields, not the company identity/subscription fields that live
 // alongside them on the same document) — cheap at the "Super-Admin-managed, small number of
 // companies" scale this app runs at.
-export async function isCompanySubscriptionActive(companyId: string): Promise<boolean> {
+export async function getCompanySubscriptionContext(companyId: string): Promise<CompanySubscriptionContext> {
   if (!companyId) {
-    return false;
+    return { active: false, plan: 'enterprise' };
   }
 
   const firestore = getFirestoreClient();
   const snapshot = await firestore.collection('companies').doc(companyId).get();
   if (!snapshot.exists) {
-    return false;
+    return { active: false, plan: 'enterprise' };
   }
 
-  const subscription = (snapshot.data() as { subscription?: { status?: string; endDate?: string } } | undefined)?.subscription;
+  const subscription = (snapshot.data() as { subscription?: { status?: string; endDate?: string; plan?: SubscriptionPlan } } | undefined)?.subscription;
+  // Fails open on plan (defaults to the unrestricted tier) when the field is missing/malformed —
+  // this is a display/access-shaping value, not the security boundary (that's `active` below,
+  // which fails closed on anything other than exactly 'active' and not yet expired).
+  const plan: SubscriptionPlan = subscription?.plan ?? 'enterprise';
+
   if (!subscription || subscription.status !== 'active' || !subscription.endDate) {
-    return false;
+    return { active: false, plan };
   }
 
-  return new Date(subscription.endDate).getTime() >= Date.now();
+  const active = new Date(subscription.endDate).getTime() >= Date.now();
+  return { active, plan };
+}
+
+export async function getCompanyPlan(companyId: string): Promise<SubscriptionPlan> {
+  return (await getCompanySubscriptionContext(companyId)).plan;
 }
 
 // --- Phase 3: Super Admin platform operations ---

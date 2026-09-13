@@ -47,9 +47,17 @@ import type {
 
 export type LmsBrandThemeId = 'ocean' | 'forest' | 'sunrise' | 'purple' | 'black' | 'grey';
 
+// Mirrors the server's SubscriptionPlan (contracts.ts) and the Super Admin module's own copy
+// (super-admin/platform-backend.service.ts) — duplicated here rather than imported from that
+// module, which is meant to stay an isolated slice or the main app.
+export type SubscriptionPlan = 'starter' | 'growth' | 'enterprise';
+
 export type LmsBootstrapResponse = {
   offerings: TrainingOffering[];
   branding: BrandingSettings;
+  // Added by the server's /api/bootstrap route handler — see plan-features.ts for how the UI
+  // uses it to hide plan-gated nav items.
+  plan?: SubscriptionPlan;
   students: EnrollmentStudent[];
   // Current year's entries only — a past year is fetched on demand via getIdpEntriesForYear.
   idpEntriesByStudent?: Record<string, StudentIdpEntry[]>;

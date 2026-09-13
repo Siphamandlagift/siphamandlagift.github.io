@@ -20,6 +20,7 @@ import { ExternalTrainingRequestRecord, ExternalTrainingRequestStatus, StudentId
 import { LmsBackendService, type LoginRole } from './lms-backend.service';
 import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service';
 import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLmsSessionRecord } from './session-auth';
+import { isFeatureAllowedForPlan } from './plan-features';
 import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component';
 
 @Component({
@@ -249,27 +250,31 @@ import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component'
             </span>
             <span class="side-panel-label">Courses</span>
           </button>
-          <button [class.active]="selectedPanel() === 'external-training'" (click)="selectPanel('external-training')">
-            <span class="side-panel-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M14 5h5v5"></path>
-                <path d="M10 14 19 5"></path>
-                <path d="M19 13v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4"></path>
-              </svg>
-            </span>
-            <span class="side-panel-label">Training Request</span>
-          </button>
-          <button [class.active]="selectedPanel() === 'mentorship'" (click)="selectPanel('mentorship')">
-            <span class="side-panel-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"></path>
-                <path d="M17 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"></path>
-                <path d="M4.5 19a4.5 4.5 0 0 1 9 0"></path>
-                <path d="M14 19a3.5 3.5 0 0 1 7 0"></path>
-              </svg>
-            </span>
-            <span class="side-panel-label">Mentorship</span>
-          </button>
+          @if (externalTrainingAllowed()) {
+            <button [class.active]="selectedPanel() === 'external-training'" (click)="selectPanel('external-training')">
+              <span class="side-panel-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M14 5h5v5"></path>
+                  <path d="M10 14 19 5"></path>
+                  <path d="M19 13v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4"></path>
+                </svg>
+              </span>
+              <span class="side-panel-label">Training Request</span>
+            </button>
+          }
+          @if (mentorshipAllowed()) {
+            <button [class.active]="selectedPanel() === 'mentorship'" (click)="selectPanel('mentorship')">
+              <span class="side-panel-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"></path>
+                  <path d="M17 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"></path>
+                  <path d="M4.5 19a4.5 4.5 0 0 1 9 0"></path>
+                  <path d="M14 19a3.5 3.5 0 0 1 7 0"></path>
+                </svg>
+              </span>
+              <span class="side-panel-label">Mentorship</span>
+            </button>
+          }
           <button [class.active]="selectedPanel() === 'calendar'" (click)="selectPanel('calendar')">
             <span class="side-panel-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none">
@@ -284,49 +289,57 @@ import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component'
             </span>
             <span class="side-panel-label">Calendar</span>
           </button>
-          <button [class.active]="selectedPanel() === 'badges'" (click)="selectPanel('badges')">
-            <span class="side-panel-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="9" r="5"></circle>
-                <path d="m9.5 14.5-1 5 3.5-2.2 3.5 2.2-1-5"></path>
-                <path d="m10.25 9.25 1.1 1.1 2.4-2.6"></path>
-              </svg>
-            </span>
-            <span class="side-panel-label">Badges & Certificates</span>
-          </button>
-          <button [class.active]="selectedPanel() === 'performance'" (click)="selectPanel('performance')">
-            <span class="side-panel-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M4 20V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                <path d="M4 20h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                <rect x="7" y="12" width="3" height="8" rx="1"></rect>
-                <rect x="12.5" y="8" width="3" height="12" rx="1"></rect>
-                <rect x="18" y="4.5" width="3" height="15.5" rx="1"></rect>
-              </svg>
-            </span>
-            <span class="side-panel-label">Performance</span>
-          </button>
-          <button [class.active]="selectedPanel() === 'idp'" (click)="selectPanel('idp')">
-            <span class="side-panel-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M12 3v18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                <path d="M5 6h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                <path d="M7 10h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                <path d="M7 14h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                <path d="M9 18h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-              </svg>
-            </span>
-            <span class="side-panel-label">My IDP</span>
-          </button>
-          <button [class.active]="selectedPanel() === 'messages'" (click)="selectPanel('messages')">
-            <span class="side-panel-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v7A2.5 2.5 0 0 1 16.5 16H10l-4.2 3a.5.5 0 0 1-.8-.4V6.5Z"></path>
-                <path d="m8 8 4 3 4-3"></path>
-              </svg>
-            </span>
-            <span class="side-panel-label">Messages</span>
-          </button>
+          @if (badgesAllowed()) {
+            <button [class.active]="selectedPanel() === 'badges'" (click)="selectPanel('badges')">
+              <span class="side-panel-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="9" r="5"></circle>
+                  <path d="m9.5 14.5-1 5 3.5-2.2 3.5 2.2-1-5"></path>
+                  <path d="m10.25 9.25 1.1 1.1 2.4-2.6"></path>
+                </svg>
+              </span>
+              <span class="side-panel-label">Badges & Certificates</span>
+            </button>
+          }
+          @if (performanceAllowed()) {
+            <button [class.active]="selectedPanel() === 'performance'" (click)="selectPanel('performance')">
+              <span class="side-panel-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M4 20V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                  <path d="M4 20h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                  <rect x="7" y="12" width="3" height="8" rx="1"></rect>
+                  <rect x="12.5" y="8" width="3" height="12" rx="1"></rect>
+                  <rect x="18" y="4.5" width="3" height="15.5" rx="1"></rect>
+                </svg>
+              </span>
+              <span class="side-panel-label">Performance</span>
+            </button>
+          }
+          @if (idpAllowed()) {
+            <button [class.active]="selectedPanel() === 'idp'" (click)="selectPanel('idp')">
+              <span class="side-panel-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M12 3v18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                  <path d="M5 6h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                  <path d="M7 10h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                  <path d="M7 14h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                  <path d="M9 18h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+              </span>
+              <span class="side-panel-label">My IDP</span>
+            </button>
+          }
+          @if (messagesAllowed()) {
+            <button [class.active]="selectedPanel() === 'messages'" (click)="selectPanel('messages')">
+              <span class="side-panel-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v7A2.5 2.5 0 0 1 16.5 16H10l-4.2 3a.5.5 0 0 1-.8-.4V6.5Z"></path>
+                  <path d="m8 8 4 3 4-3"></path>
+                </svg>
+              </span>
+              <span class="side-panel-label">Messages</span>
+            </button>
+          }
           <button [class.active]="selectedPanel() === 'profile'" (click)="selectPanel('profile')">
             <span class="side-panel-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none">
@@ -5186,6 +5199,15 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
   readonly managerData = inject(TrainingManagerDataService);
   readonly branding = inject(LmsBrandingService);
   private readonly backend = inject(LmsBackendService);
+  // A Starter plan only includes Dashboard/Courses/Calendar/Profile & Settings — see
+  // plan-features.ts. managerData.plan is shared across all 3 profile components, populated
+  // from the same bootstrap call training-manager-data.service.ts already makes.
+  readonly mentorshipAllowed = computed(() => isFeatureAllowedForPlan(this.managerData.plan(), 'student-mentorship'));
+  readonly badgesAllowed = computed(() => isFeatureAllowedForPlan(this.managerData.plan(), 'student-badges'));
+  readonly performanceAllowed = computed(() => isFeatureAllowedForPlan(this.managerData.plan(), 'student-performance'));
+  readonly idpAllowed = computed(() => isFeatureAllowedForPlan(this.managerData.plan(), 'student-idp'));
+  readonly messagesAllowed = computed(() => isFeatureAllowedForPlan(this.managerData.plan(), 'student-messages'));
+  readonly externalTrainingAllowed = computed(() => isFeatureAllowedForPlan(this.managerData.plan(), 'student-external-training'));
   readonly studentTheme = computed<LmsBrandThemeOption>(
     () => this.branding.themeOptions.find((theme) => theme.id === this.studentData.settings().themePreference) ?? this.branding.currentTheme(),
   );
@@ -5558,6 +5580,17 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
   }
 
   selectPanel(panel: 'dashboard' | 'courses' | 'mentorship' | 'calendar' | 'badges' | 'performance' | 'messages' | 'external-training' | 'idp' | 'profile') {
+    const gate: Partial<Record<typeof panel, () => boolean>> = {
+      mentorship: this.mentorshipAllowed,
+      badges: this.badgesAllowed,
+      performance: this.performanceAllowed,
+      idp: this.idpAllowed,
+      messages: this.messagesAllowed,
+      'external-training': this.externalTrainingAllowed,
+    };
+    if (gate[panel] && !gate[panel]!()) {
+      return;
+    }
     this._selectedPanel.set(panel);
     if (panel !== 'messages') {
       this._messagesInitialSection.set(null);
