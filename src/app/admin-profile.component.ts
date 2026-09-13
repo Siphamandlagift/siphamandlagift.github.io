@@ -13064,6 +13064,18 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     const nqfLevel = record.has('nqflevel') ? (record.get('nqflevel') ?? '').trim() : undefined;
     const department = record.get('department') ?? '';
     const lineManager = record.has('linemanager') ? (record.get('linemanager') ?? '').trim() : undefined;
+    // The single "add/edit user" form resolves Line Manager to an id via a dropdown of existing
+    // roster members (lineManagerOptions) — the actual relationship succession planning, "my
+    // team", and mentorship grouping all key off is lineManagerId, never this free-text name.
+    // Without this lookup, a bulk-uploaded row only ever set the name, so every bulk-imported
+    // employee would silently vanish from their manager's team in those views while still
+    // displaying the right manager name everywhere else (reports fall back to this text when no
+    // id is set), making the gap invisible unless someone specifically checked team membership.
+    const lineManagerId = lineManager
+      ? this.lineManagerOptions().find((candidate) =>
+          `${candidate.name} ${candidate.surname}`.trim().toLowerCase() === lineManager.toLowerCase(),
+        )?.id
+      : undefined;
     const group = record.get('group') ?? '';
     const dateEnrolled = this.normalizeBulkUploadDate(record.get('dateenrolled') ?? '');
     const deadlineDate = this.normalizeBulkUploadDate(record.get('deadlinedate') ?? '');
@@ -13118,6 +13130,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         ...(nqfLevel !== undefined ? { nqfLevel } : {}),
         department: department.trim(),
         ...(lineManager !== undefined ? { lineManager } : {}),
+        ...(lineManagerId !== undefined ? { lineManagerId } : {}),
         group: group.trim(),
         dateEnrolled,
         deadlineDate,
@@ -13138,6 +13151,25 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
     if (/^\d{4}-\d{2}-\d{2}$/.test(trimmedValue)) {
       return trimmedValue;
+    }
+
+    // Numeric slash/dash dates are treated as day-first (DD/MM/YYYY) — this app's own locale
+    // (OFO codes, NQF levels: South Africa) — rather than handed straight to the native Date
+    // constructor below, which assumes US month-first order and would silently swap day and
+    // month for any date where both are 12 or under (e.g. "01/04/2026", meant as 1 April,
+    // quietly becoming 4 January with no error at all). Anything else (a named month like
+    // "10 Feb 2026") is unambiguous either way and still goes through the fallback as before.
+    const dayFirstMatch = trimmedValue.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+    if (dayFirstMatch) {
+      const day = Number(dayFirstMatch[1]);
+      const month = Number(dayFirstMatch[2]);
+      const year = Number(dayFirstMatch[3]);
+      const candidate = new Date(year, month - 1, day);
+      if (month < 1 || month > 12 || candidate.getMonth() !== month - 1 || candidate.getDate() !== day) {
+        return null;
+      }
+
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     }
 
     const parsedDate = new Date(trimmedValue);
