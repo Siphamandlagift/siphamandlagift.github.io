@@ -62,6 +62,12 @@ export type CreateCompanyAdminRequest = {
   password: string;
 };
 
+export type AdministratorAccountSummary = {
+  id: string;
+  email: string;
+  username: string;
+};
+
 export type PlatformUsageOverview = {
   companyCount: number;
   totalUsers: number;
@@ -111,6 +117,17 @@ export class PlatformBackendService {
 
   createCompanyAdmin(companyId: string, input: CreateCompanyAdminRequest) {
     return this.http.post<{ id: string; email: string; role: string }>(`${this.baseUrl}/companies/${encodeURIComponent(companyId)}/admins`, input);
+  }
+
+  listCompanyAdmins(companyId: string): Observable<AdministratorAccountSummary[]> {
+    return this.http.get<AdministratorAccountSummary[]>(`${this.baseUrl}/companies/${encodeURIComponent(companyId)}/admins`);
+  }
+
+  resetCompanyAdminPassword(companyId: string, accountId: string, password: string) {
+    return this.http.put<{ message: string }>(
+      `${this.baseUrl}/companies/${encodeURIComponent(companyId)}/admins/${encodeURIComponent(accountId)}/password`,
+      { password },
+    );
   }
 
   getUsageOverview(): Observable<PlatformUsageOverview> {

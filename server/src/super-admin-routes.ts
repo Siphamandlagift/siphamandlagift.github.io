@@ -63,6 +63,10 @@ const createCompanyAdminSchema = z.object({
   password: z.string().min(1),
 });
 
+const resetCompanyAdminPasswordSchema = z.object({
+  password: z.string().min(1),
+});
+
 // The one login screen's branding, shared by every company (see platform-repository.ts's
 // getPlatformBranding/updatePlatformBranding) — a data: URI stored directly on the settings
 // document rather than a Storage upload, since this is a single small, rarely-changed image with
@@ -223,6 +227,57 @@ export function createSuperAdminRouter(options: { jwtSecret: string; jwtExpiresI
       }
 
       response.status(201).json({ id: result.account.id, email: result.account.email, role: result.account.role });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Super Admin's "see this company's admins" list — used to populate the dashboard's Manage
+  // Admins panel before offering the reset-password action below.
+  router.get('/companies/:companyId/admins', requireSuperAdmin, async (request, response, next) => {
+    try {
+      const companyId = request.params['companyId'] as string;
+      const company = await getCompanyRecord(companyId);
+      if (!company) {
+        response.status(404).json({ message: 'Company not found.' });
+        return;
+      }
+
+      const repository = createLmsRepository(companyId);
+      response.json(await repository.listAdministratorAccounts());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Support action: set a company admin's password directly, no email/token round-trip — for
+  // when an admin is locked out and can't complete the normal self-service reset (e.g. their
+  // company has no SMTP configured, or they no longer have access to the email on file).
+  router.put('/companies/:companyId/admins/:accountId/password', requireSuperAdmin, async (request, response, next) => {
+    try {
+      const companyId = request.params['companyId'] as string;
+      const accountId = request.params['accountId'] as string;
+      const input = resetCompanyAdminPasswordSchema.parse(request.body);
+
+      const company = await getCompanyRecord(companyId);
+      if (!company) {
+        response.status(404).json({ message: 'Company not found.' });
+        return;
+      }
+
+      const repository = createLmsRepository(companyId);
+      const result = await repository.resetAdministratorPassword(accountId, input.password);
+
+      switch (result.status) {
+        case 'not-found':
+          response.status(404).json({ message: 'That administrator account was not found for this company.' });
+          return;
+        case 'invalid-password':
+          response.status(400).json({ message: 'Password does not meet the strength requirements.' });
+          return;
+      }
+
+      response.json({ message: 'Password reset successfully.' });
     } catch (error) {
       next(error);
     }

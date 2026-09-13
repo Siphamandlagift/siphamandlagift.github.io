@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { finalize } from 'rxjs';
 import {
+  AdministratorAccountSummary,
   CompanyWithUsage,
   PlatformBackendService,
   PlatformBrandingSettings,
@@ -14,7 +15,7 @@ import {
 import { clearPlatformAuthSession, readPlatformSessionRecord } from './platform-session-auth';
 import { LMS_BRAND_THEME_OPTIONS, type LmsBrandThemeId } from '../lms-brand-themes';
 
-type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'add-admin';
+type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-admins';
 
 @Component({
   selector: 'app-super-admin-dashboard',
@@ -154,7 +155,7 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'add-admin'
                   </div>
                   <div class="company-cell company-cell-actions">
                     <button type="button" class="inline-btn" (click)="openEditSubscription(company)">Edit subscription</button>
-                    <button type="button" class="inline-btn" (click)="openAddAdmin(company)">+ Admin</button>
+                    <button type="button" class="inline-btn" (click)="openManageAdmins(company)">Admins</button>
                   </div>
                 </article>
               }
@@ -276,12 +277,52 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'add-admin'
       </div>
     }
 
-    @if (activePanel() === 'add-admin' && editingCompany(); as company) {
+    @if (activePanel() === 'manage-admins' && editingCompany(); as company) {
       <div class="overlay-panel" role="dialog" aria-modal="true">
         <div class="overlay-header">
-          <h3>Add administrator — {{ company.name }}</h3>
+          <h3>Administrators — {{ company.name }}</h3>
           <button type="button" class="icon-btn" (click)="closePanel()" aria-label="Close">✕</button>
         </div>
+
+        @if (loadingCompanyAdmins()) {
+          <div class="empty-state">Loading…</div>
+        } @else {
+          <div class="admin-list">
+            @for (admin of companyAdmins(); track admin.id) {
+              <div class="admin-list-row">
+                <span class="admin-list-email">{{ admin.email }}</span>
+                @if (resettingPasswordForAdminId() === admin.id) {
+                  <div class="admin-reset-inline">
+                    <input
+                      type="password"
+                      name="resetAdminPasswordValue"
+                      [(ngModel)]="resetAdminPasswordValue"
+                      placeholder="New password"
+                      autocomplete="new-password" />
+                    <button type="button" class="inline-btn" [disabled]="resettingPassword()" (click)="submitResetAdminPassword(admin)">
+                      {{ resettingPassword() ? 'Saving…' : 'Save' }}
+                    </button>
+                    <button type="button" class="inline-btn" [disabled]="resettingPassword()" (click)="cancelResetAdminPassword()">Cancel</button>
+                  </div>
+                } @else {
+                  <button type="button" class="inline-btn" (click)="startResetAdminPassword(admin)">Reset password</button>
+                }
+              </div>
+            } @empty {
+              <div class="empty-state">No administrators yet — add the first one below.</div>
+            }
+          </div>
+
+          @if (resetAdminPasswordError()) {
+            <div class="error">{{ resetAdminPasswordError() }}</div>
+          }
+          @if (resetAdminPasswordSuccess()) {
+            <div class="success">{{ resetAdminPasswordSuccess() }}</div>
+          }
+        }
+
+        <div class="overlay-divider"></div>
+        <h4 class="overlay-subheading">Add administrator</h4>
 
         <form (ngSubmit)="submitAddAdmin()">
           <label>
@@ -304,7 +345,7 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'add-admin'
           <div class="overlay-footer">
             <button type="button" class="secondary-btn" (click)="closePanel()">Close</button>
             <button type="submit" class="primary-btn" [disabled]="creatingAdmin()">
-              {{ creatingAdmin() ? 'Creating…' : 'Create admin' }}
+              {{ creatingAdmin() ? 'Creating…' : 'Add administrator' }}
             </button>
           </div>
         </form>
@@ -834,6 +875,61 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'add-admin'
       gap: 0.75rem;
     }
 
+    .admin-list {
+      display: grid;
+      gap: 0.5rem;
+      margin-bottom: 0.9rem;
+    }
+
+    .admin-list-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.55rem 0.7rem;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px solid rgba(100, 116, 139, 0.18);
+      flex-wrap: wrap;
+    }
+
+    .admin-list-email {
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: #0f172a;
+      word-break: break-all;
+    }
+
+    .admin-reset-inline {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+
+    .admin-reset-inline input {
+      padding: 0.4rem 0.6rem;
+      border: 1px solid rgba(100, 116, 139, 0.35);
+      border-radius: 8px;
+      font: inherit;
+      font-size: 0.82rem;
+      color: #0f172a;
+      box-sizing: border-box;
+    }
+
+    .overlay-divider {
+      height: 1px;
+      background: rgba(100, 116, 139, 0.2);
+      margin: 1.1rem 0;
+    }
+
+    .overlay-subheading {
+      margin: 0 0 0.7rem;
+      font-size: 0.86rem;
+      font-weight: 800;
+      color: #334155;
+    }
+
     .overlay-footer {
       display: flex;
       justify-content: flex-end;
@@ -918,6 +1014,14 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
   readonly addAdminError = signal('');
   readonly addAdminSuccess = signal('');
   readonly creatingAdmin = signal(false);
+
+  readonly companyAdmins = signal<AdministratorAccountSummary[]>([]);
+  readonly loadingCompanyAdmins = signal(false);
+  readonly resettingPasswordForAdminId = signal<string | null>(null);
+  resetAdminPasswordValue = '';
+  readonly resettingPassword = signal(false);
+  readonly resetAdminPasswordError = signal('');
+  readonly resetAdminPasswordSuccess = signal('');
 
   ngOnInit() {
     this.loadAll();
@@ -1021,7 +1125,7 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
         next: (company) => {
           this.closePanel();
           this.loadAll();
-          this.openAddAdmin(company);
+          this.openManageAdmins(company);
         },
         error: (error) => {
           this.createCompanyError.set(error?.error?.message || 'Could not create this company.');
@@ -1069,14 +1173,27 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
       });
   }
 
-  openAddAdmin(company: CompanyWithUsage) {
+  openManageAdmins(company: CompanyWithUsage) {
     this.activeCompanyId.set(company.id);
     this.activeCompanySnapshot.set(company);
     this.newAdminEmail = '';
     this.newAdminPassword = '';
     this.addAdminError.set('');
     this.addAdminSuccess.set('');
-    this.activePanel.set('add-admin');
+    this.companyAdmins.set([]);
+    this.cancelResetAdminPassword();
+    this.activePanel.set('manage-admins');
+    this.loadCompanyAdmins(company.id);
+  }
+
+  private loadCompanyAdmins(companyId: string) {
+    this.loadingCompanyAdmins.set(true);
+    this.backend.listCompanyAdmins(companyId)
+      .pipe(finalize(() => this.loadingCompanyAdmins.set(false)))
+      .subscribe({
+        next: (admins) => this.companyAdmins.set(admins),
+        error: () => this.companyAdmins.set([]),
+      });
   }
 
   submitAddAdmin() {
@@ -1097,10 +1214,49 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (account) => {
           this.addAdminSuccess.set(`Admin account created: ${account.email}`);
+          this.newAdminEmail = '';
+          this.newAdminPassword = '';
           this.loadAll();
+          this.loadCompanyAdmins(companyId);
         },
         error: (error) => {
           this.addAdminError.set(error?.error?.message || 'Could not create this administrator account.');
+        },
+      });
+  }
+
+  startResetAdminPassword(admin: AdministratorAccountSummary) {
+    this.resettingPasswordForAdminId.set(admin.id);
+    this.resetAdminPasswordValue = '';
+    this.resetAdminPasswordError.set('');
+    this.resetAdminPasswordSuccess.set('');
+  }
+
+  cancelResetAdminPassword() {
+    this.resettingPasswordForAdminId.set(null);
+    this.resetAdminPasswordValue = '';
+    this.resetAdminPasswordError.set('');
+  }
+
+  submitResetAdminPassword(admin: AdministratorAccountSummary) {
+    const companyId = this.activeCompanyId();
+    if (!companyId || this.resettingPassword()) {
+      return;
+    }
+
+    this.resettingPassword.set(true);
+    this.resetAdminPasswordError.set('');
+    this.resetAdminPasswordSuccess.set('');
+
+    this.backend.resetCompanyAdminPassword(companyId, admin.id, this.resetAdminPasswordValue)
+      .pipe(finalize(() => this.resettingPassword.set(false)))
+      .subscribe({
+        next: () => {
+          this.resetAdminPasswordSuccess.set(`Password reset for ${admin.email}.`);
+          this.cancelResetAdminPassword();
+        },
+        error: (error) => {
+          this.resetAdminPasswordError.set(error?.error?.message || 'Could not reset this password.');
         },
       });
   }

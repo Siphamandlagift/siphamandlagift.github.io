@@ -1041,6 +1041,22 @@ export type CreateAdministratorAccountResult =
   | { status: 'email-taken' }
   | { status: 'license-limit-reached' };
 
+// Trimmed projection of AuthAccountRecord for the Super Admin's "view this company's admins"
+// list — never the password hash/salt.
+export type AdministratorAccountSummary = {
+  id: string;
+  email: string;
+  username: string;
+};
+
+// Discriminated for the same reason as CreateAdministratorAccountResult above: the caller needs
+// to tell "no such admin account in this company" apart from a password that fails the strength
+// policy, rather than one ambiguous failure for both.
+export type ResetAdministratorPasswordResult =
+  | { status: 'reset' }
+  | { status: 'not-found' }
+  | { status: 'invalid-password' };
+
 export type CompanyUsageSummary = {
   userCount: number;
   licenseLimit: number;

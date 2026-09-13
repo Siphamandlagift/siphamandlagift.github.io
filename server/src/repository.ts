@@ -14,6 +14,7 @@ import {
   verifyPassword,
 } from './auth-utils.js';
 import {
+  AdministratorAccountSummary,
   ApprovalChainStepRecord,
   ApprovalWorkflowSettingsRecord,
   ApprovalWorkflowSettingsUpdateInput,
@@ -22,6 +23,7 @@ import {
   BrandingSettingsUpdateInput,
   CreateAdministratorAccountResult,
   ChangePasswordInput,
+  ResetAdministratorPasswordResult,
   EnrollmentStudentRecord,
   ExternalTrainingRequestCreateInput,
   ExternalTrainingRequestDocumentsInput,
@@ -3206,6 +3208,46 @@ export class LmsRepository {
     data.authAccounts.unshift(account);
     await this.write(data);
     return { status: 'created', account };
+  }
+
+  // Super Admin's "view this company's admins" list (GET /api/platform/companies/:id/admins in
+  // super-admin-routes.ts) — every accountId createAdministratorAccount has ever created for this
+  // company, oldest-created first (unshift above means the array itself is newest-first; reversed
+  // here so the list reads in the order they were added).
+  async listAdministratorAccounts(): Promise<AdministratorAccountSummary[]> {
+    const data = await this.read();
+    return data.authAccounts
+      .filter((entry) => entry.role === 'administrator')
+      .map((entry) => ({ id: entry.id, email: entry.email, username: entry.username }))
+      .reverse();
+  }
+
+  // Super Admin support action: set a specific admin account's password directly, no email/token
+  // round-trip — the same trust level createAdministratorAccount above already operates at (a
+  // Super Admin session, not the account owner's). Scoped to role === 'administrator' so this
+  // can't be pointed at a manager/student account by id even by mistake; company scoping is
+  // already structural, since accountId is only ever looked up within this repository's own
+  // company-scoped authAccounts.
+  async resetAdministratorPassword(accountId: string, password: string): Promise<ResetAdministratorPasswordResult> {
+    const trimmedPassword = password.trim();
+    if (!isStrongPassword(trimmedPassword)) {
+      return { status: 'invalid-password' };
+    }
+
+    const data = await this.read();
+    const accountIndex = data.authAccounts.findIndex((entry) => entry.id === accountId && entry.role === 'administrator');
+    if (accountIndex === -1) {
+      return { status: 'not-found' };
+    }
+
+    const credentials = createPasswordCredentials(trimmedPassword);
+    data.authAccounts[accountIndex] = {
+      ...data.authAccounts[accountIndex],
+      passwordHash: credentials.passwordHash,
+      passwordSalt: credentials.passwordSalt,
+    };
+    await this.write(data);
+    return { status: 'reset' };
   }
 
   async createPasswordResetRequest(emailAddress: string) {
