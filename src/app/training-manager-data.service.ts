@@ -461,6 +461,88 @@ export class TrainingManagerDataService {
   private readonly backend = inject(LmsBackendService);
   private backendHydrated = false;
 
+  // Every load*/save* pair below (offerings, students, assignment submissions, IDP/KPI entries)
+  // used to read/write these keys directly as bare arrays/objects — a real cross-tenant leak: the
+  // keys are global, not scoped by company, so a browser that had ever logged into Company A would
+  // still have A's cached students sitting under the same key Company B's session reads from.
+  // mergeWithLocalStudents/mergeWithLocalOfferings below deliberately re-add any cached record the
+  // backend doesn't recognize (to survive a write that failed or hasn't propagated yet) — exactly
+  // the mechanism that made A's cached students reappear as "not yet synced" the moment B's
+  // (much shorter, or empty) real roster came back from the backend. And the bootstrap fetch's own
+  // error handler falls back to this cache with NO server check at all if the request fails outright.
+  // Fixed by wrapping every cached value with the companyId it was cached FOR (read off the current
+  // session's own JWT, the one place company identity is already available client-side) and
+  // refusing to read it back for a different company — see readCompanyScopedCache/
+  // writeCompanyScopedCache. A pre-existing cache from before this fix has no tag at all, which
+  // fails the check the same way a mismatched one does, so old entries are discarded rather than
+  // trusted.
+  private getCurrentCompanyId(): string | null {
+    if (typeof localStorage === 'undefined') {
+      return null;
+    }
+
+    try {
+      const token = localStorage.getItem('lms-token');
+      const payloadSegment = token?.split('.')[1];
+      if (!payloadSegment) {
+        return null;
+      }
+
+      const normalized = payloadSegment.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+      const payload = JSON.parse(atob(padded)) as { companyId?: unknown };
+      return typeof payload.companyId === 'string' && payload.companyId ? payload.companyId : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private readCompanyScopedCache(storageKey: string): unknown {
+    if (typeof localStorage === 'undefined') {
+      return null;
+    }
+
+    const currentCompanyId = this.getCurrentCompanyId();
+    if (!currentCompanyId) {
+      // Can't prove this cache is ours — never trust it rather than guess.
+      return null;
+    }
+
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) {
+        return null;
+      }
+
+      const parsed = JSON.parse(raw) as { companyId?: unknown; data?: unknown };
+      if (!parsed || typeof parsed !== 'object' || parsed.companyId !== currentCompanyId) {
+        return null;
+      }
+
+      return parsed.data ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private writeCompanyScopedCache(storageKey: string, data: unknown): void {
+    if (typeof localStorage === 'undefined') {
+      return;
+    }
+
+    const currentCompanyId = this.getCurrentCompanyId();
+    if (!currentCompanyId) {
+      // Don't cache data we can't later prove ownership of.
+      return;
+    }
+
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({ companyId: currentCompanyId, data }));
+    } catch {
+      // Ignore write failures (e.g. quota exceeded, private browsing) — caching is best-effort.
+    }
+  }
+
   /** Becomes true once offerings have been loaded from the backend (or its cache).
    *  Used by StudentDataService to avoid syncing courses before real data is available. */
   private readonly offeringsHydratedSignal = signal(false);
@@ -3467,21 +3549,8 @@ export class TrainingManagerDataService {
   }
 
   private loadAssignmentSubmissions() {
-    if (typeof localStorage === 'undefined') {
-      return [];
-    }
-
-    try {
-      const raw = localStorage.getItem(TrainingManagerDataService.assignmentSubmissionsStorageKey);
-      if (!raw) {
-        return [];
-      }
-
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? this.hydrateAssignmentSubmissions(parsed) : [];
-    } catch {
-      return [];
-    }
+    const data = this.readCompanyScopedCache(TrainingManagerDataService.assignmentSubmissionsStorageKey);
+    return Array.isArray(data) ? this.hydrateAssignmentSubmissions(data) : [];
   }
 
   private hydrateAssignmentSubmissions(submissions: Array<Partial<AssignmentSubmissionRecord>>) {
@@ -3497,45 +3566,13 @@ export class TrainingManagerDataService {
   }
 
   private loadOfferings() {
-    if (typeof localStorage === 'undefined') {
-      return [];
-    }
-
-    try {
-      const raw = localStorage.getItem(TrainingManagerDataService.offeringsStorageKey);
-      if (!raw) {
-        return [];
-      }
-
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed)
-        ? (parsed as TrainingOffering[])
-        : [];
-    } catch {
-      return [];
-    }
+    const data = this.readCompanyScopedCache(TrainingManagerDataService.offeringsStorageKey);
+    return Array.isArray(data) ? (data as TrainingOffering[]) : [];
   }
 
   private loadStudents() {
-    if (typeof localStorage === 'undefined') {
-      return [];
-    }
-
-    try {
-      const raw = localStorage.getItem(TrainingManagerDataService.studentsStorageKey);
-      if (!raw) {
-        return [];
-      }
-
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) {
-        return [];
-      }
-
-      return parsed as EnrollmentStudent[];
-    } catch {
-      return [];
-    }
+    const data = this.readCompanyScopedCache(TrainingManagerDataService.studentsStorageKey);
+    return Array.isArray(data) ? (data as EnrollmentStudent[]) : [];
   }
 
   private mergeWithLocalStudents(backendStudents: EnrollmentStudent[]): EnrollmentStudent[] {
@@ -3595,82 +3632,37 @@ export class TrainingManagerDataService {
   }
 
   private saveOfferings(offerings: TrainingOffering[]) {
-    if (typeof localStorage === 'undefined') {
-      return;
-    }
-
-    try {
-      localStorage.setItem(TrainingManagerDataService.offeringsStorageKey, JSON.stringify(offerings));
-    } catch {
-      return;
-    }
+    this.writeCompanyScopedCache(TrainingManagerDataService.offeringsStorageKey, offerings);
   }
 
   private saveStudents(students: EnrollmentStudent[]) {
-    if (typeof localStorage === 'undefined') {
-      return;
-    }
-
-    try {
-      localStorage.setItem(TrainingManagerDataService.studentsStorageKey, JSON.stringify(students));
-    } catch {
-      return;
-    }
+    this.writeCompanyScopedCache(TrainingManagerDataService.studentsStorageKey, students);
   }
 
   private saveAssignmentSubmissions(submissions: AssignmentSubmissionRecord[]) {
-    if (typeof localStorage === 'undefined') {
-      return;
-    }
-
-    try {
-      localStorage.setItem(TrainingManagerDataService.assignmentSubmissionsStorageKey, JSON.stringify(submissions));
-    } catch {
-      return;
-    }
+    this.writeCompanyScopedCache(TrainingManagerDataService.assignmentSubmissionsStorageKey, submissions);
   }
 
   private loadIdpEntriesByStudent() {
-    if (typeof localStorage === 'undefined') {
+    const parsed = this.readCompanyScopedCache(TrainingManagerDataService.idpEntriesByStudentStorageKey);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return {};
     }
 
-    try {
-      const raw = localStorage.getItem(TrainingManagerDataService.idpEntriesByStudentStorageKey);
-      if (!raw) {
-        return {};
+    const entriesByStudent: Record<string, StudentIdpEntry[]> = {};
+    for (const [studentId, entries] of Object.entries(parsed as Record<string, unknown>)) {
+      if (!Array.isArray(entries) || !studentId.trim()) {
+        continue;
       }
 
-      const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        return {};
-      }
-
-      const entriesByStudent: Record<string, StudentIdpEntry[]> = {};
-      for (const [studentId, entries] of Object.entries(parsed as Record<string, unknown>)) {
-        if (!Array.isArray(entries) || !studentId.trim()) {
-          continue;
-        }
-
-        entriesByStudent[studentId] = entries.map((entry) => this.normalizeIdpEntry(entry));
-      }
-
-      return entriesByStudent;
-    } catch {
-      return {};
+      entriesByStudent[studentId] = entries.map((entry) => this.normalizeIdpEntry(entry));
     }
+
+    return entriesByStudent;
   }
 
   private saveIdpEntriesByStudent(entriesByStudent: Record<string, StudentIdpEntry[]>) {
-    if (typeof localStorage === 'undefined') {
-      return;
-    }
-
-    try {
-      localStorage.setItem(TrainingManagerDataService.idpEntriesByStudentStorageKey, JSON.stringify(entriesByStudent));
-    } catch {
-      return;
-    }
+    this.writeCompanyScopedCache(TrainingManagerDataService.idpEntriesByStudentStorageKey, entriesByStudent);
   }
 
   private normalizeIdpEntry(entry: unknown): StudentIdpEntry {
@@ -3737,46 +3729,25 @@ export class TrainingManagerDataService {
   }
 
   private loadKpiEntriesByStudent() {
-    if (typeof localStorage === 'undefined') {
+    const parsed = this.readCompanyScopedCache(TrainingManagerDataService.kpiEntriesByStudentStorageKey);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return {};
     }
 
-    try {
-      const raw = localStorage.getItem(TrainingManagerDataService.kpiEntriesByStudentStorageKey);
-      if (!raw) {
-        return {};
+    const entriesByStudent: Record<string, StudentKpiEntry[]> = {};
+    for (const [studentId, entries] of Object.entries(parsed as Record<string, unknown>)) {
+      if (!Array.isArray(entries) || !studentId.trim()) {
+        continue;
       }
 
-      const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        return {};
-      }
-
-      const entriesByStudent: Record<string, StudentKpiEntry[]> = {};
-      for (const [studentId, entries] of Object.entries(parsed as Record<string, unknown>)) {
-        if (!Array.isArray(entries) || !studentId.trim()) {
-          continue;
-        }
-
-        entriesByStudent[studentId] = entries.map((entry) => this.normalizeKpiEntry(entry));
-      }
-
-      return entriesByStudent;
-    } catch {
-      return {};
+      entriesByStudent[studentId] = entries.map((entry) => this.normalizeKpiEntry(entry));
     }
+
+    return entriesByStudent;
   }
 
   private saveKpiEntriesByStudent(entriesByStudent: Record<string, StudentKpiEntry[]>) {
-    if (typeof localStorage === 'undefined') {
-      return;
-    }
-
-    try {
-      localStorage.setItem(TrainingManagerDataService.kpiEntriesByStudentStorageKey, JSON.stringify(entriesByStudent));
-    } catch {
-      return;
-    }
+    this.writeCompanyScopedCache(TrainingManagerDataService.kpiEntriesByStudentStorageKey, entriesByStudent);
   }
 
   private normalizeKpiScoreValue(score: unknown): StudentKpiScore | null {
