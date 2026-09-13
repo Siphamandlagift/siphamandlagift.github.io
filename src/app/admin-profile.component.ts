@@ -16514,7 +16514,12 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   readonly assignWizardFilteredOfferings = computed(() => {
     const query = this.assignWizardOfferingSearchTerm().trim().toLowerCase();
-    const offerings = this.managerData.offerings();
+    // Only Published offerings ever sync into a student's own course list (see
+    // syncPublishedOfferingsToLearnerCourses in student-data.service.ts) — a Draft one offered
+    // here would let the wizard complete and report success ("Assigned N courses to M
+    // students"), while the assignment stays completely invisible to every student picked,
+    // silently, until the course is later published.
+    const offerings = this.managerData.offerings().filter((offering) => offering.status === 'Published');
 
     if (!query) {
       return offerings;
