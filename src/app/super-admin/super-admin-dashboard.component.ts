@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -71,19 +71,27 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'add-admin'
           } @else {
             <div class="branding-editor">
               <div class="branding-logo-block">
-                <div class="branding-logo-preview" [class.branding-logo-preview-has-image]="!!platformBranding()?.companyLogoDataUrl">
-                  @if (platformBranding()?.companyLogoDataUrl) {
-                    <img [src]="platformBranding()!.companyLogoDataUrl!" alt="" />
+                <div class="branding-logo-preview" [class.branding-logo-preview-has-image]="!!(pendingLogoDataUrl() ?? platformBranding()?.companyLogoDataUrl)">
+                  @if (pendingLogoDataUrl() ?? platformBranding()?.companyLogoDataUrl; as previewUrl) {
+                    <img [src]="previewUrl" alt="" />
                   } @else {
                     <span>SC</span>
                   }
                 </div>
                 <div class="branding-logo-actions">
-                  <label class="secondary-btn branding-upload-btn" [class.branding-upload-btn-disabled]="platformBrandingLogoUploading()">
-                    <span>{{ platformBrandingLogoUploading() ? 'Uploading…' : 'Upload logo' }}</span>
-                    <input type="file" accept="image/*" [disabled]="platformBrandingLogoUploading()" (change)="onPlatformLogoSelected($event)" />
-                  </label>
-                  <button type="button" class="secondary-btn" [disabled]="!platformBranding()?.companyLogoDataUrl || platformBrandingLogoUploading()" (click)="removePlatformLogo()">Remove logo</button>
+                  @if (pendingLogoDataUrl()) {
+                    <span class="branding-pending-chip">Not saved yet</span>
+                    <button type="button" class="secondary-btn branding-save-btn" [disabled]="platformBrandingLogoUploading()" (click)="saveLogo()">
+                      {{ platformBrandingLogoUploading() ? 'Saving…' : 'Save logo' }}
+                    </button>
+                    <button type="button" class="secondary-btn" [disabled]="platformBrandingLogoUploading()" (click)="cancelPendingLogo()">Cancel</button>
+                  } @else {
+                    <label class="secondary-btn branding-upload-btn">
+                      <span>Upload logo</span>
+                      <input type="file" accept="image/*" (change)="onPlatformLogoSelected($event)" />
+                    </label>
+                    <button type="button" class="secondary-btn" [disabled]="!platformBranding()?.companyLogoDataUrl || platformBrandingSaving()" (click)="removePlatformLogo()">Remove logo</button>
+                  }
                 </div>
               </div>
 
@@ -300,6 +308,14 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'add-admin'
             </button>
           </div>
         </form>
+      </div>
+    }
+
+    @if (platformBrandingToast(); as toastMessage) {
+      <div class="branding-toast" role="status" aria-live="polite">
+        <span class="branding-toast-icon" aria-hidden="true">✓</span>
+        <span class="branding-toast-message">{{ toastMessage }}</span>
+        <button type="button" class="branding-toast-dismiss" aria-label="Dismiss notification" (click)="dismissPlatformBrandingToast()">×</button>
       </div>
     }
   `,
@@ -524,11 +540,6 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'add-admin'
       cursor: pointer;
     }
 
-    .branding-upload-btn-disabled {
-      opacity: 0.6;
-      pointer-events: none;
-    }
-
     .branding-theme-field {
       display: grid;
       gap: 0.35rem;
@@ -536,6 +547,89 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'add-admin'
       font-weight: 700;
       color: #334155;
       max-width: 16rem;
+    }
+
+    .branding-pending-chip {
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: #92400e;
+      background: #fef3c7;
+      padding: 0.3rem 0.65rem;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .branding-save-btn {
+      background: linear-gradient(135deg, #0f172a, #334155);
+      color: #fff;
+      border: none;
+    }
+
+    @keyframes branding-toast-in {
+      0% { opacity: 0; transform: translateY(12px) scale(0.96); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .branding-toast {
+      position: fixed;
+      right: 1.5rem;
+      bottom: 1.5rem;
+      z-index: 60;
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      max-width: min(24rem, calc(100vw - 2rem));
+      padding: 0.85rem 0.85rem 0.85rem 1rem;
+      border-radius: 14px;
+      background: #0f172a;
+      color: #fff;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.28);
+      animation: branding-toast-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .branding-toast-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.6rem;
+      height: 1.6rem;
+      border-radius: 999px;
+      background: #22c55e;
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 800;
+      flex: 0 0 auto;
+    }
+
+    .branding-toast-message {
+      flex: 1 1 auto;
+      font-size: 0.86rem;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .branding-toast-dismiss {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.5rem;
+      height: 1.5rem;
+      border: none;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .branding-toast-dismiss:hover,
+    .branding-toast-dismiss:focus-visible {
+      background: rgba(255, 255, 255, 0.22);
+      outline: none;
     }
 
     .company-table {
@@ -766,7 +860,7 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'add-admin'
     }
   `],
 })
-export class SuperAdminDashboardComponent implements OnInit {
+export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly backend = inject(PlatformBackendService);
 
@@ -783,6 +877,13 @@ export class SuperAdminDashboardComponent implements OnInit {
   readonly platformBrandingSaving = signal(false);
   readonly platformBrandingLogoUploading = signal(false);
   readonly platformBrandingError = signal('');
+  // Set once a logo file is picked, cleared once it's saved (or cancelled) — a newly selected
+  // logo is only previewed, never actually sent to the server, until "Save logo" is clicked.
+  readonly pendingLogoDataUrl = signal<string | null>(null);
+  // Success confirmation for every branding save (theme, logo save, logo remove) — same toast
+  // pattern as admin-profile.component.ts's assign-wizard confirmation.
+  readonly platformBrandingToast = signal<string | null>(null);
+  private platformBrandingToastTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly activePanel = signal<ActivePanel>('none');
   private readonly activeCompanyId = signal<string | null>(null);
@@ -821,6 +922,12 @@ export class SuperAdminDashboardComponent implements OnInit {
   ngOnInit() {
     this.loadAll();
     this.loadPlatformBranding();
+  }
+
+  ngOnDestroy() {
+    if (this.platformBrandingToastTimer) {
+      clearTimeout(this.platformBrandingToastTimer);
+    }
   }
 
   private loadAll() {
@@ -1005,9 +1112,11 @@ export class SuperAdminDashboardComponent implements OnInit {
       return;
     }
 
-    this.savePlatformBranding({ ...current, themeId });
+    this.savePlatformBranding({ ...current, themeId }, 'Theme updated — every company\'s login screen now shows it.');
   }
 
+  // Only stages a preview — the file is never sent anywhere until "Save logo" is clicked (see
+  // saveLogo below). Picking a new file while one is already staged just replaces the preview.
   onPlatformLogoSelected(event: Event) {
     const input = event.target as HTMLInputElement | null;
     const file = input?.files?.[0];
@@ -1019,24 +1128,39 @@ export class SuperAdminDashboardComponent implements OnInit {
       input.value = '';
     }
 
-    const current = this.platformBranding();
-    if (!current) {
-      return;
-    }
-
     this.platformBrandingError.set('');
-    this.platformBrandingLogoUploading.set(true);
 
     const reader = new FileReader();
     reader.onload = () => {
-      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
-      this.savePlatformBranding({ ...current, companyLogoDataUrl: dataUrl }, () => this.platformBrandingLogoUploading.set(false));
+      this.pendingLogoDataUrl.set(typeof reader.result === 'string' ? reader.result : '');
     };
     reader.onerror = () => {
-      this.platformBrandingLogoUploading.set(false);
       this.platformBrandingError.set('Could not read the selected file.');
     };
     reader.readAsDataURL(file);
+  }
+
+  cancelPendingLogo() {
+    this.pendingLogoDataUrl.set(null);
+    this.platformBrandingError.set('');
+  }
+
+  saveLogo() {
+    const current = this.platformBranding();
+    const pending = this.pendingLogoDataUrl();
+    if (!current || pending === null) {
+      return;
+    }
+
+    this.platformBrandingLogoUploading.set(true);
+    this.savePlatformBranding(
+      { ...current, companyLogoDataUrl: pending },
+      'Logo saved — every company\'s login screen now shows it.',
+      () => {
+        this.platformBrandingLogoUploading.set(false);
+        this.pendingLogoDataUrl.set(null);
+      },
+    );
   }
 
   removePlatformLogo() {
@@ -1045,14 +1169,33 @@ export class SuperAdminDashboardComponent implements OnInit {
       return;
     }
 
-    this.savePlatformBranding({ ...current, companyLogoDataUrl: null });
+    this.savePlatformBranding({ ...current, companyLogoDataUrl: null }, 'Logo removed.');
   }
 
-  // Shared by all three edits above — optimistic update with rollback on failure, same pattern
-  // LmsBrandingService uses for a company's own branding. onSettled (only the logo upload passes
+  private showPlatformBrandingToast(message: string) {
+    if (this.platformBrandingToastTimer) {
+      clearTimeout(this.platformBrandingToastTimer);
+    }
+    this.platformBrandingToast.set(message);
+    this.platformBrandingToastTimer = setTimeout(() => {
+      this.platformBrandingToast.set(null);
+      this.platformBrandingToastTimer = null;
+    }, 4000);
+  }
+
+  dismissPlatformBrandingToast() {
+    if (this.platformBrandingToastTimer) {
+      clearTimeout(this.platformBrandingToastTimer);
+      this.platformBrandingToastTimer = null;
+    }
+    this.platformBrandingToast.set(null);
+  }
+
+  // Shared by every edit above — optimistic update with rollback on failure, same pattern
+  // LmsBrandingService uses for a company's own branding. onSettled (only the logo save passes
   // one) always fires once the save resolves either way, so the "Uploading…" state can't get
   // stuck if the PUT fails.
-  private savePlatformBranding(next: PlatformBrandingSettings, onSettled?: () => void) {
+  private savePlatformBranding(next: PlatformBrandingSettings, successMessage: string, onSettled?: () => void) {
     const previous = this.platformBranding();
     this.platformBranding.set(next);
     this.platformBrandingSaving.set(true);
@@ -1064,6 +1207,7 @@ export class SuperAdminDashboardComponent implements OnInit {
         onSettled?.();
       }))
       .subscribe({
+        next: () => this.showPlatformBrandingToast(successMessage),
         error: () => {
           this.platformBranding.set(previous);
           this.platformBrandingError.set('Could not save the login page branding. Please try again.');
