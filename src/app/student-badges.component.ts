@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { CommonModule } from '@angular/common';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { StudentBadge, StudentCertificateLicence, StudentCertificateStatus, StudentDataService } from './student-data.service';
+import { readCompanyScopedCache, removeCompanyScopedCache } from './company-scoped-storage';
 
 type ConfettiPiece = {
   id: number;
@@ -1307,27 +1308,26 @@ export class StudentBadgesComponent {
       return;
     }
 
-    const raw = localStorage.getItem(this.legacyCertificateStorageKey());
-    if (!raw) {
+    const cached = readCompanyScopedCache(this.legacyCertificateStorageKey());
+    if (!cached) {
       return;
     }
 
-    const records = this.parseCertificateRecords(raw);
+    const records = this.parseCertificateRecords(cached);
     if (!records.length) {
       return;
     }
 
     this.studentData.updateCertificatesAndLicences(records);
-    localStorage.removeItem(this.legacyCertificateStorageKey());
+    removeCompanyScopedCache(this.legacyCertificateStorageKey());
   }
 
-  private parseCertificateRecords(raw: string): StudentCertificateLicence[] {
+  private parseCertificateRecords(parsed: unknown): StudentCertificateLicence[] {
     if (typeof localStorage === 'undefined') {
       return [];
     }
 
     try {
-      const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) {
         return [];
       }

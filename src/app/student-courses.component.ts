@@ -9,6 +9,7 @@ import { StudentAssessmentAttempt, StudentCourse, StudentDataService } from './s
 import { resolvePowerPointUploadType } from './powerpoint-preview';
 import { AssignmentSubmissionRecord, TrainingAssessmentType, TrainingContentItem, TrainingContentKind, TrainingManagerDataService, TrainingOffering, TrainingQuestionType } from './training-manager-data.service';
 import { readLmsSessionRecord } from './session-auth';
+import { readCompanyScopedCache, writeCompanyScopedCache } from './company-scoped-storage';
 
 type WorkspaceDocument = {
   title: string;
@@ -3885,12 +3886,11 @@ export class StudentCoursesComponent {
     }
 
     try {
-      const raw = localStorage.getItem(this.courseProgressStorageKey(studentId));
-      if (!raw) {
+      const parsed = readCompanyScopedCache(this.courseProgressStorageKey(studentId)) as Partial<typeof empty> | null;
+      if (!parsed) {
         return empty;
       }
 
-      const parsed = JSON.parse(raw) as Partial<typeof empty>;
       return {
         completedCourseSteps: parsed?.completedCourseSteps && typeof parsed.completedCourseSteps === 'object' ? parsed.completedCourseSteps : {},
         acknowledgedDocuments: parsed?.acknowledgedDocuments && typeof parsed.acknowledgedDocuments === 'object' ? parsed.acknowledgedDocuments : {},
@@ -3911,10 +3911,10 @@ export class StudentCoursesComponent {
     }
 
     try {
-      localStorage.setItem(this.courseProgressStorageKey(studentId), JSON.stringify({
+      writeCompanyScopedCache(this.courseProgressStorageKey(studentId), {
         completedCourseSteps: this.completedCourseSteps(),
         acknowledgedDocuments: this.acknowledgedDocuments(),
-      }));
+      });
     } catch {
       // Ignore storage write failures (e.g. quota) — the in-memory state still works this session.
     }
@@ -3926,12 +3926,7 @@ export class StudentCoursesComponent {
     }
 
     try {
-      const raw = localStorage.getItem(StudentCoursesComponent.scormRuntimeStorageKey);
-      if (!raw) {
-        return {};
-      }
-
-      const parsed = JSON.parse(raw) as Record<string, ScormRuntimeState>;
+      const parsed = readCompanyScopedCache(StudentCoursesComponent.scormRuntimeStorageKey) as Record<string, ScormRuntimeState> | null;
       return parsed && typeof parsed === 'object' ? parsed : {};
     } catch {
       return {};
@@ -3944,7 +3939,7 @@ export class StudentCoursesComponent {
     }
 
     try {
-      localStorage.setItem(StudentCoursesComponent.scormRuntimeStorageKey, JSON.stringify(this.scormRuntime()));
+      writeCompanyScopedCache(StudentCoursesComponent.scormRuntimeStorageKey, this.scormRuntime());
     } catch {
       return;
     }

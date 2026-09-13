@@ -4,6 +4,7 @@ import { LmsBackendService } from './lms-backend.service';
 import { LmsBrandThemeId } from './lms-branding.service';
 import { ManagerMessage, ManagerMessageReply, TrainingManagerDataService, TrainingOffering } from './training-manager-data.service';
 import { dataUrlToFile, renderCourseCompletionCertificate } from './certificate-template';
+import { readCompanyScopedCache, writeCompanyScopedCache } from './company-scoped-storage';
 
 export type StudentProfileData = {
   name: string;
@@ -1826,12 +1827,11 @@ export class StudentDataService {
     }
 
     try {
-      const raw = localStorage.getItem(this.studentScopedStorageKey(StudentDataService.badgesStorageKey));
-      if (!raw) {
+      const parsed = readCompanyScopedCache(this.studentScopedStorageKey(StudentDataService.badgesStorageKey)) as StudentBadgeState | null;
+      if (!parsed) {
         return [];
       }
 
-      const parsed = JSON.parse(raw) as StudentBadgeState;
       return Array.isArray(parsed.earnedBadgeIds) ? parsed.earnedBadgeIds : [];
     } catch {
       return [];
@@ -1844,7 +1844,7 @@ export class StudentDataService {
     }
 
     const payload: StudentBadgeState = { earnedBadgeIds };
-    localStorage.setItem(this.studentScopedStorageKey(StudentDataService.badgesStorageKey), JSON.stringify(payload));
+    writeCompanyScopedCache(this.studentScopedStorageKey(StudentDataService.badgesStorageKey), payload);
   }
 
   private loadNotifiedOfferingIds(currentOfferings: TrainingOffering[]) {
@@ -1853,12 +1853,11 @@ export class StudentDataService {
     }
 
     try {
-      const raw = localStorage.getItem(this.studentScopedStorageKey(StudentDataService.notifiedOfferingIdsStorageKey));
-      if (!raw) {
+      const parsed = readCompanyScopedCache(this.studentScopedStorageKey(StudentDataService.notifiedOfferingIdsStorageKey)) as { offeringIds?: string[] } | null;
+      if (!parsed) {
         return currentOfferings.filter((offering) => offering.status === 'Published').map((offering) => offering.id);
       }
 
-      const parsed = JSON.parse(raw) as { offeringIds?: string[] };
       return Array.isArray(parsed.offeringIds) ? parsed.offeringIds : [];
     } catch {
       return currentOfferings.filter((offering) => offering.status === 'Published').map((offering) => offering.id);
@@ -1870,7 +1869,7 @@ export class StudentDataService {
       return;
     }
 
-    localStorage.setItem(this.studentScopedStorageKey(StudentDataService.notifiedOfferingIdsStorageKey), JSON.stringify({ offeringIds }));
+    writeCompanyScopedCache(this.studentScopedStorageKey(StudentDataService.notifiedOfferingIdsStorageKey), { offeringIds });
   }
 
   private createInitialProfile(studentId = this.currentSessionStudentId()): StudentProfileData {
@@ -1998,12 +1997,11 @@ export class StudentDataService {
     }
 
     try {
-      const raw = localStorage.getItem(this.studentScopedStorageKey(StudentDataService.mentorshipProfileStorageKey));
-      if (!raw) {
+      const parsed = readCompanyScopedCache(this.studentScopedStorageKey(StudentDataService.mentorshipProfileStorageKey)) as Partial<StudentMentorshipProfile> | null;
+      if (!parsed) {
         return fallbackProfile;
       }
 
-      const parsed = JSON.parse(raw) as Partial<StudentMentorshipProfile>;
       return {
         menteeName: parsed.menteeName?.trim() || fallbackProfile.menteeName,
         menteeSurname: parsed.menteeSurname?.trim() || fallbackProfile.menteeSurname,
@@ -2026,7 +2024,7 @@ export class StudentDataService {
       return;
     }
 
-    localStorage.setItem(this.studentScopedStorageKey(StudentDataService.mentorshipProfileStorageKey), JSON.stringify(profile));
+    writeCompanyScopedCache(this.studentScopedStorageKey(StudentDataService.mentorshipProfileStorageKey), profile);
   }
 
   private loadMentorshipObjectives() {
@@ -2036,12 +2034,11 @@ export class StudentDataService {
     }
 
     try {
-      const raw = localStorage.getItem(this.studentScopedStorageKey(StudentDataService.mentorshipObjectivesStorageKey));
-      if (!raw) {
+      const parsed = readCompanyScopedCache(this.studentScopedStorageKey(StudentDataService.mentorshipObjectivesStorageKey)) as Partial<StudentMentorshipObjectives> | null;
+      if (!parsed) {
         return fallbackObjectives;
       }
 
-      const parsed = JSON.parse(raw) as Partial<StudentMentorshipObjectives>;
       return {
         mentorshipGoals: Array.isArray(parsed.mentorshipGoals)
           ? parsed.mentorshipGoals
@@ -2072,7 +2069,7 @@ export class StudentDataService {
       return;
     }
 
-    localStorage.setItem(this.studentScopedStorageKey(StudentDataService.mentorshipObjectivesStorageKey), JSON.stringify(objectives));
+    writeCompanyScopedCache(this.studentScopedStorageKey(StudentDataService.mentorshipObjectivesStorageKey), objectives);
   }
 
   private loadMentorshipProgressReport() {
@@ -2082,12 +2079,11 @@ export class StudentDataService {
     }
 
     try {
-      const raw = localStorage.getItem(this.studentScopedStorageKey(StudentDataService.mentorshipProgressReportStorageKey));
-      if (!raw) {
+      const parsed = readCompanyScopedCache(this.studentScopedStorageKey(StudentDataService.mentorshipProgressReportStorageKey)) as Partial<StudentMentorshipProgressReport> | null;
+      if (!parsed) {
         return fallbackReport;
       }
 
-      const parsed = JSON.parse(raw) as Partial<StudentMentorshipProgressReport>;
       return {
         dateOfMeeting: parsed.dateOfMeeting || '',
         objectivesAchieved: Array.isArray(parsed.objectivesAchieved)
@@ -2110,7 +2106,7 @@ export class StudentDataService {
       return;
     }
 
-    localStorage.setItem(this.studentScopedStorageKey(StudentDataService.mentorshipProgressReportStorageKey), JSON.stringify(report));
+    writeCompanyScopedCache(this.studentScopedStorageKey(StudentDataService.mentorshipProgressReportStorageKey), report);
   }
 
   private loadPersistedStudentSnapshot(studentId = this.currentSessionStudentId()) {
@@ -2119,12 +2115,11 @@ export class StudentDataService {
     }
 
     try {
-      const raw = localStorage.getItem(this.studentSnapshotStorageKey(studentId));
-      if (!raw) {
+      const parsed = readCompanyScopedCache(this.studentSnapshotStorageKey(studentId)) as Partial<PersistedStudentSnapshot> | null;
+      if (!parsed) {
         return null;
       }
 
-      const parsed = JSON.parse(raw) as Partial<PersistedStudentSnapshot>;
       if (!parsed.profile || !parsed.settings || !parsed.mentorshipProfile || !parsed.mentorshipObjectives || !parsed.mentorshipProgressReport) {
         return null;
       }
@@ -2187,7 +2182,7 @@ export class StudentDataService {
     }
 
     try {
-      localStorage.setItem(this.studentSnapshotStorageKey(snapshot.studentId), JSON.stringify(snapshot));
+      writeCompanyScopedCache(this.studentSnapshotStorageKey(snapshot.studentId), snapshot);
     } catch {
       // Ignore storage write failures (for example quota limits) so backend sync can continue.
     }
