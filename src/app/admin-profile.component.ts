@@ -463,15 +463,21 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
               <button type="button" class="admin-topbar-menu-item" (click)="selectPanel('dashboard'); closeTopbarProfileMenu()">Dashboard</button>
               <button type="button" class="admin-topbar-menu-item" (click)="selectPanel('reports'); closeTopbarProfileMenu()">Reports</button>
               <div class="admin-topbar-menu-divider"></div>
-              <div class="admin-topbar-menu-section-label">Switch role</div>
-              <button type="button" class="admin-topbar-menu-item" (click)="switchToRole('training-manager')">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path fill="currentColor" d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3Zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5Zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5Z"/></svg>
-                Training Manager
-              </button>
-              <button type="button" class="admin-topbar-menu-item" (click)="switchToRole('student')">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path fill="currentColor" d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82ZM12 3 1 9l11 6 9-4.91V17h2V9L12 3Z"/></svg>
-                Student
-              </button>
+              @if (canSwitchToRole('training-manager') || canSwitchToRole('student')) {
+                <div class="admin-topbar-menu-section-label">Switch role</div>
+              }
+              @if (canSwitchToRole('training-manager')) {
+                <button type="button" class="admin-topbar-menu-item" (click)="switchToRole('training-manager')">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path fill="currentColor" d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3Zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5Zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5Z"/></svg>
+                  Training Manager
+                </button>
+              }
+              @if (canSwitchToRole('student')) {
+                <button type="button" class="admin-topbar-menu-item" (click)="switchToRole('student')">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path fill="currentColor" d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82ZM12 3 1 9l11 6 9-4.91V17h2V9L12 3Z"/></svg>
+                  Student
+                </button>
+              }
               <div class="admin-topbar-menu-divider"></div>
               <button type="button" class="admin-topbar-menu-item admin-topbar-menu-item-danger" (click)="logout()">Log out</button>
             </div>
@@ -947,7 +953,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                 <p class="section-copy">A quick snapshot of your organisation's learning activity.</p>
               </div>
 
-              <div class="admin-dashboard-top-grid">
+              <div class="admin-dashboard-top-grid" [class.admin-dashboard-top-grid-single]="!dashboardPerformanceAllowed()">
                 <div class="admin-metric-grid admin-metric-grid-2x2">
                   <article class="admin-metric-card admin-metric-card-users">
                     <span class="admin-metric-icon" aria-hidden="true">
@@ -1000,6 +1006,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                   </article>
                 </div>
 
+              @if (dashboardPerformanceAllowed()) {
               <article class="admin-section-card admin-gauge-card">
                 <div class="admin-section-card-header">
                   <div class="admin-section-card-heading">
@@ -1058,6 +1065,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                   </div>
                 </div>
               </article>
+              }
               </div>
 
               <div class="admin-snapshot-grid">
@@ -5111,6 +5119,13 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
       gap: 1rem;
       align-items: stretch;
+    }
+
+    /* The performance gauge card (the grid's second column) is hidden entirely on a plan without
+       student-performance — without this, that column would just sit empty instead of the metric
+       grid using the freed-up width. */
+    .admin-dashboard-top-grid-single {
+      grid-template-columns: 1fr;
     }
 
     .admin-metric-grid-2x2 {
@@ -10693,6 +10708,11 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly extendedReportsAllowed = computed(() => isFeatureAllowedForPlan(this.managerData.plan(), 'admin-reports-extended'));
   readonly hrIntegrationSettingsAllowed = computed(() => isFeatureAllowedForPlan(this.managerData.plan(), 'admin-hr-integration'));
   readonly approvalSettingsAllowed = computed(() => isFeatureAllowedForPlan(this.managerData.plan(), 'admin-approval-settings'));
+  // Gates the Dashboard's own "Overall performance rating" gauge card — KPI/performance is a
+  // student-performance-gated feature (see plan-features.ts), but that card rendered
+  // unconditionally on the Dashboard even though the dedicated Performance Report is already
+  // correctly hidden behind extendedReportsAllowed above.
+  readonly dashboardPerformanceAllowed = computed(() => isFeatureAllowedForPlan(this.managerData.plan(), 'student-performance'));
   // ── Succession Planning ───────────────────────────────────────────────
   // Fully read-only for admin — see server.ts's succession routes, all gated to
   // requireTrainingManager. ownerManagerId/nominatedByManagerId are the flagging/nominating
