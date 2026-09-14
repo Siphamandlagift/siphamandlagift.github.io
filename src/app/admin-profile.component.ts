@@ -34,8 +34,14 @@ import { PublishedOfferingCardComponent } from './published-offering-card.compon
 import { PowerPointWindowComponent } from './powerpoint-window.component';
 import { resolvePowerPointUploadType } from './powerpoint-preview';
 import { isFeatureAllowedForPlan } from './plan-features';
+import { readCompanyScopedCache, writeCompanyScopedCache } from './company-scoped-storage';
 
 type AdminPanel = 'dashboard' | 'users' | 'reports' | 'succession' | 'settings' | 'courses' | 'enrollment';
+
+type UserColumnId =
+  | 'department' | 'group' | 'learningStatus' | 'access'
+  | 'jobTitle' | 'idNumber' | 'lineManager' | 'dateEnrolled' | 'deadlineDate'
+  | 'ofoCode' | 'race' | 'gender' | 'municipality' | 'dateOfBirth' | 'nqfLevel' | 'disability' | 'role';
 
 // ── Courses panel types (relocated from training-manager-profile.component.ts) ────
 type CoursesPanelView = 'create' | 'created' | 'submissions';
@@ -1198,15 +1204,51 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     <span class="admin-chip">{{ activeUsersCount() }} active</span>
                     <span class="admin-chip">{{ inactiveUsersCount() }} inactive</span>
                   </div>
+
+                  <div class="admin-user-toolbar-actions">
+                    <button type="button" class="admin-secondary-btn" (click)="toggleUserColumnsPanel()">Columns</button>
+                    <label class="admin-settings-field admin-report-download-field admin-user-download-format-field">
+                      <span>Download As</span>
+                      <select [value]="selectedUserListDownloadFormat()" (change)="updateUserListDownloadFormat($event)">
+                        <option value="CSV">CSV</option>
+                        <option value="XLSX">XLSX</option>
+                      </select>
+                    </label>
+                    <button type="button" class="admin-primary-btn" (click)="downloadUserList()">Download user list</button>
+                  </div>
                 </div>
 
-                <div class="admin-user-table-wrap">
+                @if (userColumnsPanelOpen()) {
+                  <div class="admin-modal-backdrop" (click)="closeUserColumnsPanel()">
+                    <section class="admin-modal admin-user-columns-modal" role="dialog" aria-modal="true" aria-label="Choose user list columns" (click)="$event.stopPropagation()">
+                      <div class="admin-section-card-header">
+                        <h2>Choose columns</h2>
+                        <span>Pick which details show in the user list and export.</span>
+                      </div>
+
+                      <div class="admin-user-columns-grid">
+                        @for (column of userColumnOptions; track column.id) {
+                          <label class="admin-user-column-option">
+                            <input type="checkbox" [checked]="isUserColumnSelected(column.id)" (change)="toggleUserColumn(column.id)" />
+                            <span>{{ column.label }}</span>
+                          </label>
+                        }
+                      </div>
+
+                      <div class="admin-form-actions">
+                        <button type="button" class="admin-secondary-btn" (click)="resetUserColumnsToDefault()">Reset to default</button>
+                        <button type="button" class="admin-primary-btn" (click)="closeUserColumnsPanel()">Done</button>
+                      </div>
+                    </section>
+                  </div>
+                }
+
+                <div class="admin-user-table-wrap" [style.--user-table-columns]="userTableGridTemplateColumns()">
                   <div class="admin-user-table admin-user-table-head" aria-hidden="true">
                     <span>User</span>
-                    <span>Department</span>
-                    <span>Group</span>
-                    <span>Learning Status</span>
-                    <span>Access</span>
+                    @for (column of visibleUserColumns(); track column.id) {
+                      <span>{{ column.label }}</span>
+                    }
                     <span>Actions</span>
                   </div>
 
@@ -1220,27 +1262,23 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                             <div class="admin-user-email">{{ student.email }}</div>
                           </div>
                         </div>
-                        <div class="admin-user-cell">
-                          <div class="admin-user-field-label">Department</div>
-                          <span>{{ student.department }}</span>
-                        </div>
-                        <div class="admin-user-cell">
-                          <div class="admin-user-field-label">Group</div>
-                          <span>{{ student.group }}</span>
-                        </div>
-                        <div class="admin-user-cell">
-                          <div class="admin-user-field-label">Learning Status</div>
-                          @let effectiveStatus = resolveStudentOverallStatus(student);
-                          <span class="admin-status-pill" [class.admin-status-pill-complete]="effectiveStatus === 'Completed'" [class.admin-status-pill-progress]="effectiveStatus === 'In Progress'" [class.admin-status-pill-pending]="effectiveStatus === 'Not Yet Started'">
-                            {{ effectiveStatus }}
-                          </span>
-                        </div>
-                        <div class="admin-user-cell">
-                          <div class="admin-user-field-label">Access</div>
-                          <span class="admin-access-pill" [class.admin-access-pill-inactive]="student.activeStatus === 'Inactive'">
-                            {{ student.activeStatus }}
-                          </span>
-                        </div>
+                        @for (column of visibleUserColumns(); track column.id) {
+                          <div class="admin-user-cell">
+                            <div class="admin-user-field-label">{{ column.label }}</div>
+                            @if (column.id === 'learningStatus') {
+                              @let effectiveStatus = resolveStudentOverallStatus(student);
+                              <span class="admin-status-pill" [class.admin-status-pill-complete]="effectiveStatus === 'Completed'" [class.admin-status-pill-progress]="effectiveStatus === 'In Progress'" [class.admin-status-pill-pending]="effectiveStatus === 'Not Yet Started'">
+                                {{ effectiveStatus }}
+                              </span>
+                            } @else if (column.id === 'access') {
+                              <span class="admin-access-pill" [class.admin-access-pill-inactive]="student.activeStatus === 'Inactive'">
+                                {{ student.activeStatus }}
+                              </span>
+                            } @else {
+                              <span>{{ userColumnCellValue(student, column.id) }}</span>
+                            }
+                          </div>
+                        }
                         <div class="admin-user-cell admin-user-actions-cell">
                           <div class="admin-user-field-label">Actions</div>
                           <div class="admin-user-actions">
@@ -5251,7 +5289,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-report-actions,
     .admin-form-actions,
-    .admin-user-actions {
+    .admin-user-actions,
+    .admin-user-toolbar-actions {
       display: flex;
       align-items: center;
       gap: 0.7rem;
@@ -6221,13 +6260,52 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-user-table-wrap {
       display: grid;
       gap: 0.7rem;
+      overflow-x: auto;
     }
 
     .admin-user-table {
       display: grid;
-      grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 1fr);
+      grid-template-columns: var(--user-table-columns, minmax(0, 1.7fr) minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 1fr));
       gap: 0.75rem;
       align-items: center;
+      min-width: fit-content;
+    }
+
+    .admin-user-toolbar-actions {
+      align-items: flex-end;
+    }
+
+    .admin-user-download-format-field {
+      min-width: min(100%, 9rem);
+    }
+
+    .admin-user-columns-modal {
+      width: min(30rem, 100%);
+    }
+
+    .admin-user-columns-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+      gap: 0.6rem;
+    }
+
+    .admin-user-column-option {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.6rem;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 10px;
+      background: #fbfdff;
+      color: #173446;
+      font-size: 0.86rem;
+      font-weight: 600;
+    }
+
+    .admin-user-column-option input {
+      accent-color: var(--admin-primary);
+      width: 1rem;
+      height: 1rem;
     }
 
     .admin-user-table-head {
@@ -11205,6 +11283,157 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly sidebarScrolling = signal(false);
   private sidebarScrollTimeout: ReturnType<typeof setTimeout> | null = null;
   readonly userSearchTerm = signal('');
+
+  // ── User Management column picker ───────────────────────────────────────
+  private static readonly userColumnsStorageKey = 'lms-app.admin-user-columns';
+  private static readonly defaultUserColumnIds: ReadonlyArray<UserColumnId> = ['department', 'group', 'learningStatus', 'access'];
+  readonly userColumnOptions: ReadonlyArray<{ id: UserColumnId; label: string }> = [
+    { id: 'department', label: 'Department' },
+    { id: 'group', label: 'Group' },
+    { id: 'learningStatus', label: 'Learning Status' },
+    { id: 'access', label: 'Access' },
+    { id: 'jobTitle', label: 'Job Title' },
+    { id: 'idNumber', label: 'ID Number' },
+    { id: 'lineManager', label: 'Line Manager' },
+    { id: 'dateEnrolled', label: 'Start Date' },
+    { id: 'deadlineDate', label: 'End Date' },
+    { id: 'ofoCode', label: 'OFO Code' },
+    { id: 'race', label: 'Race' },
+    { id: 'gender', label: 'Gender' },
+    { id: 'municipality', label: 'Municipality' },
+    { id: 'dateOfBirth', label: 'Date of Birth' },
+    { id: 'nqfLevel', label: 'NQF Level' },
+    { id: 'disability', label: 'Disability' },
+    { id: 'role', label: 'Role' },
+  ];
+  readonly selectedUserColumnIds = signal<UserColumnId[]>(this.loadUserColumnPreference());
+  readonly userColumnsPanelOpen = signal(false);
+  readonly visibleUserColumns = computed(() => {
+    const selected = new Set(this.selectedUserColumnIds());
+    return this.userColumnOptions.filter((option) => selected.has(option.id));
+  });
+  readonly userTableGridTemplateColumns = computed(() =>
+    ['minmax(200px, 1.7fr)', ...this.visibleUserColumns().map(() => 'minmax(140px, 1fr)'), 'minmax(150px, 1fr)'].join(' '),
+  );
+
+  private loadUserColumnPreference(): UserColumnId[] {
+    const cached = readCompanyScopedCache(AdminProfileComponent.userColumnsStorageKey);
+    if (!Array.isArray(cached) || !cached.length) {
+      return [...AdminProfileComponent.defaultUserColumnIds];
+    }
+
+    const validIds = new Set(this.userColumnOptions?.map((option) => option.id) ?? []);
+    const filtered = cached.filter((id): id is UserColumnId => typeof id === 'string' && validIds.has(id as UserColumnId));
+    return filtered.length ? filtered : [...AdminProfileComponent.defaultUserColumnIds];
+  }
+
+  toggleUserColumnsPanel() {
+    this.userColumnsPanelOpen.update((open) => !open);
+  }
+
+  closeUserColumnsPanel() {
+    this.userColumnsPanelOpen.set(false);
+  }
+
+  isUserColumnSelected(columnId: UserColumnId): boolean {
+    return this.selectedUserColumnIds().includes(columnId);
+  }
+
+  toggleUserColumn(columnId: UserColumnId) {
+    const current = this.selectedUserColumnIds();
+    const next = current.includes(columnId)
+      ? current.filter((id) => id !== columnId)
+      : [...current, columnId];
+
+    this.selectedUserColumnIds.set(next);
+    writeCompanyScopedCache(AdminProfileComponent.userColumnsStorageKey, next);
+  }
+
+  resetUserColumnsToDefault() {
+    const defaults = [...AdminProfileComponent.defaultUserColumnIds];
+    this.selectedUserColumnIds.set(defaults);
+    writeCompanyScopedCache(AdminProfileComponent.userColumnsStorageKey, defaults);
+  }
+
+  userColumnCellValue(student: EnrollmentStudent, columnId: UserColumnId): string {
+    switch (columnId) {
+      case 'department': return student.department || '—';
+      case 'group': return student.group || '—';
+      case 'learningStatus': return this.resolveStudentOverallStatus(student);
+      case 'access': return student.activeStatus;
+      case 'jobTitle': return student.jobTitle || '—';
+      case 'idNumber': return student.idNumber || '—';
+      case 'lineManager': return student.lineManager || '—';
+      case 'dateEnrolled': return student.dateEnrolled || '—';
+      case 'deadlineDate': return student.deadlineDate || '—';
+      case 'ofoCode': return student.ofoCode || '—';
+      case 'race': return student.race || '—';
+      case 'gender': return student.gender || '—';
+      case 'municipality': return student.municipality || '—';
+      case 'dateOfBirth': return student.dateOfBirth || '—';
+      case 'nqfLevel': return student.nqfLevel || '—';
+      case 'disability': return student.disability || '—';
+      case 'role': return student.isAdmin ? 'Admin' : (student.role === 'manager' ? 'Manager' : 'Student');
+    }
+  }
+
+  // ── User Management list export ─────────────────────────────────────────
+  readonly selectedUserListDownloadFormat = signal<ReportDownloadFormat>('CSV');
+
+  updateUserListDownloadFormat(event: Event) {
+    const input = event.target as HTMLSelectElement | null;
+    this.selectedUserListDownloadFormat.set(input?.value === 'XLSX' ? 'XLSX' : 'CSV');
+  }
+
+  // Always exports every user (this.users(), not the search-filtered filteredUsers()) — this is
+  // meant as a full-roster export regardless of whatever the admin currently has typed into the
+  // search box. Columns follow the same picker as the on-screen table, so what's checked there is
+  // what's included here too.
+  private buildUserListExportRows(): string[][] {
+    const columns = this.visibleUserColumns();
+    const header = ['Name', 'Surname', 'Email', ...columns.map((col) => col.label)];
+    const rows = this.users().map((student) => [
+      student.name,
+      student.surname,
+      student.email,
+      ...columns.map((col) => this.userColumnCellValue(student, col.id)),
+    ]);
+
+    return [header, ...rows];
+  }
+
+  downloadUserList() {
+    if (this.selectedUserListDownloadFormat() === 'XLSX') {
+      void this.downloadUserListXlsx();
+      return;
+    }
+
+    this.downloadUserListCsv();
+  }
+
+  downloadUserListCsv() {
+    const rows = this.buildUserListExportRows();
+    const csv = rows
+      .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+
+    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), 'LMS-User-List.csv');
+  }
+
+  async downloadUserListXlsx() {
+    const rows = this.buildUserListExportRows();
+    const xlsx = await import('xlsx');
+    const workbook = xlsx.utils.book_new();
+    const worksheet = xlsx.utils.aoa_to_sheet(rows);
+
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Users');
+    const workbookArray = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
+    this.triggerDownload(
+      new Blob([workbookArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      'LMS-User-List.xlsx',
+    );
+  }
+
   readonly editingUserId = signal<string | null>(null);
   readonly editingAnnualReportRequestId = signal<string | null>(null);
   readonly uploadingInvoice = signal(false);
