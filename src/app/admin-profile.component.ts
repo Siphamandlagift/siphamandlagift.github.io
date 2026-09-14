@@ -1338,10 +1338,24 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                 }
 
                 <div class="admin-user-table-wrap" [style.--user-table-columns]="userTableGridTemplateColumns()">
-                  <div class="admin-user-table admin-user-table-head" aria-hidden="true">
-                    <span>User</span>
+                  <div class="admin-user-table admin-user-table-head">
+                    <button type="button" class="admin-user-sort-btn" [class.admin-user-sort-btn-active]="userSortColumn() === 'name'" (click)="toggleUserSort('name')" [attr.title]="'Sort by User'">
+                      <span>User</span>
+                      @if (userSortColumn() === 'name') {
+                        <svg class="admin-user-sort-arrow" [class.admin-user-sort-arrow-desc]="userSortDirection() === 'desc'" width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path d="m7 10 5 5 5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                      }
+                    </button>
                     @for (column of visibleUserColumns(); track column.id) {
-                      <span>{{ column.label }}</span>
+                      <button type="button" class="admin-user-sort-btn" [class.admin-user-sort-btn-active]="userSortColumn() === column.id" (click)="toggleUserSort(column.id)" [attr.title]="'Sort by ' + column.label">
+                        <span>{{ column.label }}</span>
+                        @if (userSortColumn() === column.id) {
+                          <svg class="admin-user-sort-arrow" [class.admin-user-sort-arrow-desc]="userSortDirection() === 'desc'" width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="m7 10 5 5 5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+                          </svg>
+                        }
+                      </button>
                     }
                     <span>Actions</span>
                   </div>
@@ -6439,6 +6453,35 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       font-weight: 800;
       letter-spacing: 0.05em;
       text-transform: uppercase;
+    }
+
+    .admin-user-sort-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0;
+      border: none;
+      background: none;
+      color: inherit;
+      font: inherit;
+      letter-spacing: inherit;
+      text-transform: inherit;
+      cursor: pointer;
+      justify-self: start;
+    }
+
+    .admin-user-sort-btn:hover,
+    .admin-user-sort-btn-active {
+      color: var(--admin-primary);
+    }
+
+    .admin-user-sort-arrow {
+      flex-shrink: 0;
+      transition: transform 0.15s ease;
+    }
+
+    .admin-user-sort-arrow-desc {
+      transform: rotate(180deg);
     }
 
     .admin-user-list {
@@ -11608,6 +11651,35 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     return student.role === 'manager' ? 'manager' : 'student';
   }
 
+  // ── User Management sorting ─────────────────────────────────────────────
+  // 'name' sorts by the always-present User column (name + surname); every other value is a
+  // UserColumnId, sorted by whatever userColumnCellValue already displays for it — so sorting
+  // always matches exactly what's on screen, including the Learning Status/Access pill text.
+  readonly userSortColumn = signal<'name' | UserColumnId>('name');
+  readonly userSortDirection = signal<'asc' | 'desc'>('asc');
+  private static readonly userDateSortColumns: ReadonlySet<UserColumnId> = new Set(['dateEnrolled', 'deadlineDate', 'dateOfBirth']);
+
+  toggleUserSort(column: 'name' | UserColumnId) {
+    if (this.userSortColumn() === column) {
+      this.userSortDirection.update((direction) => (direction === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+
+    this.userSortColumn.set(column);
+    // Date columns read most naturally starting from the newest ("recent to old"); every other
+    // column starts A→Z. Either way, a second click on the same header flips it via the branch
+    // above.
+    this.userSortDirection.set(column !== 'name' && AdminProfileComponent.userDateSortColumns.has(column) ? 'desc' : 'asc');
+  }
+
+  private userSortValue(student: EnrollmentStudent, column: 'name' | UserColumnId): string {
+    if (column === 'name') {
+      return `${student.name} ${student.surname}`.trim().toLowerCase();
+    }
+
+    return this.userColumnCellValue(student, column).toLowerCase();
+  }
+
   // ── User Management list export ─────────────────────────────────────────
   readonly selectedUserListDownloadFormat = signal<ReportDownloadFormat>('CSV');
 
@@ -11854,7 +11926,14 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       users = users.filter((student) => student.deadlineDate && student.deadlineDate <= endTo);
     }
 
-    return users;
+    const sortColumn = this.userSortColumn();
+    const direction = this.userSortDirection();
+    const sorted = [...users].sort((left, right) => {
+      const comparison = this.userSortValue(left, sortColumn).localeCompare(this.userSortValue(right, sortColumn), undefined, { numeric: true, sensitivity: 'base' });
+      return direction === 'asc' ? comparison : -comparison;
+    });
+
+    return sorted;
   });
   readonly editingUser = computed(() => {
     const selectedId = this.editingUserId();
