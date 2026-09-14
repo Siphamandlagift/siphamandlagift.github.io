@@ -8833,6 +8833,44 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
     }
 
+    /* Group name / Start date / End date (Create group and Edit group) — enrollment-edit-field
+       had no styling of its own either, same gap as the student picker below. */
+    .enrollment-edit-field {
+      display: grid;
+      gap: 0.4rem;
+      color: #64748b;
+      font-size: 0.76rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .enrollment-edit-field input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 0.7rem 0.9rem;
+      border: 1px solid rgba(148, 163, 184, 0.32);
+      border-radius: 12px;
+      background: #fff;
+      color: #173446;
+      font: inherit;
+      font-size: 0.92rem;
+      font-weight: 600;
+      text-transform: none;
+      letter-spacing: normal;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .enrollment-edit-field input:focus {
+      border-color: var(--admin-secondary);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16);
+    }
+
+    .enrollment-edit-field input[type="date"] {
+      color-scheme: light;
+    }
+
     /* Student picker (Create group / Edit group member lists) — student-search-field/label/count
        and enrollment-student-picker-* carried over with no styling of their own at all (same gap
        pattern as the Assignment Submissions review workspace fixed earlier), so the search input
