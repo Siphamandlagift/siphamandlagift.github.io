@@ -7684,18 +7684,21 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .builder-secondary-btn {
-      background: #eef2ff;
-      color: #4338ca;
-      box-shadow: none;
+      background: #ffffff;
+      color: #173446;
+      border: 1px solid rgba(148, 163, 184, 0.32);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
     }
 
     .builder-secondary-btn:disabled {
-      background: #e2e8f0;
-      color: #94a3b8;
+      opacity: 0.55;
+      cursor: not-allowed;
     }
 
     .builder-submit-btn {
-      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
+      color: #fff;
+      box-shadow: 0 2px 6px rgba(23, 52, 70, 0.14);
     }
 
     .detail-action-btn {
@@ -7923,9 +7926,17 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       padding: 0.6rem 0.85rem;
       font-weight: 700;
       font-size: 0.85rem;
+    }
+
+    /* .builder-secondary-btn is deliberately excluded below — it gets the white/bordered
+       "secondary" look from its own rule further down instead, so it reads as the lower-emphasis
+       action next to .builder-submit-btn, the same primary/secondary visual split every other
+       form in this app uses (.admin-primary-btn vs .admin-secondary-btn). */
+    .builder-submit-btn,
+    .assign-btn {
       color: #fff;
-      background: linear-gradient(135deg, #6366f1, #4f46e5);
-      box-shadow: 0 2px 6px rgba(79, 70, 229, 0.16);
+      background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
+      box-shadow: 0 2px 6px rgba(23, 52, 70, 0.14);
     }
 
     .assign-btn-compact {
@@ -8041,11 +8052,56 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       font-size: 0.83rem;
     }
 
-    
+    .content-item-toggle-btn,
+    .assessment-add-btn,
+    .assessment-remove-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      min-height: 2.2rem;
+      padding: 0.5rem 0.85rem;
+      border: 1px solid rgba(148, 163, 184, 0.32);
+      border-radius: 999px;
+      background: #ffffff;
+      color: #173446;
+      font: inherit;
+      font-weight: 700;
+      font-size: 0.82rem;
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease, opacity 0.18s ease;
+    }
+
+    .content-item-toggle-btn:hover,
+    .content-item-toggle-btn:focus-visible,
+    .assessment-add-btn:hover,
+    .assessment-add-btn:focus-visible {
+      transform: translateY(-1px);
+      border-color: rgba(56, 189, 248, 0.32);
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.1);
+      outline: none;
+    }
+
+    .assessment-remove-btn {
+      background: rgba(254, 242, 242, 0.98);
+      color: #b91c1c;
+      border-color: rgba(248, 113, 113, 0.28);
+      box-shadow: none;
+    }
+
+    .assessment-remove-btn:hover,
+    .assessment-remove-btn:focus-visible {
+      border-color: rgba(239, 68, 68, 0.34);
+      box-shadow: 0 3px 10px rgba(239, 68, 68, 0.12);
+      outline: none;
+    }
 
     .assessment-remove-btn:disabled {
       opacity: 0.55;
       cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
     }
 
     .offering-list {
@@ -8734,7 +8790,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       gap: 0.75rem;
       margin: 0 -1rem;
       padding: 1rem;
-      background: linear-gradient(135deg, #bc6015, #9e4b18);
+      background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
     }
 
     .course-studio-icon-btn,
@@ -8764,15 +8820,15 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       padding: 0.6rem 0.95rem;
       border-radius: 10px;
       background: #fff;
-      color: #a04c11;
+      color: var(--admin-primary);
       font-size: 0.88rem;
       font-weight: 800;
-      box-shadow: 0 2px 8px rgba(70, 31, 4, 0.18);
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
     }
 
     .course-studio-publish-btn:disabled {
       background: rgba(255, 255, 255, 0.72);
-      color: rgba(160, 76, 17, 0.58);
+      color: #94a3b8;
       box-shadow: none;
     }
 
@@ -8830,11 +8886,11 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       gap: 0.45rem;
       min-height: 2.85rem;
       border-radius: 16px;
-      background: linear-gradient(135deg, #d86b1a, #b45415);
+      background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
       color: #fff;
       font-size: 0.92rem;
       font-weight: 800;
-      box-shadow: 0 12px 24px rgba(180, 84, 21, 0.2);
+      box-shadow: 0 12px 24px rgba(23, 52, 70, 0.2);
     }
 
     .course-studio-add-btn span:first-child {
@@ -8850,14 +8906,14 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       height: 2.85rem;
       border-radius: 16px;
       background: rgba(255, 255, 255, 0.86);
-      color: #8b4b22;
-      box-shadow: inset 0 0 0 1px rgba(139, 75, 34, 0.08);
+      color: var(--admin-primary);
+      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
     }
 
     .course-studio-mini-btn-active {
       background: #fff;
-      color: #a04c11;
-      box-shadow: 0 12px 22px rgba(180, 84, 21, 0.12);
+      color: var(--admin-primary);
+      box-shadow: 0 12px 22px rgba(23, 52, 70, 0.12);
     }
 
     .course-studio-add-menu {
@@ -9036,16 +9092,15 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .course-studio-card .builder-secondary-btn {
-      border: 1px solid rgba(188, 96, 21, 0.18);
+      border: 1px solid rgba(148, 163, 184, 0.32);
       background: #fff;
-      color: #8b4b22;
-      box-shadow: none;
+      color: #173446;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
     }
 
     .course-studio-card .builder-secondary-btn:disabled {
-      border-color: transparent;
-      background: #f1ede7;
-      color: #a8a29e;
+      opacity: 0.55;
+      cursor: not-allowed;
     }
 
     .course-studio-thumbnail-preview {
