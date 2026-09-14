@@ -480,9 +480,20 @@ export class TrainingManagerDataService {
   // see that module's own header comment for the full write-up.
 
   /** Becomes true once offerings have been loaded from the backend (or its cache).
-   *  Used by StudentDataService to avoid syncing courses before real data is available. */
+   *  Used by StudentDataService to avoid syncing courses before real data is available, and by
+   *  admin/training-manager/student profile shells to gate their own initial render (see
+   *  pageLoading in each of those components). */
   private readonly offeringsHydratedSignal = signal(false);
   readonly offeringsHydrated = this.offeringsHydratedSignal.asReadonly();
+  // Guards hydrateFromCurrentSession() against overlapping calls — without it, a component's
+  // ngOnInit calling refreshForCurrentSession() while the constructor's own initial fetch is
+  // still in flight would fire a redundant second bootstrap request.
+  private hydrationInFlight = false;
+  // The constructor's own message/bootstrap polling intervals must start exactly once for the
+  // life of this (app-lifetime singleton) service — refreshForCurrentSession() re-runs the same
+  // hydration path on every profile-shell mount, and re-subscribing interval() on each of those
+  // would stack up more and more duplicate polls for as long as the tab stays open.
+  private bootstrapPollingStarted = false;
 
   private readonly offeringsSignal = signal<TrainingOffering[]>([]);
   private readonly trainingManagersSignal = signal<SystemTrainingManager[]>([]);
@@ -1078,6 +1089,23 @@ export class TrainingManagerDataService {
   }
 
   constructor() {
+    this.hydrateFromCurrentSession();
+  }
+
+  // Re-fetches everything for whichever session is CURRENTLY logged in — called once by the
+  // constructor, and again by refreshForCurrentSession() below whenever a profile shell mounts
+  // in a browser tab that already hydrated this (app-lifetime singleton) service for an earlier
+  // session. Without that second call, offeringsHydrated/plan/every signal below would stay
+  // stuck at whatever the FIRST session in this tab loaded: a student logging in after a
+  // different company's session ran in the same tab would keep seeing that other company's
+  // plan-gated sidebar panels indefinitely (previously self-corrected only up to 20s later, via
+  // the periodic refreshBootstrapState() poll below, since nothing re-fetched sooner).
+  private hydrateFromCurrentSession() {
+    if (this.hydrationInFlight) {
+      return;
+    }
+    this.hydrationInFlight = true;
+
     this.hydrateOwnDisplayName();
 
     const localStudents = this.loadStudents();
@@ -1144,12 +1172,16 @@ export class TrainingManagerDataService {
         }
         this.backendHydrated = true;
         this.offeringsHydratedSignal.set(true);
+        this.hydrationInFlight = false;
 
-        // Start polling for new messages after initial load.
-        interval(15000).subscribe(() => this.refreshManagerMessages());
-        // Also periodically refresh the rest of the bootstrap-loaded collections, which
-        // otherwise never update again for the life of the session (see refreshBootstrapState).
-        interval(20000).subscribe(() => this.refreshBootstrapState());
+        if (!this.bootstrapPollingStarted) {
+          this.bootstrapPollingStarted = true;
+          // Start polling for new messages after initial load.
+          interval(15000).subscribe(() => this.refreshManagerMessages());
+          // Also periodically refresh the rest of the bootstrap-loaded collections, which
+          // otherwise never update again for the life of the session (see refreshBootstrapState).
+          interval(20000).subscribe(() => this.refreshBootstrapState());
+        }
       },
       error: () => {
         const savedOfferings = this.loadOfferings();
@@ -1168,8 +1200,23 @@ export class TrainingManagerDataService {
 
         this.backendHydrated = true;
         this.offeringsHydratedSignal.set(true);
+        this.hydrationInFlight = false;
       },
     });
+  }
+
+  // Called by each profile shell's ngOnInit (admin/training-manager/student) so a NEW login in a
+  // tab that already hydrated this service for a different session gets this session's own fresh
+  // data — see hydrateFromCurrentSession's own comment for why this matters. Resetting
+  // offeringsHydrated back to false first re-engages those shells' pageLoading overlay for the
+  // duration of the re-fetch, so the previous session's now-stale data is never visible.
+  refreshForCurrentSession() {
+    if (this.hydrationInFlight) {
+      return;
+    }
+    this.offeringsHydratedSignal.set(false);
+    this.backendHydrated = false;
+    this.hydrateFromCurrentSession();
   }
 
   readonly offeringAssignmentCounts = computed(() => {

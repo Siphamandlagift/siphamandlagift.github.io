@@ -554,6 +554,12 @@ export class StudentDataService {
   }
 
   refreshForCurrentSession() {
+    // Reset back to false first (rather than leaving it at whatever a PREVIOUS session in this
+    // tab left it at) so student-profile.component.ts's pageLoading overlay re-engages for the
+    // duration of this refetch, instead of leaving that previous session's now-stale signal
+    // values on screen unguarded — see the analogous fix on TrainingManagerDataService's own
+    // refreshForCurrentSession for the full reasoning.
+    this.backendHydratedSignal.set(false);
     this.applyPersistedStudentStateForCurrentSession();
     this.refreshStudentSnapshot(true);
   }

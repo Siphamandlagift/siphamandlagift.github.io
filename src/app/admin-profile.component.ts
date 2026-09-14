@@ -12113,6 +12113,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   private welcomeBannerHideTimer: ReturnType<typeof setTimeout> | null = null;
 
   ngOnInit() {
+    this.managerData.refreshForCurrentSession();
     this.loadSwitchableRoles();
     this.loadOwnIdentity();
     this.loadOfoCodeOptions();

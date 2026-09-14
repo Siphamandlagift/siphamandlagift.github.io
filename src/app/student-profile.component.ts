@@ -5456,6 +5456,7 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.studentData.refreshForCurrentSession();
+    this.managerData.refreshForCurrentSession();
     this.onAdditionalCostRequiredChange();
     this.startWelcomeBannerSequence();
     this.loadSwitchableRoles();

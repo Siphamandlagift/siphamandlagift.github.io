@@ -6435,6 +6435,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit() {
+    this.managerData.refreshForCurrentSession();
     this.loadSwitchableRoles();
     this.managerData.refreshOwnIdentity();
     this.startWelcomeBannerSequence();
