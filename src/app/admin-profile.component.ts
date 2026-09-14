@@ -10,6 +10,7 @@ import {
   EnrollmentStudent,
   EnrollmentStudentInput,
   ExternalTrainingRequestRecord,
+  LearningStatus,
   StudentIdpEntry,
   SuccessionReadinessRating,
   SuccessionRoleRecord,
@@ -1206,6 +1207,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                   </div>
 
                   <div class="admin-user-toolbar-actions">
+                    <button type="button" class="admin-secondary-btn admin-user-filters-btn" (click)="toggleUserFiltersPanel()">
+                      Filters
+                      @if (activeUserFilterCount()) {
+                        <span class="admin-user-filter-count">{{ activeUserFilterCount() }}</span>
+                      }
+                    </button>
                     <button type="button" class="admin-secondary-btn" (click)="toggleUserColumnsPanel()">Columns</button>
                     <label class="admin-settings-field admin-report-download-field admin-user-download-format-field">
                       <span>Download As</span>
@@ -1217,6 +1224,93 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     <button type="button" class="admin-primary-btn" (click)="downloadUserList()">Download user list</button>
                   </div>
                 </div>
+
+                @if (userFiltersPanelOpen()) {
+                  <div class="admin-modal-backdrop" (click)="closeUserFiltersPanel()">
+                    <section class="admin-modal admin-user-filters-modal" role="dialog" aria-modal="true" aria-label="Filter user list" (click)="$event.stopPropagation()">
+                      <div class="admin-section-card-header">
+                        <h2>Filter users</h2>
+                        <span>{{ filteredUsers().length }} of {{ totalUsersCount() }} match</span>
+                      </div>
+
+                      <div class="admin-user-filters-grid">
+                        <label class="admin-report-filter-field">
+                          <span>Group</span>
+                          <select [value]="userFilterGroup()" (change)="updateUserFilterGroup($event)">
+                            <option value="">All groups</option>
+                            @for (group of userGroupOptions(); track group) {
+                              <option [value]="group">{{ group }}</option>
+                            }
+                          </select>
+                        </label>
+
+                        <label class="admin-report-filter-field">
+                          <span>Department</span>
+                          <select [value]="userFilterDepartment()" (change)="updateUserFilterDepartment($event)">
+                            <option value="">All departments</option>
+                            @for (department of userDepartmentOptions(); track department) {
+                              <option [value]="department">{{ department }}</option>
+                            }
+                          </select>
+                        </label>
+
+                        <label class="admin-report-filter-field">
+                          <span>Access</span>
+                          <select [value]="userFilterAccess()" (change)="updateUserFilterAccess($event)">
+                            <option value="">Any access</option>
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                          </select>
+                        </label>
+
+                        <label class="admin-report-filter-field">
+                          <span>Learning Status</span>
+                          <select [value]="userFilterLearningStatus()" (change)="updateUserFilterLearningStatus($event)">
+                            <option value="">Any status</option>
+                            <option value="Not Yet Started">Not Yet Started</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Completed">Completed</option>
+                          </select>
+                        </label>
+
+                        <label class="admin-report-filter-field">
+                          <span>Role</span>
+                          <select [value]="userFilterRole()" (change)="updateUserFilterRole($event)">
+                            <option value="">Any role</option>
+                            <option value="student">Student</option>
+                            <option value="manager">Manager</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                        </label>
+
+                        <label class="admin-report-filter-field">
+                          <span>Start Date From</span>
+                          <input type="date" [value]="userFilterStartDateFrom()" (change)="updateUserFilterStartDateFrom($event)" />
+                        </label>
+
+                        <label class="admin-report-filter-field">
+                          <span>Start Date To</span>
+                          <input type="date" [value]="userFilterStartDateTo()" (change)="updateUserFilterStartDateTo($event)" />
+                        </label>
+
+                        <label class="admin-report-filter-field">
+                          <span>End Date From</span>
+                          <input type="date" [value]="userFilterEndDateFrom()" (change)="updateUserFilterEndDateFrom($event)" />
+                        </label>
+
+                        <label class="admin-report-filter-field">
+                          <span>End Date To</span>
+                          <input type="date" [value]="userFilterEndDateTo()" (change)="updateUserFilterEndDateTo($event)" />
+                        </label>
+                      </div>
+
+                      <div class="admin-form-actions">
+                        <button type="button" class="admin-secondary-btn" (click)="clearUserFilters()">Clear filters</button>
+                        <button type="button" class="admin-primary-btn" (click)="closeUserFiltersPanel()">Done</button>
+                      </div>
+                    </section>
+                  </div>
+                }
 
                 @if (userColumnsPanelOpen()) {
                   <div class="admin-modal-backdrop" (click)="closeUserColumnsPanel()">
@@ -6259,20 +6353,50 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-user-table-wrap {
       display: grid;
-      gap: 0.7rem;
+      gap: 0.4rem;
       overflow-x: auto;
     }
 
     .admin-user-table {
       display: grid;
       grid-template-columns: var(--user-table-columns, minmax(0, 1.7fr) minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 1fr));
-      gap: 0.75rem;
+      gap: 0.55rem;
       align-items: center;
       min-width: fit-content;
     }
 
     .admin-user-toolbar-actions {
       align-items: flex-end;
+    }
+
+    .admin-user-filters-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .admin-user-filter-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 1.2rem;
+      height: 1.2rem;
+      padding: 0 0.3rem;
+      border-radius: 999px;
+      background: var(--admin-primary);
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 800;
+    }
+
+    .admin-user-filters-modal {
+      width: min(42rem, 100%);
+    }
+
+    .admin-user-filters-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
+      gap: 0.7rem;
     }
 
     .admin-user-download-format-field {
@@ -6311,32 +6435,40 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-user-table-head {
       padding: 0 0.2rem;
       color: #64748b;
-      font-size: 0.76rem;
+      font-size: 0.7rem;
       font-weight: 800;
       letter-spacing: 0.05em;
       text-transform: uppercase;
     }
 
+    .admin-user-list {
+      gap: 0.4rem;
+    }
+
     .admin-user-row {
-      padding: 0.7rem 0.85rem;
-      border-radius: 10px;
+      padding: 0.45rem 0.65rem;
+      border-radius: 8px;
       background: #fbfdff;
       border: 1px solid rgba(148, 163, 184, 0.16);
+    }
+
+    .admin-user-primary {
+      gap: 0.55rem;
     }
 
     .admin-user-cell {
       min-width: 0;
       color: #173446;
-      font-size: 0.92rem;
+      font-size: 0.84rem;
     }
 
     .admin-user-field-label {
       display: none;
-      margin-bottom: 0.25rem;
+      margin-bottom: 0.2rem;
     }
 
     .admin-user-email {
-      font-size: 0.86rem;
+      font-size: 0.76rem;
       overflow-wrap: anywhere;
     }
 
@@ -11377,6 +11509,105 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     }
   }
 
+  // ── User Management filters ─────────────────────────────────────────────
+  readonly userFiltersPanelOpen = signal(false);
+  readonly userFilterGroup = signal('');
+  readonly userFilterDepartment = signal('');
+  readonly userFilterAccess = signal<'' | 'Active' | 'Inactive'>('');
+  readonly userFilterLearningStatus = signal<'' | LearningStatus>('');
+  readonly userFilterRole = signal<'' | 'student' | 'manager' | 'admin'>('');
+  readonly userFilterStartDateFrom = signal('');
+  readonly userFilterStartDateTo = signal('');
+  readonly userFilterEndDateFrom = signal('');
+  readonly userFilterEndDateTo = signal('');
+
+  readonly userGroupOptions = computed(() =>
+    [...new Set(this.users().map((student) => student.group.trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right)),
+  );
+  readonly userDepartmentOptions = computed(() =>
+    [...new Set(this.users().map((student) => student.department.trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right)),
+  );
+
+  readonly activeUserFilterCount = computed(() => {
+    let count = 0;
+    if (this.userFilterGroup()) count += 1;
+    if (this.userFilterDepartment()) count += 1;
+    if (this.userFilterAccess()) count += 1;
+    if (this.userFilterLearningStatus()) count += 1;
+    if (this.userFilterRole()) count += 1;
+    if (this.userFilterStartDateFrom()) count += 1;
+    if (this.userFilterStartDateTo()) count += 1;
+    if (this.userFilterEndDateFrom()) count += 1;
+    if (this.userFilterEndDateTo()) count += 1;
+    return count;
+  });
+
+  toggleUserFiltersPanel() {
+    this.userFiltersPanelOpen.update((open) => !open);
+  }
+
+  closeUserFiltersPanel() {
+    this.userFiltersPanelOpen.set(false);
+  }
+
+  updateUserFilterGroup(event: Event) {
+    this.userFilterGroup.set((event.target as HTMLSelectElement | null)?.value ?? '');
+  }
+
+  updateUserFilterDepartment(event: Event) {
+    this.userFilterDepartment.set((event.target as HTMLSelectElement | null)?.value ?? '');
+  }
+
+  updateUserFilterAccess(event: Event) {
+    const value = (event.target as HTMLSelectElement | null)?.value ?? '';
+    this.userFilterAccess.set(value === 'Active' || value === 'Inactive' ? value : '');
+  }
+
+  updateUserFilterLearningStatus(event: Event) {
+    const value = (event.target as HTMLSelectElement | null)?.value ?? '';
+    this.userFilterLearningStatus.set(
+      value === 'Completed' || value === 'In Progress' || value === 'Not Yet Started' ? value : '',
+    );
+  }
+
+  updateUserFilterRole(event: Event) {
+    const value = (event.target as HTMLSelectElement | null)?.value ?? '';
+    this.userFilterRole.set(value === 'student' || value === 'manager' || value === 'admin' ? value : '');
+  }
+
+  updateUserFilterStartDateFrom(event: Event) {
+    this.userFilterStartDateFrom.set((event.target as HTMLInputElement | null)?.value ?? '');
+  }
+
+  updateUserFilterStartDateTo(event: Event) {
+    this.userFilterStartDateTo.set((event.target as HTMLInputElement | null)?.value ?? '');
+  }
+
+  updateUserFilterEndDateFrom(event: Event) {
+    this.userFilterEndDateFrom.set((event.target as HTMLInputElement | null)?.value ?? '');
+  }
+
+  updateUserFilterEndDateTo(event: Event) {
+    this.userFilterEndDateTo.set((event.target as HTMLInputElement | null)?.value ?? '');
+  }
+
+  clearUserFilters() {
+    this.userFilterGroup.set('');
+    this.userFilterDepartment.set('');
+    this.userFilterAccess.set('');
+    this.userFilterLearningStatus.set('');
+    this.userFilterRole.set('');
+    this.userFilterStartDateFrom.set('');
+    this.userFilterStartDateTo.set('');
+    this.userFilterEndDateFrom.set('');
+    this.userFilterEndDateTo.set('');
+  }
+
+  private userRoleCategory(student: EnrollmentStudent): 'student' | 'manager' | 'admin' {
+    if (student.isAdmin) return 'admin';
+    return student.role === 'manager' ? 'manager' : 'student';
+  }
+
   // ── User Management list export ─────────────────────────────────────────
   readonly selectedUserListDownloadFormat = signal<ReportDownloadFormat>('CSV');
 
@@ -11385,14 +11616,15 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.selectedUserListDownloadFormat.set(input?.value === 'XLSX' ? 'XLSX' : 'CSV');
   }
 
-  // Always exports every user (this.users(), not the search-filtered filteredUsers()) — this is
-  // meant as a full-roster export regardless of whatever the admin currently has typed into the
-  // search box. Columns follow the same picker as the on-screen table, so what's checked there is
-  // what's included here too.
+  // Exports whatever the list currently shows (filteredUsers — search box AND the filter panel
+  // both applied), not always the unfiltered full roster — "download the list" is most useful as
+  // "download what I'm looking at right now", and with no search/filters active that's still the
+  // entire roster. Columns follow the same picker as the on-screen table, so what's checked there
+  // is what's included here too.
   private buildUserListExportRows(): string[][] {
     const columns = this.visibleUserColumns();
     const header = ['Name', 'Surname', 'Email', ...columns.map((col) => col.label)];
-    const rows = this.users().map((student) => [
+    const rows = this.filteredUsers().map((student) => [
       student.name,
       student.surname,
       student.email,
@@ -11568,16 +11800,61 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   );
   readonly filteredUsers = computed(() => {
     const query = this.userSearchTerm().trim().toLowerCase();
-    const users = this.users();
+    let users = this.users();
 
-    if (!query) {
-      return users;
+    if (query) {
+      users = users.filter((student) =>
+        [student.name, student.surname, student.email, student.jobTitle, student.idNumber, student.group, student.department, student.lineManager, student.activeStatus, student.status]
+          .some((value) => value.toLowerCase().includes(query)),
+      );
     }
 
-    return users.filter((student) =>
-      [student.name, student.surname, student.email, student.jobTitle, student.idNumber, student.group, student.department, student.lineManager, student.activeStatus, student.status]
-        .some((value) => value.toLowerCase().includes(query)),
-    );
+    const group = this.userFilterGroup();
+    if (group) {
+      users = users.filter((student) => student.group === group);
+    }
+
+    const department = this.userFilterDepartment();
+    if (department) {
+      users = users.filter((student) => student.department === department);
+    }
+
+    const access = this.userFilterAccess();
+    if (access) {
+      users = users.filter((student) => student.activeStatus === access);
+    }
+
+    const learningStatus = this.userFilterLearningStatus();
+    if (learningStatus) {
+      users = users.filter((student) => this.resolveStudentOverallStatus(student) === learningStatus);
+    }
+
+    const role = this.userFilterRole();
+    if (role) {
+      users = users.filter((student) => this.userRoleCategory(student) === role);
+    }
+
+    const startFrom = this.userFilterStartDateFrom();
+    if (startFrom) {
+      users = users.filter((student) => student.dateEnrolled && student.dateEnrolled >= startFrom);
+    }
+
+    const startTo = this.userFilterStartDateTo();
+    if (startTo) {
+      users = users.filter((student) => student.dateEnrolled && student.dateEnrolled <= startTo);
+    }
+
+    const endFrom = this.userFilterEndDateFrom();
+    if (endFrom) {
+      users = users.filter((student) => student.deadlineDate && student.deadlineDate >= endFrom);
+    }
+
+    const endTo = this.userFilterEndDateTo();
+    if (endTo) {
+      users = users.filter((student) => student.deadlineDate && student.deadlineDate <= endTo);
+    }
+
+    return users;
   });
   readonly editingUser = computed(() => {
     const selectedId = this.editingUserId();
