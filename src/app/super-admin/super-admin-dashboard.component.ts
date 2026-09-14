@@ -96,14 +96,25 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-adm
                 </div>
               </div>
 
-              <label class="branding-theme-field">
-                <span>Theme colour</span>
-                <select [value]="platformBranding()?.themeId" (change)="onPlatformThemeChange($event)" [disabled]="platformBrandingSaving()">
-                  @for (theme of themeOptions; track theme.id) {
-                    <option [value]="theme.id">{{ theme.label }}</option>
-                  }
-                </select>
-              </label>
+              <div class="branding-theme-field">
+                <label>
+                  <span>Theme colour</span>
+                  <select [value]="pendingThemeId() ?? platformBranding()?.themeId" (change)="onPlatformThemeSelected($event)" [disabled]="platformBrandingSaving()">
+                    @for (theme of themeOptions; track theme.id) {
+                      <option [value]="theme.id">{{ theme.label }}</option>
+                    }
+                  </select>
+                </label>
+                @if (pendingThemeId()) {
+                  <div class="branding-theme-actions">
+                    <span class="branding-pending-chip">Not saved yet</span>
+                    <button type="button" class="secondary-btn branding-save-btn" [disabled]="platformBrandingSaving()" (click)="saveTheme()">
+                      {{ platformBrandingSaving() ? 'Saving…' : 'Save theme' }}
+                    </button>
+                    <button type="button" class="secondary-btn" [disabled]="platformBrandingSaving()" (click)="cancelPendingTheme()">Cancel</button>
+                  </div>
+                }
+              </div>
 
               @if (platformBrandingError()) {
                 <div class="error">{{ platformBrandingError() }}</div>
@@ -352,6 +363,46 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-adm
       </div>
     }
 
+    @if (cropModalOpen() && cropImageSrc(); as cropSrc) {
+      <div class="overlay-backdrop" (click)="cancelCrop()"></div>
+      <div class="overlay-panel crop-panel" role="dialog" aria-modal="true" aria-label="Crop logo">
+        <div class="overlay-header">
+          <h3>Crop logo</h3>
+          <button type="button" class="icon-btn" (click)="cancelCrop()" aria-label="Close">✕</button>
+        </div>
+
+        <p class="branding-hint crop-hint">Drag to reposition, use the slider to zoom, then confirm.</p>
+
+        <div
+          class="crop-viewport"
+          (pointerdown)="onCropPointerDown($event)"
+          (pointermove)="onCropPointerMove($event)"
+          (pointerup)="onCropPointerUp($event)"
+          (pointercancel)="onCropPointerUp($event)"
+          (pointerleave)="onCropPointerUp($event)">
+          <img
+            #cropImageEl
+            [src]="cropSrc"
+            alt=""
+            draggable="false"
+            (dragstart)="$event.preventDefault()"
+            (load)="onCropImageLoad(cropImageEl)"
+            [ngStyle]="cropImageStyle()"
+            class="crop-image" />
+        </div>
+
+        <label class="crop-zoom-field">
+          <span>Zoom</span>
+          <input type="range" min="1" max="3" step="0.01" [value]="cropZoom()" (input)="onCropZoomChange($event)" />
+        </label>
+
+        <div class="overlay-footer">
+          <button type="button" class="secondary-btn" (click)="cancelCrop()">Cancel</button>
+          <button type="button" class="primary-btn" [disabled]="!cropNaturalSize()" (click)="applyCrop()">Use this photo</button>
+        </div>
+      </div>
+    }
+
     @if (platformBrandingToast(); as toastMessage) {
       <div class="branding-toast" role="status" aria-live="polite">
         <span class="branding-toast-icon" aria-hidden="true">✓</span>
@@ -583,11 +634,70 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-adm
 
     .branding-theme-field {
       display: grid;
-      gap: 0.35rem;
+      gap: 0.6rem;
       font-size: 0.8rem;
       font-weight: 700;
       color: #334155;
       max-width: 16rem;
+    }
+
+    .branding-theme-field label {
+      display: grid;
+      gap: 0.35rem;
+    }
+
+    .branding-theme-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+    }
+
+    .crop-panel {
+      width: min(24rem, calc(100vw - 2rem));
+    }
+
+    .crop-hint {
+      margin: -0.4rem 0 1rem;
+    }
+
+    .crop-viewport {
+      position: relative;
+      width: 260px;
+      height: 260px;
+      margin: 0 auto 1rem;
+      border-radius: 50%;
+      overflow: hidden;
+      background: #0f172a;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .crop-viewport:active {
+      cursor: grabbing;
+    }
+
+    .crop-image {
+      position: absolute;
+      max-width: none;
+      pointer-events: none;
+    }
+
+    .crop-zoom-field {
+      display: grid;
+      gap: 0.35rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #334155;
+      margin-bottom: 0.3rem;
+    }
+
+    .crop-zoom-field input[type="range"] {
+      width: 100%;
+      padding: 0;
+      border: none;
+      accent-color: #0f172a;
     }
 
     .branding-pending-chip {
@@ -976,10 +1086,76 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
   // Set once a logo file is picked, cleared once it's saved (or cancelled) — a newly selected
   // logo is only previewed, never actually sent to the server, until "Save logo" is clicked.
   readonly pendingLogoDataUrl = signal<string | null>(null);
+  // Same staging pattern as the logo, for the same reason: picking a theme in the dropdown
+  // should only preview it until "Save theme" is explicitly clicked, not save on every change.
+  readonly pendingThemeId = signal<LmsBrandThemeId | null>(null);
   // Success confirmation for every branding save (theme, logo save, logo remove) — same toast
   // pattern as admin-profile.component.ts's assign-wizard confirmation.
   readonly platformBrandingToast = signal<string | null>(null);
   private platformBrandingToastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // ── Logo crop modal ───────────────────────────────────────────────────
+  // A freshly picked file is never staged as the pending logo directly — it opens this modal
+  // first so the admin can pan/zoom to the exact region they want before it becomes the preview.
+  readonly cropModalOpen = signal(false);
+  readonly cropImageSrc = signal<string | null>(null);
+  readonly cropNaturalSize = signal<{ width: number; height: number } | null>(null);
+  readonly cropZoom = signal(1);
+  readonly cropOffsetX = signal(0);
+  readonly cropOffsetY = signal(0);
+  private cropImageElement: HTMLImageElement | null = null;
+  private cropDragging = false;
+  private cropDragPointerId: number | null = null;
+  private cropDragStartClientX = 0;
+  private cropDragStartClientY = 0;
+  private cropDragStartOffsetX = 0;
+  private cropDragStartOffsetY = 0;
+  // Visible crop frame size (CSS px) — must match .crop-viewport's width/height below.
+  private readonly cropViewportSize = 260;
+  // Fixed output resolution (px) the cropped logo is rendered at, regardless of source size or
+  // zoom — comfortably sharp for the small circular mark this ends up shown at everywhere, while
+  // staying well under the server's 1 MB data: URI cap.
+  private readonly cropOutputSize = 480;
+
+  // "cover"-style base scale: the smaller of the two ratios would leave gaps, so use the larger
+  // one — the shorter source dimension exactly fills the viewport before any user zoom is applied.
+  private cropBaseScale(): number {
+    const size = this.cropNaturalSize();
+    if (!size || !size.width || !size.height) {
+      return 1;
+    }
+    return Math.max(this.cropViewportSize / size.width, this.cropViewportSize / size.height);
+  }
+
+  private cropDisplaySize(): { width: number; height: number } {
+    const size = this.cropNaturalSize();
+    if (!size) {
+      return { width: 0, height: 0 };
+    }
+    const scale = this.cropBaseScale() * this.cropZoom();
+    return { width: size.width * scale, height: size.height * scale };
+  }
+
+  readonly cropImageStyle = computed(() => {
+    // Re-evaluate whenever any of these change — cropDisplaySize/cropBaseScale read the same
+    // signals directly, but computed() only tracks signals read during ITS OWN execution, so
+    // touching them here (rather than only inside the private helpers) is what makes this
+    // recompute on zoom/pan/image-load.
+    this.cropNaturalSize();
+    this.cropZoom();
+    const offsetX = this.cropOffsetX();
+    const offsetY = this.cropOffsetY();
+
+    const { width, height } = this.cropDisplaySize();
+    const left = (this.cropViewportSize - width) / 2 + offsetX;
+    const top = (this.cropViewportSize - height) / 2 + offsetY;
+    return {
+      width: `${width}px`,
+      height: `${height}px`,
+      left: `${left}px`,
+      top: `${top}px`,
+    };
+  });
 
   readonly activePanel = signal<ActivePanel>('none');
   private readonly activeCompanyId = signal<string | null>(null);
@@ -1261,18 +1437,40 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
       });
   }
 
-  onPlatformThemeChange(event: Event) {
+  // Only stages a preview — nothing is sent to the server until "Save theme" is clicked (see
+  // saveTheme below). Re-picking the currently-saved value clears the pending state entirely
+  // rather than leaving a pointless "Not saved yet" chip for a no-op change.
+  onPlatformThemeSelected(event: Event) {
     const themeId = (event.target as HTMLSelectElement).value as LmsBrandThemeId;
     const current = this.platformBranding();
     if (!current || current.themeId === themeId) {
+      this.pendingThemeId.set(null);
       return;
     }
 
-    this.savePlatformBranding({ ...current, themeId }, 'Theme updated — every company\'s login screen now shows it.');
+    this.pendingThemeId.set(themeId);
   }
 
-  // Only stages a preview — the file is never sent anywhere until "Save logo" is clicked (see
-  // saveLogo below). Picking a new file while one is already staged just replaces the preview.
+  cancelPendingTheme() {
+    this.pendingThemeId.set(null);
+  }
+
+  saveTheme() {
+    const current = this.platformBranding();
+    const pending = this.pendingThemeId();
+    if (!current || pending === null) {
+      return;
+    }
+
+    this.savePlatformBranding(
+      { ...current, themeId: pending },
+      'Theme updated — every company\'s login screen now shows it.',
+      () => this.pendingThemeId.set(null),
+    );
+  }
+
+  // Opens the crop modal rather than staging the raw file directly — applyCrop() below is what
+  // actually sets pendingLogoDataUrl, once the admin has picked the region they want.
   onPlatformLogoSelected(event: Event) {
     const input = event.target as HTMLInputElement | null;
     const file = input?.files?.[0];
@@ -1288,12 +1486,124 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
 
     const reader = new FileReader();
     reader.onload = () => {
-      this.pendingLogoDataUrl.set(typeof reader.result === 'string' ? reader.result : '');
+      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+      if (!dataUrl) {
+        this.platformBrandingError.set('Could not read the selected file.');
+        return;
+      }
+
+      this.cropImageElement = null;
+      this.cropNaturalSize.set(null);
+      this.cropZoom.set(1);
+      this.cropOffsetX.set(0);
+      this.cropOffsetY.set(0);
+      this.cropImageSrc.set(dataUrl);
+      this.cropModalOpen.set(true);
     };
     reader.onerror = () => {
       this.platformBrandingError.set('Could not read the selected file.');
     };
     reader.readAsDataURL(file);
+  }
+
+  onCropImageLoad(imageEl: HTMLImageElement) {
+    this.cropImageElement = imageEl;
+    this.cropNaturalSize.set({ width: imageEl.naturalWidth, height: imageEl.naturalHeight });
+    // Starts filling the frame at no extra zoom, centered — clampCropOffsets is a no-op here
+    // since offsets are already (0, 0), but keeps this the single source of truth for the rule.
+    this.cropZoom.set(1);
+    this.cropOffsetX.set(0);
+    this.cropOffsetY.set(0);
+  }
+
+  onCropZoomChange(event: Event) {
+    const value = Number((event.target as HTMLInputElement).value);
+    this.cropZoom.set(Number.isFinite(value) ? value : 1);
+    this.clampCropOffsets();
+  }
+
+  onCropPointerDown(event: PointerEvent) {
+    if (!this.cropNaturalSize()) {
+      return;
+    }
+
+    this.cropDragging = true;
+    this.cropDragPointerId = event.pointerId;
+    this.cropDragStartClientX = event.clientX;
+    this.cropDragStartClientY = event.clientY;
+    this.cropDragStartOffsetX = this.cropOffsetX();
+    this.cropDragStartOffsetY = this.cropOffsetY();
+    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  }
+
+  onCropPointerMove(event: PointerEvent) {
+    if (!this.cropDragging || event.pointerId !== this.cropDragPointerId) {
+      return;
+    }
+
+    this.cropOffsetX.set(this.cropDragStartOffsetX + (event.clientX - this.cropDragStartClientX));
+    this.cropOffsetY.set(this.cropDragStartOffsetY + (event.clientY - this.cropDragStartClientY));
+    this.clampCropOffsets();
+  }
+
+  onCropPointerUp(event: PointerEvent) {
+    if (event.pointerId !== this.cropDragPointerId) {
+      return;
+    }
+
+    this.cropDragging = false;
+    this.cropDragPointerId = null;
+  }
+
+  // Keeps the image covering the whole viewport at all times — without this, panning or zooming
+  // out could leave a gap (transparent/empty edge) inside the crop frame instead of image content.
+  private clampCropOffsets() {
+    const { width, height } = this.cropDisplaySize();
+    const maxOffsetX = Math.max(0, (width - this.cropViewportSize) / 2);
+    const maxOffsetY = Math.max(0, (height - this.cropViewportSize) / 2);
+    this.cropOffsetX.set(Math.min(maxOffsetX, Math.max(-maxOffsetX, this.cropOffsetX())));
+    this.cropOffsetY.set(Math.min(maxOffsetY, Math.max(-maxOffsetY, this.cropOffsetY())));
+  }
+
+  cancelCrop() {
+    this.cropModalOpen.set(false);
+    this.cropImageSrc.set(null);
+    this.cropImageElement = null;
+    this.cropNaturalSize.set(null);
+  }
+
+  // Renders exactly the region currently visible inside the circular crop frame onto a fixed-size
+  // canvas — the same left/top/scale math cropImageStyle used to position the <img> on screen,
+  // solved in reverse to find which source-image rectangle that frame is currently showing.
+  applyCrop() {
+    const image = this.cropImageElement;
+    const size = this.cropNaturalSize();
+    if (!image || !size) {
+      return;
+    }
+
+    const scale = this.cropBaseScale() * this.cropZoom();
+    const { width, height } = this.cropDisplaySize();
+    const left = (this.cropViewportSize - width) / 2 + this.cropOffsetX();
+    const top = (this.cropViewportSize - height) / 2 + this.cropOffsetY();
+
+    const sourceX = -left / scale;
+    const sourceY = -top / scale;
+    const sourceSize = this.cropViewportSize / scale;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = this.cropOutputSize;
+    canvas.height = this.cropOutputSize;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      this.platformBrandingError.set('Could not crop this image. Please try again.');
+      return;
+    }
+
+    context.drawImage(image, sourceX, sourceY, sourceSize, sourceSize, 0, 0, this.cropOutputSize, this.cropOutputSize);
+    this.pendingLogoDataUrl.set(canvas.toDataURL('image/png'));
+    this.cancelCrop();
   }
 
   cancelPendingLogo() {
