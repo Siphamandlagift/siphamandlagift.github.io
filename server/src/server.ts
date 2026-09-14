@@ -2691,6 +2691,25 @@ app.put('/api/students/:studentId/offering-assignment', requireManagerOrAdminist
       return;
     }
 
+    // This is the route the Assign Wizard/Create Group/individual "assign" actions actually go
+    // through (see training-manager-data.service.ts's assignStudentToOffering) — patchManagerState
+    // below has its own "newly assigned offering" email, but that only fires for its own full-
+    // roster-replace callers (bulk student import), never for this one. Only on a genuine new
+    // assignment, not a removal.
+    if (body.assigned && emailService.isConfigured() && student.email) {
+      const offerings = await repository.listOfferings();
+      const offering = offerings.find((entry) => entry.id === body.offeringId);
+      if (offering) {
+        emailService.sendCourseAssignedEmail({
+          to: student.email,
+          studentName: `${student.name} ${student.surname}`.trim(),
+          offeringTitle: offering.title,
+          deadline: offering.completionDeadline,
+          appUrl: resolveAppBaseUrl(request),
+        }).catch(() => { /* non-critical — do not fail the request */ });
+      }
+    }
+
     response.json(student);
   } catch (error) {
     next(error);
