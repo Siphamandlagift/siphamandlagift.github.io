@@ -3382,12 +3382,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         <h2>Assignment Submissions</h2>
                         <span>Review learner submissions in one workspace instead of opening each course overlay.</span>
                       </div>
-                      <span class="student-search-count">{{ filteredAssignmentSubmissions().length }} shown</span>
+                      <span class="admin-chip">{{ filteredAssignmentSubmissions().length }} shown</span>
                     </div>
 
-                    <div class="student-search-row">
-                      <label class="student-search-field">
-                        <span class="student-search-label">Search submissions</span>
+                    <div class="admin-toolbar">
+                      <label class="admin-search-field">
+                        <span>Search submissions</span>
                         <input
                           type="search"
                           [value]="assignmentSubmissionSearchTerm()"
@@ -7881,6 +7881,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .course-form label,
+    .mentorship-review-form label,
     .enrollment-select-wrap {
       display: flex;
       flex-direction: column;
@@ -7893,6 +7894,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .course-form input,
     .course-form select,
     .course-form textarea,
+    .mentorship-review-form input,
+    .mentorship-review-form textarea,
     .enrollment-select-wrap select {
       width: 100%;
       border: 1px solid #dbe2ea;
@@ -7907,13 +7910,16 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .course-form input:focus,
     .course-form select:focus,
     .course-form textarea:focus,
+    .mentorship-review-form input:focus,
+    .mentorship-review-form textarea:focus,
     .enrollment-select-wrap select:focus {
       outline: none;
       border-color: #818cf8;
       box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
     }
 
-    .course-form textarea {
+    .course-form textarea,
+    .mentorship-review-form textarea {
       resize: vertical;
       min-height: 4.2rem;
       font-family: inherit;
@@ -9495,6 +9501,229 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
         color: #1d4ed8;
         font-size: 0.76rem;
         font-weight: 800;
+      }
+
+      /* ── Assignment Submissions review workspace ─────────────────────
+         The mentorship-review family of classes (and mentorship-panel-nav-btn) were
+         carried over from the Courses/Enrollment relocation (see this style block's
+         own header comment) with no base rules at all — every element here rendered
+         as unstyled native HTML. Built from scratch below, following the same
+         card/pill/button conventions the rest of this file already uses. */
+      .mentorship-panel-nav-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.42rem 0.85rem;
+        border: 1px solid rgba(148, 163, 184, 0.32);
+        border-radius: 999px;
+        background: #ffffff;
+        color: #173446;
+        font: inherit;
+        font-size: 0.8rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+      }
+
+      .mentorship-panel-nav-btn:hover,
+      .mentorship-panel-nav-btn:focus-visible {
+        transform: translateY(-1px);
+        border-color: rgba(56, 189, 248, 0.32);
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.1);
+        outline: none;
+      }
+
+      .mentorship-panel-nav-btn-active {
+        background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
+        color: #fff;
+        border-color: transparent;
+        box-shadow: 0 2px 6px rgba(23, 52, 70, 0.14);
+      }
+
+      .mentorship-review-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
+        gap: 1rem;
+        align-items: start;
+      }
+
+      .mentorship-review-list {
+        display: grid;
+        gap: 0.6rem;
+        max-height: 42rem;
+        overflow-y: auto;
+        padding-right: 0.2rem;
+      }
+
+      .mentorship-review-list-item {
+        display: grid;
+        gap: 0.3rem;
+        padding: 0.8rem 0.9rem;
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        border-radius: 12px;
+        background: #ffffff;
+        color: #173446;
+        text-align: left;
+        font: inherit;
+        cursor: pointer;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+      }
+
+      .mentorship-review-list-item strong {
+        font-size: 0.92rem;
+        color: #173446;
+      }
+
+      .mentorship-review-list-item small {
+        color: #64748b;
+        font-size: 0.78rem;
+      }
+
+      .mentorship-review-list-item:hover,
+      .mentorship-review-list-item:focus-visible {
+        transform: translateY(-1px);
+        border-color: var(--admin-secondary);
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.1);
+        outline: none;
+      }
+
+      .mentorship-review-list-item-active {
+        border-color: var(--admin-primary);
+        background: var(--admin-tint);
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.1);
+      }
+
+      .mentorship-review-status-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.28rem 0.65rem;
+        border-radius: 999px;
+        background: #f1f5f9;
+        color: #475569;
+        font-size: 0.74rem;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .mentorship-review-status-pill-approved {
+        background: #dcfce7;
+        color: #166534;
+      }
+
+      .mentorship-review-status-pill-revision {
+        background: #fef3c7;
+        color: #92400e;
+      }
+
+      .mentorship-review-detail-card {
+        display: grid;
+        gap: 1rem;
+        padding: 1.1rem;
+        border: 1px solid rgba(15, 23, 42, 0.07);
+        border-radius: 14px;
+        background: #ffffff;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03), 0 4px 14px rgba(15, 23, 42, 0.045);
+      }
+
+      .mentorship-review-detail-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 0.85rem;
+        flex-wrap: wrap;
+      }
+
+      .mentorship-review-detail-header h3 {
+        margin: 0 0 0.2rem;
+        color: #173446;
+        font-size: 1.05rem;
+        font-weight: 800;
+      }
+
+      .mentorship-review-detail-header span {
+        color: #64748b;
+        font-size: 0.84rem;
+      }
+
+      .mentorship-review-meta-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+        gap: 0.85rem;
+      }
+
+      .mentorship-review-meta-grid strong {
+        display: block;
+        margin-bottom: 0.2rem;
+        color: #64748b;
+        font-size: 0.74rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .mentorship-review-meta-grid span {
+        color: #173446;
+        font-size: 0.9rem;
+      }
+
+      .mentorship-review-action-plan,
+      .mentorship-review-history {
+        display: grid;
+        gap: 0.4rem;
+        padding: 0.85rem 0.95rem;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 12px;
+        background: #f8fafc;
+      }
+
+      .mentorship-review-action-plan strong,
+      .mentorship-review-history strong {
+        color: #173446;
+        font-size: 0.84rem;
+        font-weight: 800;
+      }
+
+      .mentorship-review-action-plan p,
+      .mentorship-review-history p {
+        margin: 0;
+        color: #334155;
+        font-size: 0.88rem;
+        line-height: 1.55;
+        white-space: pre-wrap;
+      }
+
+      .mentorship-review-history span {
+        color: #334155;
+        font-size: 0.88rem;
+      }
+
+      .mentorship-review-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.55rem;
+      }
+
+      .mentorship-review-form {
+        display: grid;
+        gap: 0.9rem;
+      }
+
+      .mentorship-review-empty-state {
+        padding: 2rem 1rem;
+        text-align: center;
+        color: #64748b;
+        font-size: 0.9rem;
+        border: 1px dashed rgba(148, 163, 184, 0.32);
+        border-radius: 14px;
+        background: #f8fafc;
+      }
+
+      @media (max-width: 860px) {
+        .mentorship-review-layout {
+          grid-template-columns: 1fr;
+        }
       }
 
       /* ── IDP Form ──────────────────────────────────────────────────── */
