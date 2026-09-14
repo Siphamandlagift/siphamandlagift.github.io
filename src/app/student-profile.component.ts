@@ -22,6 +22,7 @@ import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service'
 import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLmsSessionRecord } from './session-auth';
 import { isFeatureAllowedForPlan } from './plan-features';
 import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component';
+import { LoadingSpinnerComponent } from './loading-spinner.component';
 
 @Component({
   selector: 'student-profile',
@@ -36,6 +37,7 @@ import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component'
     StudentMessagesComponent,
     StudentProfileSettingsComponent,
     LogoutConfirmDialogComponent,
+    LoadingSpinnerComponent,
   ],
   template: `
     <div
@@ -45,6 +47,14 @@ import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component'
       [style.--brand-secondary]="studentTheme().secondary"
       [style.--brand-tint]="studentTheme().tint"
       [style.--brand-surface]="studentTheme().surface">
+      <div
+        *ngIf="pageLoading()"
+        class="student-page-loading-overlay"
+        role="status"
+        aria-live="polite">
+        <loading-spinner [size]="44" color="var(--brand-primary)" label="Loading your workspace…"></loading-spinner>
+      </div>
+
       <div
         *ngIf="showWelcomeBanner()"
         class="welcome-banner"
@@ -1586,6 +1596,16 @@ import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component'
       background:
         radial-gradient(circle at top left, var(--brand-tint), transparent 20%),
         linear-gradient(180deg, #f6f8fc 0%, var(--brand-surface) 100%);
+    }
+
+    .student-page-loading-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f6f8fc;
     }
 
     .welcome-banner {
@@ -5197,6 +5217,11 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
 
   readonly studentData = inject(StudentDataService);
   readonly managerData = inject(TrainingManagerDataService);
+  // Both singleton data services hydrate from a locally-cached snapshot before their real fetch
+  // resolves — without this gate, the shell would briefly render whatever was last cached
+  // (possibly stale, or left over from a previous session in this browser tab) instead of this
+  // student's own data. See dataHydrated/offeringsHydrated on those services.
+  readonly pageLoading = computed(() => !this.studentData.dataHydrated() || !this.managerData.offeringsHydrated());
   readonly branding = inject(LmsBrandingService);
   private readonly backend = inject(LmsBackendService);
   // A Starter plan only includes Dashboard/Courses/Calendar/Profile & Settings — see

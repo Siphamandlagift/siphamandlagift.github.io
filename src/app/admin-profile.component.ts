@@ -413,6 +413,11 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
           <option [value]="name"></option>
         }
       </datalist>
+      @if (pageLoading()) {
+        <div class="admin-page-loading-overlay" role="status" aria-live="polite">
+          <loading-spinner [size]="44" color="var(--admin-primary)" label="Loading your workspace…"></loading-spinner>
+        </div>
+      }
       @if (showWelcomeBanner()) {
         <div class="admin-welcome-banner" [class.admin-welcome-banner-leaving]="welcomeBannerLeaving()" role="status" aria-live="polite">
           <div>
@@ -5003,6 +5008,16 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-profile-card {
       min-height: 100%;
       background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(246, 250, 255, 0.94) 100%);
+    }
+
+    .admin-page-loading-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f6f8fc;
     }
 
     .admin-modal-backdrop {
@@ -11042,6 +11057,11 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly managerData = inject(TrainingManagerDataService);
   private readonly backend = inject(LmsBackendService);
   private readonly http = inject(HttpClient);
+  // TrainingManagerDataService (shared with the training-manager view) hydrates its signals from
+  // a locally-cached snapshot before its real bootstrap fetch resolves — without this gate, the
+  // admin shell would briefly render whatever was last cached (possibly a stale or wrong-company
+  // snapshot) instead of this admin's own data. See offeringsHydrated in that service.
+  readonly pageLoading = computed(() => !this.managerData.offeringsHydrated());
   readonly ofoCodeOptions = signal<string[]>([]);
   readonly municipalityOptions = signal<string[]>([]);
   readonly branding = inject(LmsBrandingService);

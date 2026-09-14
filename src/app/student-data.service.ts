@@ -271,6 +271,12 @@ export class StudentDataService {
   private readonly managerData = inject(TrainingManagerDataService);
   private readonly backend = inject(LmsBackendService);
   private backendHydrated = false;
+  // Public mirror of backendHydrated, set at the same two call sites (refreshStudentSnapshot's
+  // next/error handlers) — lets the student profile shell gate its initial render on the real
+  // fetch having resolved, rather than showing whatever this signal's field initializers below
+  // seeded from a locally-cached (possibly stale, or a previous student's) snapshot.
+  private readonly backendHydratedSignal = signal(false);
+  readonly dataHydrated = this.backendHydratedSignal.asReadonly();
   private readonly initialPersistedStudentSnapshot = this.loadPersistedStudentSnapshot();
   private studentStateHydrated = !!this.initialPersistedStudentSnapshot;
   private pendingSnapshotWriteCount = 0;
@@ -1229,6 +1235,7 @@ export class StudentDataService {
         this.studentStateHydrated = true;
 
         this.backendHydrated = true;
+        this.backendHydratedSignal.set(true);
         this.refreshInFlight = false;
 
         if (nextSnapshot.notifications.length !== snapshot.notifications.length) {
@@ -1249,6 +1256,7 @@ export class StudentDataService {
         this.studentStateHydrated = true;
         this.savePersistedStudentSnapshot(this.buildPersistedStudentSnapshot(studentId));
         this.backendHydrated = true;
+        this.backendHydratedSignal.set(true);
         this.refreshInFlight = false;
       },
     });

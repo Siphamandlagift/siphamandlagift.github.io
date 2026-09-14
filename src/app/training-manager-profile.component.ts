@@ -25,6 +25,7 @@ import { LmsBackendService, type LoginRole, type ResolveRolesEntry } from './lms
 import type { StudentCourse } from './student-data.service';
 import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLmsSessionRecord } from './session-auth';
 import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component';
+import { LoadingSpinnerComponent } from './loading-spinner.component';
 
 type ManagerMessageSection = 'compose' | 'inbox' | null;
 type MentorshipWorkspaceSection = 'list' | 'submissions';
@@ -76,7 +77,7 @@ type KpiEntryFormGroup = FormGroup<{
   host: {
     '(document:keydown.escape)': 'handleOverlayEscape()',
   },
-  imports: [CommonModule, ReactiveFormsModule, LogoutConfirmDialogComponent],
+  imports: [CommonModule, ReactiveFormsModule, LogoutConfirmDialogComponent, LoadingSpinnerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
@@ -85,6 +86,11 @@ type KpiEntryFormGroup = FormGroup<{
       [style.--brand-secondary]="branding.currentTheme().secondary"
       [style.--brand-tint]="branding.currentTheme().tint"
       [style.--brand-surface]="branding.currentTheme().surface">
+      @if (pageLoading()) {
+        <div class="manager-page-loading-overlay" role="status" aria-live="polite">
+          <loading-spinner [size]="44" color="var(--brand-primary)" label="Loading your workspace…"></loading-spinner>
+        </div>
+      }
       @if (showWelcomeBanner()) {
         <div class="manager-welcome-banner" [class.manager-welcome-banner-leaving]="welcomeBannerLeaving()" role="status" aria-live="polite">
           <div>
@@ -1990,6 +1996,16 @@ type KpiEntryFormGroup = FormGroup<{
       background:
         radial-gradient(circle at top left, var(--brand-tint), transparent 20%),
         linear-gradient(180deg, #f6f8fc 0%, var(--brand-surface) 100%);
+    }
+
+    .manager-page-loading-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f6f8fc;
     }
 
     .manager-topbar,
@@ -6187,6 +6203,11 @@ type KpiEntryFormGroup = FormGroup<{
 })
 export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   readonly managerData = inject(TrainingManagerDataService);
+  // TrainingManagerDataService hydrates its signals from a locally-cached snapshot before its
+  // real bootstrap fetch resolves — without this gate, the shell would briefly render whatever
+  // was last cached (possibly a stale or wrong-company snapshot) instead of this manager's own
+  // data. See offeringsHydrated in that service.
+  readonly pageLoading = computed(() => !this.managerData.offeringsHydrated());
   readonly branding = inject(LmsBrandingService);
   private readonly backend = inject(LmsBackendService);
   private readonly router = inject(Router);
