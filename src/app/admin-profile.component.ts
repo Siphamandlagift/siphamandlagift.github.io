@@ -1339,9 +1339,17 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
                 <div class="admin-user-table-wrap" [style.--user-table-columns]="userTableGridTemplateColumns()">
                   <div class="admin-user-table admin-user-table-head">
-                    <button type="button" class="admin-user-sort-btn" [class.admin-user-sort-btn-active]="userSortColumn() === 'name'" (click)="toggleUserSort('name')" [attr.title]="'Sort by User'">
-                      <span>User</span>
+                    <button type="button" class="admin-user-sort-btn" [class.admin-user-sort-btn-active]="userSortColumn() === 'name'" (click)="toggleUserSort('name')" [attr.title]="'Sort by Name'">
+                      <span>Name</span>
                       @if (userSortColumn() === 'name') {
+                        <svg class="admin-user-sort-arrow" [class.admin-user-sort-arrow-desc]="userSortDirection() === 'desc'" width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path d="m7 10 5 5 5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                      }
+                    </button>
+                    <button type="button" class="admin-user-sort-btn" [class.admin-user-sort-btn-active]="userSortColumn() === 'surname'" (click)="toggleUserSort('surname')" [attr.title]="'Sort by Surname'">
+                      <span>Surname</span>
+                      @if (userSortColumn() === 'surname') {
                         <svg class="admin-user-sort-arrow" [class.admin-user-sort-arrow-desc]="userSortDirection() === 'desc'" width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                           <path d="m7 10 5 5 5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
@@ -1365,7 +1373,14 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       <article class="admin-user-table admin-user-row">
                         <div class="admin-user-cell admin-user-primary">
                           <span class="admin-user-avatar">{{ student.name[0] }}{{ student.surname[0] }}</span>
-                          <div class="admin-user-fullname">{{ student.name }} {{ student.surname }}</div>
+                          <div>
+                            <div class="admin-user-field-label">Name</div>
+                            <div class="admin-user-fullname">{{ student.name }}</div>
+                          </div>
+                        </div>
+                        <div class="admin-user-cell">
+                          <div class="admin-user-field-label">Surname</div>
+                          <span>{{ student.surname }}</span>
                         </div>
                         @for (column of visibleUserColumns(); track column.id) {
                           <div class="admin-user-cell">
@@ -11488,7 +11503,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     return this.userColumnOptions.filter((option) => selected.has(option.id));
   });
   readonly userTableGridTemplateColumns = computed(() =>
-    ['minmax(200px, 1.7fr)', ...this.visibleUserColumns().map(() => 'minmax(140px, 1fr)'), 'minmax(150px, 1fr)'].join(' '),
+    ['minmax(160px, 1.2fr)', 'minmax(140px, 1fr)', ...this.visibleUserColumns().map(() => 'minmax(140px, 1fr)'), 'minmax(150px, 1fr)'].join(' '),
   );
 
   private loadUserColumnPreference(): UserColumnId[] {
@@ -11653,14 +11668,14 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   }
 
   // ── User Management sorting ─────────────────────────────────────────────
-  // 'name' sorts by the always-present User column (name + surname); every other value is a
+  // 'name' and 'surname' sort by the always-present Name/Surname columns; every other value is a
   // UserColumnId, sorted by whatever userColumnCellValue already displays for it — so sorting
   // always matches exactly what's on screen, including the Learning Status/Access pill text.
-  readonly userSortColumn = signal<'name' | UserColumnId>('name');
+  readonly userSortColumn = signal<'name' | 'surname' | UserColumnId>('name');
   readonly userSortDirection = signal<'asc' | 'desc'>('asc');
   private static readonly userDateSortColumns: ReadonlySet<UserColumnId> = new Set(['dateEnrolled', 'deadlineDate', 'dateOfBirth']);
 
-  toggleUserSort(column: 'name' | UserColumnId) {
+  toggleUserSort(column: 'name' | 'surname' | UserColumnId) {
     if (this.userSortColumn() === column) {
       this.userSortDirection.update((direction) => (direction === 'asc' ? 'desc' : 'asc'));
       return;
@@ -11670,12 +11685,18 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     // Date columns read most naturally starting from the newest ("recent to old"); every other
     // column starts A→Z. Either way, a second click on the same header flips it via the branch
     // above.
-    this.userSortDirection.set(column !== 'name' && AdminProfileComponent.userDateSortColumns.has(column) ? 'desc' : 'asc');
+    this.userSortDirection.set(
+      column !== 'name' && column !== 'surname' && AdminProfileComponent.userDateSortColumns.has(column) ? 'desc' : 'asc',
+    );
   }
 
-  private userSortValue(student: EnrollmentStudent, column: 'name' | UserColumnId): string {
+  private userSortValue(student: EnrollmentStudent, column: 'name' | 'surname' | UserColumnId): string {
     if (column === 'name') {
-      return `${student.name} ${student.surname}`.trim().toLowerCase();
+      return student.name.trim().toLowerCase();
+    }
+
+    if (column === 'surname') {
+      return student.surname.trim().toLowerCase();
     }
 
     return this.userColumnCellValue(student, column).toLowerCase();
