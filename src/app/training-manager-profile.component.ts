@@ -26,6 +26,7 @@ import type { StudentCourse } from './student-data.service';
 import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLmsSessionRecord } from './session-auth';
 import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component';
 import { LoadingSpinnerComponent } from './loading-spinner.component';
+import { isFeatureAllowedForPlan, type GatedFeature } from './plan-features';
 
 type ManagerMessageSection = 'compose' | 'inbox' | null;
 type MentorshipWorkspaceSection = 'list' | 'submissions';
@@ -262,7 +263,7 @@ type KpiEntryFormGroup = FormGroup<{
             </button>
           </div>
 
-          @for (item of navItems; track item.value) {
+          @for (item of navItems(); track item.value) {
             <button type="button" [class.active]="selectedPanel() === item.value" [attr.aria-label]="item.label" (click)="selectPanel(item.value)">
               <span class="manager-nav-icon" aria-hidden="true">
                 @switch (item.value) {
@@ -6215,7 +6216,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   readonly showWelcomeBanner = computed(() => this._showWelcomeBanner());
   private readonly _welcomeBannerLeaving = signal(false);
   readonly welcomeBannerLeaving = computed(() => this._welcomeBannerLeaving());
-  readonly navItems: ReadonlyArray<{ label: string; value: ManagerPanel }> = [
+  private readonly allNavItems: ReadonlyArray<{ label: string; value: ManagerPanel }> = [
     { label: 'Dashboard', value: 'dashboard' },
     { label: 'Requested Training', value: 'requested-training' },
     { label: 'Mentorship', value: 'mentorship' },
@@ -6224,6 +6225,26 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     { label: 'Succession', value: 'succession' },
     { label: 'Messages', value: 'messages' },
   ];
+  // Every panel here (besides Dashboard) is plan-gated on the server via requirePlanFeature —
+  // reusing the SAME feature flag its student-facing (or, for Succession, admin-facing) view
+  // uses, since these are one company-wide entitlement, not a separate per-role toggle. This nav
+  // rendered all seven items unconditionally regardless of plan until this fix — a Starter-plan
+  // training manager saw Mentorship/IDP/Performance/Succession/Messages links that led nowhere
+  // useful (the underlying write routes reject them), which read as "access to things I shouldn't
+  // have." Mirrors admin-profile.component.ts's own allNavItems/navItems split for Succession.
+  private readonly managerPanelFeatureGate: Partial<Record<ManagerPanel, GatedFeature>> = {
+    'requested-training': 'student-external-training',
+    mentorship: 'student-mentorship',
+    idp: 'student-idp',
+    performance: 'student-performance',
+    succession: 'admin-succession',
+    messages: 'student-messages',
+  };
+  private panelAllowed(panel: ManagerPanel): boolean {
+    const feature = this.managerPanelFeatureGate[panel];
+    return !feature || isFeatureAllowedForPlan(this.managerData.plan(), feature);
+  }
+  readonly navItems = computed(() => this.allNavItems.filter((item) => this.panelAllowed(item.value)));
 
   readonly selectedPanel = signal<ManagerPanel>('dashboard');
   readonly managerSidebarCollapsed = signal(false);
@@ -6467,6 +6488,10 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   }
 
   selectPanel(panel: ManagerPanel) {
+    if (!this.panelAllowed(panel)) {
+      return;
+    }
+
     this.closeTopbarDropdown();
     this.closeTopbarProfileMenu();
 
