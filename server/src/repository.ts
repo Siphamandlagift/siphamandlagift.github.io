@@ -414,6 +414,21 @@ function resolveLinkedStudentRecord(
   return data.students.find((entry) => entry.id === studentId) ?? null;
 }
 
+/** True for a bare admin account (base role 'administrator', typically created via the Super
+ *  Admin's own bootstrap route) AND for a student/manager account promoted to admin through the
+ *  isAdmin flag on its linked directory record (the company's own User Management "Admin: Yes"
+ *  toggle) — the same two paths login/resolveRoles already grant full administrator access
+ *  through, so anything treating "is this account an admin" as just role === 'administrator'
+ *  (as the Super Admin's own admin-list/reset-password actions originally did) silently misses
+ *  every promoted admin. */
+function isAdministratorAccount(data: LmsDataStore, account: Pick<AuthAccountRecord, 'role' | 'email' | 'linkedStudentId'>): boolean {
+  if (account.role === 'administrator') {
+    return true;
+  }
+
+  return resolveLinkedStudentRecord(data, account)?.isAdmin === true;
+}
+
 function mergeResolvedRole(results: ResolvedRoleEntry[], candidate: ResolvedRoleEntry) {
   const existingIndex = results.findIndex((entry) => entry.role === candidate.role);
   if (existingIndex === -1) {
@@ -3217,17 +3232,20 @@ export class LmsRepository {
   async listAdministratorAccounts(): Promise<AdministratorAccountSummary[]> {
     const data = await this.read();
     return data.authAccounts
-      .filter((entry) => entry.role === 'administrator')
+      .filter((entry) => isAdministratorAccount(data, entry))
       .map((entry) => ({ id: entry.id, email: entry.email, username: entry.username }))
       .reverse();
   }
 
   // Super Admin support action: set a specific admin account's password directly, no email/token
   // round-trip — the same trust level createAdministratorAccount above already operates at (a
-  // Super Admin session, not the account owner's). Scoped to role === 'administrator' so this
-  // can't be pointed at a manager/student account by id even by mistake; company scoping is
-  // already structural, since accountId is only ever looked up within this repository's own
-  // company-scoped authAccounts.
+  // Super Admin session, not the account owner's). isAdministratorAccount below (not a bare
+  // role === 'administrator' check) so this can't miss an account that's an administrator via the
+  // isAdmin flag on its linked student record rather than its own base role — a student/manager
+  // promoted to admin through the company's own User Management, not created through this
+  // bootstrap route, is still a real administrator and must still be reachable here. Company
+  // scoping is already structural, since accountId is only ever looked up within this
+  // repository's own company-scoped authAccounts.
   async resetAdministratorPassword(accountId: string, password: string): Promise<ResetAdministratorPasswordResult> {
     const trimmedPassword = password.trim();
     if (!isStrongPassword(trimmedPassword)) {
@@ -3235,7 +3253,7 @@ export class LmsRepository {
     }
 
     const data = await this.read();
-    const accountIndex = data.authAccounts.findIndex((entry) => entry.id === accountId && entry.role === 'administrator');
+    const accountIndex = data.authAccounts.findIndex((entry) => entry.id === accountId && isAdministratorAccount(data, entry));
     if (accountIndex === -1) {
       return { status: 'not-found' };
     }
