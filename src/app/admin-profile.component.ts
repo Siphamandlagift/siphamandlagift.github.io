@@ -6513,6 +6513,16 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       gap: 0.55rem;
     }
 
+    .admin-user-actions {
+      gap: 0.4rem;
+    }
+
+    .admin-user-actions .admin-inline-btn {
+      min-height: 1.8rem;
+      padding: 0.3rem 0.65rem;
+      font-size: 0.74rem;
+    }
+
     .admin-user-cell {
       min-width: 0;
       color: #173446;
