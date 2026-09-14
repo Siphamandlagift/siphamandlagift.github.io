@@ -40,7 +40,7 @@ import { readCompanyScopedCache, writeCompanyScopedCache } from './company-scope
 type AdminPanel = 'dashboard' | 'users' | 'reports' | 'succession' | 'settings' | 'courses' | 'enrollment';
 
 type UserColumnId =
-  | 'department' | 'group' | 'learningStatus' | 'access'
+  | 'email' | 'department' | 'group' | 'learningStatus' | 'access'
   | 'jobTitle' | 'idNumber' | 'lineManager' | 'dateEnrolled' | 'deadlineDate'
   | 'ofoCode' | 'race' | 'gender' | 'municipality' | 'dateOfBirth' | 'nqfLevel' | 'disability' | 'role';
 
@@ -1365,10 +1365,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       <article class="admin-user-table admin-user-row">
                         <div class="admin-user-cell admin-user-primary">
                           <span class="admin-user-avatar">{{ student.name[0] }}{{ student.surname[0] }}</span>
-                          <div>
-                            <div class="admin-user-fullname">{{ student.name }} {{ student.surname }}</div>
-                            <div class="admin-user-email">{{ student.email }}</div>
-                          </div>
+                          <div class="admin-user-fullname">{{ student.name }} {{ student.surname }}</div>
                         </div>
                         @for (column of visibleUserColumns(); track column.id) {
                           <div class="admin-user-cell">
@@ -1382,6 +1379,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                               <span class="admin-access-pill" [class.admin-access-pill-inactive]="student.activeStatus === 'Inactive'">
                                 {{ student.activeStatus }}
                               </span>
+                            } @else if (column.id === 'email') {
+                              <span class="admin-user-email">{{ userColumnCellValue(student, column.id) }}</span>
                             } @else {
                               <span>{{ userColumnCellValue(student, column.id) }}</span>
                             }
@@ -11461,8 +11460,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   // ── User Management column picker ───────────────────────────────────────
   private static readonly userColumnsStorageKey = 'lms-app.admin-user-columns';
-  private static readonly defaultUserColumnIds: ReadonlyArray<UserColumnId> = ['department', 'group', 'learningStatus', 'access'];
+  private static readonly defaultUserColumnIds: ReadonlyArray<UserColumnId> = ['email', 'department', 'group', 'learningStatus', 'access'];
   readonly userColumnOptions: ReadonlyArray<{ id: UserColumnId; label: string }> = [
+    { id: 'email', label: 'Email' },
     { id: 'department', label: 'Department' },
     { id: 'group', label: 'Group' },
     { id: 'learningStatus', label: 'Learning Status' },
@@ -11532,6 +11532,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   userColumnCellValue(student: EnrollmentStudent, columnId: UserColumnId): string {
     switch (columnId) {
+      case 'email': return student.email || '—';
       case 'department': return student.department || '—';
       case 'group': return student.group || '—';
       case 'learningStatus': return this.resolveStudentOverallStatus(student);
@@ -11693,13 +11694,14 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   // "download what I'm looking at right now", and with no search/filters active that's still the
   // entire roster. Columns follow the same picker as the on-screen table, so what's checked there
   // is what's included here too.
+  // Email is one of the optional columns (see userColumnOptions) rather than hardcoded here, so
+  // it only appears once and only when actually checked — same as every other optional column.
   private buildUserListExportRows(): string[][] {
     const columns = this.visibleUserColumns();
-    const header = ['Name', 'Surname', 'Email', ...columns.map((col) => col.label)];
+    const header = ['Name', 'Surname', ...columns.map((col) => col.label)];
     const rows = this.filteredUsers().map((student) => [
       student.name,
       student.surname,
-      student.email,
       ...columns.map((col) => this.userColumnCellValue(student, col.id)),
     ]);
 
