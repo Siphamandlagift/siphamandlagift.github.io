@@ -6540,7 +6540,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-user-cell {
       min-width: 0;
       color: #173446;
-      font-size: 0.84rem;
+      font-size: 0.76rem;
     }
 
     .admin-user-field-label {
@@ -6549,8 +6549,13 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .admin-user-email {
-      font-size: 0.76rem;
+      font-size: 0.7rem;
       overflow-wrap: anywhere;
+    }
+
+    .admin-user-row .admin-status-pill,
+    .admin-user-row .admin-access-pill {
+      font-size: 0.68rem;
     }
 
     .admin-logo-panel {
