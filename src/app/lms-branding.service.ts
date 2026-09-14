@@ -69,6 +69,20 @@ export class LmsBrandingService {
     this.fetchAuthenticatedBranding();
   }
 
+  // Called once by the login screen itself (see login/login.ts's own ngOnInit) — the constructor
+  // above picks fetchAuthenticatedBranding() over this whenever hasActiveLmsSession() is true, but
+  // that's only a good guess for a fresh load of an authenticated ROUTE (a refresh on
+  // /admin-profile, say). It guesses wrong for the login route itself: nothing in app.routes.ts
+  // stops an already-logged-in visitor (session still valid — back button, a bookmark, a second
+  // tab) from landing on '/', and the constructor has no way to know that's where it's running.
+  // Left uncorrected, that visitor's OWN company branding would render on what's supposed to be
+  // the one shared, Super-Admin-managed login screen every company sees identically. This fetch's
+  // generation stamp (see fetchGeneration) wins over that earlier, wrong guess regardless of which
+  // response lands first, the same way refreshForAuthenticatedSession's does in the other direction.
+  refreshForPublicScreen() {
+    this.fetchPublicBranding();
+  }
+
   private fetchPublicBranding() {
     const generation = ++this.fetchGeneration;
     this.backend.getBranding().subscribe({
