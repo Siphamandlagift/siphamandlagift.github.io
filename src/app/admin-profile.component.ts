@@ -13957,8 +13957,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       return;
     }
 
+    let credentialResult: ManagedUserCredentialsUpsertResponse | null = null;
     try {
-      await this.syncManagedUserCredentials([{ email: studentInput.email, password }]);
+      credentialResult = await this.syncManagedUserCredentials([{ email: studentInput.email, password }]);
     } catch {
       if (result.added || result.updated) {
         this.singleUserTone.set('error');
@@ -13966,6 +13967,23 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         this.closeSingleUserForm(false);
         return;
       }
+    }
+
+    // A skipped credential sync doesn't throw (see syncManagedUserCredentials/
+    // upsertManagedUserCredentials) — the roster record above was created either way, so this
+    // has to be checked separately or the admin never finds out the new account has no login.
+    if (credentialResult?.skippedByLicenseLimit) {
+      this.singleUserTone.set('error');
+      this.singleUserMessage.set('User added to the LMS list, but no login was created — your plan has no licenses left. Free up a seat or increase your license limit, then set their password again.');
+      this.closeSingleUserForm(false);
+      return;
+    }
+
+    if (credentialResult?.skippedByPlan) {
+      this.singleUserTone.set('error');
+      this.singleUserMessage.set('User added to the LMS list, but no login was created — training manager accounts aren\'t included on your current plan.');
+      this.closeSingleUserForm(false);
+      return;
     }
 
     if (result.added) {
@@ -14022,9 +14040,20 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     }
 
     try {
-      await this.syncManagedUserCredentials([{ email: studentInput.email, password }]);
-      this.singleUserTone.set('success');
-      this.singleUserMessage.set(password ? 'User details saved. Password updated.' : 'User details saved.');
+      const credentialResult = await this.syncManagedUserCredentials([{ email: studentInput.email, password }]);
+      // Same "skip doesn't throw" gap as saveSingleUser — this account may never have had a
+      // login before (e.g. a roster-only student promoted to manager here for the first time),
+      // which counts as a new seat just like a brand-new user does.
+      if (credentialResult.skippedByLicenseLimit) {
+        this.singleUserTone.set('error');
+        this.singleUserMessage.set('User details saved, but no login was created — your plan has no licenses left. Free up a seat or increase your license limit, then set their password again.');
+      } else if (credentialResult.skippedByPlan) {
+        this.singleUserTone.set('error');
+        this.singleUserMessage.set('User details saved, but no login was created — training manager accounts aren\'t included on your current plan.');
+      } else {
+        this.singleUserTone.set('success');
+        this.singleUserMessage.set(password ? 'User details saved. Password updated.' : 'User details saved.');
+      }
     } catch {
       this.singleUserTone.set('error');
       this.singleUserMessage.set('User details were saved, but the password could not be updated.');
