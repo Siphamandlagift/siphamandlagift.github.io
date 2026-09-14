@@ -6395,6 +6395,14 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-user-toolbar-actions {
       align-items: flex-end;
+      gap: 0.5rem;
+    }
+
+    .admin-user-toolbar-actions .admin-primary-btn,
+    .admin-user-toolbar-actions .admin-secondary-btn {
+      min-height: 2rem;
+      padding: 0.4rem 0.75rem;
+      font-size: 0.8rem;
     }
 
     .admin-user-filters-btn {
@@ -6429,6 +6437,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-user-download-format-field {
       min-width: min(100%, 9rem);
+    }
+
+    .admin-user-download-format-field select {
+      min-height: 2rem;
+      padding: 0.4rem 0.6rem;
+      font-size: 0.8rem;
     }
 
     .admin-user-columns-modal {
