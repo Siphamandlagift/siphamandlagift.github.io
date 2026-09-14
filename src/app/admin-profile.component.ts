@@ -2980,6 +2980,45 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                 </div>
                               }
 
+                              @if (thumbnailCropModalOpen() && thumbnailCropImageSrc(); as thumbnailCropSrc) {
+                                <div class="admin-modal-backdrop" (click)="cancelThumbnailCrop()">
+                                  <section class="admin-modal thumbnail-crop-modal" role="dialog" aria-modal="true" aria-label="Resize course thumbnail" (click)="$event.stopPropagation()">
+                                    <div class="admin-section-card-header">
+                                      <h2>Resize course thumbnail</h2>
+                                      <span>Drag to reposition, use the slider to zoom, then confirm.</span>
+                                    </div>
+
+                                    <div
+                                      class="thumbnail-crop-viewport"
+                                      (pointerdown)="onThumbnailCropPointerDown($event)"
+                                      (pointermove)="onThumbnailCropPointerMove($event)"
+                                      (pointerup)="onThumbnailCropPointerUp($event)"
+                                      (pointercancel)="onThumbnailCropPointerUp($event)"
+                                      (pointerleave)="onThumbnailCropPointerUp($event)">
+                                      <img
+                                        #thumbnailCropImageEl
+                                        [src]="thumbnailCropSrc"
+                                        alt=""
+                                        draggable="false"
+                                        (dragstart)="$event.preventDefault()"
+                                        (load)="onThumbnailCropImageLoad(thumbnailCropImageEl)"
+                                        [ngStyle]="thumbnailCropImageStyle()"
+                                        class="thumbnail-crop-image" />
+                                    </div>
+
+                                    <label class="thumbnail-crop-zoom-field">
+                                      <span>Zoom</span>
+                                      <input type="range" min="1" max="3" step="0.01" [value]="thumbnailCropZoom()" (input)="onThumbnailCropZoomChange($event)" />
+                                    </label>
+
+                                    <div class="admin-form-actions">
+                                      <button type="button" class="admin-primary-btn" [disabled]="!thumbnailCropNaturalSize()" (click)="applyThumbnailCrop()">Use this photo</button>
+                                      <button type="button" class="admin-secondary-btn" (click)="cancelThumbnailCrop()">Cancel</button>
+                                    </div>
+                                  </section>
+                                </div>
+                              }
+
                               <label class="form-grid-span-two" title="Add a compact summary learners will see before starting the item.">
                                 <span class="required-label">Course Description <span class="required-marker" aria-hidden="true">*</span></span>
                                 <textarea formControlName="description" rows="5" placeholder="Add a short summary of what learners will cover."></textarea>
@@ -9125,6 +9164,48 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       border-radius: 16px;
     }
 
+    .thumbnail-crop-modal {
+      width: min(28rem, 100%);
+    }
+
+    .thumbnail-crop-viewport {
+      position: relative;
+      width: 320px;
+      height: 180px;
+      margin: 0 auto;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #0f172a;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .thumbnail-crop-viewport:active {
+      cursor: grabbing;
+    }
+
+    .thumbnail-crop-image {
+      position: absolute;
+      max-width: none;
+      pointer-events: none;
+    }
+
+    .thumbnail-crop-zoom-field {
+      display: grid;
+      gap: 0.35rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #173446;
+    }
+
+    .thumbnail-crop-zoom-field input[type="range"] {
+      width: 100%;
+      padding: 0;
+      border: none;
+      accent-color: var(--admin-primary);
+    }
+
     .course-studio-upload-grid,
     .course-studio-empty-grid {
       display: grid;
@@ -15121,6 +15202,74 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly thumbnailPreview = signal<string | null>(null);
   readonly thumbnailFileName = signal<string>('');
   readonly thumbnailUploading = signal(false);
+
+  // ── Course thumbnail crop modal ─────────────────────────────────────────
+  // A freshly picked thumbnail is never uploaded directly — it opens this modal first so the
+  // admin can pan/zoom to the exact region they want before it's cropped and uploaded.
+  readonly thumbnailCropModalOpen = signal(false);
+  readonly thumbnailCropImageSrc = signal<string | null>(null);
+  readonly thumbnailCropNaturalSize = signal<{ width: number; height: number } | null>(null);
+  readonly thumbnailCropZoom = signal(1);
+  readonly thumbnailCropOffsetX = signal(0);
+  readonly thumbnailCropOffsetY = signal(0);
+  private thumbnailCropImageElement: HTMLImageElement | null = null;
+  private thumbnailCropSourceFileName = '';
+  private thumbnailCropDragging = false;
+  private thumbnailCropDragPointerId: number | null = null;
+  private thumbnailCropDragStartClientX = 0;
+  private thumbnailCropDragStartClientY = 0;
+  private thumbnailCropDragStartOffsetX = 0;
+  private thumbnailCropDragStartOffsetY = 0;
+  // Visible crop frame size (CSS px) — must match .thumbnail-crop-viewport's width/height below.
+  // Course thumbnails render as landscape cards elsewhere in the app, so the frame is 16:9
+  // rather than the square/circular frame used for the platform logo crop.
+  private readonly thumbnailCropViewportWidth = 320;
+  private readonly thumbnailCropViewportHeight = 180;
+  // Fixed output resolution (px) the cropped thumbnail is rendered at, regardless of source
+  // size or zoom — sharp enough for the course card while staying a reasonable upload size.
+  private readonly thumbnailCropOutputWidth = 1280;
+  private readonly thumbnailCropOutputHeight = 720;
+
+  // "cover"-style base scale: the smaller of the two ratios would leave gaps, so use the larger
+  // one — the shorter source dimension exactly fills the viewport before any user zoom is applied.
+  private thumbnailCropBaseScale(): number {
+    const size = this.thumbnailCropNaturalSize();
+    if (!size || !size.width || !size.height) {
+      return 1;
+    }
+    return Math.max(this.thumbnailCropViewportWidth / size.width, this.thumbnailCropViewportHeight / size.height);
+  }
+
+  private thumbnailCropDisplaySize(): { width: number; height: number } {
+    const size = this.thumbnailCropNaturalSize();
+    if (!size) {
+      return { width: 0, height: 0 };
+    }
+    const scale = this.thumbnailCropBaseScale() * this.thumbnailCropZoom();
+    return { width: size.width * scale, height: size.height * scale };
+  }
+
+  readonly thumbnailCropImageStyle = computed(() => {
+    // Re-evaluate whenever any of these change — thumbnailCropDisplaySize/BaseScale read the
+    // same signals directly, but computed() only tracks signals read during ITS OWN execution,
+    // so touching them here (rather than only inside the private helpers) is what makes this
+    // recompute on zoom/pan/image-load.
+    this.thumbnailCropNaturalSize();
+    this.thumbnailCropZoom();
+    const offsetX = this.thumbnailCropOffsetX();
+    const offsetY = this.thumbnailCropOffsetY();
+
+    const { width, height } = this.thumbnailCropDisplaySize();
+    const left = (this.thumbnailCropViewportWidth - width) / 2 + offsetX;
+    const top = (this.thumbnailCropViewportHeight - height) / 2 + offsetY;
+    return {
+      width: `${width}px`,
+      height: `${height}px`,
+      left: `${left}px`,
+      top: `${top}px`,
+    };
+  });
+
   readonly selectedPublishedOfferingId = signal<string | null>(null);
   readonly selectedAssignmentSubmissionId = signal<string | null>(null);
 
@@ -16313,6 +16462,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.expandedContentIndex.set(index);
   }
 
+  // Opens the crop modal rather than uploading the raw file directly — applyThumbnailCrop()
+  // below is what actually uploads it, once the admin has picked the region they want.
   onThumbnailSelected(event: Event) {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
@@ -16324,24 +16475,158 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.thumbnailUploading.set(true);
-    this.thumbnailFileName.set(`Uploading ${file.name}…`);
+    this.thumbnailCropSourceFileName = file.name;
     input.value = '';
 
-    this.backend.uploadFileChunked(file, 'course-thumbnails').subscribe({
-      next: (uploadEvent) => {
-        if (uploadEvent.type !== 'complete') return;
-        this.thumbnailPreview.set(uploadEvent.url);
-        this.thumbnailFileName.set(file.name);
-        this.thumbnailUploading.set(false);
-      },
-      error: () => {
-        this.thumbnailPreview.set(null);
-        this.thumbnailFileName.set('');
-        this.thumbnailUploading.set(false);
-        alert(`Failed to upload "${file.name}". Please check your connection and try again.`);
-      },
-    });
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+      if (!dataUrl) {
+        alert(`Could not read "${file.name}". Please try again.`);
+        return;
+      }
+
+      this.thumbnailCropImageElement = null;
+      this.thumbnailCropNaturalSize.set(null);
+      this.thumbnailCropZoom.set(1);
+      this.thumbnailCropOffsetX.set(0);
+      this.thumbnailCropOffsetY.set(0);
+      this.thumbnailCropImageSrc.set(dataUrl);
+      this.thumbnailCropModalOpen.set(true);
+    };
+    reader.onerror = () => {
+      alert(`Could not read "${file.name}". Please try again.`);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  onThumbnailCropImageLoad(imageEl: HTMLImageElement) {
+    this.thumbnailCropImageElement = imageEl;
+    this.thumbnailCropNaturalSize.set({ width: imageEl.naturalWidth, height: imageEl.naturalHeight });
+    // Starts filling the frame at no extra zoom, centered — clampThumbnailCropOffsets is a
+    // no-op here since offsets are already (0, 0), but keeps this the single source of truth.
+    this.thumbnailCropZoom.set(1);
+    this.thumbnailCropOffsetX.set(0);
+    this.thumbnailCropOffsetY.set(0);
+  }
+
+  onThumbnailCropZoomChange(event: Event) {
+    const value = Number((event.target as HTMLInputElement).value);
+    this.thumbnailCropZoom.set(Number.isFinite(value) ? value : 1);
+    this.clampThumbnailCropOffsets();
+  }
+
+  onThumbnailCropPointerDown(event: PointerEvent) {
+    if (!this.thumbnailCropNaturalSize()) {
+      return;
+    }
+
+    this.thumbnailCropDragging = true;
+    this.thumbnailCropDragPointerId = event.pointerId;
+    this.thumbnailCropDragStartClientX = event.clientX;
+    this.thumbnailCropDragStartClientY = event.clientY;
+    this.thumbnailCropDragStartOffsetX = this.thumbnailCropOffsetX();
+    this.thumbnailCropDragStartOffsetY = this.thumbnailCropOffsetY();
+    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  }
+
+  onThumbnailCropPointerMove(event: PointerEvent) {
+    if (!this.thumbnailCropDragging || event.pointerId !== this.thumbnailCropDragPointerId) {
+      return;
+    }
+
+    this.thumbnailCropOffsetX.set(this.thumbnailCropDragStartOffsetX + (event.clientX - this.thumbnailCropDragStartClientX));
+    this.thumbnailCropOffsetY.set(this.thumbnailCropDragStartOffsetY + (event.clientY - this.thumbnailCropDragStartClientY));
+    this.clampThumbnailCropOffsets();
+  }
+
+  onThumbnailCropPointerUp(event: PointerEvent) {
+    if (event.pointerId !== this.thumbnailCropDragPointerId) {
+      return;
+    }
+
+    this.thumbnailCropDragging = false;
+    this.thumbnailCropDragPointerId = null;
+  }
+
+  // Keeps the image covering the whole viewport at all times — without this, panning or
+  // zooming out could leave a gap (transparent/empty edge) inside the crop frame.
+  private clampThumbnailCropOffsets() {
+    const { width, height } = this.thumbnailCropDisplaySize();
+    const maxOffsetX = Math.max(0, (width - this.thumbnailCropViewportWidth) / 2);
+    const maxOffsetY = Math.max(0, (height - this.thumbnailCropViewportHeight) / 2);
+    this.thumbnailCropOffsetX.set(Math.min(maxOffsetX, Math.max(-maxOffsetX, this.thumbnailCropOffsetX())));
+    this.thumbnailCropOffsetY.set(Math.min(maxOffsetY, Math.max(-maxOffsetY, this.thumbnailCropOffsetY())));
+  }
+
+  cancelThumbnailCrop() {
+    this.thumbnailCropModalOpen.set(false);
+    this.thumbnailCropImageSrc.set(null);
+    this.thumbnailCropImageElement = null;
+    this.thumbnailCropNaturalSize.set(null);
+  }
+
+  // Renders exactly the region currently visible inside the crop frame onto a fixed-size
+  // canvas — the same left/top/scale math thumbnailCropImageStyle used to position the <img>
+  // on screen, solved in reverse to find which source-image rectangle that frame is showing —
+  // then uploads the cropped result the same way a directly-selected file used to be uploaded.
+  applyThumbnailCrop() {
+    const image = this.thumbnailCropImageElement;
+    const size = this.thumbnailCropNaturalSize();
+    if (!image || !size) {
+      return;
+    }
+
+    const scale = this.thumbnailCropBaseScale() * this.thumbnailCropZoom();
+    const { width, height } = this.thumbnailCropDisplaySize();
+    const left = (this.thumbnailCropViewportWidth - width) / 2 + this.thumbnailCropOffsetX();
+    const top = (this.thumbnailCropViewportHeight - height) / 2 + this.thumbnailCropOffsetY();
+
+    const sourceX = -left / scale;
+    const sourceY = -top / scale;
+    const sourceWidth = this.thumbnailCropViewportWidth / scale;
+    const sourceHeight = this.thumbnailCropViewportHeight / scale;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = this.thumbnailCropOutputWidth;
+    canvas.height = this.thumbnailCropOutputHeight;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      alert('Could not crop this image. Please try again.');
+      return;
+    }
+
+    context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, this.thumbnailCropOutputWidth, this.thumbnailCropOutputHeight);
+
+    const fileName = this.thumbnailCropSourceFileName || 'thumbnail.jpg';
+    this.cancelThumbnailCrop();
+
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        alert('Could not crop this image. Please try again.');
+        return;
+      }
+
+      const croppedFile = new File([blob], fileName, { type: 'image/jpeg' });
+      this.thumbnailUploading.set(true);
+      this.thumbnailFileName.set(`Uploading ${fileName}…`);
+
+      this.backend.uploadFileChunked(croppedFile, 'course-thumbnails').subscribe({
+        next: (uploadEvent) => {
+          if (uploadEvent.type !== 'complete') return;
+          this.thumbnailPreview.set(uploadEvent.url);
+          this.thumbnailFileName.set(fileName);
+          this.thumbnailUploading.set(false);
+        },
+        error: () => {
+          this.thumbnailPreview.set(null);
+          this.thumbnailFileName.set('');
+          this.thumbnailUploading.set(false);
+          alert(`Failed to upload "${fileName}". Please check your connection and try again.`);
+        },
+      });
+    }, 'image/jpeg', 0.9);
   }
 
   onContentFileSelected(index: number, event: Event) {
