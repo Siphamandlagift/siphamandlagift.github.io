@@ -24,7 +24,7 @@ import {
   TrainingOfferingType,
   TrainingQuestionType,
 } from './training-manager-data.service';
-import { LmsBackendService, type HrIntegrationConfig, type HrIntegrationConfigUpdate, type HrIntegrationSyncSummary, type LoginRole, type ManagedUserCredentialInput, type ResolveRolesEntry } from './lms-backend.service';
+import { LmsBackendService, type HrIntegrationConfig, type HrIntegrationConfigUpdate, type HrIntegrationSyncSummary, type LoginRole, type ManagedUserCredentialInput, type ManagedUserCredentialsUpsertResponse, type ResolveRolesEntry } from './lms-backend.service';
 import { LmsBrandThemeId, LmsBrandingService } from './lms-branding.service';
 import type { StudentCertificateLicence, StudentCertificateStatus, StudentCourse } from './student-data.service';
 import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLmsSessionRecord } from './session-auth';
@@ -14506,7 +14506,11 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     return ['yes', 'y', 'true', 'manager'].includes(rawManager) ? 'manager' as const : 'student' as const;
   }
 
-  private buildBulkUploadPasswordSummary(result: { created: number; updated: number; skipped: number }) {
+  // Breaks the skip count down by reason (rather than one opaque "N skipped") so an admin bulk-
+  // importing near their seat limit can tell "these rows need fixing" apart from "you're out of
+  // licenses" apart from "this plan doesn't include manager accounts" — previously all three
+  // landed in the same undifferentiated number.
+  private buildBulkUploadPasswordSummary(result: ManagedUserCredentialsUpsertResponse) {
     const total = result.created + result.updated;
 
     if (!total && !result.skipped) {
@@ -14514,8 +14518,15 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     }
 
     let summary = total ? ` Passwords saved for ${total} account(s).` : '';
-    if (result.skipped) {
-      summary += ` ${result.skipped} password update(s) were skipped.`;
+
+    if (result.skippedByLicenseLimit) {
+      summary += ` ${result.skippedByLicenseLimit} skipped — no licenses left on your current plan.`;
+    }
+    if (result.skippedByPlan) {
+      summary += ` ${result.skippedByPlan} skipped — training manager accounts aren't included on your current plan.`;
+    }
+    if (result.skippedInvalid) {
+      summary += ` ${result.skippedInvalid} skipped — missing or invalid row data.`;
     }
 
     return summary;
@@ -14544,7 +14555,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       .filter((entry): entry is ManagedUserCredentialInput => entry !== null);
 
     if (!users.length) {
-      return { created: 0, updated: 0, skipped: 0 };
+      return { created: 0, updated: 0, skipped: 0, skippedInvalid: 0, skippedByLicenseLimit: 0, skippedByPlan: 0 };
     }
 
     return await firstValueFrom(this.backend.upsertManagedUserCredentials({ users }));

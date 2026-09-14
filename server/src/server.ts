@@ -2607,7 +2607,7 @@ app.post('/api/auth/managed-users/credentials', requireAdministrator, async (req
 
     const usage = await getCompanyUsage(request.authIdentity!.companyId!);
     const result = await repository.upsertManagedUserCredentials(allowedUsers, usage?.licenseLimit);
-    response.json({ ...result, skipped: result.skipped + blockedByPlan });
+    response.json({ ...result, skipped: result.skipped + blockedByPlan, skippedByPlan: blockedByPlan });
   } catch (error) {
     next(error);
   }

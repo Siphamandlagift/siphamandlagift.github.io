@@ -922,7 +922,15 @@ export type ManagedUserCredentialInput = {
 export type ManagedUserCredentialsUpsertResponse = {
   created: number;
   updated: number;
+  // skipped is the total of the three breakdowns below, kept alongside them for any older
+  // consumer that only reads the aggregate.
   skipped: number;
+  // Missing/duplicate studentId or a password that fails isStrongPassword.
+  skippedInvalid: number;
+  // A new seat would have pushed the company over its subscription's licenseLimit.
+  skippedByLicenseLimit: number;
+  // The row asked for the 'manager' role, which the company's plan doesn't include (Starter).
+  skippedByPlan: number;
 };
 
 export type PasswordResetRequestInput = {

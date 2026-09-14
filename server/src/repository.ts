@@ -3103,20 +3103,21 @@ export class LmsRepository {
     const data = await this.read();
     let created = 0;
     let updated = 0;
-    let skipped = 0;
+    let skippedInvalid = 0;
+    let skippedByLicenseLimit = 0;
 
     for (const input of inputs) {
       const studentId = input.studentId.trim();
       const password = input.password.trim();
 
       if (!studentId || !isStrongPassword(password)) {
-        skipped += 1;
+        skippedInvalid += 1;
         continue;
       }
 
       const student = data.students.find((entry) => entry.id === studentId);
       if (!student) {
-        skipped += 1;
+        skippedInvalid += 1;
         continue;
       }
 
@@ -3130,7 +3131,7 @@ export class LmsRepository {
       // Only a genuinely NEW account counts against the license — an existing account being
       // updated (password reset, role change) isn't adding a seat.
       if (accountIndex === -1 && typeof licenseLimit === 'number' && data.authAccounts.length >= licenseLimit) {
-        skipped += 1;
+        skippedByLicenseLimit += 1;
         continue;
       }
 
@@ -3177,7 +3178,17 @@ export class LmsRepository {
 
     syncLinkedAuthAccounts(data);
     await this.write(data);
-    return { created, updated, skipped };
+    // skippedByPlan is always 0 here — this repository has no notion of subscription plans (see
+    // the licenseLimit comment above); server.ts's route handler fills in the real value for rows
+    // it filtered out before ever calling this method.
+    return {
+      created,
+      updated,
+      skipped: skippedInvalid + skippedByLicenseLimit,
+      skippedInvalid,
+      skippedByLicenseLimit,
+      skippedByPlan: 0,
+    };
   }
 
   // Creates a bare administrator login with no linked student record — the Super Admin's "create

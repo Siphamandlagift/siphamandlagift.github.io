@@ -224,6 +224,9 @@ export type ManagedUserCredentialsUpsertResponse = {
   created: number;
   updated: number;
   skipped: number;
+  skippedInvalid: number;
+  skippedByLicenseLimit: number;
+  skippedByPlan: number;
 };
 
 export type PasswordResetRequest = {
