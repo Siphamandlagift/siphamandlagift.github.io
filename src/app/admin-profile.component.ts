@@ -8833,6 +8833,161 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
     }
 
+    /* Student picker (Create group / Edit group member lists) — student-search-field/label/count
+       and enrollment-student-picker-* carried over with no styling of their own at all (same gap
+       pattern as the Assignment Submissions review workspace fixed earlier), so the search input
+       and checkboxes rendered as bare, unstyled native controls. */
+    .enrollment-student-picker {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .enrollment-student-picker-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .student-assignment-label {
+      font-weight: 800;
+      color: #173446;
+      font-size: 0.92rem;
+    }
+
+    .student-search-count {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.32rem 0.75rem;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.12);
+      color: #0f4c81;
+      font-size: 0.78rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .student-search-field {
+      display: grid;
+      gap: 0.35rem;
+    }
+
+    .student-search-label {
+      font-size: 0.74rem;
+      font-weight: 800;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .student-search-field input[type="search"],
+    .student-search-field input[type="text"] {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 0.65rem 0.9rem 0.65rem 2.5rem;
+      border: 1px solid rgba(148, 163, 184, 0.32);
+      border-radius: 12px;
+      background-color: #fff;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: 0.85rem center;
+      background-size: 16px 16px;
+      color: #173446;
+      font: inherit;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .student-search-field input:focus {
+      border-color: var(--admin-secondary);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16);
+    }
+
+    .enrollment-student-picker-list {
+      display: grid;
+      gap: 0.5rem;
+      max-height: 320px;
+      overflow-y: auto;
+      padding-right: 0.2rem;
+    }
+
+    .enrollment-student-picker-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.65rem 0.85rem;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      border-radius: 12px;
+      background: #fbfdff;
+      cursor: pointer;
+      transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .enrollment-student-picker-item:hover {
+      border-color: rgba(56, 189, 248, 0.45);
+    }
+
+    .enrollment-student-picker-item-selected {
+      border-color: var(--admin-primary);
+      background: rgba(56, 189, 248, 0.08);
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    }
+
+    .enrollment-student-picker-item-pending {
+      border-color: rgba(248, 113, 113, 0.4);
+      background: rgba(254, 242, 242, 0.7);
+    }
+
+    .enrollment-student-picker-item input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      flex-shrink: 0;
+      width: 1.35rem;
+      height: 1.35rem;
+      margin: 0;
+      border: 2px solid rgba(148, 163, 184, 0.5);
+      border-radius: 7px;
+      background: #fff;
+      cursor: pointer;
+      position: relative;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .enrollment-student-picker-item input[type="checkbox"]:checked {
+      background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
+      border-color: var(--admin-primary);
+    }
+
+    .enrollment-student-picker-item input[type="checkbox"]:checked::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 44%;
+      width: 0.36rem;
+      height: 0.62rem;
+      border: solid #fff;
+      border-width: 0 2px 2px 0;
+      transform: translate(-50%, -50%) rotate(45deg);
+    }
+
+    .enrollment-student-picker-copy {
+      display: grid;
+      gap: 0.15rem;
+      min-width: 0;
+    }
+
+    .enrollment-student-picker-name {
+      font-weight: 700;
+      color: #173446;
+      font-size: 0.88rem;
+    }
+
+    .enrollment-student-picker-meta {
+      font-size: 0.76rem;
+      color: #64748b;
+    }
+
     .enrollment-modal-actions {
       display: flex;
       flex-wrap: wrap;
