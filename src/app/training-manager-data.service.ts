@@ -1291,7 +1291,7 @@ export class TrainingManagerDataService {
       completionDeadline: input.completionDeadline,
       thumbnailDataUrl: input.thumbnailDataUrl,
       contentItems: normalizedContentItems,
-      createdOn: '06 Apr 2026',
+      createdOn: this.formatDisplayDate(new Date()),
       status: 'Published',
     };
 
