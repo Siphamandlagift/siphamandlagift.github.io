@@ -3133,7 +3133,14 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
                               <label class="upload-field form-grid-span-two" title="Upload a cover image for the course card.">
                                 Course Thumbnail
-                                <input type="file" accept="image/*" [disabled]="thumbnailUploading()" (change)="onThumbnailSelected($event)" />
+                                <span class="admin-upload-btn" [class.admin-upload-btn-disabled]="thumbnailUploading()">
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path d="M12 16V4m0 0-4 4m4-4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                  </svg>
+                                  <span>{{ thumbnailUploading() ? 'Uploading…' : 'Choose file' }}</span>
+                                  <input type="file" accept="image/*" [disabled]="thumbnailUploading()" (change)="onThumbnailSelected($event)" />
+                                </span>
                                 @if (thumbnailFileName()) {
                                   <span class="asset-preview-copy">Selected thumbnail: {{ thumbnailFileName() }}</span>
                                 }
