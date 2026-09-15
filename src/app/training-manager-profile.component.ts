@@ -2695,7 +2695,7 @@ type KpiEntryFormGroup = FormGroup<{
     }
 
     .published-offering-overlay {
-      z-index: 70;
+      z-index: 80;
     }
 
     .published-offering-overlay-backdrop {
