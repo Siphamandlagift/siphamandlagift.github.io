@@ -2986,9 +2986,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     <form class="course-form course-studio-form" [formGroup]="courseForm" (ngSubmit)="submitCourseForm()">
                       <aside class="course-studio-sidebar">
                         <div class="course-studio-topbar">
-                          <button type="button" class="course-studio-icon-btn" aria-label="Back to created courses" (click)="selectCoursesView('created')">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                          </button>
                           <button type="submit" class="course-studio-publish-btn" [disabled]="courseForm.invalid">{{ editingCourseId() ? 'Save' : 'Publish' }}</button>
                         </div>
 
@@ -9376,14 +9373,13 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .course-studio-topbar {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-end;
       gap: 0.75rem;
       margin: 0 -1rem;
       padding: 1rem;
       background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
     }
 
-    .course-studio-icon-btn,
     .course-studio-publish-btn,
     .course-studio-add-btn,
     .course-studio-mini-btn,
@@ -9392,17 +9388,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       border: none;
       font: inherit;
       cursor: pointer;
-    }
-
-    .course-studio-icon-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 2.5rem;
-      height: 2.5rem;
-      border-radius: 11px;
-      background: rgba(255, 255, 255, 0.14);
-      color: #fff;
     }
 
     .course-studio-publish-btn {
@@ -9541,8 +9526,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .course-studio-add-btn:focus-visible,
     .course-studio-mini-btn:hover,
     .course-studio-mini-btn:focus-visible,
-    .course-studio-icon-btn:hover,
-    .course-studio-icon-btn:focus-visible,
     .course-studio-back-link:focus-visible,
     .course-studio-publish-btn:focus-visible {
       outline: none;
