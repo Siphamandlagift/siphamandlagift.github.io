@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { LmsBrandingService, LmsBrandThemeId } from './lms-branding.service';
@@ -630,6 +631,14 @@ export class StudentProfileSettingsComponent {
   readonly appearanceSettingsForm = new FormGroup({
     themePreference: new FormControl<LmsBrandThemeId | ''>(this.studentData.settings().themePreference ?? '', { nonNullable: true }),
   });
+  // Mirrors themePreference's value as an actual signal — selectedThemeOption below is a
+  // computed(), which only re-evaluates when a signal it reads changes, and a FormControl's
+  // .value is a plain property, not a signal. Reading it directly (as this used to) meant the
+  // live swatch preview never updated when a student picked a different option in the dropdown;
+  // it stayed frozen at whatever rendered first. Kept in sync in both directions: the
+  // valueChanges subscription below catches the student's own selection, and the constructor's
+  // effect sets this directly whenever the form is patched from data with emitEvent: false.
+  readonly selectedThemeId = signal<LmsBrandThemeId | ''>(this.appearanceSettingsForm.controls.themePreference.value);
 
   private readonly selectedSectionSignal = signal<ProfileSection>(null);
   readonly selectedSection = computed(() => this.selectedSectionSignal());
@@ -653,7 +662,7 @@ export class StudentProfileSettingsComponent {
     return profile.profileImageUrl || profile.profileImageDataUrl || null;
   });
   readonly selectedThemeOption = computed(() => {
-    const value = this.appearanceSettingsForm.controls.themePreference.value;
+    const value = this.selectedThemeId();
     if (!value) {
       return this.branding.currentTheme();
     }
@@ -682,8 +691,19 @@ export class StudentProfileSettingsComponent {
 
       if (!this.appearanceSettingsForm.dirty || this.selectedSection() !== 'appearance') {
         this.appearanceSettingsForm.patchValue({ themePreference: settings.themePreference ?? '' }, { emitEvent: false });
+        this.selectedThemeId.set(settings.themePreference ?? '');
       }
     });
+
+    // The effect above only catches the form being patched FROM data (deliberately silent via
+    // emitEvent: false, so a background sync doesn't fight a student mid-edit or mark the form
+    // dirty on its own). This catches the other direction — the student actually picking a
+    // different option in the dropdown — so selectedThemeId stays correct either way.
+    this.appearanceSettingsForm.controls.themePreference.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((value) => {
+        this.selectedThemeId.set(value);
+      });
   }
 
   selectSection(section: Exclude<ProfileSection, null>) {
