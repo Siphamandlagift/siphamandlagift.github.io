@@ -2,7 +2,11 @@ import { ChangeDetectionStrategy, Component, computed, inject, output, signal } 
 import { CommonModule } from '@angular/common';
 import { StudentDataService } from './student-data.service';
 
-function relativeTimeLabel(createdAt?: string, fallback = 'Recently'): string {
+// Exported so student-profile.component.ts's own notification dropdown (the topbar bell icon,
+// visible on every panel including this dashboard) can render the same live-computed label
+// instead of the frozen dateLabel string a notification was created with — see that component's
+// template for the fix this enables.
+export function relativeTimeLabel(createdAt?: string, fallback = 'Recently'): string {
   if (!createdAt) return fallback;
   const diffMs = Date.now() - new Date(createdAt).getTime();
   const diffMin = Math.floor(diffMs / 60000);
@@ -67,7 +71,7 @@ function relativeTimeLabel(createdAt?: string, fallback = 'Recently'): string {
                 (click)="searchQuery.set('')" role="option">
                 <span class="search-result-badge">{{ notif.badge }}</span>
                 <span class="search-result-label">{{ notif.title }}</span>
-                <span class="search-result-meta">{{ notif.dateLabel }}</span>
+                <span class="search-result-meta">{{ relativeTimeLabel(notif.createdAt, notif.dateLabel) }}</span>
               </button>
             </ng-container>
           </div>

@@ -2,7 +2,7 @@ import { Component, computed, effect, inject, OnDestroy, OnInit, signal } from '
 import { CommonModule } from '@angular/common';
 import { FormArray, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-import { StudentDashboardComponent } from './student-dashboard.component';
+import { StudentDashboardComponent, relativeTimeLabel } from './student-dashboard.component';
 import { StudentBadgesComponent } from './student-badges.component';
 import { StudentCoursesComponent } from './student-courses.component';
 import { StudentCalendarComponent } from './student-calendar-view.component';
@@ -107,7 +107,7 @@ import { LoadingSpinnerComponent } from './loading-spinner.component';
                   <button type="button" class="notif-item-body" (click)="handleNotificationClick(notification)">
                     <span class="notif-badge-row">
                       <span class="notif-badge">{{ notification.badge }}</span>
-                      <span class="notif-date">{{ notification.dateLabel }}</span>
+                      <span class="notif-date">{{ relativeTimeLabel(notification.createdAt, notification.dateLabel) }}</span>
                       <span *ngIf="notification.unread" class="notif-unread-dot" aria-label="Unread"></span>
                     </span>
                     <strong class="notif-title">{{ notification.title }}</strong>
@@ -5247,6 +5247,11 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
   private readonly _topbarDropdown = signal<'notifications' | 'messages' | null>(null);
   readonly topbarDropdown = computed(() => this._topbarDropdown());
   readonly recentNotifications = computed(() => this.studentData.notifications().filter((n) => !n.dismissed).slice(0, 4));
+  // Notifications were created with a dateLabel string frozen at creation time (e.g. "Just now")
+  // that never updates — this dropdown renders the same live-computed label
+  // student-dashboard.component.ts's own notification list already uses, instead of that frozen
+  // string, falling back to it only when createdAt is missing.
+  readonly relativeTimeLabel = relativeTimeLabel;
   readonly recentMessages = computed(() => this.studentData.messages().filter((m) => m.unread).slice(0, 3));
   readonly profileInitials = computed(() => {
     const parts = this.studentData.profile().name.trim().split(/\s+/).filter(Boolean);
