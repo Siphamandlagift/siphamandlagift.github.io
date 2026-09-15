@@ -1220,11 +1220,6 @@ try {
   // local-disk upload endpoints are unused there — files go through Firebase Storage (GCS).
 }
 
-const scormUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 80 * 1024 * 1024 },
-});
-
 function normalizeScormRelativePath(inputPath: string) {
   const normalized = inputPath.replace(/\\/g, '/').replace(/^\/+/, '');
   if (!normalized || normalized.includes('..')) {
@@ -1426,82 +1421,132 @@ app.post('/api/storage/upload', upload.single('file'), async (request, response,
   }
 });
 
-app.post('/api/storage/upload-scorm', scormUpload.single('file'), async (request, response, next) => {
+type ScormProcessResult =
+  | { ok: true; packageId: string; entryPath: string; launchUrl: string }
+  | { ok: false; status: number; message: string };
+
+// Unzips an already-uploaded SCORM package and writes every entry to Storage individually
+// (so relative asset references inside the content resolve, and each file gets the right
+// Content-Type — see contentTypeForFile/streamScormAsset). Split out from the route handler
+// so both the (now-removed) direct-upload path and the staged-upload path below can share it.
+async function processScormZipBuffer(zipBuffer: Buffer, request: express.Request): Promise<ScormProcessResult> {
+  // Deliberately NOT company-scoped, unlike the lms-uploads/* paths below — SCORM asset
+  // streaming (streamScormAsset, GET /api/storage/scorm/*) is intentionally public/unauthenticated
+  // (see requireAuth/attachRequestContext's shared bypass list), since it's loaded via browser-
+  // native resource requests (iframes etc.) that can't attach an Authorization header. There is
+  // therefore no authenticated companyId available on the READ side to match a scoped WRITE path
+  // against, and the existing query-string legacy route makes changing this URL shape again a
+  // real migration, not a one-line change. packageId's own randomness (timestamp + random
+  // suffix) already makes a same-instant collision between two different companies practically
+  // impossible, which is what this scoping is actually protecting against for lms-uploads/* too.
+  const packageId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const packagePrefix = `lms-scorm/${packageId}`;
+
+  let zipEntries: ReturnType<typeof unzipSync>;
   try {
-    const file = request.file;
-    if (!file) {
-      response.status(400).json({ message: 'No SCORM package provided.' });
-      return;
-    }
+    zipEntries = unzipSync(new Uint8Array(zipBuffer));
+  } catch {
+    return { ok: false, status: 400, message: 'This file is not a valid SCORM .zip package. Please re-export it and try again.' };
+  }
 
-    if (!/\.zip$/i.test(file.originalname)) {
-      response.status(400).json({ message: 'SCORM uploads must be .zip packages.' });
-      return;
-    }
+  const safeEntries = Object.entries(zipEntries)
+    .map(([entryPath, content]) => ({
+      entryPath: normalizeScormRelativePath(entryPath),
+      content,
+    }))
+    .filter((entry) => entry.entryPath.length > 0 && !entry.entryPath.endsWith('/'));
 
-    // Deliberately NOT company-scoped, unlike the lms-uploads/* paths below — SCORM asset
-    // streaming (streamScormAsset, GET /api/storage/scorm/*) is intentionally public/unauthenticated
-    // (see requireAuth/attachRequestContext's shared bypass list), since it's loaded via browser-
-    // native resource requests (iframes etc.) that can't attach an Authorization header. There is
-    // therefore no authenticated companyId available on the READ side to match a scoped WRITE path
-    // against, and the existing query-string legacy route makes changing this URL shape again a
-    // real migration, not a one-line change. packageId's own randomness (timestamp + random
-    // suffix) already makes a same-instant collision between two different companies practically
-    // impossible, which is what this scoping is actually protecting against for lms-uploads/* too.
-    const packageId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const packagePrefix = `lms-scorm/${packageId}`;
+  if (!safeEntries.length) {
+    return { ok: false, status: 400, message: 'The SCORM package did not contain any readable files.' };
+  }
 
-    let zipEntries: ReturnType<typeof unzipSync>;
-    try {
-      zipEntries = unzipSync(new Uint8Array(file.buffer));
-    } catch {
-      response.status(400).json({ message: 'This file is not a valid SCORM .zip package. Please re-export it and try again.' });
-      return;
-    }
+  const manifestEntry = safeEntries.find((entry) => entry.entryPath.toLowerCase().endsWith('imsmanifest.xml'));
+  const manifestContent = manifestEntry ? Buffer.from(manifestEntry.content).toString('utf-8') : null;
+  const launchEntryPath = resolveScormLaunchEntry(safeEntries.map((entry) => entry.entryPath), manifestContent);
 
-    const safeEntries = Object.entries(zipEntries)
-      .map(([entryPath, content]) => ({
-        entryPath: normalizeScormRelativePath(entryPath),
-        content,
-      }))
-      .filter((entry) => entry.entryPath.length > 0 && !entry.entryPath.endsWith('/'));
+  if (!launchEntryPath) {
+    return { ok: false, status: 400, message: 'Unable to determine a SCORM launch file.' };
+  }
 
-    if (!safeEntries.length) {
-      response.status(400).json({ message: 'The SCORM package did not contain any readable files.' });
-      return;
-    }
+  if (!storageBucket) {
+    return { ok: false, status: 503, message: 'Firebase Storage is not configured on this server.' };
+  }
 
-    const manifestEntry = safeEntries.find((entry) => entry.entryPath.toLowerCase().endsWith('imsmanifest.xml'));
-    const manifestContent = manifestEntry ? Buffer.from(manifestEntry.content).toString('utf-8') : null;
-    const launchEntryPath = resolveScormLaunchEntry(safeEntries.map((entry) => entry.entryPath), manifestContent);
+  const adminApp = getApps().length > 0 ? getApp() : initializeApp();
+  const bucket = getStorage(adminApp).bucket(storageBucket);
 
-    if (!launchEntryPath) {
-      response.status(400).json({ message: 'Unable to determine a SCORM launch file.' });
-      return;
-    }
+  for (const entry of safeEntries) {
+    const storageFile = bucket.file(`${packagePrefix}/${entry.entryPath}`);
+    await storageFile.save(Buffer.from(entry.content), {
+      contentType: contentTypeForFile(entry.entryPath),
+      resumable: false,
+    });
+    await storageFile.makePublic();
+  }
 
+  // Path-based (not query-string) so relative references inside the SCORM content
+  // (<script src="js/app.js">, relative fetch()/XHR, etc.) resolve against the real
+  // package folder structure instead of collapsing to /api/storage/.
+  const launchUrl = `${resolveAppBaseUrl(request)}/api/storage/scorm/${encodeURIComponent(packageId)}/${encodePathSegments(launchEntryPath)}`;
+  return { ok: true, packageId, entryPath: launchEntryPath, launchUrl };
+}
+
+// Takes a {path} to a .zip already sitting in Storage — put there by the client's normal
+// chunked-upload flow (POST /storage/chunked-upload/start + PUT .../chunk, the same mechanism
+// every other large file in this app uses) — rather than receiving the file directly in this
+// request. multer/busboy (any stream-based multipart parser) reliably fails with "Unexpected
+// end of form" on this Firebase Functions deployment: the Functions runtime pre-buffers the
+// whole request body before Express ever sees it, so a stream parser finds nothing left to
+// read (see the /storage/upload-base64 route's own comment for the two other routes that hit
+// the same issue and were migrated off multer for it). This route used to take the .zip
+// directly via multer and hit exactly that failure; splitting the upload from the processing
+// step sidesteps it the same way base64/chunked-upload already do for every other file type.
+app.post('/api/storage/upload-scorm', async (request, response, next) => {
+  try {
     if (!storageBucket) {
       response.status(503).json({ message: 'Firebase Storage is not configured on this server.' });
       return;
     }
 
-    const adminApp = getApps().length > 0 ? getApp() : initializeApp();
-    const bucket = getStorage(adminApp).bucket(storageBucket);
+    const { path: stagedPath } = z.object({
+      path: z.string().min(1),
+    }).parse(request.body);
 
-    for (const entry of safeEntries) {
-      const storageFile = bucket.file(`${packagePrefix}/${entry.entryPath}`);
-      await storageFile.save(Buffer.from(entry.content), {
-        contentType: contentTypeForFile(entry.entryPath),
-        resumable: false,
-      });
-      await storageFile.makePublic();
+    // Only ever a path this server itself handed back from chunked-upload/start for this exact
+    // company+folder — never let the client name an arbitrary bucket path to read.
+    const expectedPrefix = `lms-uploads/${request.authIdentity!.companyId}/scorm-staging/`;
+    if (!stagedPath.startsWith(expectedPrefix) || !/\.zip$/i.test(stagedPath)) {
+      response.status(400).json({ message: 'Invalid SCORM upload reference. Please try uploading again.' });
+      return;
     }
 
-    // Path-based (not query-string) so relative references inside the SCORM content
-    // (<script src="js/app.js">, relative fetch()/XHR, etc.) resolve against the real
-    // package folder structure instead of collapsing to /api/storage/.
-    const launchUrl = `${resolveAppBaseUrl(request)}/api/storage/scorm/${encodeURIComponent(packageId)}/${encodePathSegments(launchEntryPath)}`;
-    response.status(201).json({ packageId, entryPath: launchEntryPath, launchUrl });
+    const adminApp = getApps().length > 0 ? getApp() : initializeApp();
+    const bucket = getStorage(adminApp).bucket(storageBucket);
+    const stagedFile = bucket.file(stagedPath);
+
+    const [exists] = await stagedFile.exists();
+    if (!exists) {
+      response.status(400).json({ message: 'Uploaded package could not be found. Please try uploading again.' });
+      return;
+    }
+
+    let zipBuffer: Buffer;
+    try {
+      [zipBuffer] = await stagedFile.download();
+    } finally {
+      // Best-effort cleanup of the staged raw upload regardless of outcome — either its
+      // contents are now extracted under lms-scorm/{packageId}/..., or the package failed
+      // validation, and either way there's no reason to keep the temporary zip around.
+      stagedFile.delete().catch(() => { /* non-critical */ });
+    }
+
+    const result = await processScormZipBuffer(zipBuffer, request);
+    if (!result.ok) {
+      response.status(result.status).json({ message: result.message });
+      return;
+    }
+
+    response.status(201).json({ packageId: result.packageId, entryPath: result.entryPath, launchUrl: result.launchUrl });
   } catch (error) {
     next(error);
   }

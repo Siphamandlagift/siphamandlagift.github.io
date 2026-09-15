@@ -147,6 +147,10 @@ export type ScormUploadResponse = {
   launchUrl: string;
 };
 
+export type ScormUploadEvent =
+  | { type: 'progress'; percent: number }
+  | ({ type: 'complete' } & ScormUploadResponse);
+
 export type ManagerStatePatch = {
   students?: EnrollmentStudent[];
   trainingManagers?: SystemTrainingManager[];
@@ -455,10 +459,33 @@ export class LmsBackendService {
     return this.firebaseStorage.uploadChunked(file, folder);
   }
 
-  uploadScormPackage(file: File): Observable<ScormUploadResponse> {
-    const formData = new FormData();
-    formData.append('file', file);
-    return this.http.post<ScormUploadResponse>(`${this.config.baseUrl}/storage/upload-scorm`, formData);
+  // Multipart form-data upload used to go directly to /storage/upload-scorm, but any stream-based
+  // multipart parser (multer/busboy) reliably fails on this Firebase Functions deployment — see
+  // the server route's own comment. Instead this reuses the same chunked-upload relay every other
+  // large file in this app already goes through (real progress events included, not a fake bar),
+  // then asks the server to unzip/extract whatever landed in that staging path.
+  uploadScormPackage(file: File): Observable<ScormUploadEvent> {
+    return new Observable<ScormUploadEvent>((observer) => {
+      const subscription = this.firebaseStorage.uploadChunked(file, 'scorm-staging').subscribe({
+        next: (event) => {
+          if (event.type === 'progress') {
+            observer.next({ type: 'progress', percent: event.percent });
+            return;
+          }
+
+          this.http.post<ScormUploadResponse>(`${this.config.baseUrl}/storage/upload-scorm`, { path: event.path }).subscribe({
+            next: (result) => {
+              observer.next({ type: 'complete', ...result });
+              observer.complete();
+            },
+            error: (error) => observer.error(error),
+          });
+        },
+        error: (error) => observer.error(error),
+      });
+
+      return () => subscription.unsubscribe();
+    });
   }
 
   convertPptxToPdf(file: File): Observable<{ pdfUrl: string }> {

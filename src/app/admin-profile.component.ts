@@ -17593,12 +17593,17 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       input.value = '';
 
       this.backend.uploadScormPackage(file).subscribe({
-        next: (result) => {
+        next: (event) => {
+          if (event.type === 'progress') {
+            this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: event.percent }));
+            return;
+          }
+
           this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
           item.patchValue({
             uploadedFileName: file.name,
             uploadedFileDataUrl: '',
-            resourceLink: result.launchUrl,
+            resourceLink: event.launchUrl,
             requiresAcknowledgement: false,
             // Keep the "Launch SCORM package" open-in-new-tab fallback visible — it's
             // gated on this same flag, so forcing it false hid that button entirely.
