@@ -502,6 +502,15 @@ export class LmsBackendService {
     return this.http.put<StudentSnapshotResponse>(`${this.config.baseUrl}/students/${studentId}/snapshot`, snapshot);
   }
 
+  // Its own scoped endpoint rather than routing through updateStudentSnapshot above — see
+  // repository.updateStudentThemePreference's comment for why: a theme save going through the
+  // general snapshot save could be reverted by an unrelated, slower-to-arrive snapshot request.
+  updateStudentThemePreference(themePreference: LmsBrandThemeId | null, studentId = this.config.defaultStudentId): Observable<LmsBrandThemeId | null> {
+    return this.http
+      .put<{ themePreference: LmsBrandThemeId | null }>(`${this.config.baseUrl}/students/${studentId}/theme-preference`, { themePreference })
+      .pipe(map((response) => response.themePreference));
+  }
+
   setIdpEntries(studentId: string, entries: StudentIdpEntry[]): Observable<StudentIdpEntry[]> {
     return this.http.put<{ entries: StudentIdpEntry[] }>(`${this.config.baseUrl}/students/${studentId}/idp-entries`, { entries })
       .pipe(map((response) => response.entries));

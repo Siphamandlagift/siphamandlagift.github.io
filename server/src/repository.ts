@@ -38,6 +38,7 @@ import {
   KpiApprovalStatus,
   LoginRequestInput,
   LoginRole,
+  LmsBrandThemeId,
   LmsDataStore,
   ManagerStatePatch,
   ManagedUserCredentialInput,
@@ -1657,7 +1658,13 @@ export class LmsRepository {
       profile: snapshot.profile,
       badgeState: snapshot.badgeState,
       certificatesAndLicences: snapshot.certificatesAndLicences ?? data.students[studentIndex].certificatesAndLicences ?? [],
-      settings: snapshot.settings,
+      // themePreference is never taken from the client here — same reasoning as
+      // assessmentAttempts below. This snapshot save is autosaved on practically every student
+      // interaction (dismissing a notification, marking a message read, etc.), so a slow/delayed
+      // save carrying a stale captured themePreference could otherwise land after — and silently
+      // revert — a more recent theme change made via updateStudentThemePreference's own scoped,
+      // dedicated write path.
+      settings: { ...snapshot.settings, themePreference: data.students[studentIndex].settings.themePreference },
       mentorshipProfile: snapshot.mentorshipProfile,
       mentorshipObjectives: snapshot.mentorshipObjectives,
       mentorshipProgressReport: snapshot.mentorshipProgressReport,
@@ -1695,6 +1702,21 @@ export class LmsRepository {
           successionStatus: computeSuccessionStatus(next, studentId),
         }
       : null;
+  }
+
+  // Its own scoped write path so a theme change can't be reverted by an unrelated, possibly
+  // stale-by-the-time-it-arrives updateStudentSnapshot call racing it — see the comment on
+  // settings.themePreference above.
+  async updateStudentThemePreference(studentId: string, themePreference: LmsBrandThemeId | null): Promise<boolean> {
+    const data = await this.read();
+    const student = data.students.find((entry) => entry.id === studentId);
+    if (!student) {
+      return false;
+    }
+
+    student.settings = { ...student.settings, themePreference };
+    await this.write(data);
+    return true;
   }
 
   // Full replace of a student's KPI table for the CURRENT year — only a training manager or
@@ -3881,6 +3903,32 @@ class FirestoreLmsRepository extends LmsRepository {
     return nextData;
   }
 
+  // Scoped override for company branding (the theme every profile's shell reads) — closes the
+  // same "two full-store round trips race, last one to finish wins with its own stale snapshot"
+  // issue described in the KPI comment just below, which is exactly what made a saved theme
+  // choice appear to revert on its own: any unrelated write elsewhere in the store (a course
+  // edit, a KPI entry, a submission — anything going through the inherited read()+write() path)
+  // that started reading before this save landed would overwrite it right back with the old
+  // branding a moment later. A plain merge-set of just this one field can't be raced that way.
+  override async getBranding() {
+    const snapshot = await this.storeDocument.get();
+    const data = snapshot.exists ? (snapshot.data() as Partial<Pick<LmsDataStore, 'branding'>>) : undefined;
+    return data?.branding ?? normalizeData(createDefaultData(this.companyId)).branding;
+  }
+
+  override async updateBranding(input: BrandingSettingsUpdateInput) {
+    const branding: LmsDataStore['branding'] = {
+      themeId: input.themeId,
+      companyLogoDataUrl: input.companyLogoDataUrl,
+    };
+
+    await this.storeDocument.set(
+      this.sanitizeForFirestore({ branding, updatedAt: new Date().toISOString() }),
+      { merge: true },
+    );
+    return branding;
+  }
+
   // Scoped, transactional overrides for the two high-frequency single-student KPI writes.
   // The inherited read()+write() path round-trips and rewrites *every* collection in the whole
   // store for any change, serialized only by an in-memory queue that's local to one warm Cloud
@@ -4439,7 +4487,11 @@ class FirestoreLmsRepository extends LmsRepository {
         profile: snapshot.profile,
         badgeState: snapshot.badgeState,
         certificatesAndLicences: snapshot.certificatesAndLicences ?? existing.certificatesAndLicences ?? [],
-        settings: snapshot.settings,
+        // themePreference is never taken from this snapshot save — same reasoning as the
+        // inherited base-class path (see its comment): it has its own scoped write path,
+        // updateStudentThemePreference below, so a slow/delayed snapshot save can't revert a
+        // more recent theme change.
+        settings: { ...snapshot.settings, themePreference: existing.settings?.themePreference ?? null },
         mentorshipProfile: snapshot.mentorshipProfile,
         mentorshipObjectives: snapshot.mentorshipObjectives,
         mentorshipProgressReport: snapshot.mentorshipProgressReport,
@@ -4488,6 +4540,23 @@ class FirestoreLmsRepository extends LmsRepository {
       assessmentAttempts: updatedStudent.assessmentAttempts ?? {},
       successionStatus: await this.computeSuccessionStatusForStudent(studentId),
     };
+  }
+
+  // A plain dot-path field update rather than a read-modify-write of the whole document (or even
+  // a transaction) — Firestore merges just this one nested field server-side, so it can't be
+  // raced by (or itself race) a concurrent updateStudentSnapshot call touching the rest of the
+  // document. This is what actually closes the "theme reverts unexpectedly" race, not just the
+  // settings.themePreference exclusion above (which only stops the OTHER direction: a snapshot
+  // save clobbering a theme change).
+  override async updateStudentThemePreference(studentId: string, themePreference: LmsBrandThemeId | null): Promise<boolean> {
+    const ref = this.collection('students').doc(studentId);
+    const snapshot = await ref.get();
+    if (!snapshot.exists) {
+      return false;
+    }
+
+    await ref.update({ 'settings.themePreference': themePreference });
+    return true;
   }
 
   // Single equality filter only (successorStudentId), with the status check done in memory —

@@ -974,6 +974,10 @@ const studentSettingsSchema = z.object({
   themePreference: z.enum(['ocean', 'forest', 'sunrise', 'purple', 'black', 'grey']).nullable(),
 });
 
+const studentThemePreferenceUpdateSchema = z.object({
+  themePreference: z.enum(['ocean', 'forest', 'sunrise', 'purple', 'black', 'grey']).nullable(),
+});
+
 const brandingSettingsSchema = z.object({
   themeId: z.enum(['ocean', 'forest', 'sunrise', 'purple', 'black', 'grey']),
   companyLogoDataUrl: z.string().nullable(),
@@ -2815,6 +2819,39 @@ app.put('/api/students/:studentId/snapshot', async (request, response, next) => 
     }
 
     response.json(updated);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Its own endpoint (rather than going through the snapshot route above) so a theme change gets
+// repository.updateStudentThemePreference's scoped, race-free write instead of the general
+// snapshot save's full read-modify-write, which is what let a slow/delayed autosave from an
+// unrelated interaction silently revert a more recent theme choice — see that method's comment.
+app.put('/api/students/:studentId/theme-preference', async (request, response, next) => {
+  try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity || !request.repository) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+    const repository = request.repository;
+
+    const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
+    if (!isPrivileged && !(await isOwnStudentRecord(repository, request.params.studentId, identity))) {
+      response.status(403).json({ message: 'You do not have permission to update this student.' });
+      return;
+    }
+
+    const { themePreference } = studentThemePreferenceUpdateSchema.parse(request.body);
+    const updated = await repository.updateStudentThemePreference(request.params.studentId, themePreference);
+
+    if (!updated) {
+      response.status(404).json({ message: 'Student not found.' });
+      return;
+    }
+
+    response.json({ themePreference });
   } catch (error) {
     next(error);
   }

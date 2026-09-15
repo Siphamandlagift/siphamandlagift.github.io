@@ -700,15 +700,36 @@ export class StudentDataService {
     return { success: true };
   }
 
+  // Uses its own scoped backend.updateStudentThemePreference call rather than the general
+  // persistStudentSnapshot autosave path — persistStudentSnapshot fires on practically every
+  // student interaction, and a slower/delayed one of those in flight from before this save could
+  // otherwise land after it and silently revert the theme back to what it captured. See
+  // repository.updateStudentThemePreference's comment on the server for the full race.
   async updateThemePreference(themePreference: LmsBrandThemeId | null): Promise<StudentProfileUpdateResult> {
+    const previousThemePreference = this.settingsSignal().themePreference;
     this.settingsSignal.update((current) => ({
       ...current,
       themePreference,
     }));
-    const saved = await this.persistStudentSnapshot();
-    return saved
-      ? { success: true }
-      : { success: false, errorMessage: 'Your theme could not be saved. Please check your connection and try again.' };
+
+    // Same "never write the shared default student" guard persistStudentSnapshot applies —
+    // without a real own studentId this is a stale/incomplete session, so just keep the local
+    // (already-updated) signal without sending anything.
+    if (!this.readSessionOwnStudentId()) {
+      return { success: true };
+    }
+
+    try {
+      await firstValueFrom(this.backend.updateStudentThemePreference(themePreference, this.currentSessionStudentId()));
+      return { success: true };
+    } catch {
+      // Roll back so the UI doesn't keep showing a theme that was never actually saved.
+      this.settingsSignal.update((current) => ({
+        ...current,
+        themePreference: previousThemePreference,
+      }));
+      return { success: false, errorMessage: 'Your theme could not be saved. Please check your connection and try again.' };
+    }
   }
 
   openCalendarEvent(event: StudentCalendarEvent) {
