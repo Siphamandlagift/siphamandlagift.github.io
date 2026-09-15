@@ -2987,7 +2987,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       <aside class="course-studio-sidebar">
                         <div class="course-studio-topbar">
                           <button type="button" class="course-studio-icon-btn" aria-label="Back to created courses" (click)="selectCoursesView('created')">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M5 12h14M5 17h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                           </button>
                           <button type="submit" class="course-studio-publish-btn" [disabled]="courseForm.invalid">{{ editingCourseId() ? 'Save' : 'Publish' }}</button>
                         </div>
@@ -3006,9 +3006,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           </button>
                           <button type="button" class="course-studio-mini-btn" [class.course-studio-mini-btn-active]="selectedCreateSection() === 'content'" aria-label="Open course units" (click)="openCreateSection('content')">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="7" cy="6" r="1.25" fill="currentColor"/><circle cx="7" cy="12" r="1.25" fill="currentColor"/><circle cx="7" cy="18" r="1.25" fill="currentColor"/></svg>
-                          </button>
-                          <button type="button" class="course-studio-mini-btn" aria-label="Return to created courses" (click)="selectCoursesView('created')">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                           </button>
                         </div>
 
@@ -3081,22 +3078,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       </aside>
 
                       <div class="course-studio-workspace">
-                        <div class="course-studio-workspace-header">
-                          <div>
-                            <h2>{{ courseStudioWorkspaceTitle() }}</h2>
-                          </div>
-
-                          @if (selectedCreateSection() === 'content' && selectedContentItem()) {
-                            <button type="button" class="builder-secondary-btn" (click)="removeContentItem(activeContentItemIndex())">Remove unit</button>
-                          }
-                        </div>
-
                         @if (selectedCreateSection() === 'basics') {
                           <section class="form-section-card course-studio-panel" aria-labelledby="course-studio-basics-title">
                             <div class="form-section-header">
                               <div>
-                                <p class="form-section-eyebrow">New course</p>
-                                <h3 id="course-studio-basics-title">Course settings</h3>
+                                <p class="form-section-eyebrow">{{ editingCourseId() ? 'Editing course' : 'New course' }}</p>
+                                <h3 id="course-studio-basics-title">{{ courseForm.controls.title.value.trim() || 'Course settings' }}</h3>
                               </div>
                               <span class="create-section-status-pill">{{ createSectionStatus('basics') }}</span>
                             </div>
@@ -3216,9 +3203,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                             <div class="form-section-header course-item-detail-header">
                               <div>
                                 <p class="form-section-eyebrow">{{ activeItem.controls.kind.value }} unit</p>
-                                <h3 id="course-item-detail-title">{{ courseStudioWorkspaceTitle() }}</h3>
+                                <h3 id="course-item-detail-title">{{ activeItem.controls.title.value.trim() || 'Untitled' }}</h3>
                               </div>
-                              <span class="create-section-status-pill">{{ contentItemResourceState(activeContentItemIndex()) }}</span>
+                              <div class="course-item-detail-header-actions">
+                                <span class="create-section-status-pill">{{ contentItemResourceState(activeContentItemIndex()) }}</span>
+                                <button type="button" class="builder-secondary-btn" (click)="removeContentItem(activeContentItemIndex())">Remove unit</button>
+                              </div>
                             </div>
 
                             @if (activeItem.controls.kind.value === 'Assessment') {
@@ -7837,6 +7827,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       margin-bottom: 0.75rem;
     }
 
+    .course-item-detail-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
     .form-section-eyebrow {
       margin: 0 0 0.25rem;
       color: #4f46e5;
@@ -9468,7 +9464,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .course-studio-quick-actions {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) repeat(3, 2.85rem);
+      grid-template-columns: minmax(0, 1fr) repeat(2, 2.85rem);
       gap: 0.55rem;
       align-items: center;
     }
@@ -9644,27 +9640,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       gap: 1rem;
       padding: 1.4rem 1.5rem 1.5rem;
       background: linear-gradient(180deg, #ffffff 0%, #faf8f4 100%);
-    }
-
-    .course-studio-workspace-header {
-      display: flex;
-      justify-content: space-between;
-      gap: 1rem;
-      align-items: flex-start;
-    }
-
-    .course-studio-workspace-header h2 {
-      margin: 0;
-      color: #173446;
-      font-size: 2rem;
-      line-height: 1.08;
-    }
-
-    .course-studio-workspace-header p {
-      margin: 0.35rem 0 0;
-      color: #6b7280;
-      font-size: 0.94rem;
-      line-height: 1.5;
     }
 
     .course-studio-panel,
@@ -10028,14 +10003,13 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
         padding: 1rem;
       }
 
-      .course-studio-workspace-header,
       .course-studio-footer {
         flex-direction: column;
         align-items: flex-start;
       }
 
       .course-studio-quick-actions {
-        grid-template-columns: minmax(0, 1fr) repeat(3, 2.65rem);
+        grid-template-columns: minmax(0, 1fr) repeat(2, 2.65rem);
       }
 
       .course-studio-unit {
@@ -16557,19 +16531,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     }
 
     return `${item.controls.kind.value} unit`;
-  }
-
-  courseStudioWorkspaceTitle() {
-    if (this.selectedCreateSection() === 'basics') {
-      return this.courseForm.controls.title.value.trim() || 'New course';
-    }
-
-    const activeItem = this.selectedContentItem();
-    if (!activeItem) {
-      return 'Add content';
-    }
-
-    return activeItem.controls.title.value.trim() || 'Untitled';
   }
 
   isAddItemMenuOpen() {
