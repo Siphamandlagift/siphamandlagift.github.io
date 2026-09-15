@@ -3132,25 +3132,36 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                               </label>
 
                               <label class="upload-field form-grid-span-two" title="Upload a cover image for the course card.">
-                                Course Thumbnail
-                                <span class="admin-upload-btn" [class.admin-upload-btn-disabled]="thumbnailUploading()">
-                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                    <path d="M12 16V4m0 0-4 4m4-4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                  </svg>
-                                  <span>{{ thumbnailUploading() ? 'Uploading…' : 'Choose file' }}</span>
-                                  <input type="file" accept="image/*" [disabled]="thumbnailUploading()" (change)="onThumbnailSelected($event)" />
-                                </span>
-                                @if (thumbnailFileName()) {
-                                  <span class="asset-preview-copy">Selected thumbnail: {{ thumbnailFileName() }}</span>
-                                }
-                              </label>
+                                <span>Course Thumbnail</span>
+                                <div class="course-thumbnail-panel">
+                                  <div class="course-thumbnail-preview-box" [class.course-thumbnail-preview-box-has-image]="!!thumbnailPreview()">
+                                    @if (thumbnailPreview()) {
+                                      <img [src]="thumbnailPreview()!" alt="Selected course thumbnail preview" />
+                                    } @else {
+                                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                        <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" stroke="currentColor" stroke-width="1.6"/>
+                                        <circle cx="8.5" cy="9.5" r="1.6" stroke="currentColor" stroke-width="1.6"/>
+                                        <path d="M4.5 16.5 9 12a1.5 1.5 0 0 1 2.12 0l1.63 1.63M14 15l1.44-1.44a1.5 1.5 0 0 1 2.12 0L19.5 15.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                      </svg>
+                                      <span>No thumbnail yet</span>
+                                    }
+                                  </div>
 
-                              @if (thumbnailPreview()) {
-                                <div class="course-studio-thumbnail-preview form-grid-span-two">
-                                  <img [src]="thumbnailPreview()!" alt="Selected course thumbnail preview" />
+                                  <div class="course-thumbnail-actions">
+                                    <span class="admin-upload-btn" [class.admin-upload-btn-disabled]="thumbnailUploading()">
+                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                        <path d="M12 16V4m0 0-4 4m4-4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                      </svg>
+                                      <span>{{ thumbnailUploading() ? 'Uploading…' : 'Choose file' }}</span>
+                                      <input type="file" accept="image/*" [disabled]="thumbnailUploading()" (change)="onThumbnailSelected($event)" />
+                                    </span>
+                                    @if (thumbnailFileName()) {
+                                      <span class="asset-preview-copy">Selected thumbnail: {{ thumbnailFileName() }}</span>
+                                    }
+                                  </div>
                                 </div>
-                              }
+                              </label>
 
                               @if (thumbnailCropModalOpen() && thumbnailCropImageSrc(); as thumbnailCropSrc) {
                                 <div class="admin-modal-backdrop" (click)="cancelThumbnailCrop()">
@@ -9659,20 +9670,53 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       cursor: not-allowed;
     }
 
-    .course-studio-thumbnail-preview {
-      overflow: hidden;
-      padding: 0.78rem;
-      border: 1px dashed #d9c1aa;
-      border-radius: 22px;
-      background: #fbf4eb;
+    .course-thumbnail-panel {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-top: 0.5rem;
     }
 
-    .course-studio-thumbnail-preview img {
+    .course-thumbnail-preview-box {
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      width: 220px;
+      height: 124px;
+      overflow: hidden;
+      border: 1px dashed #d9c1aa;
+      border-radius: 16px;
+      background: #fbf4eb;
+      color: #a37b53;
+      font-size: 0.76rem;
+      font-weight: 700;
+      text-align: center;
+      box-sizing: border-box;
+    }
+
+    .course-thumbnail-preview-box-has-image {
+      border-style: solid;
+      border-color: rgba(217, 193, 170, 0.55);
+      padding: 0;
+    }
+
+    .course-thumbnail-preview-box img {
       display: block;
       width: 100%;
-      max-height: 240px;
+      height: 100%;
       object-fit: cover;
-      border-radius: 16px;
+    }
+
+    .course-thumbnail-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+      min-width: 9rem;
     }
 
     .thumbnail-crop-modal {
