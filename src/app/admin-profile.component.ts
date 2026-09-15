@@ -8960,6 +8960,33 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16);
     }
 
+    .student-search-field input[type="date"] {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 0.65rem 0.9rem;
+      border: 1px solid rgba(148, 163, 184, 0.32);
+      border-radius: 12px;
+      background-color: #fff;
+      color: #173446;
+      font: inherit;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .student-search-field input[type="date"]::-webkit-calendar-picker-indicator {
+      cursor: pointer;
+      padding: 0.2rem;
+      margin-left: 0.4rem;
+      border-radius: 6px;
+      opacity: 0.6;
+      transition: opacity 0.15s ease, background-color 0.15s ease;
+    }
+
+    .student-search-field input[type="date"]::-webkit-calendar-picker-indicator:hover {
+      opacity: 1;
+      background-color: rgba(56, 189, 248, 0.14);
+    }
+
     .enrollment-student-picker-list {
       display: grid;
       gap: 0.5rem;
