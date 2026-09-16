@@ -64,6 +64,7 @@ import {
   SuccessorNominationCreateInput,
   SuccessorNominationRecord,
   SuccessorNominationUpdateInput,
+  SurveySubmissionRecord,
   SystemTrainingManagerRecord,
   TrainingAssessmentQuestion,
   TrainingContentItem,
@@ -1177,6 +1178,7 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
     mentorshipSubmissions: data.mentorshipSubmissions ?? defaults.mentorshipSubmissions,
     assignmentSubmissions: data.assignmentSubmissions ?? defaults.assignmentSubmissions,
     quizSubmissions: data.quizSubmissions ?? defaults.quizSubmissions,
+    surveySubmissions: data.surveySubmissions ?? defaults.surveySubmissions,
     externalTrainingRequests: data.externalTrainingRequests ?? defaults.externalTrainingRequests,
     authAccounts: data.authAccounts ?? defaults.authAccounts,
     passwordResetTokens: (data.passwordResetTokens ?? defaults.passwordResetTokens).filter((token) => !token.consumedAt || new Date(token.consumedAt).getTime() > 0),
@@ -1384,6 +1386,7 @@ export class LmsRepository {
         assignmentSubmissions: data.assignmentSubmissions,
         mentorshipSubmissions: data.mentorshipSubmissions,
         quizSubmissions: data.quizSubmissions,
+        surveySubmissions: data.surveySubmissions,
         externalTrainingRequests: data.externalTrainingRequests,
         successionRoles,
         successorNominations,
@@ -1425,6 +1428,10 @@ export class LmsRepository {
       // left empty rather than handing over every other student's submissions.
       mentorshipSubmissions: [],
       quizSubmissions: [],
+      // Filtered (not emptied) like assignmentSubmissions above — the student's own "have I
+      // already submitted this survey?" check (isSurveyComplete/currentSurveySubmission) needs
+      // this client-side to lock the form after submission.
+      surveySubmissions: data.surveySubmissions.filter((submission) => submission.studentId === ownStudentId),
       externalTrainingRequests: data.externalTrainingRequests.filter(
         (request) => request.studentId === ownStudentId || request.studentEmail.trim().toLowerCase() === ownEmail,
       ),
@@ -2313,6 +2320,11 @@ export class LmsRepository {
     return data.quizSubmissions;
   }
 
+  async listSurveySubmissions() {
+    const data = await this.read();
+    return data.surveySubmissions;
+  }
+
   async patchManagerState(patch: ManagerStatePatch) {
     const data = await this.read();
 
@@ -2404,6 +2416,20 @@ export class LmsRepository {
 
     const next = await this.write(data);
     return next.quizSubmissions.find((entry) => entry.id === submission.id) ?? null;
+  }
+
+  async upsertSurveySubmission(submission: SurveySubmissionRecord) {
+    const data = await this.read();
+    const existingIndex = data.surveySubmissions.findIndex((entry) => entry.id === submission.id);
+
+    if (existingIndex === -1) {
+      data.surveySubmissions.unshift(submission);
+    } else {
+      data.surveySubmissions[existingIndex] = submission;
+    }
+
+    const next = await this.write(data);
+    return next.surveySubmissions.find((entry) => entry.id === submission.id) ?? null;
   }
 
   // The sole writer of a student's assessmentAttempts — grades the submitted raw answers against
@@ -3779,6 +3805,7 @@ class FirestoreLmsRepository extends LmsRepository {
       assignmentSubmissions,
       mentorshipSubmissions,
       quizSubmissions,
+      surveySubmissions,
       externalTrainingRequests,
       authAccounts,
       passwordResetTokens,
@@ -3794,6 +3821,7 @@ class FirestoreLmsRepository extends LmsRepository {
       this.readCollection('assignmentSubmissions'),
       this.readCollection('mentorshipSubmissions'),
       this.readCollection('quizSubmissions'),
+      this.readCollection('surveySubmissions'),
       this.readCollection('externalTrainingRequests'),
       this.readCollection('authAccounts'),
       this.readCollection('passwordResetTokens'),
@@ -3810,6 +3838,7 @@ class FirestoreLmsRepository extends LmsRepository {
       assignmentSubmissions,
       mentorshipSubmissions,
       quizSubmissions,
+      surveySubmissions,
       externalTrainingRequests,
       authAccounts,
       passwordResetTokens,
@@ -3838,6 +3867,7 @@ class FirestoreLmsRepository extends LmsRepository {
       assignmentSubmissions,
       mentorshipSubmissions,
       quizSubmissions,
+      surveySubmissions,
       externalTrainingRequests,
       authAccounts,
       passwordResetTokens,
@@ -4557,6 +4587,23 @@ class FirestoreLmsRepository extends LmsRepository {
 
     await ref.update({ 'settings.themePreference': themePreference });
     return true;
+  }
+
+  // Scoped Firestore read/write for survey submissions, bypassing the generic read()+write()
+  // path entirely (see the comment on updateBranding above for the exact race this avoids):
+  // assignmentSubmissions/mentorshipSubmissions/quizSubmissions have no such override today and
+  // inherit that same "stale snapshot from an unrelated write silently reverts this collection"
+  // bug — surveySubmissions is new, so it's built race-safe from the start rather than adding a
+  // 4th instance of an already-diagnosed problem. 'surveySubmissions' is deliberately left out
+  // of firestoreCollectionNames (above) so the generic write()'s collection-resync loop never
+  // touches it — this override is its sole writer.
+  override async listSurveySubmissions() {
+    return this.readCollection('surveySubmissions');
+  }
+
+  override async upsertSurveySubmission(submission: SurveySubmissionRecord) {
+    await this.collection('surveySubmissions').doc(submission.id).set(this.sanitizeForFirestore(submission));
+    return submission;
   }
 
   // Single equality filter only (successorStudentId), with the status check done in memory —

@@ -1,7 +1,8 @@
 export type TrainingOfferingType = 'Course' | 'Programme';
 export type TrainingAssessmentType = 'Quiz' | 'Assignment' | 'Mentorship' | 'Read and Acknowledge';
-export type TrainingContentKind = 'Video' | 'Assessment' | 'Document' | 'Scorm';
+export type TrainingContentKind = 'Video' | 'Assessment' | 'Document' | 'Scorm' | 'Survey';
 export type TrainingQuestionType = 'Multiple Choice' | 'Short Answer' | 'Long Answer' | 'Document Upload' | 'True or False' | 'Matching';
+export type SurveyQuestionType = 'Choice' | 'Checkboxes' | 'Text' | 'Rating' | 'Date' | 'File Upload';
 export type SubmissionReviewStatus = 'Pending Review' | 'Approved' | 'Needs Revision';
 export type LoginRole = 'administrator' | 'training-manager' | 'student';
 export type LmsBrandThemeId = 'ocean' | 'forest' | 'sunrise' | 'purple' | 'black' | 'grey';
@@ -28,6 +29,20 @@ export type TrainingAssessmentQuestion = {
   attachmentDataUrl?: string;
 };
 
+export type SurveyQuestionOption = {
+  text: string;
+};
+
+export type SurveyQuestion = {
+  id: string;
+  prompt: string;
+  questionType: SurveyQuestionType;
+  required: boolean;
+  options: SurveyQuestionOption[];
+  allowLongAnswer: boolean;
+  ratingScale: number;
+};
+
 export type TrainingContentItem = {
   id: string;
   kind: TrainingContentKind;
@@ -43,6 +58,7 @@ export type TrainingContentItem = {
   allowDownload?: boolean;
   durationSeconds?: number;
   questions: TrainingAssessmentQuestion[];
+  surveyQuestions: SurveyQuestion[];
 };
 
 export type TrainingOffering = {
@@ -710,6 +726,32 @@ export type MentorshipSubmissionRecord = {
   reviewedAt: string | null;
 };
 
+export type SurveyAnswerRecord = {
+  questionId: string;
+  prompt: string;
+  questionType: SurveyQuestionType;
+  selectedOptions: string[];
+  textResponse: string;
+  ratingValue: number | null;
+  dateResponse: string;
+  fileName: string;
+  fileDataUrl: string;
+};
+
+export type SurveySubmissionRecord = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  courseId?: string;
+  offeringId: string;
+  offeringTitle: string;
+  contentItemId: string;
+  surveyTitle: string;
+  answers: SurveyAnswerRecord[];
+  submittedAt: string;
+};
+
 export type AuthAccountRecord = {
   id: string;
   role: LoginRole;
@@ -784,6 +826,7 @@ export type LmsDataStore = {
   assignmentSubmissions: AssignmentSubmissionRecord[];
   mentorshipSubmissions: MentorshipSubmissionRecord[];
   quizSubmissions: QuizSubmissionRecord[];
+  surveySubmissions: SurveySubmissionRecord[];
   externalTrainingRequests: ExternalTrainingRequestRecord[];
   authAccounts: AuthAccountRecord[];
   passwordResetTokens: PasswordResetTokenRecord[];
@@ -838,6 +881,7 @@ export type LmsBootstrapResponse = {
   assignmentSubmissions: AssignmentSubmissionRecord[];
   mentorshipSubmissions: MentorshipSubmissionRecord[];
   quizSubmissions: QuizSubmissionRecord[];
+  surveySubmissions: SurveySubmissionRecord[];
   externalTrainingRequests: ExternalTrainingRequestRecord[];
   // Scoped per caller (see getBootstrap) — an admin gets every role/nomination, a manager only
   // those for roles they own, and a student gets neither array at all (their view is the single

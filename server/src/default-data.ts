@@ -140,6 +140,7 @@ export function createDefaultData(companyId = ''): LmsDataStore {
     assignmentSubmissions: [],
     mentorshipSubmissions: [],
     quizSubmissions: [],
+    surveySubmissions: [],
     externalTrainingRequests: [],
     branding: {
       themeId: 'ocean',

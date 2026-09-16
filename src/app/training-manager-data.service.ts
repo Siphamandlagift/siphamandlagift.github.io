@@ -26,8 +26,9 @@ export type SystemTrainingManager = {
 export type TrainingOfferingType = 'Course' | 'Programme';
 export type LearningStatus = 'Completed' | 'In Progress' | 'Not Yet Started';
 export type TrainingAssessmentType = 'Quiz' | 'Assignment' | 'Mentorship' | 'Read and Acknowledge';
-export type TrainingContentKind = 'Video' | 'Assessment' | 'Document' | 'Scorm';
+export type TrainingContentKind = 'Video' | 'Assessment' | 'Document' | 'Scorm' | 'Survey';
 export type TrainingQuestionType = 'Multiple Choice' | 'Short Answer' | 'Long Answer' | 'Document Upload' | 'True or False' | 'Matching';
+export type SurveyQuestionType = 'Choice' | 'Checkboxes' | 'Text' | 'Rating' | 'Date' | 'File Upload';
 export type TrainingIdpStatus = 'Not Started' | 'In Progress' | 'Completed' | 'On Hold';
 
 export type StudentIdpEntry = {
@@ -89,6 +90,47 @@ export type TrainingContentItem = {
    *  Drives the dashboard's "Total Hours Spent" estimate for this step instead of a flat guess. */
   durationSeconds?: number;
   questions: TrainingAssessmentQuestion[];
+  surveyQuestions: SurveyQuestion[];
+};
+
+export type SurveyQuestionOption = {
+  text: string;
+};
+
+export type SurveyQuestion = {
+  id: string;
+  prompt: string;
+  questionType: SurveyQuestionType;
+  required: boolean;
+  options: SurveyQuestionOption[];
+  allowLongAnswer: boolean;
+  ratingScale: number;
+};
+
+export type SurveyAnswer = {
+  questionId: string;
+  prompt: string;
+  questionType: SurveyQuestionType;
+  selectedOptions: string[];
+  textResponse: string;
+  ratingValue: number | null;
+  dateResponse: string;
+  fileName: string;
+  fileDataUrl: string;
+};
+
+export type SurveySubmissionRecord = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  courseId?: string;
+  offeringId: string;
+  offeringTitle: string;
+  contentItemId: string;
+  surveyTitle: string;
+  answers: SurveyAnswer[];
+  submittedAt: string;
 };
 
 export type TrainingAssessmentQuestion = {
@@ -516,6 +558,7 @@ export class TrainingManagerDataService {
   private readonly mentorshipAssignmentsSignal = signal<MentorshipAssignmentRecord[]>([]);
   private readonly mentorshipSubmissionsSignal = signal<MentorshipSubmissionRecord[]>([]);
   private readonly assignmentSubmissionsSignal = signal<AssignmentSubmissionRecord[]>([]);
+  private readonly surveySubmissionsSignal = signal<SurveySubmissionRecord[]>([]);
   private readonly externalTrainingRequestsSignal = signal<ExternalTrainingRequestRecord[]>([]);
   // Already scoped server-side (see getBootstrap): an admin gets every role/nomination, a manager
   // only those for roles they own.
@@ -680,6 +723,9 @@ export class TrainingManagerDataService {
   });
   readonly assignmentSubmissions = computed(() =>
     [...this.assignmentSubmissionsSignal()].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt)),
+  );
+  readonly surveySubmissions = computed(() =>
+    [...this.surveySubmissionsSignal()].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt)),
   );
   readonly idpEntriesByStudent = this.idpEntriesByStudentSignal.asReadonly();
   readonly kpiEntriesByStudent = this.kpiEntriesByStudentSignal.asReadonly();
@@ -1132,6 +1178,7 @@ export class TrainingManagerDataService {
         this.mentorshipAssignmentsSignal.set(bootstrap.mentorshipAssignments);
         this.mentorshipSubmissionsSignal.set(bootstrap.mentorshipSubmissions);
         this.assignmentSubmissionsSignal.set(this.hydrateAssignmentSubmissions(bootstrap.assignmentSubmissions));
+        this.surveySubmissionsSignal.set(bootstrap.surveySubmissions ?? []);
         this.externalTrainingRequestsSignal.set(bootstrap.externalTrainingRequests);
         this.successionRolesSignal.set(bootstrap.successionRoles ?? []);
         this.successorNominationsSignal.set(bootstrap.successorNominations ?? []);
@@ -1268,6 +1315,15 @@ export class TrainingManagerDataService {
         dragAndDropEnabled: boolean;
         attachmentFileName: string;
         attachmentDataUrl: string;
+      }>;
+      surveyQuestions: Array<{
+        id?: string;
+        prompt: string;
+        questionType: SurveyQuestionType;
+        required: boolean;
+        options: Array<{ text: string }>;
+        allowLongAnswer: boolean;
+        ratingScale: number;
       }>;
     }>;
   }): TrainingOffering | null {
@@ -1476,6 +1532,15 @@ export class TrainingManagerDataService {
         attachmentFileName: string;
         attachmentDataUrl?: string;
       }>;
+      surveyQuestions: Array<{
+        id?: string;
+        prompt: string;
+        questionType: SurveyQuestionType;
+        required: boolean;
+        options: Array<{ text: string }>;
+        allowLongAnswer: boolean;
+        ratingScale: number;
+      }>;
     }>,
     normalizedTitle: string,
   ) {
@@ -1530,9 +1595,28 @@ export class TrainingManagerDataService {
               }))
               .filter((question) => question.prompt.length > 0)
           : [],
+        surveyQuestions: item.kind === 'Survey'
+          ? item.surveyQuestions
+              .map((question) => ({
+                id: question.id?.trim() || this.createSurveyQuestionIdFallback(),
+                prompt: question.prompt.trim(),
+                questionType: question.questionType,
+                required: Boolean(question.required),
+                options: question.questionType === 'Choice' || question.questionType === 'Checkboxes'
+                  ? question.options.map((option) => ({ text: option.text.trim() })).filter((option) => option.text.length > 0)
+                  : [],
+                allowLongAnswer: question.questionType === 'Text' ? Boolean(question.allowLongAnswer) : false,
+                ratingScale: question.questionType === 'Rating' ? Math.min(10, Math.max(2, Math.round(question.ratingScale) || 5)) : 5,
+              }))
+              .filter((question) => question.prompt.length > 0)
+          : [],
           };
           })
       .filter((item) => item.title.length > 0);
+  }
+
+  private createSurveyQuestionIdFallback() {
+    return `survey-q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
   private normalizePassMarkPercentage(value: number | undefined) {
@@ -2189,6 +2273,15 @@ export class TrainingManagerDataService {
       : null;
   }
 
+  // Simpler than the two lookups above — a survey has no per-question step id (it's one record
+  // covering every question, submitted together), so matching on contentItemId directly is
+  // exact, no legacy-fallback concept needed.
+  surveySubmissionForStudentOffering(studentId: string, offeringId: string, contentItemId: string) {
+    return this.surveySubmissionsSignal().find((submission) =>
+      submission.studentId === studentId && submission.offeringId === offeringId && submission.contentItemId === contentItemId,
+    ) ?? null;
+  }
+
   submitMentorshipSubmission(input: {
     studentId: string;
     offeringId: string;
@@ -2510,6 +2603,63 @@ export class TrainingManagerDataService {
     }
 
     return { ok: true };
+  }
+
+  // Await + optimistic update + rollback on failure, same as submitAssignmentSubmission above —
+  // not the fire-and-forget pattern submitMentorshipSubmission uses, since the caller (the
+  // student "Submit survey" button) needs to know whether it actually reached the server before
+  // locking the form into its read-only submitted state.
+  async submitSurveySubmission(input: {
+    studentId: string;
+    offeringId: string;
+    contentItemId: string;
+    surveyTitle: string;
+    answers: SurveyAnswer[];
+  }): Promise<LearnerSubmissionResult> {
+    const student = this.students().find((item) => item.id === input.studentId);
+    const offering = this.offerings().find((item) => item.id === input.offeringId);
+
+    if (!student || !offering) {
+      return { ok: false, message: 'This survey could not be submitted right now. Refresh the course and try again.' };
+    }
+
+    if (this.surveySubmissionForStudentOffering(student.id, offering.id, input.contentItemId)) {
+      return { ok: false, message: 'This survey has already been submitted.' };
+    }
+
+    const nextSubmission: SurveySubmissionRecord = {
+      id: `survey-${student.id}-${offering.id}-${input.contentItemId}`,
+      studentId: student.id,
+      studentName: `${student.name} ${student.surname}`,
+      studentEmail: student.email,
+      courseId: offering.id,
+      offeringId: offering.id,
+      offeringTitle: offering.title,
+      contentItemId: input.contentItemId,
+      surveyTitle: input.surveyTitle,
+      answers: input.answers,
+      submittedAt: this.formatDisplayDate(new Date()),
+    };
+
+    const previousSubmissions = this.surveySubmissionsSignal();
+    this.surveySubmissionsSignal.set([nextSubmission, ...previousSubmissions]);
+
+    const saved = await this.persistSurveySubmission(nextSubmission);
+    if (!saved) {
+      this.surveySubmissionsSignal.set(previousSubmissions);
+      return { ok: false, message: 'Your survey could not be submitted. Please check your connection and try again.' };
+    }
+
+    return { ok: true };
+  }
+
+  private persistSurveySubmission(submission: SurveySubmissionRecord): Promise<boolean> {
+    return new Promise((resolve) => {
+      this.backend.upsertSurveySubmission(submission).subscribe({
+        next: () => resolve(true),
+        error: () => resolve(false),
+      });
+    });
   }
 
   private findAssessmentStep(
@@ -3056,6 +3206,9 @@ export class TrainingManagerDataService {
           this.mentorshipSubmissionsSignal.set(this.mergeServerAuthoritative(bootstrap.mentorshipSubmissions, this.mentorshipSubmissionsSignal()));
           this.assignmentSubmissionsSignal.set(
             this.mergeServerAuthoritative(this.hydrateAssignmentSubmissions(bootstrap.assignmentSubmissions), this.assignmentSubmissionsSignal()),
+          );
+          this.surveySubmissionsSignal.set(
+            this.mergeServerAuthoritative(bootstrap.surveySubmissions ?? [], this.surveySubmissionsSignal()),
           );
           this.externalTrainingRequestsSignal.set(
             this.mergeServerAuthoritative(bootstrap.externalTrainingRequests, this.externalTrainingRequestsSignal()),

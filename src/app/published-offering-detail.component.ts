@@ -141,6 +141,8 @@ type PublishedOfferingPresentationPreview = {
                     <div class="offering-flow-detail">
                       @if (item.kind === 'Assessment') {
                         {{ assessmentFlowSummary(item) }}
+                      } @else if (item.kind === 'Survey') {
+                        {{ item.surveyQuestions.length }} {{ item.surveyQuestions.length === 1 ? 'question' : 'questions' }}
                       } @else if (item.uploadedFileName) {
                         {{ item.uploadedFileName }}
                       } @else if (item.resourceLink) {

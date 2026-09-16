@@ -7,7 +7,7 @@ import { PdfViewerComponent } from './pdf-viewer.component';
 import { PowerPointWindowComponent } from './powerpoint-window.component';
 import { StudentAssessmentAttempt, StudentCourse, StudentDataService } from './student-data.service';
 import { resolvePowerPointUploadType } from './powerpoint-preview';
-import { AssignmentSubmissionRecord, TrainingAssessmentType, TrainingContentItem, TrainingContentKind, TrainingManagerDataService, TrainingOffering, TrainingQuestionType } from './training-manager-data.service';
+import { AssignmentSubmissionRecord, SurveyAnswer, SurveyQuestionType, SurveySubmissionRecord, TrainingAssessmentType, TrainingContentItem, TrainingContentKind, TrainingManagerDataService, TrainingOffering, TrainingQuestionType } from './training-manager-data.service';
 import { readLmsSessionRecord } from './session-auth';
 import { readCompanyScopedCache, writeCompanyScopedCache } from './company-scoped-storage';
 
@@ -37,6 +37,7 @@ type WorkspaceStep = {
   video?: WorkspaceVideo;
   document?: WorkspaceDocument;
   assessment?: WorkspaceAssessment;
+  survey?: WorkspaceSurvey;
 };
 
 type CourseWorkspace = {
@@ -72,6 +73,39 @@ type WorkspaceAssessment = {
   maxAttempts?: number;
   resourceLink?: string;
   questions: WorkspaceAssessmentQuestion[];
+};
+
+type WorkspaceSurveyQuestion = {
+  id: string;
+  questionType: SurveyQuestionType;
+  prompt: string;
+  required: boolean;
+  options: string[];
+  allowLongAnswer: boolean;
+  ratingScale: number;
+};
+
+type WorkspaceSurvey = {
+  title: string;
+  questions: WorkspaceSurveyQuestion[];
+};
+
+type SurveyAnswerDraft = {
+  selectedOptions: string[];
+  textResponse: string;
+  ratingValue: number | null;
+  dateResponse: string;
+  fileName: string;
+  fileDataUrl: string;
+};
+
+const emptySurveyAnswerDraft: SurveyAnswerDraft = {
+  selectedOptions: [],
+  textResponse: '',
+  ratingValue: null,
+  dateResponse: '',
+  fileName: '',
+  fileDataUrl: '',
 };
 
 type MentorshipSubmission = {
@@ -670,6 +704,88 @@ type ScormRuntimeState = {
                     <button type="button" class="workspace-document-open-btn" (click)="openAssignmentDocumentSubmission()">Open submitted document</button>
                   </div>
                 </div>
+              </section>
+
+              <section *ngIf="selectedCourseStep()?.survey as survey" class="workspace-question-card">
+                <div class="workspace-question-title">{{ survey.title }}</div>
+
+                <div *ngIf="isSurveySubmitted()" class="workspace-submitted-response-card">
+                  <div class="workspace-submitted-response-title">Thanks — your response has been recorded.</div>
+                  <p>You can't resubmit this survey.</p>
+                </div>
+
+                <ng-container *ngIf="!isSurveySubmitted()">
+                  <div *ngFor="let question of survey.questions" class="workspace-response-field survey-question-field">
+                    <span>{{ question.prompt }}<span *ngIf="question.required"> *</span></span>
+
+                    <ng-container [ngSwitch]="question.questionType">
+                      <div *ngSwitchCase="'Choice'">
+                        <label
+                          *ngFor="let option of question.options"
+                          class="workspace-option"
+                          [class.workspace-option-selected]="surveyAnswerDraftFor(question.id).selectedOptions[0] === option">
+                          <input
+                            type="radio"
+                            [name]="'survey-' + question.id"
+                            [checked]="surveyAnswerDraftFor(question.id).selectedOptions[0] === option"
+                            (change)="updateSurveyAnswer(question.id, { selectedOptions: [option] })" />
+                          <span>{{ option }}</span>
+                        </label>
+                      </div>
+
+                      <div *ngSwitchCase="'Checkboxes'">
+                        <label
+                          *ngFor="let option of question.options"
+                          class="workspace-option"
+                          [class.workspace-option-selected]="surveyAnswerDraftFor(question.id).selectedOptions.includes(option)">
+                          <input
+                            type="checkbox"
+                            [checked]="surveyAnswerDraftFor(question.id).selectedOptions.includes(option)"
+                            (change)="toggleSurveyCheckboxOption(question.id, option)" />
+                          <span>{{ option }}</span>
+                        </label>
+                      </div>
+
+                      <textarea
+                        *ngSwitchCase="'Text'"
+                        [rows]="question.allowLongAnswer ? 5 : 1"
+                        [value]="surveyAnswerDraftFor(question.id).textResponse"
+                        (input)="updateSurveyAnswer(question.id, { textResponse: $any($event.target).value })"></textarea>
+
+                      <div *ngSwitchCase="'Rating'" class="survey-rating-row">
+                        <button
+                          *ngFor="let value of surveyRatingValues(question.ratingScale)"
+                          type="button"
+                          class="survey-rating-btn"
+                          [class.survey-rating-btn-selected]="surveyAnswerDraftFor(question.id).ratingValue === value"
+                          (click)="updateSurveyAnswer(question.id, { ratingValue: value })">{{ value }}</button>
+                      </div>
+
+                      <input
+                        *ngSwitchCase="'Date'"
+                        type="date"
+                        [value]="surveyAnswerDraftFor(question.id).dateResponse"
+                        (input)="updateSurveyAnswer(question.id, { dateResponse: $any($event.target).value })" />
+
+                      <div *ngSwitchCase="'File Upload'" class="workspace-document-response-card">
+                        <div class="workspace-document-response-actions">
+                          <label class="workspace-document-upload-btn">
+                            <input type="file" (change)="onSurveyFileSelected(question.id, $event)" />
+                            <span>{{ surveyAnswerDraftFor(question.id).fileName ? 'Replace file' : 'Choose file' }}</span>
+                          </label>
+                        </div>
+                        <p class="workspace-document-response-note" *ngIf="surveyAnswerDraftFor(question.id).fileName">
+                          Selected file: {{ surveyAnswerDraftFor(question.id).fileName }}
+                        </p>
+                      </div>
+                    </ng-container>
+                  </div>
+
+                  <div class="workspace-assessment-actions">
+                    <p *ngIf="surveySubmissionError()" class="workspace-assessment-note workspace-assessment-note-error" aria-live="polite">{{ surveySubmissionError() }}</p>
+                    <button type="button" class="workspace-assessment-submit-btn" [disabled]="!canSubmitSurvey()" (click)="submitSurvey()">Submit survey</button>
+                  </div>
+                </ng-container>
               </section>
             </div>
           </div>
@@ -1815,6 +1931,37 @@ type ScormRuntimeState = {
       opacity: 0.9;
     }
 
+    .survey-rating-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .survey-rating-btn {
+      min-width: 2.6rem;
+      height: 2.6rem;
+      padding: 0 0.6rem;
+      border-radius: 10px;
+      border: 1px solid #e5e7eb;
+      background: #f8fafc;
+      color: #334155;
+      font-size: 0.92rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .survey-rating-btn:hover {
+      border-color: #c7d2fe;
+    }
+
+    .survey-rating-btn-selected {
+      border-color: #818cf8;
+      background: #eef2ff;
+      color: #4338ca;
+      box-shadow: 0 10px 24px rgba(99, 102, 241, 0.12);
+    }
+
     .workspace-matching-shell {
       display: grid;
       gap: 0.9rem;
@@ -2242,6 +2389,11 @@ export class StudentCoursesComponent {
   readonly assessmentSelections = signal<Record<string, string>>({});
   readonly assessmentResponses = signal<Record<string, string>>({});
   readonly assignmentDocumentSubmissions = signal<Record<string, AssignmentDocumentSubmission>>({});
+  // In-memory only, same as assessmentSelections/assessmentResponses above — not persisted to
+  // localStorage (see persistCourseProgressState), since a survey is submitted as one whole and
+  // there's no partial-draft-recovery requirement for it.
+  readonly surveyAnswerDrafts = signal<Record<string, SurveyAnswerDraft>>({});
+  readonly surveySubmissionError = signal('');
   readonly mentorshipSubmissions = signal<Record<string, MentorshipSubmission>>({});
   readonly matchingAssignments = signal<Record<string, Record<string, string>>>({});
   // openedDocumentAcknowledgements deliberately stays session-only — it just gates whether the
@@ -2613,6 +2765,19 @@ export class StudentCoursesComponent {
 
     return this.managerData.assignmentSubmissionForStudentOffering(student.id, offering.id, assessmentStepId, false);
   });
+  readonly selectedSurvey = computed(() => this.selectedCourseStep()?.survey ?? null);
+  readonly currentSurveySubmission = computed<SurveySubmissionRecord | null>(() => {
+    const student = this.currentStudentRecord();
+    const offering = this.selectedManagerOffering();
+    const contentItemId = this.selectedCourseStep()?.id?.trim() ?? '';
+
+    if (!student || !offering || !contentItemId || !this.selectedSurvey()) {
+      return null;
+    }
+
+    return this.managerData.surveySubmissionForStudentOffering(student.id, offering.id, contentItemId);
+  });
+  readonly isSurveySubmitted = computed(() => this.currentSurveySubmission() !== null);
   readonly currentQuizAttempt = computed<StudentAssessmentAttempt | null>(() => {
     if (this.selectedAssessment()?.assessmentType !== 'Quiz') {
       return null;
@@ -2894,6 +3059,7 @@ export class StudentCoursesComponent {
       this.currentQuizAttempt();
       this.currentAssignmentSubmission();
       this.currentMentorshipReview();
+      this.currentSurveySubmission();
 
       if (!course || !workspace?.steps.length) {
         return;
@@ -2985,6 +3151,11 @@ export class StudentCoursesComponent {
       return 'SCORM package';
     }
 
+    if (step.kind === 'Survey') {
+      const questionCount = step.survey?.questions.length ?? 0;
+      return questionCount > 1 ? `Survey • ${questionCount} questions` : 'Survey';
+    }
+
     return step.kind;
   }
 
@@ -3073,6 +3244,144 @@ export class StudentCoursesComponent {
         dataUrl: '',
       },
     }));
+  }
+
+  private surveyDraftKey(questionId: string) {
+    const courseName = this.selectedCourse()?.name;
+    const contentItemId = this.selectedCourseStep()?.id ?? '';
+
+    if (!courseName || !contentItemId) {
+      return '';
+    }
+
+    return `${courseName}::${contentItemId}::${questionId}`;
+  }
+
+  surveyAnswerDraftFor(questionId: string): SurveyAnswerDraft {
+    const key = this.surveyDraftKey(questionId);
+    return key ? this.surveyAnswerDrafts()[key] ?? emptySurveyAnswerDraft : emptySurveyAnswerDraft;
+  }
+
+  updateSurveyAnswer(questionId: string, patch: Partial<SurveyAnswerDraft>) {
+    const key = this.surveyDraftKey(questionId);
+    if (!key || this.isSurveySubmitted()) {
+      return;
+    }
+
+    this.surveySubmissionError.set('');
+    this.surveyAnswerDrafts.update((drafts) => ({
+      ...drafts,
+      [key]: { ...(drafts[key] ?? emptySurveyAnswerDraft), ...patch },
+    }));
+  }
+
+  toggleSurveyCheckboxOption(questionId: string, option: string) {
+    const current = this.surveyAnswerDraftFor(questionId).selectedOptions;
+    const nextSelected = current.includes(option)
+      ? current.filter((entry) => entry !== option)
+      : [...current, option];
+
+    this.updateSurveyAnswer(questionId, { selectedOptions: nextSelected });
+  }
+
+  onSurveyFileSelected(questionId: string, event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    const key = this.surveyDraftKey(questionId);
+
+    if (!key || this.isSurveySubmitted() || !file) {
+      input.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      this.updateSurveyAnswer(questionId, {
+        fileName: file.name,
+        fileDataUrl: typeof reader.result === 'string' ? reader.result : '',
+      });
+      input.value = '';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  private isSurveyQuestionAnswered(question: WorkspaceSurveyQuestion) {
+    const draft = this.surveyAnswerDraftFor(question.id);
+
+    switch (question.questionType) {
+      case 'Choice':
+      case 'Checkboxes':
+        return draft.selectedOptions.length > 0;
+      case 'Text':
+        return draft.textResponse.trim().length > 0;
+      case 'Rating':
+        return draft.ratingValue !== null;
+      case 'Date':
+        return draft.dateResponse.trim().length > 0;
+      case 'File Upload':
+        return Boolean(draft.fileName && draft.fileDataUrl);
+      default:
+        return false;
+    }
+  }
+
+  canSubmitSurvey() {
+    const survey = this.selectedSurvey();
+    if (!survey || this.isSurveySubmitted()) {
+      return false;
+    }
+
+    return survey.questions.every((question) => !question.required || this.isSurveyQuestionAnswered(question));
+  }
+
+  surveyRatingValues(ratingScale: number): number[] {
+    return Array.from({ length: ratingScale }, (_, index) => index + 1);
+  }
+
+  async submitSurvey() {
+    if (!this.canSubmitSurvey()) {
+      return;
+    }
+
+    const student = this.currentStudentRecord();
+    const offering = this.selectedManagerOffering();
+    const survey = this.selectedSurvey();
+    const contentItemId = this.selectedCourseStep()?.id?.trim() ?? '';
+
+    if (!student || !offering || !survey || !contentItemId) {
+      this.surveySubmissionError.set('This survey could not be submitted right now. Refresh the course and try again.');
+      return;
+    }
+
+    const answers: SurveyAnswer[] = survey.questions.map((question) => {
+      const draft = this.surveyAnswerDraftFor(question.id);
+      return {
+        questionId: question.id,
+        prompt: question.prompt,
+        questionType: question.questionType,
+        selectedOptions: draft.selectedOptions,
+        textResponse: draft.textResponse.trim(),
+        ratingValue: draft.ratingValue,
+        dateResponse: draft.dateResponse,
+        fileName: draft.fileName,
+        fileDataUrl: draft.fileDataUrl,
+      };
+    });
+
+    const result = await this.managerData.submitSurveySubmission({
+      studentId: student.id,
+      offeringId: offering.id,
+      contentItemId,
+      surveyTitle: survey.title,
+      answers,
+    });
+
+    if (!result.ok) {
+      this.surveySubmissionError.set(result.message);
+      return;
+    }
+
+    this.surveySubmissionError.set('');
   }
 
   updateMentorshipMentorName(value: string) {
@@ -4262,6 +4571,33 @@ export class StudentCoursesComponent {
         return steps;
       }
 
+      if (item.kind === 'Survey') {
+        const survey = {
+          title: item.title,
+          questions: item.surveyQuestions.map((question) => ({
+            id: question.id,
+            questionType: question.questionType,
+            prompt: question.prompt,
+            required: question.required,
+            options: question.options.map((option) => option.text).filter(Boolean),
+            allowLongAnswer: question.allowLongAnswer,
+            ratingScale: question.ratingScale,
+          } satisfies WorkspaceSurveyQuestion)),
+        } satisfies WorkspaceSurvey;
+
+        steps.push({
+          id: item.id || `${managerOffering.id}-survey-${itemIndex + 1}`,
+          kind: 'Survey',
+          title: item.title,
+          summary: survey.questions.length
+            ? `Answer ${survey.questions.length} question${survey.questions.length === 1 ? '' : 's'} in this survey.`
+            : 'Complete this survey.',
+          survey,
+        } satisfies WorkspaceStep);
+
+        return steps;
+      }
+
       steps.push({
         id: this.createAssessmentUnitStepId(managerOffering.id, item.id, itemIndex),
         kind: 'Assessment',
@@ -4464,6 +4800,10 @@ export class StudentCoursesComponent {
       return this.isAssessmentComplete(courseName, step);
     }
 
+    if (step.kind === 'Survey') {
+      return this.isSurveyComplete(step);
+    }
+
     const completedSteps = this.completedCourseSteps();
     const stepKey = this.courseStepKey(courseName, step.id);
 
@@ -4514,6 +4854,18 @@ export class StudentCoursesComponent {
     return Boolean(this.studentData.assessmentAttempts()[this.assessmentAttemptKey(course, step.id)]?.passed);
   }
 
+  private isSurveyComplete(step: WorkspaceStep) {
+    const student = this.currentStudentRecord();
+    const offering = this.selectedManagerOffering();
+    const contentItemId = step.id?.trim();
+
+    if (!student || !offering || !contentItemId) {
+      return false;
+    }
+
+    return this.managerData.surveySubmissionForStudentOffering(student.id, offering.id, contentItemId) !== null;
+  }
+
   private markSelectedStepComplete() {
     const step = this.selectedCourseStep();
     if (!step) {
@@ -4525,7 +4877,7 @@ export class StudentCoursesComponent {
 
   private markStepComplete(step: WorkspaceStep) {
     const courseName = this.selectedCourse()?.name;
-    if (!courseName || step.kind === 'Assessment') {
+    if (!courseName || step.kind === 'Assessment' || step.kind === 'Survey') {
       return;
     }
 

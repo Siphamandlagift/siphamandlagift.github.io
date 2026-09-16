@@ -14,6 +14,11 @@ import {
   StudentIdpEntry,
   SuccessionReadinessRating,
   SuccessionRoleRecord,
+  SurveyAnswer,
+  SurveyQuestion,
+  SurveyQuestionOption,
+  SurveyQuestionType,
+  SurveySubmissionRecord,
   SystemTrainingManager,
   TrainingAssessmentChoice,
   TrainingAssessmentType,
@@ -45,7 +50,7 @@ type UserColumnId =
   | 'ofoCode' | 'race' | 'gender' | 'municipality' | 'dateOfBirth' | 'nqfLevel' | 'disability' | 'role';
 
 // ── Courses panel types (relocated from training-manager-profile.component.ts) ────
-type CoursesPanelView = 'create' | 'created' | 'submissions';
+type CoursesPanelView = 'create' | 'created' | 'submissions' | 'survey-results';
 type AssignmentSubmissionFilter = 'All' | 'Pending Review' | 'Approved' | 'Needs Revision';
 type CreateCourseSection = 'basics' | 'content';
 
@@ -82,6 +87,20 @@ type MatchingPairFormGroup = FormGroup<{
   answer: FormControl<string>;
 }>;
 
+type SurveyQuestionOptionFormGroup = FormGroup<{
+  text: FormControl<string>;
+}>;
+
+type SurveyQuestionFormGroup = FormGroup<{
+  id: FormControl<string>;
+  prompt: FormControl<string>;
+  questionType: FormControl<SurveyQuestionType>;
+  required: FormControl<boolean>;
+  options: FormArray<SurveyQuestionOptionFormGroup>;
+  allowLongAnswer: FormControl<boolean>;
+  ratingScale: FormControl<number>;
+}>;
+
 type ContentItemFormGroup = FormGroup<{
   id: FormControl<string>;
   kind: FormControl<TrainingContentKind>;
@@ -97,6 +116,7 @@ type ContentItemFormGroup = FormGroup<{
   allowDownload: FormControl<boolean>;
   durationSeconds: FormControl<number | null>;
   questions: FormArray<AssessmentQuestionFormGroup>;
+  surveyQuestions: FormArray<SurveyQuestionFormGroup>;
 }>;
 
 type PowerPointPreviewState = {
@@ -2979,6 +2999,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     </span>
                     <span>Assignment Submissions</span>
                   </button>
+                  <button type="button" class="courses-tab-btn" [class.courses-tab-btn-active]="selectedCoursesView() === 'survey-results'" (click)="selectCoursesView('survey-results')">
+                    <span class="courses-tab-icon" aria-hidden="true">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 7h6M9 11h6M9 15h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="4.5" y="4.5" width="15" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="m8 18.5 1.5 1.5L13 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </span>
+                    <span>Survey Results</span>
+                  </button>
                 </div>
 
                 @if (selectedCoursesView() === 'create') {
@@ -3050,6 +3076,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   }
                                   @case ('Assessment') {
                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 7h8M8 12h8M8 17h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="4.5" y="4.5" width="15" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/></svg>
+                                  }
+                                  @case ('Survey') {
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 7h6M9 11h6M9 15h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="4.5" y="4.5" width="15" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="m8 18.5 1.5 1.5L13 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                   }
                                 }
                               </span>
@@ -3426,6 +3455,119 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <button type="button" class="detail-action-btn detail-action-btn-primary" (click)="submitAssessmentSetup(activeContentItemIndex())">Submit assessment</button>
                                 </div>
                               </div>
+                            } @else if (activeItem.controls.kind.value === 'Survey') {
+                              <div class="form-grid form-grid-two">
+                                <div title="The item type is chosen when you add the step.">
+                                  <span class="required-label">Item Type</span>
+                                  <div class="content-item-type-display">{{ activeItem.controls.kind.value }}</div>
+                                </div>
+
+                                <label title="Give this survey a short descriptive name.">
+                                  <span class="required-label">Survey Title <span class="required-marker" aria-hidden="true">*</span></span>
+                                  <input formControlName="title" type="text" [attr.data-content-item-title]="activeContentItemIndex()" placeholder="Example: Course Feedback Survey" />
+                                </label>
+                              </div>
+
+                              <div class="assessment-question-builder">
+                                <div class="assessment-question-header">
+                                  <div>
+                                    <p class="form-section-eyebrow">Questions</p>
+                                    <h4>Build this survey</h4>
+                                  </div>
+                                  <button type="button" class="assessment-add-btn" (click)="addSurveyQuestion(activeContentItemIndex())">Add question</button>
+                                </div>
+
+                                <div class="assessment-question-list" formArrayName="surveyQuestions">
+                                  @if (!surveyQuestionsAt(activeContentItemIndex()).length) {
+                                    <div class="assessment-status-banner" role="status" aria-live="polite">
+                                      No questions added yet. Use Add question to create the first one.
+                                    </div>
+                                  }
+
+                                  @for (question of surveyQuestionsAt(activeContentItemIndex()).controls; track $index; let questionIndex = $index) {
+                                    <div class="assessment-question-card" [formGroupName]="questionIndex">
+                                      <div class="assessment-question-topbar">
+                                        <div class="assessment-question-summary">
+                                          <strong>{{ question.controls.prompt.value || 'Untitled question' }}</strong>
+                                          <span>{{ question.controls.questionType.value }}{{ question.controls.required.value ? ' • Required' : '' }}</span>
+                                        </div>
+                                        <div class="assessment-question-actions">
+                                          <button type="button" class="content-item-toggle-btn" (click)="toggleSurveyQuestion(activeContentItemIndex(), questionIndex)">
+                                            {{ isSurveyQuestionExpanded(activeContentItemIndex(), questionIndex) ? 'Collapse' : 'Expand' }}
+                                          </button>
+                                          <button type="button" class="assessment-remove-btn" (click)="removeSurveyQuestion(activeContentItemIndex(), questionIndex)">Remove question</button>
+                                        </div>
+                                      </div>
+
+                                      @if (isSurveyQuestionExpanded(activeContentItemIndex(), questionIndex)) {
+                                        <div class="assessment-question-grid">
+                                          <label class="form-grid-span-two" title="Enter the question learners will answer.">
+                                            <span class="required-label">Question Prompt <span class="required-marker" aria-hidden="true">*</span></span>
+                                            <textarea formControlName="prompt" rows="2" placeholder="Add the survey question"></textarea>
+                                          </label>
+
+                                          <label>
+                                            <span class="required-label">Question Type <span class="required-marker" aria-hidden="true">*</span></span>
+                                            <select formControlName="questionType">
+                                              @for (surveyQuestionType of surveyQuestionTypeOptions; track surveyQuestionType) {
+                                                <option [value]="surveyQuestionType">{{ surveyQuestionType }}</option>
+                                              }
+                                            </select>
+                                          </label>
+
+                                          <label class="doc-toggle" [class.doc-toggle-active]="question.controls.required.value">
+                                            <input formControlName="required" type="checkbox" class="doc-toggle-input" />
+                                            <span class="doc-toggle-track" aria-hidden="true"><span class="doc-toggle-thumb"></span></span>
+                                            <span class="doc-toggle-label">Required</span>
+                                          </label>
+
+                                          @if (question.controls.questionType.value === 'Text') {
+                                            <label class="doc-toggle" [class.doc-toggle-active]="question.controls.allowLongAnswer.value">
+                                              <input formControlName="allowLongAnswer" type="checkbox" class="doc-toggle-input" />
+                                              <span class="doc-toggle-track" aria-hidden="true"><span class="doc-toggle-thumb"></span></span>
+                                              <span class="doc-toggle-label">Allow long answer</span>
+                                            </label>
+                                          }
+
+                                          @if (question.controls.questionType.value === 'Rating') {
+                                            <label>
+                                              <span class="required-label">Rating Scale (max) <span class="required-marker" aria-hidden="true">*</span></span>
+                                              <input formControlName="ratingScale" type="number" min="2" max="10" />
+                                            </label>
+                                          }
+
+                                          @if (isSurveyChoiceOrCheckboxes(activeContentItemIndex(), questionIndex)) {
+                                            <div class="assessment-choice-builder form-grid-span-two">
+                                              <div class="assessment-choice-header">
+                                                <div>
+                                                  <p class="form-section-eyebrow">Answer Options</p>
+                                                </div>
+                                                <button type="button" class="assessment-add-btn assessment-choice-add-btn" (click)="addSurveyOption(activeContentItemIndex(), questionIndex)">Add option</button>
+                                              </div>
+
+                                              <div class="assessment-choice-list" formArrayName="options">
+                                                @for (option of surveyOptionsAt(activeContentItemIndex(), questionIndex).controls; track $index; let optionIndex = $index) {
+                                                  <div class="assessment-choice-row" [formGroupName]="optionIndex">
+                                                    <label class="assessment-choice-text">
+                                                      <span class="required-label">Option {{ optionIndex + 1 }} <span class="required-marker" aria-hidden="true">*</span></span>
+                                                      <input formControlName="text" type="text" [placeholder]="'Option ' + (optionIndex + 1)" />
+                                                    </label>
+                                                    <button type="button" class="assessment-remove-btn assessment-choice-remove-btn" [disabled]="surveyOptionsAt(activeContentItemIndex(), questionIndex).length === 2" (click)="removeSurveyOption(activeContentItemIndex(), questionIndex, optionIndex)">Remove option</button>
+                                                  </div>
+                                                }
+                                              </div>
+
+                                              @if (question.errors && (question.touched || courseForm.touched) && question.errors['surveyChoiceMinOptions']) {
+                                                <span class="field-error">Add at least two answer options for this question.</span>
+                                              }
+                                            </div>
+                                          }
+                                        </div>
+                                      }
+                                    </div>
+                                  }
+                                </div>
+                              </div>
                             } @else {
                               <div class="form-grid form-grid-two">
                                 <div title="The item type is chosen when you add the step.">
@@ -3544,6 +3686,13 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                 </span>
                                 <strong>Add an assessment unit</strong>
                                 <span>Build a quiz, assignment, mentorship prompt, or acknowledgement flow.</span>
+                              </button>
+                              <button type="button" class="course-studio-empty-card" (click)="addContentItemFromMenu('Survey')">
+                                <span class="course-studio-upload-icon" aria-hidden="true">
+                                  <svg width="38" height="38" viewBox="0 0 24 24" fill="none"><path d="M9 7h6M9 11h6M9 15h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="4.5" y="4.5" width="15" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="m8 18.5 1.5 1.5L13 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                </span>
+                                <strong>Add a survey unit</strong>
+                                <span>Collect learner feedback with choice, text, rating, date, and file-upload questions.</span>
                               </button>
                             </div>
                           </section>
@@ -3724,6 +3873,126 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       </div>
                     } @else {
                       <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">No assignment submissions match the current search and filter.</div>
+                    }
+                  </section>
+                }
+
+                @if (selectedCoursesView() === 'survey-results') {
+                  <section class="activity-card">
+                    <div class="section-heading-row">
+                      <h2>Survey Results</h2>
+                      <span>Pick a course, then a survey unit, to see its response summary.</span>
+                    </div>
+
+                    <div class="admin-report-actions">
+                      <label class="admin-report-filter-field">
+                        <span>Course</span>
+                        <select [value]="selectedSurveyResultsOfferingId() ?? ''" (change)="onSurveyResultsOfferingChange($any($event.target).value)">
+                          <option value="">Select a course</option>
+                          @for (offering of surveyOfferings(); track offering.id) {
+                            <option [value]="offering.id">{{ offering.title }}</option>
+                          }
+                        </select>
+                      </label>
+
+                      <label class="admin-report-filter-field">
+                        <span>Survey</span>
+                        <select [value]="selectedSurveyResultsContentItemId() ?? ''" [disabled]="!surveyUnitsForSelectedOffering().length" (change)="selectedSurveyResultsContentItemId.set($any($event.target).value || null)">
+                          <option value="">Select a survey</option>
+                          @for (unit of surveyUnitsForSelectedOffering(); track unit.id) {
+                            <option [value]="unit.id">{{ unit.title }}</option>
+                          }
+                        </select>
+                      </label>
+                    </div>
+
+                    @if (!selectedSurveyContentItem()) {
+                      <div class="admin-empty-state">Pick a course and a survey unit to see its results.</div>
+                    } @else {
+                      <div class="admin-metric-card">
+                        <span>Responses</span>
+                        <strong>{{ selectedSurveyResponses().length }}</strong>
+                      </div>
+
+                      @for (breakdown of surveyQuestionBreakdown(); track breakdown.question.id) {
+                        <article class="admin-section-card">
+                          <div class="admin-section-card-header">
+                            <h2>{{ breakdown.question.prompt || 'Untitled question' }}</h2>
+                            <span>{{ breakdown.question.questionType }}</span>
+                          </div>
+
+                          @switch (breakdown.kind) {
+                            @case ('choice') {
+                              <div class="admin-report-table-wrap">
+                                <table class="admin-report-table">
+                                  <thead><tr><th>Option</th><th>Count</th><th>Percentage</th></tr></thead>
+                                  <tbody>
+                                    @for (row of breakdown.rows; track row.option) {
+                                      <tr><td>{{ row.option }}</td><td>{{ row.count }}</td><td>{{ row.percentage }}%</td></tr>
+                                    }
+                                  </tbody>
+                                </table>
+                              </div>
+                            }
+                            @case ('rating') {
+                              <p class="form-action-copy">Average: {{ breakdown.average }} / {{ breakdown.question.ratingScale }} ({{ breakdown.responseCount }} responses)</p>
+                              <div class="admin-report-table-wrap">
+                                <table class="admin-report-table">
+                                  <thead><tr><th>Rating</th><th>Count</th></tr></thead>
+                                  <tbody>
+                                    @for (row of breakdown.distribution; track row.value) {
+                                      <tr><td>{{ row.value }}</td><td>{{ row.count }}</td></tr>
+                                    }
+                                  </tbody>
+                                </table>
+                              </div>
+                            }
+                            @case ('text') {
+                              @if (breakdown.entries.length) {
+                                <ul class="survey-text-answer-list">
+                                  @for (entry of breakdown.entries; track $index) {
+                                    <li><strong>{{ entry.studentName }}</strong>: {{ entry.text || '—' }}</li>
+                                  }
+                                </ul>
+                              } @else {
+                                <div class="admin-empty-state">No responses yet.</div>
+                              }
+                            }
+                            @case ('date') {
+                              <div class="admin-report-table-wrap">
+                                <table class="admin-report-table">
+                                  <thead><tr><th>Student</th><th>Date</th></tr></thead>
+                                  <tbody>
+                                    @for (entry of breakdown.entries; track $index) {
+                                      <tr><td>{{ entry.studentName }}</td><td>{{ entry.date || '—' }}</td></tr>
+                                    }
+                                  </tbody>
+                                </table>
+                              </div>
+                            }
+                            @case ('file') {
+                              <div class="admin-report-table-wrap">
+                                <table class="admin-report-table">
+                                  <thead><tr><th>Student</th><th>File</th><th></th></tr></thead>
+                                  <tbody>
+                                    @for (entry of breakdown.entries; track $index) {
+                                      <tr>
+                                        <td>{{ entry.studentName }}</td>
+                                        <td>{{ entry.fileName || 'No file' }}</td>
+                                        <td>
+                                          @if (entry.fileDataUrl) {
+                                            <button type="button" class="admin-inline-btn" (click)="downloadSupportingDocument(entry.fileDataUrl, entry.fileName)">Download</button>
+                                          }
+                                        </td>
+                                      </tr>
+                                    }
+                                  </tbody>
+                                </table>
+                              </div>
+                            }
+                          }
+                        </article>
+                      }
                     }
                   </section>
                 }
@@ -6341,6 +6610,30 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       letter-spacing: 0.05em;
       text-transform: uppercase;
       z-index: 1;
+    }
+
+    .survey-text-answer-list {
+      display: grid;
+      gap: 0.5rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .survey-text-answer-list li {
+      padding: 0.6rem 0.75rem;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      border-radius: 10px;
+      background: #f8fbff;
+      color: #173446;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    .survey-text-answer-list li strong {
+      color: #64748b;
+      font-weight: 700;
+      margin-right: 0.35rem;
     }
 
     .admin-report-builder-grid-stack .admin-chip {
@@ -16125,9 +16418,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   // ── Courses panel (relocated from training-manager-profile.component.ts) ──────────
   readonly assessmentTypeOptions: ReadonlyArray<TrainingAssessmentType> = ['Quiz', 'Assignment'];
-  readonly contentKindOptions: ReadonlyArray<TrainingContentKind> = ['Video', 'Assessment', 'Document', 'Scorm'];
+  readonly contentKindOptions: ReadonlyArray<TrainingContentKind> = ['Video', 'Assessment', 'Document', 'Scorm', 'Survey'];
   readonly questionTypeOptions: ReadonlyArray<TrainingQuestionType> = ['Multiple Choice', 'Short Answer', 'True or False', 'Matching'];
   readonly assignmentQuestionTypeOptions: ReadonlyArray<TrainingQuestionType> = ['Long Answer', 'Document Upload'];
+  readonly surveyQuestionTypeOptions: ReadonlyArray<SurveyQuestionType> = ['Choice', 'Checkboxes', 'Text', 'Rating', 'Date', 'File Upload'];
 
   private readonly createSectionOrder: ReadonlyArray<CreateCourseSection> = ['basics', 'content'];
 
@@ -16266,6 +16560,116 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
     return this.filteredAssignmentSubmissions().find((submission) => submission.id === selectedId) ?? this.filteredAssignmentSubmissions()[0] ?? null;
   });
+
+  // ── Survey Results tab ─────────────────────────────────────────────────────────
+  readonly selectedSurveyResultsOfferingId = signal<string | null>(null);
+  readonly selectedSurveyResultsContentItemId = signal<string | null>(null);
+
+  readonly surveyOfferings = computed(() =>
+    this.managerData.offerings().filter((offering) => offering.contentItems.some((item) => item.kind === 'Survey')),
+  );
+
+  readonly surveyUnitsForSelectedOffering = computed(() => {
+    const offering = this.surveyOfferings().find((item) => item.id === this.selectedSurveyResultsOfferingId());
+    return offering ? offering.contentItems.filter((item) => item.kind === 'Survey') : [];
+  });
+
+  readonly selectedSurveyContentItem = computed(() =>
+    this.surveyUnitsForSelectedOffering().find((item) => item.id === this.selectedSurveyResultsContentItemId()) ?? null,
+  );
+
+  readonly selectedSurveyResponses = computed(() => {
+    const offeringId = this.selectedSurveyResultsOfferingId();
+    const contentItemId = this.selectedSurveyResultsContentItemId();
+
+    if (!offeringId || !contentItemId) {
+      return [];
+    }
+
+    return this.managerData.surveySubmissions().filter(
+      (submission) => submission.offeringId === offeringId && submission.contentItemId === contentItemId,
+    );
+  });
+
+  readonly surveyQuestionBreakdown = computed(() => {
+    const contentItem = this.selectedSurveyContentItem();
+    const responses = this.selectedSurveyResponses();
+
+    if (!contentItem) {
+      return [];
+    }
+
+    return contentItem.surveyQuestions.map((question) => {
+      const pairedAnswers = responses
+        .map((response) => {
+          const answer = response.answers.find((entry) => entry.questionId === question.id);
+          return answer ? { studentName: response.studentName, answer } : null;
+        })
+        .filter((entry): entry is { studentName: string; answer: SurveyAnswer } => entry !== null);
+
+      return { question, ...this.aggregateSurveyAnswers(question, pairedAnswers) };
+    });
+  });
+
+  onSurveyResultsOfferingChange(offeringId: string) {
+    this.selectedSurveyResultsOfferingId.set(offeringId || null);
+    this.selectedSurveyResultsContentItemId.set(null);
+  }
+
+  private aggregateSurveyAnswers(question: SurveyQuestion, pairedAnswers: Array<{ studentName: string; answer: SurveyAnswer }>) {
+    const total = pairedAnswers.length;
+
+    if (question.questionType === 'Choice' || question.questionType === 'Checkboxes') {
+      const counts = new Map<string, number>();
+      for (const option of question.options) {
+        counts.set(option.text, 0);
+      }
+      for (const { answer } of pairedAnswers) {
+        for (const selected of answer.selectedOptions) {
+          counts.set(selected, (counts.get(selected) ?? 0) + 1);
+        }
+      }
+
+      return {
+        kind: 'choice' as const,
+        rows: [...counts.entries()].map(([option, count]) => ({
+          option,
+          count,
+          percentage: total ? Math.round((count / total) * 100) : 0,
+        })),
+      };
+    }
+
+    if (question.questionType === 'Rating') {
+      const values = pairedAnswers.map(({ answer }) => answer.ratingValue).filter((value): value is number => value !== null);
+      const average = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+      const distribution = Array.from({ length: question.ratingScale }, (_, index) => {
+        const value = index + 1;
+        return { value, count: values.filter((entry) => entry === value).length };
+      });
+
+      return { kind: 'rating' as const, average: Math.round(average * 10) / 10, distribution, responseCount: values.length };
+    }
+
+    if (question.questionType === 'Date') {
+      return {
+        kind: 'date' as const,
+        entries: pairedAnswers.map(({ studentName, answer }) => ({ studentName, date: answer.dateResponse })),
+      };
+    }
+
+    if (question.questionType === 'File Upload') {
+      return {
+        kind: 'file' as const,
+        entries: pairedAnswers.map(({ studentName, answer }) => ({ studentName, fileName: answer.fileName, fileDataUrl: answer.fileDataUrl })),
+      };
+    }
+
+    return {
+      kind: 'text' as const,
+      entries: pairedAnswers.map(({ studentName, answer }) => ({ studentName, text: answer.textResponse })),
+    };
+  }
 
   readonly courseForm = new FormGroup({
     title: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -16585,6 +16989,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       questions: new FormArray<AssessmentQuestionFormGroup>(
         item?.questions?.map((question) => this.createQuestionGroup(question.questionType, question)) ?? [],
       ),
+      surveyQuestions: new FormArray<SurveyQuestionFormGroup>(
+        item?.surveyQuestions?.map((question) => this.createSurveyQuestionGroup(question)) ?? [],
+      ),
     });
   }
 
@@ -16626,6 +17033,49 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       prompt: new FormControl(pair.prompt ?? '', { nonNullable: true, validators: [Validators.required] }),
       answer: new FormControl(pair.answer ?? '', { nonNullable: true, validators: [Validators.required] }),
     });
+  }
+
+  createSurveyQuestionGroup(questionValue?: Partial<SurveyQuestion>): SurveyQuestionFormGroup {
+    const question = new FormGroup({
+      id: new FormControl(questionValue?.id ?? this.createSurveyQuestionId(), { nonNullable: true }),
+      prompt: new FormControl(questionValue?.prompt ?? '', { nonNullable: true, validators: [Validators.required] }),
+      questionType: new FormControl<SurveyQuestionType>(questionValue?.questionType ?? 'Choice', { nonNullable: true, validators: [Validators.required] }),
+      required: new FormControl(questionValue?.required ?? true, { nonNullable: true }),
+      options: new FormArray<SurveyQuestionOptionFormGroup>(
+        questionValue?.options?.map((option) => this.createSurveyQuestionOptionGroup(option)) ?? [],
+      ),
+      allowLongAnswer: new FormControl(questionValue?.allowLongAnswer ?? false, { nonNullable: true }),
+      ratingScale: new FormControl(questionValue?.ratingScale ?? 5, { nonNullable: true, validators: [Validators.required, Validators.min(2), Validators.max(10)] }),
+    });
+
+    question.addValidators((control) => this.validateSurveyQuestion(control));
+    return question;
+  }
+
+  createSurveyQuestionOptionGroup(option: Partial<SurveyQuestionOption> = {}): SurveyQuestionOptionFormGroup {
+    return new FormGroup({
+      text: new FormControl(option.text ?? '', { nonNullable: true, validators: [Validators.required] }),
+    });
+  }
+
+  private createSurveyQuestionId() {
+    return `survey-q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  private validateSurveyQuestion(control: AbstractControl): ValidationErrors | null {
+    if (!(control instanceof FormGroup)) {
+      return null;
+    }
+
+    const questionGroup = control as SurveyQuestionFormGroup;
+    const questionType = questionGroup.controls.questionType.value;
+    const needsOptions = questionType === 'Choice' || questionType === 'Checkboxes';
+
+    if (needsOptions && questionGroup.controls.options.length < 2) {
+      return { surveyChoiceMinOptions: true };
+    }
+
+    return null;
   }
 
   assessmentTypeForItem(itemIndex: number) {
@@ -16964,6 +17414,11 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       return `${item.controls.assessmentType.value ?? 'Quiz'} • ${questionCount} ${this.assessmentEntryLabel(index, questionCount)}`;
     }
 
+    if (kind === 'Survey') {
+      const questionCount = this.surveyQuestionsAt(index).length;
+      return `${questionCount} ${questionCount === 1 ? 'question' : 'questions'}`;
+    }
+
     if (item.controls.uploadedFileName.value) {
       return item.controls.uploadedFileName.value;
     }
@@ -16980,6 +17435,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
     if (item.controls.kind.value === 'Assessment') {
       return this.submittedAssessmentByItem()[index] ? 'Assessment confirmed' : 'Assessment setup';
+    }
+
+    if (item.controls.kind.value === 'Survey') {
+      return this.surveyQuestionsAt(index).length ? 'Survey ready' : 'Survey setup';
     }
 
     if (item.controls.kind.value === 'Document' && item.controls.requiresAcknowledgement.value) {
@@ -17023,6 +17482,68 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   isMatchingQuestion(itemIndex: number, questionIndex: number) {
     return this.assessmentQuestionsAt(itemIndex).at(questionIndex).controls.questionType.value === 'Matching';
+  }
+
+  surveyQuestionsAt(itemIndex: number): FormArray<SurveyQuestionFormGroup> {
+    return this.contentItemsArray.at(itemIndex).controls.surveyQuestions;
+  }
+
+  surveyOptionsAt(itemIndex: number, questionIndex: number): FormArray<SurveyQuestionOptionFormGroup> {
+    return this.surveyQuestionsAt(itemIndex).at(questionIndex).controls.options;
+  }
+
+  isSurveyChoiceOrCheckboxes(itemIndex: number, questionIndex: number) {
+    const questionType = this.surveyQuestionsAt(itemIndex).at(questionIndex).controls.questionType.value;
+    return questionType === 'Choice' || questionType === 'Checkboxes';
+  }
+
+  addSurveyQuestion(itemIndex: number) {
+    this.surveyQuestionsAt(itemIndex).push(this.createSurveyQuestionGroup());
+    this.expandedQuestionByItem.update((current) => ({
+      ...current,
+      [itemIndex]: this.surveyQuestionsAt(itemIndex).length - 1,
+    }));
+  }
+
+  removeSurveyQuestion(itemIndex: number, questionIndex: number) {
+    const questions = this.surveyQuestionsAt(itemIndex);
+    questions.removeAt(questionIndex);
+    this.expandedQuestionByItem.update((current) => ({
+      ...current,
+      [itemIndex]: questions.length ? Math.max(0, questionIndex - 1) : null,
+    }));
+  }
+
+  addSurveyOption(itemIndex: number, questionIndex: number) {
+    const question = this.surveyQuestionsAt(itemIndex).at(questionIndex);
+    question.controls.options.push(this.createSurveyQuestionOptionGroup());
+    question.markAsTouched();
+    question.updateValueAndValidity();
+  }
+
+  removeSurveyOption(itemIndex: number, questionIndex: number, optionIndex: number) {
+    const question = this.surveyQuestionsAt(itemIndex).at(questionIndex);
+    if (question.controls.options.length === 2) {
+      return;
+    }
+
+    question.controls.options.removeAt(optionIndex);
+    question.markAsTouched();
+    question.updateValueAndValidity();
+  }
+
+  // Deliberately reuses the same expandedQuestionByItem signal Assessment's expand/collapse
+  // uses — a content item is never both kinds at once, so there's no collision, and this avoids
+  // a parallel duplicate signal purely for Survey's own expand/collapse state.
+  isSurveyQuestionExpanded(itemIndex: number, questionIndex: number) {
+    return this.expandedQuestionByItem()[itemIndex] === questionIndex;
+  }
+
+  toggleSurveyQuestion(itemIndex: number, questionIndex: number) {
+    this.expandedQuestionByItem.update((current) => ({
+      ...current,
+      [itemIndex]: current[itemIndex] === questionIndex ? null : questionIndex,
+    }));
   }
 
   assessmentStatusMessage(itemIndex: number) {
@@ -17973,10 +18494,12 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     const videos = offering.contentItems.filter((item) => item.kind === 'Video').length;
     const documents = offering.contentItems.filter((item) => item.kind === 'Document').length;
     const scormPackages = offering.contentItems.filter((item) => item.kind === 'Scorm').length;
+    const surveys = offering.contentItems.filter((item) => item.kind === 'Survey').length;
     const parts = [
       videos ? `${videos} video${videos === 1 ? '' : 's'}` : '',
       documents ? `${documents} document${documents === 1 ? '' : 's'}` : '',
       scormPackages ? `${scormPackages} SCORM package${scormPackages === 1 ? '' : 's'}` : '',
+      surveys ? `${surveys} survey${surveys === 1 ? '' : 's'}` : '',
     ].filter(Boolean);
 
     return parts.length ? parts.join(' • ') : 'Assessment only';

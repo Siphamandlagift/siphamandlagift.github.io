@@ -25,6 +25,7 @@ import type {
   SuccessorNominationCreateInput,
   SuccessorNominationRecord,
   SuccessorNominationUpdateInput,
+  SurveySubmissionRecord,
   SystemTrainingManager,
   TrainingOffering,
   TrainingQuestionType,
@@ -79,6 +80,7 @@ export type LmsBootstrapResponse = {
   assignmentSubmissions: AssignmentSubmissionRecord[];
   mentorshipSubmissions: MentorshipSubmissionRecord[];
   quizSubmissions?: QuizSubmissionRecord[];
+  surveySubmissions?: SurveySubmissionRecord[];
   externalTrainingRequests: ExternalTrainingRequestRecord[];
   successionRoles?: SuccessionRoleRecord[];
   successorNominations?: SuccessorNominationRecord[];
@@ -639,5 +641,9 @@ export class LmsBackendService {
 
   upsertMentorshipSubmission(submission: MentorshipSubmissionRecord): Observable<MentorshipSubmissionRecord> {
     return this.http.post<MentorshipSubmissionRecord>(`${this.config.baseUrl}/mentorship-submissions`, submission);
+  }
+
+  upsertSurveySubmission(submission: SurveySubmissionRecord): Observable<SurveySubmissionRecord> {
+    return this.http.post<SurveySubmissionRecord>(`${this.config.baseUrl}/survey-submissions`, submission);
   }
 }

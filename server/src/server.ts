@@ -397,9 +397,23 @@ const trainingAssessmentQuestionSchema = z.object({
   attachmentDataUrl: z.string().optional(),
 });
 
+const surveyQuestionOptionSchema = z.object({
+  text: z.string(),
+});
+
+const surveyQuestionSchema = z.object({
+  id: z.string().min(1),
+  prompt: z.string(),
+  questionType: z.enum(['Choice', 'Checkboxes', 'Text', 'Rating', 'Date', 'File Upload']),
+  required: z.boolean(),
+  options: z.array(surveyQuestionOptionSchema),
+  allowLongAnswer: z.boolean(),
+  ratingScale: z.number().int().min(2).max(10),
+});
+
 const trainingContentItemSchema = z.object({
   id: z.string().min(1),
-  kind: z.enum(['Video', 'Assessment', 'Document', 'Scorm']),
+  kind: z.enum(['Video', 'Assessment', 'Document', 'Scorm', 'Survey']),
   title: z.string().min(1),
   assessmentType: z.enum(['Quiz', 'Assignment', 'Mentorship', 'Read and Acknowledge']).nullable(),
   passMarkPercentage: z.number().int().min(1).max(100).optional(),
@@ -412,6 +426,7 @@ const trainingContentItemSchema = z.object({
   allowDownload: z.boolean().optional(),
   durationSeconds: z.number().min(0).optional(),
   questions: z.array(trainingAssessmentQuestionSchema),
+  surveyQuestions: z.array(surveyQuestionSchema),
 });
 
 const trainingOfferingSchema = z.object({
@@ -663,6 +678,32 @@ const quizSubmissionSchema = z.object({
   scorePercentage: z.number(),
   scoreEarned: z.number(),
   scorePossible: z.number(),
+  submittedAt: z.string().min(1),
+});
+
+const surveyAnswerSchema = z.object({
+  questionId: z.string().min(1),
+  prompt: z.string(),
+  questionType: z.enum(['Choice', 'Checkboxes', 'Text', 'Rating', 'Date', 'File Upload']),
+  selectedOptions: z.array(z.string()),
+  textResponse: z.string(),
+  ratingValue: z.number().nullable(),
+  dateResponse: z.string(),
+  fileName: z.string(),
+  fileDataUrl: z.string(),
+});
+
+const surveySubmissionSchema = z.object({
+  id: z.string().min(1),
+  studentId: z.string().min(1),
+  studentName: z.string().min(1),
+  studentEmail: z.string().min(1),
+  courseId: z.string().min(1).optional(),
+  offeringId: z.string().min(1),
+  offeringTitle: z.string().min(1),
+  contentItemId: z.string().min(1),
+  surveyTitle: z.string().min(1),
+  answers: z.array(surveyAnswerSchema).min(1),
   submittedAt: z.string().min(1),
 });
 
@@ -3819,6 +3860,44 @@ app.post('/api/quiz-submissions', async (request, response, next) => {
     }
 
     response.status(201).json(await repository.upsertQuizSubmission(submission));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Mirrors GET /api/assignment-submissions/GET /api/quiz-submissions above — manager/admin only,
+// not used by any current frontend code (the admin Survey Results tab reads survey submissions
+// via the bootstrap-hydrated array instead, same convention as assignmentSubmissions).
+app.get('/api/survey-submissions', requireManagerOrAdministrator, async (request, response, next) => {
+  try {
+    const repository = request.repository!;
+    response.json(await repository.listSurveySubmissions());
+  } catch (error) {
+    next(error);
+  }
+});
+
+// A survey has no reviewer-writable fields (not graded, not reviewed) — the only authorization
+// question is ownership, same as the quiz-submissions route above. No requirePlanFeature gate:
+// content-item kinds are never plan-gated in this app, only separate student-profile features.
+app.post('/api/survey-submissions', async (request, response, next) => {
+  try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity || !request.repository) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+    const repository = request.repository;
+
+    const submission = surveySubmissionSchema.parse(request.body);
+    const isManagerOrAdmin = identity.role === 'administrator' || identity.role === 'training-manager';
+
+    if (!isManagerOrAdmin && !(await isOwnStudentRecord(repository, submission.studentId, identity))) {
+      response.status(403).json({ message: 'You can only submit your own survey response.' });
+      return;
+    }
+
+    response.status(201).json(await repository.upsertSurveySubmission(submission));
   } catch (error) {
     next(error);
   }
