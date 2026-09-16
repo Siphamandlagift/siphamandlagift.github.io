@@ -114,6 +114,10 @@ export type SurveyAnswer = {
   selectedOptions: string[];
   textResponse: string;
   ratingValue: number | null;
+  // Snapshot of the question's rating scale at submission time — see the matching field on the
+  // server's SurveyAnswerRecord for why (an admin editing the scale later mustn't retroactively
+  // reinterpret an already-recorded rating). Optional: older records won't have it.
+  ratingScale?: number;
   dateResponse: string;
   fileName: string;
   fileDataUrl: string;
@@ -134,6 +138,9 @@ export type SurveySubmissionRecord = {
 };
 
 export type TrainingAssessmentQuestion = {
+  // Optional: see the matching field on the server's TrainingAssessmentQuestion for why a
+  // persisted id matters (Assignment/Mentorship submission identity surviving question deletion).
+  id?: string;
   prompt: string;
   questionType: TrainingQuestionType;
   points: number;
@@ -1300,6 +1307,7 @@ export class TrainingManagerDataService {
       allowDownload?: boolean;
       durationSeconds?: number;
       questions: Array<{
+        id?: string;
         prompt: string;
         questionType: TrainingQuestionType;
         points: number;
@@ -1522,6 +1530,7 @@ export class TrainingManagerDataService {
       allowDownload?: boolean;
       durationSeconds?: number;
       questions: Array<{
+        id?: string;
         prompt: string;
         questionType: TrainingQuestionType;
         points: number;
@@ -1575,10 +1584,16 @@ export class TrainingManagerDataService {
         questions: item.kind === 'Assessment'
           ? item.questions
               .map((question) => ({
+                id: question.id?.trim() || this.createAssessmentQuestionIdFallback(),
                 prompt: question.prompt.trim(),
                 questionType: question.questionType,
                 points: Math.max(1, Number(question.points) || 1),
+                // Quiz Short Answer also keeps its (single) choice — that's where its
+                // admin-authored correct-answer text lives, per gradeQuizQuestion. Every other
+                // assessmentType's Short Answer has no such concept (human-reviewed, or
+                // auto-passing for Read and Acknowledge) and stays empty as before.
                 choices: question.questionType === 'Multiple Choice' || question.questionType === 'True or False'
+                  || (item.assessmentType === 'Quiz' && question.questionType === 'Short Answer')
                   ? question.choices
                       .map((choice) => ({
                         text: choice.text.trim(),
@@ -1623,6 +1638,10 @@ export class TrainingManagerDataService {
 
   private createSurveyQuestionIdFallback() {
     return `survey-q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  private createAssessmentQuestionIdFallback() {
+    return `assessment-q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
   private normalizePassMarkPercentage(value: number | undefined) {
@@ -2644,7 +2663,13 @@ export class TrainingManagerDataService {
       contentItemId: input.contentItemId,
       surveyTitle: input.surveyTitle,
       answers: input.answers,
-      submittedAt: this.formatDisplayDateTime(new Date()),
+      // ISO, not a pre-formatted display string like every other submission type's submittedAt
+      // — a locale-formatted "16 Sep 2026, 14:32" string sorts lexicographically (day digit
+      // first), which is NOT chronological order once responses span more than one month. ISO
+      // 8601's field order (year-month-day-hour-minute) makes plain string comparison correct,
+      // and callers format it for display at render time (see formatSurveySubmittedAt in
+      // admin-profile.component.ts) instead of storing the formatted string.
+      submittedAt: new Date().toISOString(),
     };
 
     const previousSubmissions = this.surveySubmissionsSignal();
@@ -4099,19 +4124,6 @@ export class TrainingManagerDataService {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
-    }).format(date);
-  }
-
-  // Survey submissions need the actual submission time, not just the date (unlike every other
-  // submission type in this file, which only ever displays a date) — a survey's results table
-  // has one row per submission and needs to show when each one actually came in.
-  private formatDisplayDateTime(date: Date) {
-    return new Intl.DateTimeFormat('en-ZA', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
     }).format(date);
   }
 

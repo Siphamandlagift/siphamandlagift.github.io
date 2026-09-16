@@ -387,6 +387,7 @@ const trainingMatchingPairSchema = z.object({
 });
 
 const trainingAssessmentQuestionSchema = z.object({
+  id: z.string().optional(),
   prompt: z.string(),
   questionType: z.enum(['Multiple Choice', 'Short Answer', 'Long Answer', 'Document Upload', 'True or False', 'Matching']),
   points: z.number(),
@@ -429,10 +430,34 @@ const trainingContentItemSchema = z.object({
   surveyQuestions: z.array(surveyQuestionSchema),
 });
 
-// category/description aren't .min(1) here — a survey-only course doesn't need them (see the
-// matching relaxation of their Validators in admin-profile.component.ts and the surveyOnly
-// check in training-manager-data.service.ts createOffering/updateOffering); every other course
-// still gets that requirement enforced client-side before a save is ever attempted.
+// category/description are only required unless the course is survey-only (every content item
+// kind 'Survey') — enforced here via superRefine rather than a blanket .min(1), which had
+// previously relaxed the requirement for EVERY course kind, not just survey-only ones (a bug:
+// a direct API call could save a Video/Document/Assessment course with a blank category or
+// description, since only the client-side Validators in admin-profile.component.ts were still
+// enforcing it). See the matching isSurveyOnlyCourse() there and the surveyOnly check in
+// training-manager-data.service.ts createOffering/updateOffering — all three must agree.
+function isSurveyOnlyContentItems(contentItems: { kind: string }[] | undefined): boolean {
+  return Boolean(contentItems && contentItems.length > 0 && contentItems.every((item) => item.kind === 'Survey'));
+}
+
+function requireCategoryAndDescriptionUnlessSurveyOnly(
+  value: { category: string; description: string; contentItems?: { kind: string }[] },
+  ctx: z.RefinementCtx,
+) {
+  if (isSurveyOnlyContentItems(value.contentItems)) {
+    return;
+  }
+
+  if (!value.category.trim()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['category'], message: 'Category is required.' });
+  }
+
+  if (!value.description.trim()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['description'], message: 'Description is required.' });
+  }
+}
+
 const trainingOfferingSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
@@ -444,7 +469,7 @@ const trainingOfferingSchema = z.object({
   contentItems: z.array(trainingContentItemSchema),
   createdOn: z.string().min(1),
   status: z.enum(['Published', 'Draft']),
-});
+}).superRefine(requireCategoryAndDescriptionUnlessSurveyOnly);
 
 const trainingOfferingUpdateSchema = z.object({
   id: z.string().min(1),
@@ -456,7 +481,7 @@ const trainingOfferingUpdateSchema = z.object({
   status: z.enum(['Published', 'Draft']),
   thumbnailDataUrl: z.string().nullable(),
   contentItems: z.array(trainingContentItemSchema).optional(),
-});
+}).superRefine(requireCategoryAndDescriptionUnlessSurveyOnly);
 
 const assignmentSubmissionSchema = z.object({
   id: z.string().min(1),
@@ -692,6 +717,7 @@ const surveyAnswerSchema = z.object({
   selectedOptions: z.array(z.string()),
   textResponse: z.string(),
   ratingValue: z.number().nullable(),
+  ratingScale: z.number().int().min(2).max(10).optional(),
   dateResponse: z.string(),
   fileName: z.string(),
   fileDataUrl: z.string(),
@@ -3536,6 +3562,50 @@ app.put('/api/manager-state', async (request, response, next) => {
       }
     }
 
+    // mentorshipSubmissions has no ownership/review-authorization check here at all, unlike the
+    // dedicated (but effectively unused — the client always goes through this endpoint instead)
+    // POST /api/mentorship-submissions route, which correctly restricts a review write
+    // (status/reviewer fields) to a manager/admin and a plain write to the submitting student's
+    // own record. Without the same check here, any authenticated student session could PATCH in
+    // {status: 'Approved', reviewerName: '...', awardedPoints: ...} for their own OR any other
+    // student's mentorship submission — a full authorization bypass, not just a missing
+    // attempt-limit check (see exceedsMaxAttempts above, also enforced here for the same reason
+    // it's enforced on the assignment-submissions route).
+    if (patch.mentorshipSubmissions) {
+      const identity = getAuthenticatedIdentity(request);
+      if (!identity) {
+        response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+        return;
+      }
+
+      const isManagerOrAdmin = identity.role === 'administrator' || identity.role === 'training-manager';
+
+      for (const submission of patch.mentorshipSubmissions) {
+        if (isReviewWrite(submission)) {
+          if (!isManagerOrAdmin) {
+            response.status(403).json({ message: 'Only a training manager or administrator can review a submission.' });
+            return;
+          }
+
+          continue;
+        }
+
+        if (isManagerOrAdmin) {
+          continue;
+        }
+
+        if (!(await isOwnStudentRecord(repository, submission.studentId, identity))) {
+          response.status(403).json({ message: 'You can only submit your own mentorship response.' });
+          return;
+        }
+
+        if (await exceedsMaxAttempts(repository, submission.offeringId, submission.assessmentId, submission.attemptsUsed)) {
+          response.status(409).json({ message: 'No attempts remain for this mentorship submission.' });
+          return;
+        }
+      }
+    }
+
     response.json(await repository.patchManagerState(patch));
   } catch (error) {
     next(error);
@@ -3772,6 +3842,23 @@ function isReviewWrite(submission: { status: string; reviewerName: string | null
     || (('awardedPoints' in submission) && submission.awardedPoints !== null);
 }
 
+// Assignment/Mentorship submissions have no scoped grading endpoint of their own (unlike Quiz's
+// gradeQuizAttempt, which independently checks attemptsUsed >= contentItem.maxAttempts server-side
+// before ever accepting a new attempt) — upsertAssignmentSubmission/upsertMentorshipSubmission
+// persist whatever attemptsUsed the client sends, with the only enforcement being the client's
+// own local signal, bypassable via a direct API call or a race between two sessions. This mirrors
+// that same check for the two routes below, applied only to the student's own new/resubmission
+// writes (a manager's review write isn't creating a new attempt, so it's exempt).
+async function exceedsMaxAttempts(repository: LmsRepository, offeringId: string, assessmentId: string | undefined, attemptsUsed: number | undefined) {
+  if (!assessmentId || typeof attemptsUsed !== 'number') {
+    return false;
+  }
+
+  const offerings = await repository.listOfferings();
+  const contentItem = offerings.find((offering) => offering.id === offeringId)?.contentItems.find((item) => item.id === assessmentId);
+  return typeof contentItem?.maxAttempts === 'number' && attemptsUsed > contentItem.maxAttempts;
+}
+
 app.post('/api/assignment-submissions', async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
@@ -3789,9 +3876,16 @@ app.post('/api/assignment-submissions', async (request, response, next) => {
         response.status(403).json({ message: 'Only a training manager or administrator can review a submission.' });
         return;
       }
-    } else if (!isManagerOrAdmin && !(await isOwnStudentRecord(repository, submission.studentId, identity))) {
-      response.status(403).json({ message: 'You can only submit your own assignment.' });
-      return;
+    } else {
+      if (!isManagerOrAdmin && !(await isOwnStudentRecord(repository, submission.studentId, identity))) {
+        response.status(403).json({ message: 'You can only submit your own assignment.' });
+        return;
+      }
+
+      if (await exceedsMaxAttempts(repository, submission.offeringId, submission.assessmentId, submission.attemptsUsed)) {
+        response.status(409).json({ message: 'No attempts remain for this assignment.' });
+        return;
+      }
     }
 
     response.status(201).json(await repository.upsertAssignmentSubmission(submission));

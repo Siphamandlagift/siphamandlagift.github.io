@@ -313,7 +313,8 @@ type ScormRuntimeState = {
                       [attr.aria-label]="video.title"
                       [src]="selectedVideoSource()"
                       (contextmenu)="$event.preventDefault()"
-                      (loadedmetadata)="onSelectedVideoMetadataLoaded($event)"></video>
+                      (loadedmetadata)="onSelectedVideoMetadataLoaded($event)"
+                      (ended)="onSelectedVideoEnded()"></video>
                   </ng-template>
 
                   <ng-template #workspaceVideoFallback>
@@ -2699,11 +2700,24 @@ export class StudentCoursesComponent {
 
     return this.assessmentAttemptKey(selectedCourse, selectedQuestionStepId);
   });
+  // 'Read and Acknowledge' has no dedicated submission path of its own anywhere in this file —
+  // by design it shares Quiz's server-graded attempt flow (gradeQuizAttempt), auto-passing since
+  // it has zero possible points. isAssessmentComplete's own fallback branch already reads
+  // assessmentAttempts for both types on that assumption. currentQuizAttemptKey/currentQuizAttempt
+  // below previously checked assessmentType === 'Quiz' ONLY (not the same "everything but
+  // Mentorship/Assignment" fallthrough this file uses elsewhere), which silently excluded Read
+  // and Acknowledge: its attemptKey came back '', submitAssessment()'s Quiz/Read-and-Acknowledge
+  // branch require()s a non-empty attemptKey, so every submit attempt failed with a generic
+  // error — this assessment type was completely unsubmittable end to end.
+  private isQuizGradedAssessmentType(assessmentType: TrainingAssessmentType | undefined) {
+    return assessmentType === 'Quiz' || assessmentType === 'Read and Acknowledge';
+  }
+
   readonly currentQuizAttemptKey = computed(() => {
     const selectedCourse = this.selectedCourse();
     const selectedStepId = this.selectedCourseStep()?.id?.trim() ?? '';
 
-    if (!selectedCourse || !selectedStepId || this.selectedAssessment()?.assessmentType !== 'Quiz') {
+    if (!selectedCourse || !selectedStepId || !this.isQuizGradedAssessmentType(this.selectedAssessment()?.assessmentType)) {
       return '';
     }
 
@@ -2779,7 +2793,7 @@ export class StudentCoursesComponent {
   });
   readonly isSurveySubmitted = computed(() => this.currentSurveySubmission() !== null);
   readonly currentQuizAttempt = computed<StudentAssessmentAttempt | null>(() => {
-    if (this.selectedAssessment()?.assessmentType !== 'Quiz') {
+    if (!this.isQuizGradedAssessmentType(this.selectedAssessment()?.assessmentType)) {
       return null;
     }
 
@@ -3131,7 +3145,17 @@ export class StudentCoursesComponent {
       this.selectedVideoTitle.set(step.video.title);
     }
 
-    if (step.kind === 'Video' || (step.kind === 'Document' && !step.document?.requiresAcknowledgement)) {
+    // Document (non-acknowledgement) already has its own, correct completion trigger —
+    // openSelectedDocument() marks it complete once the student actually clicks to open it, not
+    // merely on selecting the sidebar row. A natively-playable Video similarly gets its own
+    // trigger below (onSelectedVideoEnded, on actual playback completion). Both used to be made
+    // moot by this same unconditional call marking every Video/Document step "complete" the
+    // instant it was clicked in the sidebar — before a video had even loaded, let alone played,
+    // and before a document had ever been opened. The one case genuinely left without a better
+    // signal is a video with no natively-playable source (an iframe-embedded external link, or no
+    // source at all) — cross-origin embeds can't report playback progress back to this page, so
+    // "selected it" remains the only available signal there.
+    if (step.kind === 'Video' && !this.canPlaySelectedVideoInline()) {
       this.markStepComplete(step);
     }
   }
@@ -3172,6 +3196,12 @@ export class StudentCoursesComponent {
       [key]: this.formatVideoDuration(element.duration),
     }));
 
+    // Completion is tracked on actual playback finishing (onSelectedVideoEnded below), not on
+    // metadata merely loading — metadata loads automatically within moments of the <video>
+    // element rendering, regardless of whether the student has watched anything at all.
+  }
+
+  onSelectedVideoEnded() {
     this.markSelectedStepComplete();
   }
 
@@ -3362,6 +3392,7 @@ export class StudentCoursesComponent {
         selectedOptions: draft.selectedOptions,
         textResponse: draft.textResponse.trim(),
         ratingValue: draft.ratingValue,
+        ratingScale: question.questionType === 'Rating' ? question.ratingScale : undefined,
         dateResponse: draft.dateResponse,
         fileName: draft.fileName,
         fileDataUrl: draft.fileDataUrl,
@@ -4637,9 +4668,22 @@ export class StudentCoursesComponent {
           },
         ];
 
+    // Quiz (and Read and Acknowledge, which shares Quiz's grading path) MUST keep a
+    // position-derived id here: it's sent to the server as QuizSubmissionAnswerRecord.questionId,
+    // and gradeQuizAttempt matches it against ITS OWN position-derived computation
+    // (`${contentItem.id}-question-${index+1}`) over the server's stored questions — never the
+    // client's persisted question.id. Using the persisted id for those types would make every
+    // submitted answer fail to match server-side, silently grading everything as unanswered.
+    // Assignment/Mentorship have no such server-side recomputation to stay in sync with — each
+    // question is its own independently-submitted task, identified only by this id, which is why
+    // deleting an earlier question previously reshuffled every later question's position-derived
+    // id and silently misattributed its already-submitted work.
+    const usePersistedQuestionId = item.assessmentType === 'Assignment' || item.assessmentType === 'Mentorship';
     const questions = item.questions.length
       ? item.questions.map((question, questionIndex) => ({
-          id: this.createAssessmentStepId(offeringId, item.id, itemIndex, questionIndex),
+          id: usePersistedQuestionId && question.id?.trim()
+            ? question.id.trim()
+            : this.createAssessmentStepId(offeringId, item.id, itemIndex, questionIndex),
           questionType: question.questionType || fallbackQuestions[0]?.questionType || 'Multiple Choice',
           prompt: question.prompt || fallbackQuestions[0]?.prompt || item.title || fallback.title,
           points: typeof question.points === 'number' && Number.isFinite(question.points) && question.points > 0 ? question.points : 1,

@@ -19,6 +19,12 @@ export type TrainingMatchingPair = {
 };
 
 export type TrainingAssessmentQuestion = {
+  // Optional: older questions saved before this field existed have none, and fall back to a
+  // position-derived id (see createAssessmentStepId, student-courses.component.ts). A persisted
+  // id matters specifically for Assignment/Mentorship, where each question is its own
+  // independently-submitted task — deleting an earlier question shifted every later question's
+  // position-derived id, silently misattributing already-submitted work to the wrong task.
+  id?: string;
   prompt: string;
   questionType: TrainingQuestionType;
   points: number;
@@ -733,6 +739,10 @@ export type SurveyAnswerRecord = {
   selectedOptions: string[];
   textResponse: string;
   ratingValue: number | null;
+  // Snapshot of the question's scale at submission time (Rating only) — an admin editing the
+  // scale later must not silently reinterpret an already-recorded rating against the new max.
+  // Optional since records saved before this field existed won't have it.
+  ratingScale?: number;
   dateResponse: string;
   fileName: string;
   fileDataUrl: string;

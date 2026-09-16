@@ -72,6 +72,7 @@ type AssessmentChoiceFormGroup = FormGroup<{
 }>;
 
 type AssessmentQuestionFormGroup = FormGroup<{
+  id: FormControl<string>;
   prompt: FormControl<string>;
   questionType: FormControl<TrainingQuestionType>;
   points: FormControl<number>;
@@ -3327,6 +3328,20 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                             <input formControlName="points" type="number" min="1" (input)="onAssessmentQuestionPointsChanged(activeContentItemIndex(), questionIndex)" />
                                           </label>
 
+                                          @if (isQuizShortAnswerQuestion(activeContentItemIndex(), questionIndex)) {
+                                            <label class="form-grid-span-two" title="Learners must type this exact text to earn credit — grading is an exact (case/spacing-insensitive) match, not a judgement call.">
+                                              <span class="required-label">Correct Answer <span class="required-marker" aria-hidden="true">*</span></span>
+                                              <input
+                                                type="text"
+                                                [value]="quizShortAnswerCorrectAnswerValue(activeContentItemIndex(), questionIndex)"
+                                                (input)="updateQuizShortAnswerCorrectAnswer(activeContentItemIndex(), questionIndex, $any($event.target).value)"
+                                                placeholder="Type the exact answer learners must give" />
+                                              @if (!quizShortAnswerCorrectAnswerValue(activeContentItemIndex(), questionIndex)) {
+                                                <span class="field-hint">Left blank, this question awards full credit to every answer.</span>
+                                              }
+                                            </label>
+                                          }
+
                                           @if (supportsAssessmentAttachment(activeContentItemIndex())) {
                                             <label class="upload-field form-grid-span-two" [title]="assessmentAttachmentTitle(activeContentItemIndex())">
                                               {{ assessmentAttachmentLabel(activeContentItemIndex()) }}
@@ -3946,8 +3961,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                 <th>Student</th>
                                 <th>Email</th>
                                 <th>Submitted</th>
-                                @for (question of selectedSurveyContentItem()!.surveyQuestions; track question.id) {
-                                  <th>{{ question.prompt || 'Untitled question' }}</th>
+                                @for (column of surveyResultsColumns(); track column.id) {
+                                  <th>{{ column.label }}</th>
                                 }
                               </tr>
                             </thead>
@@ -16688,38 +16703,22 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   private buildSurveyResultsExportRows(): string[][] {
     const contentItem = this.selectedSurveyContentItem();
     const responses = this.selectedSurveyResponses();
+    const columns = this.surveyResultsColumns();
 
     if (!contentItem) {
       return [];
     }
 
-    const header = ['Student', 'Email', 'Submitted', ...contentItem.surveyQuestions.map((question) => question.prompt || 'Untitled question')];
+    const questionsById = new Map(contentItem.surveyQuestions.map((question) => [question.id, question]));
+    const header = ['Student', 'Email', 'Submitted', ...columns.map((column) => column.label)];
 
     const rows = responses.map((response) => [
       response.studentName,
       response.studentEmail,
-      response.submittedAt,
-      ...contentItem.surveyQuestions.map((question) => {
-        const answer = response.answers.find((entry) => entry.questionId === question.id);
-        if (!answer) {
-          return '';
-        }
-
-        switch (answer.questionType) {
-          case 'Choice':
-            return answer.selectedOptions[0] ?? '';
-          case 'Checkboxes':
-            return answer.selectedOptions.join('; ');
-          case 'Rating':
-            return answer.ratingValue !== null ? String(answer.ratingValue) : '';
-          case 'Date':
-            return answer.dateResponse;
-          case 'File Upload':
-            return answer.fileName;
-          default:
-            return answer.textResponse;
-        }
-      }),
+      this.formatSurveySubmittedAt(response.submittedAt),
+      ...columns.map((column) =>
+        this.formatSurveyAnswerCell(response.answers.find((entry) => entry.questionId === column.id), questionsById.get(column.id)).text,
+      ),
     ]);
 
     return [header, ...rows];
@@ -16774,10 +16773,14 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     );
   }
 
-  // Rows-of-respondents / columns-of-questions, matching buildSurveyResultsExportRows' shape —
-  // the on-screen table and the CSV/XLSX download show the same data now, not an aggregated
-  // summary on screen and raw data only in the download.
-  readonly surveyResponseTableRows = computed(() => {
+  // The column set is the union of the survey's CURRENT questions and any question id still
+  // referenced by a stored answer but no longer present (deleted after it collected responses)
+  // — otherwise deleting a question would silently drop its historical answers from every view,
+  // even though SurveyAnswerRecord still has them. Shared by the on-screen table and the
+  // CSV/XLSX export so the two can't drift apart the way they previously had (the export already
+  // read answer.questionType correctly; the table read the live question's instead, and editing
+  // a question's type/scale after responses existed silently corrupted its historical display).
+  readonly surveyResultsColumns = computed(() => {
     const contentItem = this.selectedSurveyContentItem();
     const responses = this.selectedSurveyResponses();
 
@@ -16785,15 +16788,64 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       return [];
     }
 
+    const columns = contentItem.surveyQuestions.map((question) => ({ id: question.id, label: question.prompt || 'Untitled question' }));
+    const knownIds = new Set(columns.map((column) => column.id));
+
+    for (const response of responses) {
+      for (const answer of response.answers) {
+        if (knownIds.has(answer.questionId)) {
+          continue;
+        }
+
+        knownIds.add(answer.questionId);
+        columns.push({ id: answer.questionId, label: `${answer.prompt || 'Untitled question'} (removed)` });
+      }
+    }
+
+    return columns;
+  });
+
+  // Rows-of-respondents / columns-of-questions, matching buildSurveyResultsExportRows' shape —
+  // the on-screen table and the CSV/XLSX download show the same data now, not an aggregated
+  // summary on screen and raw data only in the download.
+  readonly surveyResponseTableRows = computed(() => {
+    const contentItem = this.selectedSurveyContentItem();
+    const responses = this.selectedSurveyResponses();
+    const columns = this.surveyResultsColumns();
+
+    if (!contentItem) {
+      return [];
+    }
+
+    const questionsById = new Map(contentItem.surveyQuestions.map((question) => [question.id, question]));
+
     return responses.map((response) => ({
       studentName: response.studentName,
       studentEmail: response.studentEmail,
-      submittedAt: response.submittedAt,
-      cells: contentItem.surveyQuestions.map((question) =>
-        this.formatSurveyAnswerCell(question, response.answers.find((entry) => entry.questionId === question.id)),
+      submittedAt: this.formatSurveySubmittedAt(response.submittedAt),
+      cells: columns.map((column) =>
+        this.formatSurveyAnswerCell(response.answers.find((entry) => entry.questionId === column.id), questionsById.get(column.id)),
       ),
     }));
   });
+
+  // submittedAt is stored as an ISO timestamp (see submitSurveySubmission) specifically so it
+  // sorts chronologically as plain text — this formats it for display only. Falls back to the
+  // raw stored value for a record saved before that fix, rather than showing "Invalid Date".
+  private formatSurveySubmittedAt(submittedAt: string): string {
+    const date = new Date(submittedAt);
+    if (Number.isNaN(date.getTime())) {
+      return submittedAt;
+    }
+
+    return new Intl.DateTimeFormat('en-ZA', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
+  }
 
   updateSurveyResultsSearch(term: string) {
     this.surveyResultsSearchTerm.set(term);
@@ -16815,18 +16867,27 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     ).length;
   }
 
-  private formatSurveyAnswerCell(question: SurveyQuestion, answer: SurveyAnswer | undefined) {
+  // Reads answer.questionType, not the live question's — a question's type/scale can be edited
+  // by the admin after it already has responses, and each answer snapshots what was actually
+  // true when it was submitted (SurveyAnswerRecord.questionType/ratingScale). Reading the live
+  // question instead would silently reinterpret (or misrender as "unanswered") historical data
+  // whenever a question changed. `question` is only a fallback for ratingScale on records saved
+  // before that field existed, and is entirely absent for a deleted question's column.
+  private formatSurveyAnswerCell(answer: SurveyAnswer | undefined, question: SurveyQuestion | undefined) {
     if (!answer) {
       return { text: '—', fileDataUrl: null as string | null, fileName: '' };
     }
 
-    switch (question.questionType) {
+    switch (answer.questionType) {
       case 'Choice':
         return { text: answer.selectedOptions[0] || '—', fileDataUrl: null, fileName: '' };
       case 'Checkboxes':
         return { text: answer.selectedOptions.length ? answer.selectedOptions.join(', ') : '—', fileDataUrl: null, fileName: '' };
-      case 'Rating':
-        return { text: answer.ratingValue !== null ? `${answer.ratingValue} / ${question.ratingScale}` : '—', fileDataUrl: null, fileName: '' };
+      case 'Rating': {
+        const scale = answer.ratingScale ?? question?.ratingScale;
+        const text = answer.ratingValue === null ? '—' : scale ? `${answer.ratingValue} / ${scale}` : String(answer.ratingValue);
+        return { text, fileDataUrl: null, fileName: '' };
+      }
       case 'Date':
         return { text: answer.dateResponse || '—', fileDataUrl: null, fileName: '' };
       case 'File Upload':
@@ -17156,7 +17217,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       allowDownload: new FormControl(item?.allowDownload !== false, { nonNullable: true }),
       durationSeconds: new FormControl<number | null>(item?.durationSeconds ?? null),
       questions: new FormArray<AssessmentQuestionFormGroup>(
-        item?.questions?.map((question) => this.createQuestionGroup(question.questionType, question)) ?? [],
+        item?.questions?.map((question) => this.createQuestionGroup(question.questionType, question, item?.assessmentType)) ?? [],
       ),
       surveyQuestions: new FormArray<SurveyQuestionFormGroup>(
         item?.surveyQuestions?.map((question) => this.createSurveyQuestionGroup(question)) ?? [],
@@ -17167,9 +17228,11 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   createQuestionGroup(
     questionType: TrainingQuestionType = 'Multiple Choice',
     questionValue?: Partial<TrainingOffering['contentItems'][number]['questions'][number]>,
+    assessmentType?: TrainingAssessmentType | null,
   ): AssessmentQuestionFormGroup {
     const resolvedQuestionType = questionValue?.questionType ?? questionType;
     const question = new FormGroup({
+      id: new FormControl(questionValue?.id ?? this.createAssessmentQuestionId(), { nonNullable: true }),
       prompt: new FormControl(questionValue?.prompt ?? '', { nonNullable: true, validators: [Validators.required] }),
       questionType: new FormControl<TrainingQuestionType>(resolvedQuestionType, { nonNullable: true, validators: [Validators.required] }),
       points: new FormControl(questionValue?.points ?? 5, { nonNullable: true, validators: [Validators.required, Validators.min(1)] }),
@@ -17185,7 +17248,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     });
 
     question.addValidators((control) => this.validateAssessmentQuestion(control));
-    this.normalizeQuestionDetails(question);
+    this.normalizeQuestionDetails(question, assessmentType);
     return question;
   }
 
@@ -17229,6 +17292,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   private createSurveyQuestionId() {
     return `survey-q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  private createAssessmentQuestionId() {
+    return `assessment-q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
   private validateSurveyQuestion(control: AbstractControl): ValidationErrors | null {
@@ -17449,19 +17516,33 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         question.patchValue({ questionType: defaultQuestionType });
       }
 
-      this.normalizeQuestionDetails(question);
+      this.normalizeQuestionDetails(question, assessmentType);
     }
   }
 
   onAssessmentQuestionTypeChanged(itemIndex: number, questionIndex: number, questionType: TrainingQuestionType) {
     const question = this.assessmentQuestionsAt(itemIndex).at(questionIndex);
     question.controls.questionType.setValue(questionType);
-    this.normalizeQuestionDetails(question);
+    this.normalizeQuestionDetails(question, this.assessmentTypeForItem(itemIndex));
     this.submittedAssessmentByItem.update((current) => ({ ...current, [itemIndex]: false }));
     this.assessmentStatusByItem.update((current) => ({
       ...current,
       [itemIndex]: { tone: 'info', message: `${questionType} format selected for this ${this.assessmentEntryLabel(itemIndex, 1)}.` },
     }));
+  }
+
+  isQuizShortAnswerQuestion(itemIndex: number, questionIndex: number) {
+    const question = this.assessmentQuestionsAt(itemIndex).at(questionIndex);
+    return this.assessmentTypeForItem(itemIndex) === 'Quiz' && question.controls.questionType.value === 'Short Answer';
+  }
+
+  quizShortAnswerCorrectAnswerValue(itemIndex: number, questionIndex: number) {
+    return this.assessmentQuestionsAt(itemIndex).at(questionIndex).controls.choices.at(0)?.controls.text.value ?? '';
+  }
+
+  updateQuizShortAnswerCorrectAnswer(itemIndex: number, questionIndex: number, value: string) {
+    const correctChoice = this.assessmentQuestionsAt(itemIndex).at(questionIndex).controls.choices.at(0);
+    correctChoice?.controls.text.setValue(value);
   }
 
   addContentItem(kind: TrainingContentKind) {
@@ -17743,8 +17824,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   }
 
   addAssessmentQuestion(itemIndex: number) {
-    const questionType = this.defaultQuestionTypeForAssessment(this.assessmentTypeForItem(itemIndex));
-    this.assessmentQuestionsAt(itemIndex).push(this.createQuestionGroup(questionType));
+    const assessmentType = this.assessmentTypeForItem(itemIndex);
+    const questionType = this.defaultQuestionTypeForAssessment(assessmentType);
+    this.assessmentQuestionsAt(itemIndex).push(this.createQuestionGroup(questionType, undefined, assessmentType));
     this.expandedQuestionByItem.update((current) => ({
       ...current,
       [itemIndex]: this.assessmentQuestionsAt(itemIndex).length - 1,
@@ -17976,7 +18058,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     ];
   }
 
-  private normalizeQuestionDetails(question: AssessmentQuestionFormGroup) {
+  private normalizeQuestionDetails(question: AssessmentQuestionFormGroup, assessmentType?: TrainingAssessmentType | null) {
     const choices = question.controls.choices;
     const matchingPairs = question.controls.matchingPairs;
 
@@ -18043,12 +18125,32 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       return;
     }
 
-    while (choices.length) {
-      choices.removeAt(0);
-    }
-
     while (matchingPairs.length) {
       matchingPairs.removeAt(0);
+    }
+
+    // Short Answer is the one question type shared by three different assessmentTypes with
+    // completely different meanings: for Mentorship/Read and Acknowledge it's a free-text
+    // response with no "correct answer" concept (human-reviewed or auto-passing respectively —
+    // choices stay empty, same as before). For Quiz specifically, it's auto-graded by
+    // gradeQuizQuestion via exact-text match against choices[].isCorrect — but until now there
+    // was no UI to ever populate that choice, so every Quiz Short Answer question silently hit
+    // gradeQuizQuestion's "no correctOptions configured → award full credit regardless of
+    // answer" fallback. Seed (and preserve) exactly one choice to hold that correct-answer text.
+    if (assessmentType === 'Quiz' && question.controls.questionType.value === 'Short Answer') {
+      if (!choices.length) {
+        choices.push(this.createChoiceGroup({ points: Math.max(1, question.controls.points.value || 1), isCorrect: true }));
+      }
+
+      while (choices.length > 1) {
+        choices.removeAt(1);
+      }
+
+      choices.at(0).controls.isCorrect.setValue(true, { emitEvent: false });
+    } else {
+      while (choices.length) {
+        choices.removeAt(0);
+      }
     }
 
     question.controls.dragAndDropEnabled.setValue(false, { emitEvent: false });

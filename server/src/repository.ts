@@ -865,7 +865,7 @@ function gradeQuizQuestion(question: TrainingAssessmentQuestion, answer: QuizSub
 
   const correctOptions = question.choices
     .filter((choice) => choice.isCorrect && choice.text.trim())
-    .map((choice) => choice.text.trim())
+    .map((choice) => choice.text.trim().toLowerCase())
     .filter(Boolean);
   const possiblePoints = possiblePointsBase;
 
@@ -877,7 +877,12 @@ function gradeQuizQuestion(question: TrainingAssessmentQuestion, answer: QuizSub
     question.questionType === 'Short Answer' || question.questionType === 'Long Answer'
       ? answer?.responseText
       : answer?.selectedOption
-  )?.trim() ?? '';
+  )?.trim().toLowerCase() ?? '';
+  // Case-insensitive: only meaningfully matters for the free-typed Short/Long Answer case (a
+  // Multiple Choice/True-or-False selectedOption is copied verbatim from a rendered choice's own
+  // text, so it already matched exactly either way) — a Quiz Short Answer's correct-answer text
+  // is admin-typed too, and requiring students to match its exact capitalisation would be an
+  // unreasonable, easy-to-fail bar for what's meant to be a simple fact-recall check.
   const isCorrect = correctOptions.includes(submittedAnswer);
 
   return { earnedPoints: isCorrect ? possiblePoints : 0, possiblePoints };
