@@ -8441,12 +8441,24 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .content-item-toggle-btn:hover,
-    .content-item-toggle-btn:focus-visible,
-    .assessment-add-btn:hover,
-    .assessment-add-btn:focus-visible {
+    .content-item-toggle-btn:focus-visible {
       transform: translateY(-1px);
       border-color: rgba(56, 189, 248, 0.32);
       box-shadow: 0 3px 10px rgba(15, 23, 42, 0.1);
+      outline: none;
+    }
+
+    .assessment-add-btn {
+      border-color: transparent;
+      background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
+      color: #fff;
+      box-shadow: 0 2px 6px rgba(23, 52, 70, 0.18);
+    }
+
+    .assessment-add-btn:hover,
+    .assessment-add-btn:focus-visible {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(23, 52, 70, 0.24);
       outline: none;
     }
 
