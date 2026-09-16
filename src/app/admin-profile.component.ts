@@ -3936,84 +3936,40 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         </div>
                       </div>
 
-                      @for (breakdown of surveyQuestionBreakdown(); track breakdown.question.id) {
-                        <article class="admin-section-card">
-                          <div class="admin-section-card-header">
-                            <h2>{{ breakdown.question.prompt || 'Untitled question' }}</h2>
-                            <span>{{ breakdown.question.questionType }}</span>
-                          </div>
-
-                          @switch (breakdown.kind) {
-                            @case ('choice') {
-                              <div class="admin-report-table-wrap">
-                                <table class="admin-report-table">
-                                  <thead><tr><th>Option</th><th>Count</th><th>Percentage</th></tr></thead>
-                                  <tbody>
-                                    @for (row of breakdown.rows; track row.option) {
-                                      <tr><td>{{ row.option }}</td><td>{{ row.count }}</td><td>{{ row.percentage }}%</td></tr>
-                                    }
-                                  </tbody>
-                                </table>
-                              </div>
-                            }
-                            @case ('rating') {
-                              <p class="form-action-copy">Average: {{ breakdown.average }} / {{ breakdown.question.ratingScale }} ({{ breakdown.responseCount }} responses)</p>
-                              <div class="admin-report-table-wrap">
-                                <table class="admin-report-table">
-                                  <thead><tr><th>Rating</th><th>Count</th></tr></thead>
-                                  <tbody>
-                                    @for (row of breakdown.distribution; track row.value) {
-                                      <tr><td>{{ row.value }}</td><td>{{ row.count }}</td></tr>
-                                    }
-                                  </tbody>
-                                </table>
-                              </div>
-                            }
-                            @case ('text') {
-                              @if (breakdown.entries.length) {
-                                <ul class="survey-text-answer-list">
-                                  @for (entry of breakdown.entries; track $index) {
-                                    <li><strong>{{ entry.studentName }}</strong>: {{ entry.text || '—' }}</li>
+                      @if (!selectedSurveyResponses().length) {
+                        <div class="admin-empty-state">No responses yet.</div>
+                      } @else {
+                        <div class="admin-report-table-wrap">
+                          <table class="admin-report-table">
+                            <thead>
+                              <tr>
+                                <th>Student</th>
+                                <th>Email</th>
+                                <th>Submitted</th>
+                                @for (question of selectedSurveyContentItem()!.surveyQuestions; track question.id) {
+                                  <th>{{ question.prompt || 'Untitled question' }}</th>
+                                }
+                              </tr>
+                            </thead>
+                            <tbody>
+                              @for (row of surveyResponseTableRows(); track $index) {
+                                <tr>
+                                  <td>{{ row.studentName }}</td>
+                                  <td>{{ row.studentEmail }}</td>
+                                  <td>{{ row.submittedAt }}</td>
+                                  @for (cell of row.cells; track $index) {
+                                    <td>
+                                      {{ cell.text }}
+                                      @if (cell.fileDataUrl) {
+                                        <button type="button" class="admin-inline-btn" (click)="downloadSupportingDocument(cell.fileDataUrl, cell.fileName)">Download</button>
+                                      }
+                                    </td>
                                   }
-                                </ul>
-                              } @else {
-                                <div class="admin-empty-state">No responses yet.</div>
+                                </tr>
                               }
-                            }
-                            @case ('date') {
-                              <div class="admin-report-table-wrap">
-                                <table class="admin-report-table">
-                                  <thead><tr><th>Student</th><th>Date</th></tr></thead>
-                                  <tbody>
-                                    @for (entry of breakdown.entries; track $index) {
-                                      <tr><td>{{ entry.studentName }}</td><td>{{ entry.date || '—' }}</td></tr>
-                                    }
-                                  </tbody>
-                                </table>
-                              </div>
-                            }
-                            @case ('file') {
-                              <div class="admin-report-table-wrap">
-                                <table class="admin-report-table">
-                                  <thead><tr><th>Student</th><th>File</th><th></th></tr></thead>
-                                  <tbody>
-                                    @for (entry of breakdown.entries; track $index) {
-                                      <tr>
-                                        <td>{{ entry.studentName }}</td>
-                                        <td>{{ entry.fileName || 'No file' }}</td>
-                                        <td>
-                                          @if (entry.fileDataUrl) {
-                                            <button type="button" class="admin-inline-btn" (click)="downloadSupportingDocument(entry.fileDataUrl, entry.fileName)">Download</button>
-                                          }
-                                        </td>
-                                      </tr>
-                                    }
-                                  </tbody>
-                                </table>
-                              </div>
-                            }
-                          }
-                        </article>
+                            </tbody>
+                          </table>
+                        </div>
                       }
                     }
                   </section>
@@ -6632,30 +6588,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       letter-spacing: 0.05em;
       text-transform: uppercase;
       z-index: 1;
-    }
-
-    .survey-text-answer-list {
-      display: grid;
-      gap: 0.5rem;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .survey-text-answer-list li {
-      padding: 0.6rem 0.75rem;
-      border: 1px solid rgba(148, 163, 184, 0.22);
-      border-radius: 10px;
-      background: #f8fbff;
-      color: #173446;
-      font-size: 0.85rem;
-      line-height: 1.5;
-    }
-
-    .survey-text-answer-list li strong {
-      color: #64748b;
-      font-weight: 700;
-      margin-right: 0.35rem;
     }
 
     .survey-result-card-grid {
@@ -16842,7 +16774,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     );
   }
 
-  readonly surveyQuestionBreakdown = computed(() => {
+  // Rows-of-respondents / columns-of-questions, matching buildSurveyResultsExportRows' shape —
+  // the on-screen table and the CSV/XLSX download show the same data now, not an aggregated
+  // summary on screen and raw data only in the download.
+  readonly surveyResponseTableRows = computed(() => {
     const contentItem = this.selectedSurveyContentItem();
     const responses = this.selectedSurveyResponses();
 
@@ -16850,16 +16785,14 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       return [];
     }
 
-    return contentItem.surveyQuestions.map((question) => {
-      const pairedAnswers = responses
-        .map((response) => {
-          const answer = response.answers.find((entry) => entry.questionId === question.id);
-          return answer ? { studentName: response.studentName, answer } : null;
-        })
-        .filter((entry): entry is { studentName: string; answer: SurveyAnswer } => entry !== null);
-
-      return { question, ...this.aggregateSurveyAnswers(question, pairedAnswers) };
-    });
+    return responses.map((response) => ({
+      studentName: response.studentName,
+      studentEmail: response.studentEmail,
+      submittedAt: response.submittedAt,
+      cells: contentItem.surveyQuestions.map((question) =>
+        this.formatSurveyAnswerCell(question, response.answers.find((entry) => entry.questionId === question.id)),
+      ),
+    }));
   });
 
   updateSurveyResultsSearch(term: string) {
@@ -16882,59 +16815,25 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     ).length;
   }
 
-  private aggregateSurveyAnswers(question: SurveyQuestion, pairedAnswers: Array<{ studentName: string; answer: SurveyAnswer }>) {
-    const total = pairedAnswers.length;
-
-    if (question.questionType === 'Choice' || question.questionType === 'Checkboxes') {
-      const counts = new Map<string, number>();
-      for (const option of question.options) {
-        counts.set(option.text, 0);
-      }
-      for (const { answer } of pairedAnswers) {
-        for (const selected of answer.selectedOptions) {
-          counts.set(selected, (counts.get(selected) ?? 0) + 1);
-        }
-      }
-
-      return {
-        kind: 'choice' as const,
-        rows: [...counts.entries()].map(([option, count]) => ({
-          option,
-          count,
-          percentage: total ? Math.round((count / total) * 100) : 0,
-        })),
-      };
+  private formatSurveyAnswerCell(question: SurveyQuestion, answer: SurveyAnswer | undefined) {
+    if (!answer) {
+      return { text: '—', fileDataUrl: null as string | null, fileName: '' };
     }
 
-    if (question.questionType === 'Rating') {
-      const values = pairedAnswers.map(({ answer }) => answer.ratingValue).filter((value): value is number => value !== null);
-      const average = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
-      const distribution = Array.from({ length: question.ratingScale }, (_, index) => {
-        const value = index + 1;
-        return { value, count: values.filter((entry) => entry === value).length };
-      });
-
-      return { kind: 'rating' as const, average: Math.round(average * 10) / 10, distribution, responseCount: values.length };
+    switch (question.questionType) {
+      case 'Choice':
+        return { text: answer.selectedOptions[0] || '—', fileDataUrl: null, fileName: '' };
+      case 'Checkboxes':
+        return { text: answer.selectedOptions.length ? answer.selectedOptions.join(', ') : '—', fileDataUrl: null, fileName: '' };
+      case 'Rating':
+        return { text: answer.ratingValue !== null ? `${answer.ratingValue} / ${question.ratingScale}` : '—', fileDataUrl: null, fileName: '' };
+      case 'Date':
+        return { text: answer.dateResponse || '—', fileDataUrl: null, fileName: '' };
+      case 'File Upload':
+        return { text: answer.fileName || '—', fileDataUrl: answer.fileDataUrl || null, fileName: answer.fileName };
+      default:
+        return { text: answer.textResponse || '—', fileDataUrl: null, fileName: '' };
     }
-
-    if (question.questionType === 'Date') {
-      return {
-        kind: 'date' as const,
-        entries: pairedAnswers.map(({ studentName, answer }) => ({ studentName, date: answer.dateResponse })),
-      };
-    }
-
-    if (question.questionType === 'File Upload') {
-      return {
-        kind: 'file' as const,
-        entries: pairedAnswers.map(({ studentName, answer }) => ({ studentName, fileName: answer.fileName, fileDataUrl: answer.fileDataUrl })),
-      };
-    }
-
-    return {
-      kind: 'text' as const,
-      entries: pairedAnswers.map(({ studentName, answer }) => ({ studentName, text: answer.textResponse })),
-    };
   }
 
   readonly courseForm = new FormGroup({

@@ -2644,7 +2644,7 @@ export class TrainingManagerDataService {
       contentItemId: input.contentItemId,
       surveyTitle: input.surveyTitle,
       answers: input.answers,
-      submittedAt: this.formatDisplayDate(new Date()),
+      submittedAt: this.formatDisplayDateTime(new Date()),
     };
 
     const previousSubmissions = this.surveySubmissionsSignal();
@@ -4099,6 +4099,19 @@ export class TrainingManagerDataService {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
+    }).format(date);
+  }
+
+  // Survey submissions need the actual submission time, not just the date (unlike every other
+  // submission type in this file, which only ever displays a date) — a survey's results table
+  // has one row per submission and needs to show when each one actually came in.
+  private formatDisplayDateTime(date: Date) {
+    return new Intl.DateTimeFormat('en-ZA', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     }).format(date);
   }
 
