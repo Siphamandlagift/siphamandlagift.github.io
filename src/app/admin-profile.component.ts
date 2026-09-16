@@ -3879,39 +3879,51 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
                 @if (selectedCoursesView() === 'survey-results') {
                   <section class="activity-card">
-                    <div class="section-heading-row">
-                      <h2>Survey Results</h2>
-                      <span>Pick a course, then a survey unit, to see its response summary.</span>
-                    </div>
-
-                    <div class="admin-report-actions">
-                      <label class="admin-report-filter-field">
-                        <span>Course</span>
-                        <select [value]="selectedSurveyResultsOfferingId() ?? ''" (change)="onSurveyResultsOfferingChange($any($event.target).value)">
-                          <option value="">Select a course</option>
-                          @for (offering of surveyOfferings(); track offering.id) {
-                            <option [value]="offering.id">{{ offering.title }}</option>
-                          }
-                        </select>
-                      </label>
-
-                      <label class="admin-report-filter-field">
-                        <span>Survey</span>
-                        <select [value]="selectedSurveyResultsContentItemId() ?? ''" [disabled]="!surveyUnitsForSelectedOffering().length" (change)="selectedSurveyResultsContentItemId.set($any($event.target).value || null)">
-                          <option value="">Select a survey</option>
-                          @for (unit of surveyUnitsForSelectedOffering(); track unit.id) {
-                            <option [value]="unit.id">{{ unit.title }}</option>
-                          }
-                        </select>
-                      </label>
-                    </div>
-
                     @if (!selectedSurveyContentItem()) {
-                      <div class="admin-empty-state">Pick a course and a survey unit to see its results.</div>
+                      <div class="section-heading-row">
+                        <h2>Survey Results</h2>
+                        <span class="admin-chip">{{ filteredSurveyCards().length }} survey{{ filteredSurveyCards().length === 1 ? '' : 's' }}</span>
+                      </div>
+
+                      <div class="admin-toolbar">
+                        <label class="admin-search-field">
+                          <span>Search surveys</span>
+                          <input
+                            type="search"
+                            [value]="surveyResultsSearchTerm()"
+                            (input)="updateSurveyResultsSearch($any($event.target).value)"
+                            placeholder="Search by survey or course name" />
+                        </label>
+                      </div>
+
+                      @if (!filteredSurveyCards().length) {
+                        <div class="admin-empty-state">
+                          {{ allSurveyCards().length ? 'No surveys match your search.' : 'No surveys yet — add a Survey unit to a course to see it here.' }}
+                        </div>
+                      } @else {
+                        <div class="offering-list survey-result-card-grid">
+                          @for (card of filteredSurveyCards(); track card.contentItem.id) {
+                            <button type="button" class="survey-result-card" (click)="openSurveyResults(card.offeringId, card.contentItem.id)">
+                              <span class="survey-result-card-icon" aria-hidden="true">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M9 7h6M9 11h6M9 15h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="4.5" y="4.5" width="15" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="m8 18.5 1.5 1.5L13 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                              </span>
+                              <span class="survey-result-card-copy">
+                                <strong>{{ card.contentItem.title }}</strong>
+                                <span>{{ card.offeringTitle }}</span>
+                              </span>
+                              <span class="survey-result-card-count">{{ surveyResponseCount(card.offeringId, card.contentItem.id) }} response{{ surveyResponseCount(card.offeringId, card.contentItem.id) === 1 ? '' : 's' }}</span>
+                            </button>
+                          }
+                        </div>
+                      }
                     } @else {
-                      <div class="admin-metric-card">
-                        <span>Responses</span>
-                        <strong>{{ selectedSurveyResponses().length }}</strong>
+                      <div class="section-heading-row mentorship-review-heading-row">
+                        <div>
+                          <button type="button" class="admin-secondary-btn survey-result-back-btn" (click)="closeSurveyResults()">Back to surveys</button>
+                          <h2>{{ selectedSurveyContentItem()!.title }}</h2>
+                          <span>{{ selectedSurveyOffering()?.title }}</span>
+                        </div>
+                        <span class="admin-chip">{{ selectedSurveyResponses().length }} response{{ selectedSurveyResponses().length === 1 ? '' : 's' }}</span>
                       </div>
 
                       @for (breakdown of surveyQuestionBreakdown(); track breakdown.question.id) {
@@ -6634,6 +6646,90 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       color: #64748b;
       font-weight: 700;
       margin-right: 0.35rem;
+    }
+
+    .survey-result-card-grid {
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      margin-top: 1rem;
+    }
+
+    .survey-result-card {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.9rem 1rem;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 16px;
+      background: #ffffff;
+      color: #173446;
+      text-align: left;
+      font: inherit;
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+
+    .survey-result-card:hover,
+    .survey-result-card:focus-visible {
+      outline: none;
+      transform: translateY(-2px);
+      border-color: rgba(56, 189, 248, 0.4);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
+    }
+
+    .survey-result-card-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      width: 2.6rem;
+      height: 2.6rem;
+      border-radius: 14px;
+      background: var(--admin-tint);
+      color: var(--admin-primary);
+    }
+
+    .survey-result-card-copy {
+      display: grid;
+      gap: 0.18rem;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .survey-result-card-copy strong {
+      color: #173446;
+      font-size: 0.92rem;
+      line-height: 1.25;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .survey-result-card-copy span {
+      color: #64748b;
+      font-size: 0.78rem;
+      line-height: 1.3;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .survey-result-card-count {
+      flex: 0 0 auto;
+      padding: 0.3rem 0.6rem;
+      border-radius: 999px;
+      background: #eef2ff;
+      color: #4f46e5;
+      font-size: 0.72rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .survey-result-back-btn {
+      min-height: 2.1rem;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.8rem;
+      margin-bottom: 0.5rem;
     }
 
     .admin-report-builder-grid-stack .admin-chip {
@@ -16586,10 +16682,34 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   // ── Survey Results tab ─────────────────────────────────────────────────────────
   readonly selectedSurveyResultsOfferingId = signal<string | null>(null);
   readonly selectedSurveyResultsContentItemId = signal<string | null>(null);
+  readonly surveyResultsSearchTerm = signal('');
 
   readonly surveyOfferings = computed(() =>
     this.managerData.offerings().filter((offering) => offering.contentItems.some((item) => item.kind === 'Survey')),
   );
+
+  // One card per survey unit across every course, not scoped to any one offering — the grid is
+  // the primary way in, so it needs to show every survey up front, not just one course's worth.
+  readonly allSurveyCards = computed(() =>
+    this.surveyOfferings().flatMap((offering) =>
+      offering.contentItems
+        .filter((item) => item.kind === 'Survey')
+        .map((item) => ({ offeringId: offering.id, offeringTitle: offering.title, contentItem: item })),
+    ),
+  );
+
+  readonly filteredSurveyCards = computed(() => {
+    const term = this.surveyResultsSearchTerm().trim().toLowerCase();
+    const cards = this.allSurveyCards();
+
+    if (!term) {
+      return cards;
+    }
+
+    return cards.filter((card) =>
+      card.contentItem.title.toLowerCase().includes(term) || card.offeringTitle.toLowerCase().includes(term),
+    );
+  });
 
   readonly surveyUnitsForSelectedOffering = computed(() => {
     const offering = this.surveyOfferings().find((item) => item.id === this.selectedSurveyResultsOfferingId());
@@ -16598,6 +16718,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   readonly selectedSurveyContentItem = computed(() =>
     this.surveyUnitsForSelectedOffering().find((item) => item.id === this.selectedSurveyResultsContentItemId()) ?? null,
+  );
+
+  readonly selectedSurveyOffering = computed(() =>
+    this.surveyOfferings().find((offering) => offering.id === this.selectedSurveyResultsOfferingId()) ?? null,
   );
 
   readonly selectedSurveyResponses = computed(() => {
@@ -16633,9 +16757,24 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     });
   });
 
-  onSurveyResultsOfferingChange(offeringId: string) {
-    this.selectedSurveyResultsOfferingId.set(offeringId || null);
+  updateSurveyResultsSearch(term: string) {
+    this.surveyResultsSearchTerm.set(term);
+  }
+
+  openSurveyResults(offeringId: string, contentItemId: string) {
+    this.selectedSurveyResultsOfferingId.set(offeringId);
+    this.selectedSurveyResultsContentItemId.set(contentItemId);
+  }
+
+  closeSurveyResults() {
+    this.selectedSurveyResultsOfferingId.set(null);
     this.selectedSurveyResultsContentItemId.set(null);
+  }
+
+  surveyResponseCount(offeringId: string, contentItemId: string) {
+    return this.managerData.surveySubmissions().filter(
+      (submission) => submission.offeringId === offeringId && submission.contentItemId === contentItemId,
+    ).length;
   }
 
   private aggregateSurveyAnswers(question: SurveyQuestion, pairedAnswers: Array<{ studentName: string; answer: SurveyAnswer }>) {
@@ -16754,6 +16893,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       this.assignmentWorkspaceReviewForm.reset({ awardedPoints: firstSubmission?.awardedPoints ?? null, feedback: firstSubmission?.reviewerFeedback ?? '' });
     }
     this.assignmentWorkspaceReviewError.set('');
+
+    if (view !== 'survey-results') {
+      this.closeSurveyResults();
+    }
 
     this.selectedCoursesView.set(view);
   }
