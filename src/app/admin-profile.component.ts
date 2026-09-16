@@ -3923,7 +3923,17 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           <h2>{{ selectedSurveyContentItem()!.title }}</h2>
                           <span>{{ selectedSurveyOffering()?.title }}</span>
                         </div>
-                        <span class="admin-chip">{{ selectedSurveyResponses().length }} response{{ selectedSurveyResponses().length === 1 ? '' : 's' }}</span>
+                        <div class="admin-report-actions">
+                          <span class="admin-chip">{{ selectedSurveyResponses().length }} response{{ selectedSurveyResponses().length === 1 ? '' : 's' }}</span>
+                          <label class="admin-report-filter-field admin-report-download-field">
+                            <span>Download As</span>
+                            <select [value]="selectedSurveyResultsDownloadFormat()" (change)="updateSurveyResultsDownloadFormat($event)">
+                              <option value="CSV">CSV</option>
+                              <option value="XLSX">XLSX</option>
+                            </select>
+                          </label>
+                          <button type="button" class="admin-primary-btn" [disabled]="!canDownloadSurveyResults()" (click)="downloadSurveyResults()">Download report</button>
+                        </div>
                       </div>
 
                       @for (breakdown of surveyQuestionBreakdown(); track breakdown.question.id) {
@@ -16683,6 +16693,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly selectedSurveyResultsOfferingId = signal<string | null>(null);
   readonly selectedSurveyResultsContentItemId = signal<string | null>(null);
   readonly surveyResultsSearchTerm = signal('');
+  readonly selectedSurveyResultsDownloadFormat = signal<ReportDownloadFormat>('CSV');
 
   readonly surveyOfferings = computed(() =>
     this.managerData.offerings().filter((offering) => offering.contentItems.some((item) => item.kind === 'Survey')),
@@ -16736,6 +16747,100 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       (submission) => submission.offeringId === offeringId && submission.contentItemId === contentItemId,
     );
   });
+
+  readonly canDownloadSurveyResults = computed(() => this.selectedSurveyResponses().length > 0);
+
+  // One row per respondent, one column per question — the raw data behind the on-screen
+  // breakdown, so an admin can pivot/analyse it however they like rather than being limited to
+  // the aggregated tables shown on screen.
+  private buildSurveyResultsExportRows(): string[][] {
+    const contentItem = this.selectedSurveyContentItem();
+    const responses = this.selectedSurveyResponses();
+
+    if (!contentItem) {
+      return [];
+    }
+
+    const header = ['Student', 'Email', 'Submitted', ...contentItem.surveyQuestions.map((question) => question.prompt || 'Untitled question')];
+
+    const rows = responses.map((response) => [
+      response.studentName,
+      response.studentEmail,
+      response.submittedAt,
+      ...contentItem.surveyQuestions.map((question) => {
+        const answer = response.answers.find((entry) => entry.questionId === question.id);
+        if (!answer) {
+          return '';
+        }
+
+        switch (answer.questionType) {
+          case 'Choice':
+            return answer.selectedOptions[0] ?? '';
+          case 'Checkboxes':
+            return answer.selectedOptions.join('; ');
+          case 'Rating':
+            return answer.ratingValue !== null ? String(answer.ratingValue) : '';
+          case 'Date':
+            return answer.dateResponse;
+          case 'File Upload':
+            return answer.fileName;
+          default:
+            return answer.textResponse;
+        }
+      }),
+    ]);
+
+    return [header, ...rows];
+  }
+
+  private surveyResultsDownloadFileName() {
+    const title = this.selectedSurveyContentItem()?.title.trim() || 'survey';
+    return title.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'survey';
+  }
+
+  updateSurveyResultsDownloadFormat(event: Event) {
+    const input = event.target as HTMLSelectElement | null;
+    this.selectedSurveyResultsDownloadFormat.set(input?.value === 'XLSX' ? 'XLSX' : 'CSV');
+  }
+
+  downloadSurveyResults() {
+    if (this.selectedSurveyResultsDownloadFormat() === 'XLSX') {
+      void this.downloadSurveyResultsXlsx();
+      return;
+    }
+
+    this.downloadSurveyResultsCsv();
+  }
+
+  downloadSurveyResultsCsv() {
+    const rows = this.buildSurveyResultsExportRows();
+    if (!rows.length) {
+      return;
+    }
+
+    const csv = rows
+      .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+
+    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `${this.surveyResultsDownloadFileName()}-results.csv`);
+  }
+
+  async downloadSurveyResultsXlsx() {
+    const rows = this.buildSurveyResultsExportRows();
+    if (!rows.length) {
+      return;
+    }
+
+    const xlsx = await import('xlsx');
+    const workbook = xlsx.utils.book_new();
+    const worksheet = xlsx.utils.aoa_to_sheet(rows);
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Responses');
+    const workbookArray = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
+    this.triggerDownload(
+      new Blob([workbookArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      `${this.surveyResultsDownloadFileName()}-results.xlsx`,
+    );
+  }
 
   readonly surveyQuestionBreakdown = computed(() => {
     const contentItem = this.selectedSurveyContentItem();
