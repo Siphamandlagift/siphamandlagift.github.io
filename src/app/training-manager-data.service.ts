@@ -1332,7 +1332,11 @@ export class TrainingManagerDataService {
     const normalizedDescription = input.description.trim();
     const normalizedContentItems = this.normalizeOfferingContentItems(input.contentItems, normalizedTitle);
 
-    if (!normalizedTitle || !normalizedCategory || !normalizedDescription) {
+    // A course made up entirely of survey units doesn't need Category/Description — see the
+    // matching relaxation of those fields' Validators in admin-profile.component.ts.
+    const surveyOnly = input.contentItems.length > 0 && input.contentItems.every((item) => item.kind === 'Survey');
+
+    if (!normalizedTitle || (!surveyOnly && (!normalizedCategory || !normalizedDescription))) {
       return null;
     }
 
@@ -1420,8 +1424,10 @@ export class TrainingManagerDataService {
     const normalizedCategory = input.category.trim();
     const normalizedDescription = input.description.trim();
     const normalizedContentItems = input.contentItems ? this.normalizeOfferingContentItems(input.contentItems, normalizedTitle) : undefined;
+    const contentItemsForSurveyCheck = input.contentItems ?? this.offerings().find((offering) => offering.id === input.id)?.contentItems ?? [];
+    const surveyOnly = contentItemsForSurveyCheck.length > 0 && contentItemsForSurveyCheck.every((item) => item.kind === 'Survey');
 
-    if (!normalizedTitle || !normalizedCategory || !normalizedDescription) {
+    if (!normalizedTitle || (!surveyOnly && (!normalizedCategory || !normalizedDescription))) {
       return null;
     }
 

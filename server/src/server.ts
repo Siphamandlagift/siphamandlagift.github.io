@@ -429,12 +429,16 @@ const trainingContentItemSchema = z.object({
   surveyQuestions: z.array(surveyQuestionSchema),
 });
 
+// category/description aren't .min(1) here — a survey-only course doesn't need them (see the
+// matching relaxation of their Validators in admin-profile.component.ts and the surveyOnly
+// check in training-manager-data.service.ts createOffering/updateOffering); every other course
+// still gets that requirement enforced client-side before a save is ever attempted.
 const trainingOfferingSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
   type: z.enum(['Course', 'Programme']),
-  category: z.string().min(1),
-  description: z.string().min(1),
+  category: z.string(),
+  description: z.string(),
   completionDeadline: z.string(),
   thumbnailDataUrl: z.string().nullable(),
   contentItems: z.array(trainingContentItemSchema),
@@ -446,8 +450,8 @@ const trainingOfferingUpdateSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
   type: z.enum(['Course', 'Programme']),
-  category: z.string().min(1),
-  description: z.string().min(1),
+  category: z.string(),
+  description: z.string(),
   completionDeadline: z.string(),
   status: z.enum(['Published', 'Draft']),
   thumbnailDataUrl: z.string().nullable(),

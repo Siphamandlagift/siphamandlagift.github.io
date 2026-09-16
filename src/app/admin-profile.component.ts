@@ -3137,7 +3137,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                               </label>
 
                               <label title="Use a category to group related learning items.">
-                                <span class="required-label">Category <span class="required-marker" aria-hidden="true">*</span></span>
+                                <span class="required-label">Category @if (!isSurveyOnlyCourse()) { <span class="required-marker" aria-hidden="true">*</span> }</span>
                                 <input formControlName="category" type="text" placeholder="Examples: Onboarding, Compliance, Leadership" />
                                 @if (courseForm.controls.category.touched && courseForm.controls.category.invalid) {
                                   <span class="field-error">Add a category to organise the item.</span>
@@ -3216,7 +3216,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                               }
 
                               <label class="form-grid-span-two" title="Add a compact summary learners will see before starting the item.">
-                                <span class="required-label">Course Description <span class="required-marker" aria-hidden="true">*</span></span>
+                                <span class="required-label">Course Description @if (!isSurveyOnlyCourse()) { <span class="required-marker" aria-hidden="true">*</span> }</span>
                                 <textarea formControlName="description" rows="5" placeholder="Add a short summary of what learners will cover."></textarea>
                                 @if (courseForm.controls.description.touched && courseForm.controls.description.invalid) {
                                   <span class="field-error">Add a longer description so learners know what to expect.</span>
@@ -17308,7 +17308,28 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       }));
     }
 
+    this.updateCourseDetailValidators();
     this.focusContentItemTitle(nextIndex);
+  }
+
+  // A course made up entirely of survey units doesn't need the generic Category/Description
+  // fields that exist to organise/summarise a traditional course of videos, documents, or
+  // assessments — a survey's own title and questions already say what it's for. Keeping the
+  // course-level Category/Description required for it just blocked publishing with no benefit.
+  isSurveyOnlyCourse() {
+    const items = this.contentItemsArray.controls;
+    return items.length > 0 && items.every((item) => item.controls.kind.value === 'Survey');
+  }
+
+  updateCourseDetailValidators() {
+    const surveyOnly = this.isSurveyOnlyCourse();
+    const category = this.courseForm.controls.category;
+    const description = this.courseForm.controls.description;
+
+    category.setValidators(surveyOnly ? [] : [Validators.required]);
+    description.setValidators(surveyOnly ? [] : [Validators.required, Validators.minLength(12)]);
+    category.updateValueAndValidity({ emitEvent: false });
+    description.updateValueAndValidity({ emitEvent: false });
   }
 
   removeContentItem(index: number) {
@@ -17354,6 +17375,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     if (!this.contentItemsArray.length) {
       this.expandedContentIndex.set(null);
     }
+
+    this.updateCourseDetailValidators();
   }
 
   openContentItemDetails(index: number) {
@@ -18460,6 +18483,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.openCreateSection(section);
     this.expandedContentIndex.set(section === 'content' && offering.contentItems.length ? 0 : null);
     this.restorePresentationPreviews();
+    this.updateCourseDetailValidators();
   }
 
   private resetCourseBuilder() {
@@ -18484,6 +18508,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.selectedCreateSection.set('basics');
     this.editingCourseId.set(null);
     this.presentationPreviewByItem.set(new Map());
+    this.updateCourseDetailValidators();
   }
 
   offeringAssessmentCount(offering: TrainingOffering) {
