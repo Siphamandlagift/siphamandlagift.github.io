@@ -162,6 +162,7 @@ type PublishedOfferingPresentationPreview = {
                         <powerpoint-window
                           [viewerTitle]="'PowerPoint file for ' + preview.fileName"
                           [sourceDataUrl]="item.uploadedFileDataUrl || null"
+                          [sourceUrl]="item.resourceLink || null"
                           [sourceFileName]="preview.fileName"
                           [emptyMessage]="preview.message"></powerpoint-window>
                       </div>

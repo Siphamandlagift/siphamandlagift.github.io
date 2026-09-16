@@ -490,10 +490,8 @@ export class LmsBackendService {
     });
   }
 
-  convertPptxToPdf(file: File): Observable<{ pdfUrl: string }> {
-    const formData = new FormData();
-    formData.append('file', file);
-    return this.http.post<{ pdfUrl: string }>(`${this.config.baseUrl}/storage/convert-pptx`, formData);
+  convertPptxToPdf(path: string): Observable<{ pdfUrl: string }> {
+    return this.http.post<{ pdfUrl: string }>(`${this.config.baseUrl}/storage/convert-pptx`, { path });
   }
 
   getStudentSnapshot(studentId = this.config.defaultStudentId): Observable<StudentSnapshotResponse> {

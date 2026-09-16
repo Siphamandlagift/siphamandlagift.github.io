@@ -227,6 +227,7 @@ type ScormRuntimeState = {
                     <powerpoint-window
                       [viewerTitle]="'PowerPoint file for ' + presentationPreview.fileName"
                       [sourceDataUrl]="document.uploadedDataUrl || null"
+                      [sourceUrl]="document.resourceLink || null"
                       [sourceFileName]="presentationPreview.fileName"
                       [emptyMessage]="presentationPreview.message"
                       (downloaded)="handleSelectedDocumentDownload()"></powerpoint-window>
@@ -4715,15 +4716,26 @@ export class StudentCoursesComponent {
     return `${baseId}-question-${questionIndex + 1}`;
   }
 
+  // Prefers the course step's own stable id over the document's title — a title-based key meant
+  // an admin swapping a Document unit's uploaded file/link (keeping the same title) silently
+  // carried students' prior acknowledgement of the OLD content over to the new content, never
+  // re-prompting them to review it; conversely, renaming a title orphaned the acknowledgement
+  // key even though the id-keyed completedCourseSteps still considered that step done. Falls
+  // back to title only for the legacy "no course-step selected" lookup path (see
+  // selectedDocument's own fallback below), where no step id is available.
+  // Note: this changes the key format, so a document acknowledged before this fix will show as
+  // not-yet-acknowledged once (a one-time re-prompt), the unavoidable cost of correcting an
+  // identity key that previously collided across genuinely different content.
   private selectedDocumentKey() {
     const courseName = this.selectedCourse()?.name;
-    const documentTitle = this.selectedDocument()?.title;
+    const document = this.selectedDocument();
 
-    if (!courseName || !documentTitle) {
+    if (!courseName || !document) {
       return '';
     }
 
-    return `${courseName}::${documentTitle}`;
+    const stepId = this.selectedCourseStep()?.document ? this.selectedCourseStep()?.id : undefined;
+    return `${courseName}::${stepId ?? document.title}`;
   }
 
   private selectedVideoKey() {
@@ -4856,7 +4868,9 @@ export class StudentCoursesComponent {
     }
 
     if (step.kind === 'Document' && step.document?.requiresAcknowledgement) {
-      return this.acknowledgedDocuments()[this.documentKey(courseName, step.document.title)] ?? false;
+      // Same `${courseName}::${step.id}` format selectedDocumentKey() now writes under — must
+      // match exactly, or a real acknowledgement would never be recognized as complete here.
+      return this.acknowledgedDocuments()[this.courseStepKey(courseName, step.id)] ?? false;
     }
 
     return false;
@@ -5019,9 +5033,5 @@ export class StudentCoursesComponent {
 
   private clearAssessmentSubmissionFeedback() {
     this.assessmentSubmissionFeedback.set(null);
-  }
-
-  private documentKey(courseName: string, documentTitle: string) {
-    return `${courseName}::${documentTitle}`;
   }
 }

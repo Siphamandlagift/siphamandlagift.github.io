@@ -1970,24 +1970,46 @@ async function convertPptxViaDriveApi(fileBuffer: Buffer): Promise<Buffer> {
   }
 }
 
-// Separate multer instance for PPTX conversion — allow larger files (up to 50 MB).
-const pptxUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 },
-});
-
-app.post('/api/storage/convert-pptx', pptxUpload.single('file'), async (request, response, next) => {
+// Used to be a separate multer instance accepting the .pptx/.ppt file directly — but any
+// stream-based multipart parser (multer/busboy) reliably fails with "Unexpected end of form" on
+// this Firebase Functions deployment (the Functions runtime pre-buffers the whole request body
+// before Express ever sees it, draining the stream multer expects to read from — see the SCORM
+// upload route's own comment for the fuller explanation, and processScormZipBuffer for the same
+// fix applied there first). This route no longer receives the file at all: the client already
+// uploaded it via the ordinary chunked-upload relay (the SAME "content-items" upload every other
+// content file goes through, well before this route is ever called) and just hands back the
+// Storage path that upload already landed at — no second upload, no multer, nothing to fail.
+app.post('/api/storage/convert-pptx', async (request, response, next) => {
   try {
-    const file = request.file;
-    if (!file) {
-      response.status(400).json({ message: 'No file provided.' });
+    const { path: uploadedPath } = z.object({
+      path: z.string().min(1),
+    }).parse(request.body);
+
+    // Only ever a path this server itself handed back from the earlier content-items upload for
+    // this exact company — never let the client name an arbitrary bucket path to read.
+    const expectedPrefix = `lms-uploads/${request.authIdentity!.companyId}/content-items/`;
+    if (!uploadedPath.startsWith(expectedPrefix) || !/\.pptx?$/i.test(uploadedPath)) {
+      response.status(400).json({ message: 'Invalid file reference. Please try uploading again.' });
       return;
     }
-    const lowerName = file.originalname.toLowerCase();
-    if (!lowerName.endsWith('.pptx') && !lowerName.endsWith('.ppt')) {
-      response.status(400).json({ message: 'Only .pptx or .ppt files are supported for conversion.' });
+
+    if (!storageBucket) {
+      response.status(503).json({ message: 'Firebase Storage is not configured on this server.' });
       return;
     }
+
+    const adminApp = getApps().length > 0 ? getApp() : initializeApp();
+    const bucket = getStorage(adminApp).bucket(storageBucket);
+    const uploadedFile = bucket.file(uploadedPath);
+
+    const [exists] = await uploadedFile.exists();
+    if (!exists) {
+      response.status(400).json({ message: 'Uploaded file could not be found. Please try uploading again.' });
+      return;
+    }
+
+    const [fileBuffer] = await uploadedFile.download();
+    const originalExtension = path.extname(uploadedPath) || '.pptx';
 
     let pdfBuffer: Buffer;
 
@@ -1995,8 +2017,8 @@ app.post('/api/storage/convert-pptx', pptxUpload.single('file'), async (request,
     if (soffice) {
       // LibreOffice path (local dev or servers with LibreOffice installed)
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lms-pptx-'));
-      const pptxPath = path.join(tmpDir, 'presentation' + path.extname(file.originalname));
-      fs.writeFileSync(pptxPath, file.buffer);
+      const pptxPath = path.join(tmpDir, 'presentation' + originalExtension);
+      fs.writeFileSync(pptxPath, fileBuffer);
 
       try {
         await execFileAsync(soffice, ['--headless', '--convert-to', 'pdf', '--outdir', tmpDir, pptxPath]);
@@ -2017,24 +2039,15 @@ app.post('/api/storage/convert-pptx', pptxUpload.single('file'), async (request,
       }
     } else {
       // Fallback: Google Drive API (works in Firebase Cloud Functions / Cloud Run)
-      pdfBuffer = await convertPptxViaDriveApi(file.buffer);
+      pdfBuffer = await convertPptxViaDriveApi(fileBuffer);
     }
 
     const safeName = `${Date.now()}-${Math.random().toString(36).slice(2)}.pdf`;
-    let pdfUrl: string;
-
-    if (!storageBucket) {
-      response.status(503).json({ message: 'Firebase Storage is not configured on this server.' });
-      return;
-    }
-
     const filePath = `lms-uploads/${request.authIdentity!.companyId}/content-items/${safeName}`;
-    const adminApp = getApps().length > 0 ? getApp() : initializeApp();
-    const bucket = getStorage(adminApp).bucket(storageBucket);
     const storageFile = bucket.file(filePath);
     await storageFile.save(pdfBuffer, { contentType: 'application/pdf' });
     await storageFile.makePublic();
-    pdfUrl = `https://storage.googleapis.com/${storageBucket}/${filePath}`;
+    const pdfUrl = `https://storage.googleapis.com/${storageBucket}/${filePath}`;
 
     response.json({ pdfUrl });
   } catch (error) {

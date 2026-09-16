@@ -73,29 +73,50 @@ export class PowerPointWindowComponent {
   readonly viewerTitle = input('PowerPoint file');
   readonly emptyMessage = input('');
   readonly sourceDataUrl = input<string | null>(null);
+  // Files uploaded through the (now-only) chunked-upload flow never populate sourceDataUrl —
+  // they live in Firebase Storage and expose only a hosted URL. sourceUrl is the fallback for
+  // that case, so the download button isn't permanently dead for every file uploaded that way.
+  readonly sourceUrl = input<string | null>(null);
   readonly sourceFileName = input('presentation.pptx');
   readonly downloadLabel = input('Download presentation');
   readonly downloadNote = input('');
 
-  readonly hasDownloadSource = computed(() => Boolean(this.sourceDataUrl()?.trim()));
+  readonly hasDownloadSource = computed(() => Boolean(this.sourceDataUrl()?.trim() || this.sourceUrl()?.trim()));
 
   downloadPresentation() {
     const dataUrl = this.sourceDataUrl()?.trim();
-    if (!dataUrl) {
+    if (dataUrl) {
+      const objectUrl = URL.createObjectURL(this.dataUrlToBlob(dataUrl));
+      const link = this.document.createElement('a');
+      link.href = objectUrl;
+      link.download = this.sourceFileName().trim() || 'presentation.pptx';
+
+      this.document.body.appendChild(link);
+      link.click();
+      link.remove();
+      this.downloaded.emit();
+
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
       return;
     }
 
-    const objectUrl = URL.createObjectURL(this.dataUrlToBlob(dataUrl));
+    const hostedUrl = this.sourceUrl()?.trim();
+    if (!hostedUrl) {
+      return;
+    }
+
+    // Cross-origin, so the `download` attribute can't force a same-tab save — open it instead
+    // and let the browser's own handling (direct download, since .pptx isn't inline-renderable
+    // content) take over, same as every other hosted-link download in this app.
     const link = this.document.createElement('a');
-    link.href = objectUrl;
-    link.download = this.sourceFileName().trim() || 'presentation.pptx';
+    link.href = hostedUrl;
+    link.target = '_blank';
+    link.rel = 'noopener';
 
     this.document.body.appendChild(link);
     link.click();
     link.remove();
     this.downloaded.emit();
-
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
   }
 
   private dataUrlToBlob(dataUrl: string) {

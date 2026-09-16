@@ -3642,6 +3642,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <powerpoint-window
                                     [viewerTitle]="'PowerPoint file for ' + presentationPreview.fileName"
                                     [sourceDataUrl]="activeItem.controls.uploadedFileDataUrl.value || null"
+                                    [sourceUrl]="activeItem.controls.resourceLink.value || null"
                                     [sourceFileName]="presentationPreview.fileName"
                                     [emptyMessage]="presentationPreview.message"></powerpoint-window>
                                 </section>
@@ -3660,6 +3661,10 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                     <span class="doc-toggle-label">Allow download</span>
                                   </label>
                                 </div>
+
+                                @if (activeItem.errors?.['acknowledgementDocumentMissing'] && (activeItem.touched || courseForm.touched)) {
+                                  <span class="field-error form-grid-span-two">Attach a file or link before requiring acknowledgement — without one, learners can never acknowledge this step and the course can never be completed.</span>
+                                }
                               }
                             }
                           </section>
@@ -17202,7 +17207,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   }
 
   createContentItemGroup(kind: TrainingContentKind, item?: Partial<TrainingOffering['contentItems'][number]>): ContentItemFormGroup {
-    return new FormGroup({
+    const contentItem = new FormGroup({
       id: new FormControl(item?.id ?? '', { nonNullable: true }),
       kind: new FormControl<TrainingContentKind>(kind, { nonNullable: true, validators: [Validators.required] }),
       title: new FormControl(item?.title ?? '', { nonNullable: true, validators: [Validators.required] }),
@@ -17223,6 +17228,28 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         item?.surveyQuestions?.map((question) => this.createSurveyQuestionGroup(question)) ?? [],
       ),
     });
+
+    contentItem.addValidators((control) => this.validateContentItem(control));
+    return contentItem;
+  }
+
+  // A Document set to require acknowledgement, but published with no file or link, can never
+  // actually be acknowledged (canAcknowledgeSelectedDocument in student-courses.component.ts
+  // requires a document link to enable the button) — that step, and therefore the whole course,
+  // becomes permanently uncompletable for every assigned student with no way to recover short of
+  // an admin editing the course again. Block it at save time instead.
+  private validateContentItem(control: AbstractControl): ValidationErrors | null {
+    if (!(control instanceof FormGroup)) {
+      return null;
+    }
+
+    const item = control as ContentItemFormGroup;
+    const isUncompletableAcknowledgementDocument = item.controls.kind.value === 'Document'
+      && item.controls.requiresAcknowledgement.value
+      && !item.controls.resourceLink.value.trim()
+      && !item.controls.uploadedFileName.value.trim();
+
+    return isUncompletableAcknowledgementDocument ? { acknowledgementDocumentMissing: true } : null;
   }
 
   createQuestionGroup(
@@ -18369,6 +18396,17 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     }, 'image/jpeg', 0.9);
   }
 
+  // Progress-map writes from inside an upload's async callbacks must never trust the `index`
+  // closed over at call time — removing an earlier content item re-keys contentUploadProgresses
+  // by shifting indices down (see removeContentItem), so a stale captured index can silently
+  // write to the wrong slot (or a slot nobody clears again, permanently blocking save). Always
+  // re-resolve the item's live position right before each write instead; if the item itself was
+  // removed while its own upload was in flight, there's nothing left to track.
+  private contentItemUploadIndex(item: ContentItemFormGroup): number | null {
+    const currentIndex = this.contentItemsArray.controls.indexOf(item);
+    return currentIndex === -1 ? null : currentIndex;
+  }
+
   onContentFileSelected(index: number, event: Event) {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
@@ -18392,12 +18430,17 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
       this.backend.uploadScormPackage(file).subscribe({
         next: (event) => {
+          const currentIndex = this.contentItemUploadIndex(item);
           if (event.type === 'progress') {
-            this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: event.percent }));
+            if (currentIndex !== null) {
+              this.contentUploadProgresses.update((prev) => ({ ...prev, [currentIndex]: event.percent }));
+            }
             return;
           }
 
-          this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
+          if (currentIndex !== null) {
+            this.contentUploadProgresses.update((prev) => ({ ...prev, [currentIndex]: null }));
+          }
           item.patchValue({
             uploadedFileName: file.name,
             uploadedFileDataUrl: '',
@@ -18409,7 +18452,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
           });
         },
         error: () => {
-          this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
+          const currentIndex = this.contentItemUploadIndex(item);
+          if (currentIndex !== null) {
+            this.contentUploadProgresses.update((prev) => ({ ...prev, [currentIndex]: null }));
+          }
           item.patchValue({ uploadedFileName: '', uploadedFileDataUrl: '' });
           alert(`Failed to process SCORM package "${file.name}". Please ensure it contains a valid launch file and try again.`);
         },
@@ -18434,12 +18480,17 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
     this.backend.uploadFileChunked(file, 'content-items').subscribe({
       next: (event) => {
+        const currentIndex = this.contentItemUploadIndex(item);
         if (event.type === 'progress') {
-          this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: event.percent }));
+          if (currentIndex !== null) {
+            this.contentUploadProgresses.update((prev) => ({ ...prev, [currentIndex]: event.percent }));
+          }
           return;
         }
 
-        this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
+        if (currentIndex !== null) {
+          this.contentUploadProgresses.update((prev) => ({ ...prev, [currentIndex]: null }));
+        }
         item.patchValue({
           uploadedFileName: file.name,
           uploadedFileDataUrl: '',
@@ -18449,21 +18500,33 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
         // After a successful PPTX upload, convert it to PDF for inline student preview.
         if (/\.pptx?$/i.test(file.name)) {
-          this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: -1 })); // -1 signals converting state
-          this.backend.convertPptxToPdf(file).subscribe({
+          const convertingIndex = this.contentItemUploadIndex(item);
+          if (convertingIndex !== null) {
+            this.contentUploadProgresses.update((prev) => ({ ...prev, [convertingIndex]: -1 })); // -1 signals converting state
+          }
+          this.backend.convertPptxToPdf(event.path).subscribe({
             next: (result) => {
               item.patchValue({ convertedPdfUrl: result.pdfUrl });
-              this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
+              const doneIndex = this.contentItemUploadIndex(item);
+              if (doneIndex !== null) {
+                this.contentUploadProgresses.update((prev) => ({ ...prev, [doneIndex]: null }));
+              }
             },
             error: () => {
               // Conversion failed — students will see the download-only fallback. Non-fatal.
-              this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
+              const errorIndex = this.contentItemUploadIndex(item);
+              if (errorIndex !== null) {
+                this.contentUploadProgresses.update((prev) => ({ ...prev, [errorIndex]: null }));
+              }
             },
           });
         }
       },
       error: () => {
-        this.contentUploadProgresses.update((prev) => ({ ...prev, [index]: null }));
+        const currentIndex = this.contentItemUploadIndex(item);
+        if (currentIndex !== null) {
+          this.contentUploadProgresses.update((prev) => ({ ...prev, [currentIndex]: null }));
+        }
         item.patchValue({ uploadedFileName: '', uploadedFileDataUrl: '' });
         alert(`Failed to upload "${file.name}". Please check your connection and try again.`);
       },
