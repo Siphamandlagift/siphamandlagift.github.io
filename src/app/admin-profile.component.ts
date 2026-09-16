@@ -9815,12 +9815,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       gap: 0.75rem;
       align-items: center;
       width: 100%;
-      padding: 0.88rem 0.92rem;
+      padding: 0.65rem 0.92rem;
       border-radius: 18px;
       background: rgba(255, 255, 255, 0.82);
       color: #173446;
       text-align: left;
-      transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+      transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease, padding 0.2s ease;
     }
 
     .course-studio-unit:hover,
@@ -9838,6 +9838,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .course-studio-unit-active {
+      padding: 0.88rem 0.92rem;
       background: #fff;
       box-shadow: 0 16px 28px rgba(180, 84, 21, 0.12);
     }
@@ -9869,12 +9870,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .course-studio-unit-copy {
-      display: grid;
-      gap: 0.18rem;
+      display: block;
       min-width: 0;
     }
 
     .course-studio-unit-copy strong {
+      display: block;
       color: #173446;
       font-size: 0.92rem;
       line-height: 1.2;
@@ -9885,6 +9886,27 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       color: #7a7f86;
       font-size: 0.76rem;
       line-height: 1.35;
+    }
+
+    /* Only the selected/active unit "opens up" to show its status line — every other row stays
+       a compact single line of icon + title, so a course with many units doesn't read as one
+       long wall of duplicate two-line cards. */
+    .course-studio-unit-copy span {
+      display: block;
+      max-height: 0;
+      margin-top: 0;
+      opacity: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      transition: max-height 0.2s ease, opacity 0.16s ease, margin-top 0.2s ease;
+    }
+
+    .course-studio-unit-active .course-studio-unit-copy span {
+      max-height: 2.2rem;
+      margin-top: 0.18rem;
+      opacity: 1;
+      white-space: normal;
     }
 
     .course-studio-unit-drag-handle {
