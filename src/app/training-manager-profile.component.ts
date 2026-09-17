@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, OnDestroy
 import { CommonModule } from '@angular/common';
 import { AbstractControl, FormArray, FormControl, FormGroup, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
+import { interval } from 'rxjs';
 import {
   ExternalTrainingRequestRecord,
   EnrollmentStudent,
@@ -6266,16 +6267,33 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       }
 
       this.learningActivitySnapshotRequestedIds.add(student.id);
-      this.backend.getStudentSnapshot(student.id).subscribe({
-        next: (snapshot) => {
-          this.learningActivityCoursesById.update((current) => ({ ...current, [student.id]: snapshot.courses }));
-        },
-        error: () => {
-          this.learningActivityCoursesById.update((current) => ({ ...current, [student.id]: [] }));
-        },
-      });
+      this.fetchLearningActivitySnapshot(student.id);
     }
   });
+
+  // The prefetch above only fires for a student id it hasn't seen before, so a course finished
+  // during a long-lived Dashboard session never showed up in the Learning Activity chart without
+  // a full reload — the chart's whole point (deriving live status instead of the stale
+  // EnrollmentStudent.status field, per the block comment above) was defeated for anyone who
+  // stayed on the page. Same bug already fixed for admin-profile.component.ts's report snapshots
+  // (see its reportSnapshotRefreshSub); this periodically re-fetches every known student's
+  // snapshot so the chart stays live here too.
+  private readonly learningActivityRefreshSub = interval(60000).subscribe(() => {
+    for (const student of this.managerData.students()) {
+      this.fetchLearningActivitySnapshot(student.id);
+    }
+  });
+
+  private fetchLearningActivitySnapshot(studentId: string) {
+    this.backend.getStudentSnapshot(studentId).subscribe({
+      next: (snapshot) => {
+        this.learningActivityCoursesById.update((current) => ({ ...current, [studentId]: snapshot.courses }));
+      },
+      error: () => {
+        this.learningActivityCoursesById.update((current) => ({ ...current, [studentId]: current[studentId] ?? [] }));
+      },
+    });
+  }
 
   private resolveStudentLearningStatus(student: EnrollmentStudent): LearningStatus {
     const courses = this.learningActivityCoursesById()[student.id];
@@ -6449,6 +6467,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     if (this.trainingRequestReviewToastTimer) {
       clearTimeout(this.trainingRequestReviewToastTimer);
     }
+    this.learningActivityRefreshSub.unsubscribe();
   }
 
   /** Shows the sidebar's scrollbar thumb only while actively scrolling, hiding it again

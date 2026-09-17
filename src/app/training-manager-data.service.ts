@@ -691,7 +691,7 @@ export class TrainingManagerDataService {
     });
   });
   readonly mentorshipSubmissions = computed(() =>
-    [...this.mentorshipSubmissionsSignal()].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt)),
+    [...this.mentorshipSubmissionsSignal()].sort((left, right) => this.parseDisplayDate(right.submittedAt) - this.parseDisplayDate(left.submittedAt)),
   );
   readonly mentorshipSubmissionsForCurrentManager = computed(() => {
     const currentManagerName = this.normalizePersonName(this.profile().name);
@@ -729,10 +729,10 @@ export class TrainingManagerDataService {
     });
   });
   readonly assignmentSubmissions = computed(() =>
-    [...this.assignmentSubmissionsSignal()].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt)),
+    [...this.assignmentSubmissionsSignal()].sort((left, right) => this.parseDisplayDate(right.submittedAt) - this.parseDisplayDate(left.submittedAt)),
   );
   readonly surveySubmissions = computed(() =>
-    [...this.surveySubmissionsSignal()].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt)),
+    [...this.surveySubmissionsSignal()].sort((left, right) => this.parseDisplayDate(right.submittedAt) - this.parseDisplayDate(left.submittedAt)),
   );
   readonly idpEntriesByStudent = this.idpEntriesByStudentSignal.asReadonly();
   readonly kpiEntriesByStudent = this.kpiEntriesByStudentSignal.asReadonly();
@@ -773,7 +773,7 @@ export class TrainingManagerDataService {
       );
   });
   readonly externalTrainingRequests = computed(() =>
-    [...this.externalTrainingRequestsSignal()].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt)),
+    [...this.externalTrainingRequestsSignal()].sort((left, right) => this.parseDisplayDate(right.submittedAt) - this.parseDisplayDate(left.submittedAt)),
   );
   readonly pendingExternalTrainingRequestsCount = computed(() =>
     this.externalTrainingRequestsForCurrentManager().filter((request) => request.status === 'Pending Review').length,
@@ -4213,6 +4213,17 @@ export class TrainingManagerDataService {
       month: 'short',
       year: 'numeric',
     }).format(date);
+  }
+
+  // formatDisplayDate's output ("20 Feb 2026") is day-first, so a plain localeCompare on two of
+  // those strings sorts lexicographically by the leading day-of-month digit, not chronologically
+  // — e.g. "05 Mar 2026" sorts before "20 Feb 2026" ('0' < '2') even though March is later. Used
+  // to order every "most recent submission/request first" list below; parse to a real timestamp
+  // instead of comparing the display string directly. Also handles the (now-ISO, already
+  // chronologically sortable) submittedAt values submitSurveySubmission writes.
+  private parseDisplayDate(value: string): number {
+    const parsed = new Date(value).getTime();
+    return Number.isNaN(parsed) ? 0 : parsed;
   }
 
   private resolveAssignmentState(student: EnrollmentStudent, assignedOfferingIds: string[], latestAssignedDeadline?: string) {
