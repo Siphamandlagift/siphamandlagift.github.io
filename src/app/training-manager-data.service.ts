@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { finalize, firstValueFrom, interval, tap, throwError, type Observable } from 'rxjs';
 import { LmsBackendService, type SubscriptionPlan } from './lms-backend.service';
-import { readCompanyScopedCache, writeCompanyScopedCache } from './company-scoped-storage';
+import { getCurrentCompanyId, readCompanyScopedCache, writeCompanyScopedCache } from './company-scoped-storage';
 import { combineDisplayName, readLmsSessionRecord } from './session-auth';
 import type { StudentMessage } from './student-data.service';
 
@@ -1159,6 +1159,16 @@ export class TrainingManagerDataService {
     }
     this.hydrationInFlight = true;
 
+    // Captured now, checked again once the request resolves below — this service is an
+    // app-lifetime singleton (providedIn: 'root'), so if the account logs out and a DIFFERENT
+    // one logs in (same tab, no reload — logout/login are both plain SPA navigation here) while
+    // this request is still in flight, the response arriving late must never be applied to the
+    // now-current session. Without this guard, that response silently overwrote the whole roster/
+    // offerings/plan with the PREVIOUS company's data — the concrete "wrong company's data shows
+    // after logging into a different account" bug. See hydrateOwnDisplayName's own copy of this
+    // guard for the matching topbar-identity half of the same bug.
+    const requestCompanyId = getCurrentCompanyId();
+
     this.hydrateOwnDisplayName();
 
     const localStudents = this.loadStudents();
@@ -1174,6 +1184,16 @@ export class TrainingManagerDataService {
 
     this.backend.getBootstrap().subscribe({
       next: (bootstrap) => {
+        // The session that's current NOW is not the one that issued this request — discard this
+        // stale response instead of applying it, and re-run hydration for whoever actually is
+        // logged in now (refreshForCurrentSession's own call, if any, was swallowed by the
+        // hydrationInFlight guard above while this request was still pending).
+        if (requestCompanyId !== getCurrentCompanyId()) {
+          this.hydrationInFlight = false;
+          this.hydrateFromCurrentSession();
+          return;
+        }
+
         const mergedOfferings = this.mergeWithLocalOfferings(bootstrap.offerings);
         const mergedStudents = this.mergeWithLocalStudents(bootstrap.students);
         this.offeringsSignal.set(mergedOfferings);
@@ -1238,6 +1258,12 @@ export class TrainingManagerDataService {
         }
       },
       error: () => {
+        if (requestCompanyId !== getCurrentCompanyId()) {
+          this.hydrationInFlight = false;
+          this.hydrateFromCurrentSession();
+          return;
+        }
+
         const savedOfferings = this.loadOfferings();
         if (savedOfferings.length) {
           this.offeringsSignal.set(savedOfferings);
@@ -3183,8 +3209,18 @@ export class TrainingManagerDataService {
   }
 
   private refreshManagerMessages() {
+    // This poll keeps running on its own interval for the life of this app-lifetime singleton,
+    // including straight through a logout/login switch (same tab, no reload) — so a request
+    // fired for the previous session can still resolve after a different one has logged in. See
+    // hydrateFromCurrentSession's own copy of this guard for the fuller explanation.
+    const requestCompanyId = getCurrentCompanyId();
+
     this.backend.getManagerMessages().subscribe({
       next: (messages) => {
+        if (requestCompanyId !== getCurrentCompanyId()) {
+          return;
+        }
+
         // Merge: keep in-memory messages the server doesn't know yet, update the rest.
         const serverById = new Map(messages.map((m) => [m.id, m]));
         const onlyLocal = this.managerMessagesSignal().filter((m) => !serverById.has(m.id));
@@ -3245,9 +3281,18 @@ export class TrainingManagerDataService {
 
   private refreshBootstrapState(): Promise<void> {
     const requestStartedAt = Date.now();
+    // Same cross-session staleness guard as hydrateFromCurrentSession/refreshManagerMessages —
+    // this poll runs on its own interval for the life of this singleton, straight through any
+    // logout/login switch in the same tab.
+    const requestCompanyId = getCurrentCompanyId();
     return new Promise<void>((resolve) => {
       this.backend.getBootstrap().subscribe({
         next: (bootstrap) => {
+          if (requestCompanyId !== getCurrentCompanyId()) {
+            resolve();
+            return;
+          }
+
           this.offeringsSignal.set(
             this.pendingOfferingWriteCount > 0
               ? this.offeringsSignal()
@@ -4126,8 +4171,19 @@ export class TrainingManagerDataService {
   }
 
   private hydrateOwnDisplayName() {
+    // Same stale-response race as hydrateFromCurrentSession above, applied to the topbar
+    // name/avatar specifically: this has no in-flight guard of its own and is called on every
+    // profile-shell mount (refreshOwnIdentity), so a slow response from a PREVIOUS session can
+    // resolve after a different account has logged in (same tab, no reload) and overwrite
+    // profileSignal with the wrong person's name and picture.
+    const requestCompanyId = getCurrentCompanyId();
+
     this.backend.getMyIdentity().subscribe({
       next: (identity) => {
+        if (requestCompanyId !== getCurrentCompanyId()) {
+          return;
+        }
+
         const fullName = combineDisplayName(identity.name ?? undefined, identity.surname ?? undefined);
         this.profileSignal.update((profile) => ({
           ...profile,

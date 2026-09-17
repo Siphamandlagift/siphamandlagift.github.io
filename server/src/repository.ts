@@ -374,7 +374,13 @@ function resolveStudentIdForAccount(data: LmsDataStore, account: Pick<AuthAccoun
     return account.linkedStudentId;
   }
 
-  return data.students.find((entry) => entry.email.toLowerCase() === account.email.toLowerCase())?.id;
+  // Email is never validated as unique across the student roster, so more than one student can
+  // end up sharing one — in that case this fallback must refuse to guess. Returning an arbitrary
+  // first match here is exactly how logging into one account could resolve to a DIFFERENT
+  // student's profile/name/course data than the one actually tied to this login.
+  const email = account.email.toLowerCase();
+  const matches = data.students.filter((entry) => entry.email.toLowerCase() === email);
+  return matches.length === 1 ? matches[0].id : undefined;
 }
 
 type ResolvedRoleEntry = {
@@ -450,11 +456,25 @@ function mergeResolvedRole(results: ResolvedRoleEntry[], candidate: ResolvedRole
 function syncLinkedAuthAccounts(data: LmsDataStore) {
   const studentsById = new Map(data.students.map((student) => [student.id, student]));
 
+  // Same reasoning as resolveStudentIdForAccount's own copy of this guard: email is never
+  // validated as unique across the roster, so this fallback link must never guess between two
+  // students who happen to share one — an ambiguous match is left unlinked, not arbitrarily
+  // resolved, to avoid silently attaching an account to the wrong student.
+  const studentIdsByEmail = new Map<string, string[]>();
+  for (const student of data.students) {
+    const key = student.email.toLowerCase();
+    const ids = studentIdsByEmail.get(key);
+    if (ids) {
+      ids.push(student.id);
+    } else {
+      studentIdsByEmail.set(key, [student.id]);
+    }
+  }
+
   data.authAccounts = data.authAccounts.reduce<AuthAccountRecord[]>((accounts, account) => {
+    const emailMatches = account.role === 'student' ? studentIdsByEmail.get(account.email.toLowerCase()) : undefined;
     const linkedStudentId = account.linkedStudentId
-      ?? (account.role === 'student'
-        ? data.students.find((student) => student.email.toLowerCase() === account.email.toLowerCase())?.id ?? null
-        : null);
+      ?? (emailMatches?.length === 1 ? emailMatches[0] : null);
 
     if (!linkedStudentId) {
       accounts.push(account);
@@ -3124,7 +3144,12 @@ export class LmsRepository {
     // which normalizeData migrates away going forward) is granted via isAdmin, not the base role.
     const isAdminAccount = (account.role as string) === 'administrator';
     const directoryRole: EnrollmentStudentRecord['role'] = 'manager';
-    const existingStudent = data.students.find((student) => student.email.toLowerCase() === normalizedEmail);
+    // Only adopt an existing directory entry when exactly one shares this email — an ambiguous
+    // (shared) email must never be guessed at, since adopting the wrong one would attach this
+    // account's own profile switch to a STRANGER'S student record (and mutate their role/isAdmin
+    // flags in the process, per the update below). Falls through to creating a fresh one instead.
+    const matchingStudents = data.students.filter((student) => student.email.toLowerCase() === normalizedEmail);
+    const existingStudent = matchingStudents.length === 1 ? matchingStudents[0] : undefined;
 
     let studentId: string;
     if (existingStudent) {
@@ -3177,6 +3202,7 @@ export class LmsRepository {
     let updated = 0;
     let skippedInvalid = 0;
     let skippedByLicenseLimit = 0;
+    let skippedByEmailConflict = 0;
 
     for (const input of inputs) {
       const studentId = input.studentId.trim();
@@ -3196,9 +3222,25 @@ export class LmsRepository {
       const email = student.email.trim().toLowerCase();
       const role = normalizeLoginRole(input.role);
       const credentials = createPasswordCredentials(password);
-      const accountIndex = data.authAccounts.findIndex(
-        (entry) => entry.linkedStudentId === studentId || entry.email.toLowerCase() === email,
-      );
+
+      // Only ever match an account already linked to THIS student, or one with no link at all
+      // (a legacy/unlinked account genuinely available to adopt) — never one already linked to a
+      // DIFFERENT student that merely happens to share this student's email. The old plain-OR
+      // match (`linkedStudentId === studentId || email === email`) would silently reassign that
+      // other student's existing login to this one — two roster rows sharing an email (a data
+      // mistake, never validated as unique) meant whichever one issued credentials last "stole"
+      // the account, and anyone who logged in with it landed on the wrong student's profile.
+      const linkedAccountIndex = data.authAccounts.findIndex((entry) => entry.linkedStudentId === studentId);
+      const emailAccountIndex = linkedAccountIndex === -1
+        ? data.authAccounts.findIndex((entry) => entry.email.toLowerCase() === email)
+        : -1;
+
+      if (emailAccountIndex >= 0 && data.authAccounts[emailAccountIndex].linkedStudentId) {
+        skippedByEmailConflict += 1;
+        continue;
+      }
+
+      const accountIndex = linkedAccountIndex >= 0 ? linkedAccountIndex : emailAccountIndex;
 
       // Only a genuinely NEW account counts against the license — an existing account being
       // updated (password reset, role change) isn't adding a seat.
@@ -3256,10 +3298,11 @@ export class LmsRepository {
     return {
       created,
       updated,
-      skipped: skippedInvalid + skippedByLicenseLimit,
+      skipped: skippedInvalid + skippedByLicenseLimit + skippedByEmailConflict,
       skippedInvalid,
       skippedByLicenseLimit,
       skippedByPlan: 0,
+      skippedByEmailConflict,
     };
   }
 
@@ -4832,6 +4875,7 @@ class FirestoreLmsRepository extends LmsRepository {
       let updated = 0;
       let skippedInvalid = 0;
       let skippedByLicenseLimit = 0;
+      let skippedByEmailConflict = 0;
       const touchedStudentIds = new Set<string>();
 
       for (const input of inputs) {
@@ -4852,9 +4896,22 @@ class FirestoreLmsRepository extends LmsRepository {
         const email = student.email.trim().toLowerCase();
         const role = normalizeLoginRole(input.role);
         const credentials = createPasswordCredentials(password);
-        const existingAccountIndex = authAccounts.findIndex(
-          (entry) => entry.linkedStudentId === studentId || entry.email.toLowerCase() === email,
-        );
+
+        // Only ever match an account already linked to THIS student, or one with no link at all
+        // — never one linked to a DIFFERENT student that merely shares this student's email. See
+        // the base LmsRepository.upsertManagedUserCredentials comment for the full reasoning:
+        // the old plain-OR match could silently reassign another student's existing login.
+        const linkedAccountIndex = authAccounts.findIndex((entry) => entry.linkedStudentId === studentId);
+        const emailAccountIndex = linkedAccountIndex === -1
+          ? authAccounts.findIndex((entry) => entry.email.toLowerCase() === email)
+          : -1;
+
+        if (emailAccountIndex >= 0 && authAccounts[emailAccountIndex].linkedStudentId) {
+          skippedByEmailConflict += 1;
+          continue;
+        }
+
+        const existingAccountIndex = linkedAccountIndex >= 0 ? linkedAccountIndex : emailAccountIndex;
 
         // Only a genuinely NEW account counts against the license — an existing account being
         // updated (password reset, role change) isn't adding a seat.
@@ -4913,10 +4970,11 @@ class FirestoreLmsRepository extends LmsRepository {
       return {
         created,
         updated,
-        skipped: skippedInvalid + skippedByLicenseLimit,
+        skipped: skippedInvalid + skippedByLicenseLimit + skippedByEmailConflict,
         skippedInvalid,
         skippedByLicenseLimit,
         skippedByPlan: 0,
+        skippedByEmailConflict,
       };
     });
   }

@@ -976,7 +976,7 @@ export type ManagedUserCredentialInput = {
 export type ManagedUserCredentialsUpsertResponse = {
   created: number;
   updated: number;
-  // skipped is the total of the three breakdowns below, kept alongside them for any older
+  // skipped is the total of the four breakdowns below, kept alongside them for any older
   // consumer that only reads the aggregate.
   skipped: number;
   // Missing/duplicate studentId or a password that fails isStrongPassword.
@@ -985,6 +985,10 @@ export type ManagedUserCredentialsUpsertResponse = {
   skippedByLicenseLimit: number;
   // The row asked for the 'manager' role, which the company's plan doesn't include (Starter).
   skippedByPlan: number;
+  // This student's email already belongs to a DIFFERENT student's existing login. Reassigning
+  // that login here would silently hand one student's account to another — refused instead;
+  // the roster's duplicate email needs to be fixed before credentials can be issued for this row.
+  skippedByEmailConflict: number;
 };
 
 export type PasswordResetRequestInput = {

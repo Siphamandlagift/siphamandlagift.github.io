@@ -233,6 +233,9 @@ export type ManagedUserCredentialsUpsertResponse = {
   skippedInvalid: number;
   skippedByLicenseLimit: number;
   skippedByPlan: number;
+  // This student's email already belongs to a different student's existing login — refused
+  // rather than silently reassigning that login. Fix the duplicate email on the roster and retry.
+  skippedByEmailConflict: number;
 };
 
 export type PasswordResetRequest = {

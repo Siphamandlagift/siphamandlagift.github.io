@@ -14406,6 +14406,13 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       return;
     }
 
+    if (credentialResult?.skippedByEmailConflict) {
+      this.singleUserTone.set('error');
+      this.singleUserMessage.set('User added to the LMS list, but no login was created — this email is already the login for a different user. Fix the duplicate email and try again.');
+      this.closeSingleUserForm(false);
+      return;
+    }
+
     if (result.added) {
       this.singleUserTone.set('success');
       this.singleUserMessage.set(password ? 'User added to the LMS list. Login password saved.' : 'User added to the LMS list.');
@@ -14470,6 +14477,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       } else if (credentialResult.skippedByPlan) {
         this.singleUserTone.set('error');
         this.singleUserMessage.set('User details saved, but no login was created — training manager accounts aren\'t included on your current plan.');
+      } else if (credentialResult.skippedByEmailConflict) {
+        this.singleUserTone.set('error');
+        this.singleUserMessage.set('User details saved, but no login was created — this email is already the login for a different user. Fix the duplicate email and try again.');
       } else {
         this.singleUserTone.set('success');
         this.singleUserMessage.set(password ? 'User details saved. Password updated.' : 'User details saved.');
@@ -14981,6 +14991,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     if (result.skippedInvalid) {
       summary += ` ${result.skippedInvalid} skipped — missing or invalid row data.`;
     }
+    if (result.skippedByEmailConflict) {
+      summary += ` ${result.skippedByEmailConflict} skipped — that email is already the login for a different user. Fix the duplicate email and try again.`;
+    }
 
     return summary;
   }
@@ -15008,7 +15021,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       .filter((entry): entry is ManagedUserCredentialInput => entry !== null);
 
     if (!users.length) {
-      return { created: 0, updated: 0, skipped: 0, skippedInvalid: 0, skippedByLicenseLimit: 0, skippedByPlan: 0 };
+      return { created: 0, updated: 0, skipped: 0, skippedInvalid: 0, skippedByLicenseLimit: 0, skippedByPlan: 0, skippedByEmailConflict: 0 };
     }
 
     return await firstValueFrom(this.backend.upsertManagedUserCredentials({ users }));
