@@ -1877,18 +1877,50 @@ export class TrainingManagerDataService {
     };
   }
 
-  deleteStudent(studentId: string) {
+  // Deliberately NOT routed through persistStudents/PUT /api/manager-state — that endpoint's
+  // production (Firestore) handler treats `students` as a set of upserts keyed by id, never as
+  // the full authoritative roster, so a student simply omitted from the patch (the old behavior
+  // here) was never actually deleted server-side: their record and linked login both survived
+  // forever, permanently and irreversibly consuming a license seat with no way to reclaim it.
+  // DELETE /api/students/:studentId is a real, dedicated removal that also drops the linked
+  // authAccounts login — see LmsRepository.deleteStudent / its Firestore override. Await +
+  // optimistic update + rollback on failure, same pattern as submitAssignmentSubmission, so a
+  // failed delete doesn't leave the admin's own view out of sync with the server.
+  async deleteStudent(studentId: string): Promise<boolean> {
     const normalizedStudentId = studentId.trim();
 
     if (!normalizedStudentId) {
-      return;
+      return false;
     }
 
-    this.studentsSignal.update((students) =>
-      students.filter((student) => student.id !== normalizedStudentId),
-    );
+    const previousStudents = this.studentsSignal();
+    if (!previousStudents.some((student) => student.id === normalizedStudentId)) {
+      return false;
+    }
 
-    this.persistStudents();
+    this.studentsSignal.set(previousStudents.filter((student) => student.id !== normalizedStudentId));
+    this.saveStudents(this.students());
+
+    if (!this.backendHydrated) {
+      return true;
+    }
+
+    const deleted = await this.persistStudentDeletion(normalizedStudentId);
+    if (!deleted) {
+      this.studentsSignal.set(previousStudents);
+      this.saveStudents(this.students());
+    }
+
+    return deleted;
+  }
+
+  private persistStudentDeletion(studentId: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      this.backend.deleteStudent(studentId).subscribe({
+        next: () => resolve(true),
+        error: () => resolve(false),
+      });
+    });
   }
 
   removeGroupFromOffering(groupName: string, offeringId: string) {

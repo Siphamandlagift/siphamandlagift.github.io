@@ -2849,6 +2849,28 @@ app.put('/api/students/:studentId/offering-assignment', requireManagerOrAdminist
   }
 });
 
+// A real deletion — not routed through PUT /api/manager-state, whose production handler only
+// ever upserts the students it's given and never removes one simply left out of the array (that
+// was the actual bug: "deleting" a user client-side never removed their Firestore record or
+// their login, so they reappeared on reload, their old credentials kept working, and they
+// permanently occupied a license seat — see LmsRepository.deleteStudent / its Firestore override
+// for the fix). Also removes the student's linked authAccounts login in the same transaction.
+app.delete('/api/students/:studentId', requireManagerOrAdministrator, async (request, response, next) => {
+  try {
+    const repository = request.repository!;
+    const deleted = await repository.deleteStudent(request.params['studentId'] as string);
+
+    if (!deleted) {
+      response.status(404).json({ message: 'Student not found.' });
+      return;
+    }
+
+    response.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get('/api/students/:studentId/snapshot', async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);

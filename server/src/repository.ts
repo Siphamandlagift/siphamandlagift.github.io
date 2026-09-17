@@ -2278,6 +2278,25 @@ export class LmsRepository {
     return true;
   }
 
+  // A real removal, not a patchManagerState omission — see the Firestore override below for why
+  // this needs to exist as its own method rather than relying on the generic patch path. Also
+  // drops the student's linked authAccounts login: an orphaned login left behind would keep
+  // working (a stale credential nobody can offboard) and keep permanently counting against the
+  // company's license limit even though the person is gone.
+  async deleteStudent(studentId: string) {
+    const data = await this.read();
+    const existingStudent = data.students.find((student) => student.id === studentId);
+
+    if (!existingStudent) {
+      return false;
+    }
+
+    data.students = data.students.filter((student) => student.id !== studentId);
+    syncLinkedAuthAccounts(data);
+    await this.write(data);
+    return true;
+  }
+
   // Applies assignment as a true add/remove against the CURRENT stored assignedOfferingIds,
   // never a full-array replace — see the FirestoreLmsRepository override below for why this
   // matters: a manager's patchManagerState call carries their entire local roster snapshot, which
@@ -4751,6 +4770,197 @@ class FirestoreLmsRepository extends LmsRepository {
 
       transaction.set(ref, this.sanitizeForFirestore(nextStudent));
       return toEnrollmentStudentRecord(nextStudent);
+    });
+  }
+
+  // The bug this closes: patchManagerState's student handling (above) only ever upserts the
+  // students present in a patch — a student simply left out of the array (the old "delete a
+  // user" behavior) was never actually removed here. Their document, and their authAccounts
+  // login, both survived in Firestore forever: the "deleted" user reappeared on the next full
+  // reload, their old credentials still worked, and — the licensing-specific half of this bug —
+  // they permanently occupied a license seat with no way to reclaim it, since license usage is
+  // counted live off the authAccounts collection (see getCompanyUserCount in
+  // platform-repository.ts). This is a real, targeted delete of both documents in one
+  // transaction instead.
+  override async deleteStudent(studentId: string) {
+    const ref = this.collection('students').doc(studentId);
+
+    return this.firestore.runTransaction(async (transaction) => {
+      const [studentSnapshot, linkedAccountsSnapshot] = await Promise.all([
+        transaction.get(ref),
+        transaction.get(this.collection('authAccounts').where('linkedStudentId', '==', studentId)),
+      ]);
+
+      if (!studentSnapshot.exists) {
+        return false;
+      }
+
+      transaction.delete(ref);
+      for (const accountDocument of linkedAccountsSnapshot.docs) {
+        transaction.delete(accountDocument.ref);
+      }
+
+      return true;
+    });
+  }
+
+  // The inherited upsertManagedUserCredentials (base class, above) does read()-check-write() —
+  // read the WHOLE store, compare authAccounts.length against licenseLimit in memory, then
+  // write() the whole store back. On Firestore that's a genuine TOCTOU race: two concurrent
+  // requests (e.g. a double-submitted bulk import, or two admins acting at once) can both read
+  // the same pre-add count, both pass the < licenseLimit check, and both add an account — landing
+  // the company one or more seats over its limit with nothing ever noticing. Worse, write()'s
+  // full-collection resync (queueCollectionSync) can silently delete the OTHER request's
+  // just-created account if the writes serialize, since the second write's stale in-memory
+  // snapshot doesn't include it. Scoping this to a transaction over just the students/authAccounts
+  // collections it actually needs closes both: Firestore aborts and retries this transaction if
+  // either collection changes underneath it before commit, so two concurrent calls can never both
+  // observe the same under-limit count, and nothing outside these two collections is read or
+  // rewritten for anything else to collide with.
+  override async upsertManagedUserCredentials(inputs: ManagedUserCredentialInput[], licenseLimit?: number): Promise<ManagedUserCredentialsUpsertResponse> {
+    return this.firestore.runTransaction(async (transaction) => {
+      const [studentsSnapshot, authAccountsSnapshot] = await Promise.all([
+        transaction.get(this.collection('students')),
+        transaction.get(this.collection('authAccounts')),
+      ]);
+
+      const studentsById = new Map(studentsSnapshot.docs.map((doc) => [doc.id, doc.data() as StudentRecord]));
+      const authAccounts = authAccountsSnapshot.docs.map((doc) => doc.data() as AuthAccountRecord);
+      let authAccountsCount = authAccounts.length;
+
+      let created = 0;
+      let updated = 0;
+      let skippedInvalid = 0;
+      let skippedByLicenseLimit = 0;
+      const touchedStudentIds = new Set<string>();
+
+      for (const input of inputs) {
+        const studentId = input.studentId.trim();
+        const password = input.password.trim();
+
+        if (!studentId || !isStrongPassword(password)) {
+          skippedInvalid += 1;
+          continue;
+        }
+
+        const student = studentsById.get(studentId);
+        if (!student) {
+          skippedInvalid += 1;
+          continue;
+        }
+
+        const email = student.email.trim().toLowerCase();
+        const role = normalizeLoginRole(input.role);
+        const credentials = createPasswordCredentials(password);
+        const existingAccountIndex = authAccounts.findIndex(
+          (entry) => entry.linkedStudentId === studentId || entry.email.toLowerCase() === email,
+        );
+
+        // Only a genuinely NEW account counts against the license — an existing account being
+        // updated (password reset, role change) isn't adding a seat.
+        if (existingAccountIndex === -1 && typeof licenseLimit === 'number' && authAccountsCount >= licenseLimit) {
+          skippedByLicenseLimit += 1;
+          continue;
+        }
+
+        let nextAccount: AuthAccountRecord;
+        if (existingAccountIndex >= 0) {
+          nextAccount = {
+            ...authAccounts[existingAccountIndex],
+            role,
+            route: routeForLoginRole(role),
+            email,
+            linkedStudentId: studentId,
+            passwordHash: credentials.passwordHash,
+            passwordSalt: credentials.passwordSalt,
+          };
+          authAccounts[existingAccountIndex] = nextAccount;
+          updated += 1;
+        } else {
+          nextAccount = {
+            id: `auth-managed-${studentId}`,
+            role,
+            username: email,
+            email,
+            usernameLower: email,
+            emailLower: email,
+            companyId: this.companyId,
+            route: routeForLoginRole(role),
+            passwordHash: credentials.passwordHash,
+            passwordSalt: credentials.passwordSalt,
+            linkedStudentId: studentId,
+          };
+          authAccounts.push(nextAccount);
+          authAccountsCount += 1;
+          created += 1;
+        }
+
+        transaction.set(this.collection('authAccounts').doc(nextAccount.id), this.sanitizeForFirestore(nextAccount));
+        touchedStudentIds.add(studentId);
+      }
+
+      for (const studentId of touchedStudentIds) {
+        const student = studentsById.get(studentId)!;
+        transaction.set(this.collection('students').doc(studentId), this.sanitizeForFirestore({
+          ...student,
+          profile: { ...student.profile, passwordUpdatedAt: 'Updated just now' },
+        }));
+      }
+
+      // skippedByPlan is always 0 here — this repository has no notion of subscription plans (see
+      // the licenseLimit comment on the base class method); server.ts's route handler fills in the
+      // real value for rows it filtered out before ever calling this method.
+      return {
+        created,
+        updated,
+        skipped: skippedInvalid + skippedByLicenseLimit,
+        skippedInvalid,
+        skippedByLicenseLimit,
+        skippedByPlan: 0,
+      };
+    });
+  }
+
+  // Same TOCTOU reasoning as upsertManagedUserCredentials above, applied to the Super Admin's
+  // "create this company's first admin" action: the inherited version's email-taken and
+  // license-limit checks both read the whole store before writing, so two concurrent calls could
+  // both pass either check. Scoped to a transaction over just authAccounts for the same reason.
+  override async createAdministratorAccount(input: { email: string; password: string }, licenseLimit?: number): Promise<CreateAdministratorAccountResult> {
+    const email = input.email.trim().toLowerCase();
+    const password = input.password.trim();
+
+    if (!email || !isStrongPassword(password)) {
+      return { status: 'invalid-input' };
+    }
+
+    return this.firestore.runTransaction(async (transaction) => {
+      const authAccountsSnapshot = await transaction.get(this.collection('authAccounts'));
+      const authAccounts = authAccountsSnapshot.docs.map((doc) => doc.data() as AuthAccountRecord);
+
+      if (authAccounts.some((entry) => entry.emailLower === email || entry.email.toLowerCase() === email)) {
+        return { status: 'email-taken' };
+      }
+
+      if (typeof licenseLimit === 'number' && authAccounts.length >= licenseLimit) {
+        return { status: 'license-limit-reached' };
+      }
+
+      const credentials = createPasswordCredentials(password);
+      const account: AuthAccountRecord = {
+        id: `auth-admin-${randomUUID()}`,
+        role: 'administrator',
+        username: email,
+        email,
+        usernameLower: email,
+        emailLower: email,
+        companyId: this.companyId,
+        route: '/admin-profile',
+        passwordHash: credentials.passwordHash,
+        passwordSalt: credentials.passwordSalt,
+      };
+
+      transaction.set(this.collection('authAccounts').doc(account.id), this.sanitizeForFirestore(account));
+      return { status: 'created', account };
     });
   }
 

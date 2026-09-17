@@ -14482,13 +14482,17 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.cancelUserEdit();
   }
 
-  deleteUser(student: EnrollmentStudent) {
+  async deleteUser(student: EnrollmentStudent) {
     const shouldDelete = confirm(`Delete ${student.name} ${student.surname} from the LMS user list?`);
     if (!shouldDelete) {
       return;
     }
 
-    this.managerData.deleteStudent(student.id);
+    const deleted = await this.managerData.deleteStudent(student.id);
+    if (!deleted) {
+      alert(`Failed to delete ${student.name} ${student.surname}. Please check your connection and try again.`);
+      return;
+    }
 
     if (this.editingUserId() === student.id) {
       this.cancelUserEdit();

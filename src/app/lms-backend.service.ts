@@ -422,6 +422,13 @@ export class LmsBackendService {
     return this.http.put<EnrollmentStudent>(`${this.config.baseUrl}/students/${studentId}/offering-assignment`, { offeringId, assigned });
   }
 
+  // A real, dedicated removal (also drops the student's linked login/license seat server-side) —
+  // not routed through patchManagerState, which only ever upserts students it's given, never
+  // deletes ones a caller omits. See TrainingManagerDataService.deleteStudent for the full reason.
+  deleteStudent(studentId: string): Observable<void> {
+    return this.http.delete<void>(`${this.config.baseUrl}/students/${studentId}`);
+  }
+
   uploadFile(file: File, folder: string): Observable<{ url: string; path: string }> {
     return this.firebaseStorage.upload(file, folder);
   }
