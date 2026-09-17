@@ -918,7 +918,11 @@ type KpiEntryFormGroup = FormGroup<{
 
                         <div class="idp-program-card-body">
                           @for (entryControl of idpEntriesControls(); track $index) {
-                            <div class="idp-program-entry" [formGroupName]="$index">
+                            <div class="idp-program-entry"
+                              [formGroupName]="$index"
+                              [class.idp-entry-status-in-progress]="entryControl.controls.status.value === 'In Progress'"
+                              [class.idp-entry-status-completed]="entryControl.controls.status.value === 'Completed'"
+                              [class.idp-entry-status-on-hold]="entryControl.controls.status.value === 'On Hold'">
                               <div class="idp-program-entry-top">
                                 <div class="idp-program-entry-heading">
                                   <span class="idp-row-number" aria-hidden="true">{{ $index + 1 }}</span>
@@ -934,33 +938,51 @@ type KpiEntryFormGroup = FormGroup<{
                               </div>
 
                               <label class="idp-form-field">
-                                <span>Development Need</span>
+                                <span>
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5v-13Z" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                                  Development Need
+                                </span>
                                 <textarea rows="2" formControlName="developmentNeed" placeholder="Describe the development need..."></textarea>
                               </label>
 
                               <label class="idp-form-field">
-                                <span>Planned Action</span>
+                                <span>
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2Z" fill="currentColor"/></svg>
+                                  Planned Action
+                                </span>
                                 <textarea rows="2" formControlName="plannedAction" placeholder="Describe the planned action..."></textarea>
                               </label>
 
                               <label class="idp-form-field">
-                                <span>Support Required</span>
+                                <span>
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M17 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M10 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                  Support Required
+                                </span>
                                 <input type="text" formControlName="supportRequired" placeholder="What support is needed?" />
                               </label>
 
                               <label class="idp-form-field">
-                                <span>Date Captured</span>
+                                <span>
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                                  Date Captured
+                                </span>
                                 <input type="date" formControlName="dateCaptured" />
                               </label>
 
                               <div class="idp-program-date-grid">
                                 <label class="idp-form-field">
-                                  <span>Target Date</span>
+                                  <span>
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                                    Target Date
+                                  </span>
                                   <input type="date" formControlName="targetDate" />
                                 </label>
 
                                 <label class="idp-form-field">
-                                  <span>Status</span>
+                                  <span>
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 22c5.5-4 8-7.7 8-12A8 8 0 1 0 4 10c0 4.3 2.5 8 8 12Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    Status
+                                  </span>
                                   <select formControlName="status">
                                     <option value="Not Started">Not Started</option>
                                     <option value="In Progress">In Progress</option>
@@ -1737,6 +1759,12 @@ type KpiEntryFormGroup = FormGroup<{
                                 <div class="succession-gap-title">
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2Z" fill="currentColor"/></svg>
                                   {{ gap.competency }}
+                                  @if (recentlyAddedGapId() === gap.id) {
+                                    <span class="succession-added-flash">
+                                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                      Added
+                                    </span>
+                                  }
                                 </div>
                                 <span class="succession-progress-percent">{{ gapCompletionPercent(gap) }}%</span>
                               </div>
@@ -1759,22 +1787,36 @@ type KpiEntryFormGroup = FormGroup<{
                                       {{ action.status }}
                                     </span>
                                     <span class="succession-action-description">{{ action.description }}</span>
+                                    @if (recentlyAddedActionId() === action.id) {
+                                      <span class="succession-added-flash">
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                        Added
+                                      </span>
+                                    }
                                   </li>
                                 }
                               </ul>
                               <div class="succession-form-field succession-action-add-row">
                                 <input type="text" placeholder="Add a development action…"
                                   [value]="newActionDrafts()[gap.id]"
-                                  (input)="setNewActionDraft(gap.id, $any($event.target).value)" />
-                                <button type="button" class="idp-back-btn" (click)="addDevelopmentAction(nomination, gap.id)">Add</button>
+                                  (input)="setNewActionDraft(gap.id, $any($event.target).value)"
+                                  (keydown.enter)="addDevelopmentAction(nomination, gap.id)" />
+                                <button type="button" class="succession-quickadd-btn" (click)="addDevelopmentAction(nomination, gap.id)">
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+                                  Add
+                                </button>
                               </div>
                             </div>
                           }
                           <div class="succession-form-field succession-action-add-row">
                             <input type="text" placeholder="Add a competency gap…"
                               [value]="newGapCompetency()"
-                              (input)="newGapCompetency.set($any($event.target).value)" />
-                            <button type="button" class="idp-back-btn" (click)="addCompetencyGap(nomination)">Add gap</button>
+                              (input)="newGapCompetency.set($any($event.target).value)"
+                              (keydown.enter)="addCompetencyGap(nomination)" />
+                            <button type="button" class="succession-quickadd-btn" (click)="addCompetencyGap(nomination)">
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+                              Add gap
+                            </button>
                           </div>
                         </div>
                       }
@@ -5080,10 +5122,17 @@ type KpiEntryFormGroup = FormGroup<{
       .idp-program-entry {
         background: #f8fafc;
         border: 1px solid #e2e8f0;
+        border-left: 3px solid #cbd5e1;
         border-radius: 8px;
         padding: 1rem;
         margin-bottom: 0.75rem;
       }
+      /* Same status this entry's own read-only badge/idp-status-badge variants use — lets the
+         edit form's current status register at a glance instead of only being visible inside the
+         Status <select>. */
+      .idp-program-entry.idp-entry-status-in-progress { border-left-color: #1d4ed8; }
+      .idp-program-entry.idp-entry-status-completed { border-left-color: #15803d; }
+      .idp-program-entry.idp-entry-status-on-hold { border-left-color: #c2410c; }
       .idp-program-entry-top {
         display: flex;
         align-items: center;
@@ -5130,12 +5179,16 @@ type KpiEntryFormGroup = FormGroup<{
         margin-bottom: 0.75rem;
       }
       .idp-form-field span {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
         font-size: 0.78rem;
         font-weight: 600;
         color: #475569;
         text-transform: uppercase;
         letter-spacing: 0.02em;
       }
+      .idp-form-field span svg { flex-shrink: 0; color: #4338ca; }
       .idp-form-field input,
       .idp-form-field textarea,
       .idp-form-field select {
@@ -5540,6 +5593,49 @@ type KpiEntryFormGroup = FormGroup<{
       .succession-action-status-on-hold { background: #fff7ed; color: #c2410c; }
       .succession-action-add-row { display: flex; gap: 0.5rem; align-items: center; }
       .succession-action-add-row input { flex: 1; }
+
+      /* A visible "this saves a record" button for the gap/action quick-add rows above — these
+         used to reuse .idp-back-btn (a bare-text "‹ Back" link style), which gave no visual sign
+         that clicking it actually persisted anything. Lighter-weight than .succession-nominate-btn
+         (that's for the one big "Nominate"/"Save as Draft" action, not a row repeated many times). */
+      .succession-quickadd-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        flex-shrink: 0;
+        white-space: nowrap;
+        border: 1px solid rgba(79, 70, 229, 0.35);
+        border-radius: 999px;
+        padding: 0.5rem 0.9rem;
+        font: inherit;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--succ-primary, #4f46e5);
+        background: rgba(79, 70, 229, 0.08);
+        cursor: pointer;
+        transition: background 0.15s ease, transform 0.15s ease;
+      }
+      .succession-quickadd-btn:hover { background: rgba(79, 70, 229, 0.16); transform: translateY(-1px); }
+      .succession-quickadd-btn:active { transform: translateY(0); }
+
+      /* Momentary confirmation next to a gap/action that was just saved — see
+         recentlyAddedGapId/recentlyAddedActionId, set only once the server actually confirms the
+         write (never optimistically), so this is never shown for a save that didn't really land. */
+      .succession-added-flash {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        color: #15803d;
+        font-size: 0.72rem;
+        font-weight: 700;
+        animation: succession-added-flash-fade 2.5s ease forwards;
+      }
+      @keyframes succession-added-flash-fade {
+        0% { opacity: 0; }
+        15% { opacity: 1; }
+        75% { opacity: 1; }
+        100% { opacity: 0; }
+      }
 
       .succession-unflag-row { justify-content: flex-end; margin-bottom: 0.5rem; }
       .succession-danger-btn { display: inline-flex; align-items: center; gap: 0.35rem; color: #b91c1c; }
@@ -6467,6 +6563,12 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     if (this.trainingRequestReviewToastTimer) {
       clearTimeout(this.trainingRequestReviewToastTimer);
     }
+    if (this.recentlyAddedGapTimeout) {
+      clearTimeout(this.recentlyAddedGapTimeout);
+    }
+    if (this.recentlyAddedActionTimeout) {
+      clearTimeout(this.recentlyAddedActionTimeout);
+    }
     this.learningActivityRefreshSub.unsubscribe();
   }
 
@@ -7231,14 +7333,25 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.newActionDrafts.update((drafts) => ({ ...drafts, [gapId]: value }));
   }
 
+  // Brief per-row "Added" confirmation after a gap/action actually lands — updateSuccessorNomination
+  // only applies the new record to the signal once the server confirms (see its tap() in
+  // training-manager-data.service.ts), so setting these in `next` below means the flash always
+  // reflects a real save, never an optimistic guess. Cleared after a couple of seconds so it reads
+  // as a momentary confirmation rather than a permanent label.
+  readonly recentlyAddedGapId = signal<string | null>(null);
+  readonly recentlyAddedActionId = signal<string | null>(null);
+  private recentlyAddedGapTimeout: ReturnType<typeof setTimeout> | null = null;
+  private recentlyAddedActionTimeout: ReturnType<typeof setTimeout> | null = null;
+
   addCompetencyGap(nomination: SuccessorNominationRecord) {
     const competency = this.newGapCompetency().trim();
     if (!competency) {
       return;
     }
 
+    const newGapId = `gap-${Date.now()}`;
     const nextGaps = [...nomination.competencyGaps, {
-      id: `gap-${Date.now()}`,
+      id: newGapId,
       competency,
       developmentActions: [],
     }];
@@ -7249,6 +7362,13 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       readinessRationale: nomination.readinessRationale,
       competencyGaps: nextGaps,
     }).subscribe({
+      next: () => {
+        if (this.recentlyAddedGapTimeout) {
+          clearTimeout(this.recentlyAddedGapTimeout);
+        }
+        this.recentlyAddedGapId.set(newGapId);
+        this.recentlyAddedGapTimeout = setTimeout(() => this.recentlyAddedGapId.set(null), 2500);
+      },
       error: (error) => {
         this.successionActionError.set(error?.error?.message || 'Could not add this competency gap. Please try again.');
       },
@@ -7261,9 +7381,10 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const newActionId = `action-${Date.now()}`;
     const nextGaps = nomination.competencyGaps.map((gap) => (
       gap.id === gapId
-        ? { ...gap, developmentActions: [...gap.developmentActions, { id: `action-${Date.now()}`, description, status: 'Not Started' as const }] }
+        ? { ...gap, developmentActions: [...gap.developmentActions, { id: newActionId, description, status: 'Not Started' as const }] }
         : gap
     ));
     this.setNewActionDraft(gapId, '');
@@ -7273,6 +7394,13 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
       readinessRationale: nomination.readinessRationale,
       competencyGaps: nextGaps,
     }).subscribe({
+      next: () => {
+        if (this.recentlyAddedActionTimeout) {
+          clearTimeout(this.recentlyAddedActionTimeout);
+        }
+        this.recentlyAddedActionId.set(newActionId);
+        this.recentlyAddedActionTimeout = setTimeout(() => this.recentlyAddedActionId.set(null), 2500);
+      },
       error: (error) => {
         this.successionActionError.set(error?.error?.message || 'Could not add this development action. Please try again.');
       },
