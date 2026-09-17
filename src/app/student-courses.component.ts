@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { CommonModule, DOCUMENT } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
@@ -2378,7 +2378,6 @@ type ScormRuntimeState = {
   `],
 })
 export class StudentCoursesComponent {
-  private static readonly scormRuntimeStorageKey = 'lms-student-scorm-runtime';
   readonly backend = inject(LmsBackendService);
   readonly studentData = inject(StudentDataService);
   readonly managerData = inject(TrainingManagerDataService);
@@ -2413,6 +2412,61 @@ export class StudentCoursesComponent {
   readonly scormRuntime = signal<Record<string, ScormRuntimeState>>(this.loadPersistedScormRuntime());
   readonly loadedVideoDurations = signal<Record<string, string>>({});
   readonly completedCourseSteps = signal<Record<string, boolean>>(this.loadPersistedCourseProgressState().completedCourseSteps);
+
+  // completedCourseSteps/acknowledgedDocuments/scormRuntime are keyed by course NAME (courseStepKey
+  // above), and nothing ever told them when a course was unassigned — student-data.service.ts's own
+  // removal grace period eventually drops the StudentCourse record, but this per-step state just sat
+  // there forever. A student unassigned from a course after finishing some/all of it, then later
+  // reassigned to the SAME course, would see their old completion state reapplied to the fresh
+  // assignment INSTANTLY on opening it — stale progress, or an outright false "Completed" (even a
+  // spurious certificate), despite having done none of the new assignment's work. Prune any
+  // step/document/SCORM state whose course name doesn't match a course the student currently has,
+  // whenever the course list changes.
+  private readonly pruneStaleCourseProgressEffect = effect(() => {
+    const currentCourseNames = this.studentData.courses().map((course) => course.name);
+
+    // Skip when the list is empty — almost always a load-in-progress race (same guard
+    // student-data.service.ts's own pruneRemovedOfferingNotifications uses for the same reason),
+    // not a genuine "this student now has zero courses" state; pruning here would risk wiping real
+    // progress out from under a fetch that just hasn't landed yet.
+    if (!currentCourseNames.length) {
+      return;
+    }
+
+    untracked(() => {
+      const isStaleKey = (key: string) => !currentCourseNames.some((name) => key.startsWith(`${name}::`));
+      let prunedCourseProgress = false;
+      let prunedScormRuntime = false;
+
+      const completedSteps = this.completedCourseSteps();
+      const nextCompletedSteps = Object.fromEntries(Object.entries(completedSteps).filter(([key]) => !isStaleKey(key)));
+      if (Object.keys(nextCompletedSteps).length !== Object.keys(completedSteps).length) {
+        this.completedCourseSteps.set(nextCompletedSteps);
+        prunedCourseProgress = true;
+      }
+
+      const acknowledged = this.acknowledgedDocuments();
+      const nextAcknowledged = Object.fromEntries(Object.entries(acknowledged).filter(([key]) => !isStaleKey(key)));
+      if (Object.keys(nextAcknowledged).length !== Object.keys(acknowledged).length) {
+        this.acknowledgedDocuments.set(nextAcknowledged);
+        prunedCourseProgress = true;
+      }
+
+      const scormState = this.scormRuntime();
+      const nextScormState = Object.fromEntries(Object.entries(scormState).filter(([key]) => !isStaleKey(key)));
+      if (Object.keys(nextScormState).length !== Object.keys(scormState).length) {
+        this.scormRuntime.set(nextScormState);
+        prunedScormRuntime = true;
+      }
+
+      if (prunedCourseProgress) {
+        this.persistCourseProgressState();
+      }
+      if (prunedScormRuntime) {
+        this.persistScormRuntime();
+      }
+    });
+  });
   readonly draggedMatchingAnswer = signal('');
   readonly pickedMatchingAnswer = signal('');
   readonly selectedCourseStepId = signal('');
@@ -2430,7 +2484,10 @@ export class StudentCoursesComponent {
   // Same match-by-offeringId-then-title fallback the calendar's buildCalendarEvents uses to find
   // a course's offering — see student-data.service.ts.
   private resolveCourseOffering(course: StudentCourse): TrainingOffering | undefined {
-    const offerings = this.managerData.offerings();
+    // status === 'Published' for the same reason mergeManagerAssessmentWorkspace below checks it —
+    // the server sends every offering (Draft included) to every student session, so without this a
+    // course the admin just unpublished could still show a live "Due ..." deadline badge here.
+    const offerings = this.managerData.offerings().filter((offering) => offering.status === 'Published');
     return course.offeringId
       ? offerings.find((offering) => offering.id === course.offeringId)
       : offerings.find((offering) => offering.title === course.name);
@@ -4208,10 +4265,15 @@ export class StudentCoursesComponent {
     };
   }
 
-  // Scoped per student (unlike scormRuntimeStorageKey's flat key) so two different students
-  // logging into the same browser/device don't inherit each other's completion state.
+  // Scoped per student so two different students logging into the same browser/device don't
+  // inherit each other's completion state. scormRuntimeStorageKey below is scoped the same way,
+  // for the same reason — it used to be a bare, company-only-scoped key until that gap was closed.
   private courseProgressStorageKey(studentId: string) {
     return `lms-student-course-progress.${studentId}`;
+  }
+
+  private scormRuntimeStorageKey(studentId: string) {
+    return `lms-student-scorm-runtime.${studentId}`;
   }
 
   private loadPersistedCourseProgressState(): { completedCourseSteps: Record<string, boolean>; acknowledgedDocuments: Record<string, boolean> } {
@@ -4266,8 +4328,13 @@ export class StudentCoursesComponent {
       return {};
     }
 
+    const studentId = readLmsSessionRecord()?.studentId?.trim();
+    if (!studentId) {
+      return {};
+    }
+
     try {
-      const parsed = readCompanyScopedCache(StudentCoursesComponent.scormRuntimeStorageKey) as Record<string, ScormRuntimeState> | null;
+      const parsed = readCompanyScopedCache(this.scormRuntimeStorageKey(studentId)) as Record<string, ScormRuntimeState> | null;
       return parsed && typeof parsed === 'object' ? parsed : {};
     } catch {
       return {};
@@ -4279,8 +4346,13 @@ export class StudentCoursesComponent {
       return;
     }
 
+    const studentId = readLmsSessionRecord()?.studentId?.trim();
+    if (!studentId) {
+      return;
+    }
+
     try {
-      writeCompanyScopedCache(StudentCoursesComponent.scormRuntimeStorageKey, this.scormRuntime());
+      writeCompanyScopedCache(this.scormRuntimeStorageKey(studentId), this.scormRuntime());
     } catch {
       return;
     }
@@ -4512,7 +4584,15 @@ export class StudentCoursesComponent {
   }
 
   private mergeManagerAssessmentWorkspace(course: StudentCourse, baseWorkspace: CourseWorkspace): CourseWorkspace {
-    const managerOffering = this.managerData.offerings().find((offering) => offering.id === course.offeringId || offering.title === course.name);
+    // status === 'Published' matters here, not just existence: the server sends every offering
+    // (Draft included) to every student session — see getBootstrap in repository.ts — with all
+    // filtering left to the client. Without this check, a course the admin just flipped back to
+    // Draft (e.g. to fix a mistake) stayed fully open and interactive for any student who already
+    // had it loaded, for as long as their session's course list still listed it (the removal grace
+    // window in student-data.service.ts, or indefinitely if that student never gets a fresh sync).
+    const managerOffering = this.managerData.offerings().find(
+      (offering) => offering.status === 'Published' && (offering.id === course.offeringId || offering.title === course.name),
+    );
     if (!managerOffering) {
       return baseWorkspace;
     }

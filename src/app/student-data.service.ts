@@ -1570,7 +1570,14 @@ export class StudentDataService {
         this.pendingCourseRemovalKeys.delete(key);
       }
       const courseByOfferingId = new Map(retainedCourses.filter((course) => course.offeringId).map((course) => [course.offeringId!, course]));
-      const courseByName = new Map(retainedCourses.map((course) => [course.name, course]));
+      // Only match by title for LEGACY course records that have no offeringId of their own — once
+      // a record carries a real offeringId, ITS identity is that id, never its title. Two distinct
+      // offerings can legitimately share a title (a course re-run for a new cohort, a copy-pasted
+      // name), and matching by title regardless of offeringId meant a student newly assigned to
+      // such a same-titled offering would never get a course card for it at all: this loop saw the
+      // OLD offering's card (matched by title) and treated the new offering as already accounted
+      // for, permanently — assignedOfferingIds correctly included it, but nothing ever rendered it.
+      const legacyCourseByName = new Map(retainedCourses.filter((course) => !course.offeringId).map((course) => [course.name, course]));
       const newCourses: StudentCourse[] = [];
       let hasExistingUpdates = retainedCourses.length !== courses.length;
 
@@ -1601,7 +1608,7 @@ export class StudentDataService {
       });
 
       for (const offering of publishedOfferings) {
-        if (courseByOfferingId.has(offering.id) || courseByName.has(offering.title)) {
+        if (courseByOfferingId.has(offering.id) || legacyCourseByName.has(offering.title)) {
           continue;
         }
 
@@ -1719,9 +1726,13 @@ export class StudentDataService {
         return [];
       }
 
+      // status === 'Published' for the same reason student-courses.component.ts's
+      // resolveCourseOffering/mergeManagerAssessmentWorkspace check it — the server sends every
+      // offering (Draft included) to every student session, so without this a course the admin
+      // just unpublished could still surface a live deadline event on the calendar.
       const offering = course.offeringId
-        ? offerings.find((candidate) => candidate.id === course.offeringId)
-        : offerings.find((candidate) => candidate.title === course.name);
+        ? offerings.find((candidate) => candidate.status === 'Published' && candidate.id === course.offeringId)
+        : offerings.find((candidate) => candidate.status === 'Published' && candidate.title === course.name);
 
       if (!offering) {
         return [];
