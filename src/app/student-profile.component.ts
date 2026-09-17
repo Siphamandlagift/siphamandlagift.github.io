@@ -1067,7 +1067,7 @@ import { LoadingSpinnerComponent } from './loading-spinner.component';
                       <td class="kpi-cell-weight">{{ entry.weight }}%</td>
                       <td>{{ entry.target || 'Not provided' }}</td>
                       <td>{{ entry.actual || 'Not provided' }}</td>
-                      <td class="kpi-cell-center"><span class="kpi-score-pill" [class.kpi-score-flag]="entry.overallScoring === 2" [class.kpi-score-empty]="entry.overallScoring === null">{{ kpiScoreLabel(entry.overallScoring) }}</span></td>
+                      <td class="kpi-cell-center"><span class="kpi-score-pill" [class.kpi-score-flag]="entry.overallScoring !== null && entry.overallScoring <= 2" [class.kpi-score-empty]="entry.overallScoring === null">{{ kpiScoreLabel(entry.overallScoring) }}</span></td>
                       <td>{{ entry.comments || 'Not provided' }}</td>
                     </tr>
                   </tbody>

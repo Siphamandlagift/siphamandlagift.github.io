@@ -3349,8 +3349,13 @@ export class TrainingManagerDataService {
           if (bootstrap.idpYearsOpened?.length) {
             this.idpYearsOpenedSignal.set(bootstrap.idpYearsOpened);
           }
-          // Same year-boundary reasoning as IDP above, for KPI.
-          if (typeof bootstrap.currentKpiYear === 'number' && bootstrap.currentKpiYear !== this.currentKpiYearSignal()) {
+          // Same year-boundary reasoning as IDP above, for KPI — kpiApprovalByStudentSignal below
+          // mirrors this exact branch (the comment on kpiApprovalDirtyAt's own declaration always
+          // claimed it did; it previously didn't actually clear on a year change, so a stale
+          // prior-year approval badge — "Approved"/"Pending Approval"/"Needs Revision" — could
+          // survive into a brand-new (server-blank) year's KPI table until the next polling cycle).
+          const kpiYearChanged = typeof bootstrap.currentKpiYear === 'number' && bootstrap.currentKpiYear !== this.currentKpiYearSignal();
+          if (kpiYearChanged) {
             this.kpiEntriesByStudentSignal.set(this.normalizeKpiEntriesByStudent(bootstrap.kpiEntriesByStudent));
             for (const key of Object.keys(this.kpiEntriesDirtyAt)) {
               delete this.kpiEntriesDirtyAt[key];
@@ -3375,14 +3380,21 @@ export class TrainingManagerDataService {
             this.approvalWorkflowSettingsSignal.set(bootstrap.approvalWorkflowSettings);
           }
           if (bootstrap.kpiApprovalByStudent) {
-            this.kpiApprovalByStudentSignal.set(
-              this.mergeServerAuthoritativeRecord(
-                bootstrap.kpiApprovalByStudent,
-                this.kpiApprovalByStudentSignal(),
-                this.kpiApprovalDirtyAt,
-                requestStartedAt,
-              ),
-            );
+            if (kpiYearChanged) {
+              this.kpiApprovalByStudentSignal.set(bootstrap.kpiApprovalByStudent);
+              for (const key of Object.keys(this.kpiApprovalDirtyAt)) {
+                delete this.kpiApprovalDirtyAt[key];
+              }
+            } else {
+              this.kpiApprovalByStudentSignal.set(
+                this.mergeServerAuthoritativeRecord(
+                  bootstrap.kpiApprovalByStudent,
+                  this.kpiApprovalByStudentSignal(),
+                  this.kpiApprovalDirtyAt,
+                  requestStartedAt,
+                ),
+              );
+            }
           }
           if (bootstrap.plan) {
             this.planSignal.set(bootstrap.plan);

@@ -1222,6 +1222,18 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
   return normalized;
 }
 
+// Thrown by decideKpiApproval when the caller isn't the record's current approver — kept distinct
+// from a plain Error (e.g. "not currently awaiting approval") so server.ts's route can map it to
+// 403 instead of the generic error handler's 500. See decideKpiApproval's own comment for why
+// this check has to happen INSIDE the same read/transaction that acts on the decision, not as a
+// separate pre-check in the route.
+export class KpiApprovalAuthorizationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'KpiApprovalAuthorizationError';
+  }
+}
+
 export class LmsRepository {
   // '' for the local-dev JSON-file backend, which is single-tenant and has no real company
   // concept — FirestoreLmsRepository's constructor always supplies a real one (see its own
@@ -1478,19 +1490,6 @@ export class LmsRepository {
     }
 
     return findKpiYearEntries(student.kpiYears ?? [], year);
-  }
-
-  // Used by server.ts to authorize PUT .../kpi-entries/approval before calling decideKpiApproval —
-  // only the record's currentApproverEmail (or an administrator) may decide it, and there's no way
-  // to check that without reading the CURRENT year's approval state first.
-  async getKpiApprovalForCurrentYear(studentId: string): Promise<KpiApprovalRecord | null> {
-    const data = await this.read();
-    const student = data.students.find((entry) => entry.id === studentId);
-    if (!student) {
-      return null;
-    }
-
-    return findKpiYearApproval(student.kpiYears ?? [], data.currentKpiYear);
   }
 
   // The manager-facing "open a new KPI year" action: every student's current-year KPI rows are
@@ -1924,11 +1923,15 @@ export class LmsRepository {
   }
 
   // The current approver's decision on a submitted KPI table. Authorization (does the caller's
-  // identity.email actually match currentApproverEmail, or are they an administrator) is enforced
-  // in server.ts before this is ever called — this method trusts the caller was already checked,
-  // same division of responsibility as every other route in this codebase. Year is always resolved
-  // server-side, never trusted from a caller, same reasoning as submitKpiTableForApproval above.
-  async decideKpiApproval(studentId: string, decision: KpiApprovalStatus, nextApproverId: string | undefined) {
+  // identity.email actually match currentApproverEmail, or are they an administrator) MUST be
+  // checked against the SAME approval snapshot this method is about to act on, not a separate
+  // pre-read in server.ts — two near-simultaneous decisions could otherwise both read the record
+  // while it still names the FIRST approver, both pass that stale check, and the second one would
+  // then get applied (by decideKpiApproval's own fresh read here) as if it were the SECOND
+  // approver's decision, since nothing re-confirms identity against what actually got read. Year
+  // is always resolved server-side, never trusted from a caller, same reasoning as
+  // submitKpiTableForApproval above.
+  async decideKpiApproval(studentId: string, decision: KpiApprovalStatus, nextApproverId: string | undefined, caller: { isAdministrator: boolean; email: string }) {
     const data = await this.read();
     const studentIndex = data.students.findIndex((entry) => entry.id === studentId);
     if (studentIndex === -1) {
@@ -1940,6 +1943,10 @@ export class LmsRepository {
     const approval = findKpiYearApproval(kpiYears, year);
     if (!approval || approval.status !== 'Pending Approval') {
       throw new Error('This KPI table is not currently awaiting approval.');
+    }
+
+    if (!caller.isAdministrator && approval.currentApproverEmail.trim().toLowerCase() !== caller.email.trim().toLowerCase()) {
+      throw new KpiApprovalAuthorizationError('You are not the approver currently assigned to this KPI table.');
     }
 
     const decidedAt = this.formatDisplayDate(new Date());
@@ -4197,7 +4204,7 @@ class FirestoreLmsRepository extends LmsRepository {
     });
   }
 
-  override async decideKpiApproval(studentId: string, decision: KpiApprovalStatus, nextApproverId: string | undefined) {
+  override async decideKpiApproval(studentId: string, decision: KpiApprovalStatus, nextApproverId: string | undefined, caller: { isAdministrator: boolean; email: string }) {
     const data = await this.read();
     const ref = this.collection('students').doc(studentId);
     return this.firestore.runTransaction(async (transaction) => {
@@ -4212,6 +4219,12 @@ class FirestoreLmsRepository extends LmsRepository {
       const approval = findKpiYearApproval(kpiYears, currentKpiYear);
       if (!approval || approval.status !== 'Pending Approval') {
         throw new Error('This KPI table is not currently awaiting approval.');
+      }
+
+      // Checked against THIS transaction's own fresh read, not a separate pre-check in server.ts —
+      // see the base LmsRepository.decideKpiApproval comment for the TOCTOU this closes.
+      if (!caller.isAdministrator && approval.currentApproverEmail.trim().toLowerCase() !== caller.email.trim().toLowerCase()) {
+        throw new KpiApprovalAuthorizationError('You are not the approver currently assigned to this KPI table.');
       }
 
       const decidedAt = this.formatDisplayDate(new Date());

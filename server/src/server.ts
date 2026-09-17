@@ -17,7 +17,7 @@ import { z } from 'zod';
 import { getApp, getApps, initializeApp } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 import { createDefaultData } from './default-data.js';
-import { createLmsRepository, maskAssessmentAnswerKey, type LmsRepository } from './repository.js';
+import { createLmsRepository, KpiApprovalAuthorizationError, maskAssessmentAnswerKey, type LmsRepository } from './repository.js';
 import { PasswordResetEmailService } from './email-service.js';
 import { isStrongPassword, passwordPolicyMessage } from './auth-utils.js';
 import {
@@ -3304,6 +3304,13 @@ app.post('/api/students/:studentId/kpi-entries/submit-for-approval', requirePlan
 // currentApproverEmail (or an administrator) may decide it; every other authenticated session,
 // including the manager who submitted it, is rejected. See KpiApprovalRecord for why authorization
 // resolves by email rather than the approver-pool id.
+//
+// Authorization is enforced INSIDE repository.decideKpiApproval, against the same fresh read it
+// acts on — not as a separate pre-check here. A pre-check here reads the record, THEN calls
+// decideKpiApproval (which reads it again); two near-simultaneous decisions could both pass a
+// pre-check taken while the record still named the first approver, and the second would then get
+// applied as if it were actually made by whoever the record had since advanced to. See
+// KpiApprovalAuthorizationError / decideKpiApproval's own comment for the full reasoning.
 app.put('/api/students/:studentId/kpi-entries/approval', requirePlanFeature('student-performance'), async (request, response, next) => {
   try {
     const identity = getAuthenticatedIdentity(request);
@@ -3314,17 +3321,21 @@ app.put('/api/students/:studentId/kpi-entries/approval', requirePlanFeature('stu
     const repository = request.repository;
 
     const studentId = request.params['studentId'] as string;
-    const isAdministrator = identity.role === 'administrator';
-    if (!isAdministrator) {
-      const approval = await repository.getKpiApprovalForCurrentYear(studentId);
-      if (!approval || approval.currentApproverEmail.trim().toLowerCase() !== identity.email.trim().toLowerCase()) {
-        response.status(403).json({ message: 'You are not the approver currently assigned to this KPI table.' });
+    const body = kpiApprovalDecisionSchema.parse(request.body);
+
+    let approval;
+    try {
+      approval = await repository.decideKpiApproval(studentId, body.decision, body.nextApproverId, {
+        isAdministrator: identity.role === 'administrator',
+        email: identity.email,
+      });
+    } catch (error) {
+      if (error instanceof KpiApprovalAuthorizationError) {
+        response.status(403).json({ message: error.message });
         return;
       }
+      throw error;
     }
-
-    const body = kpiApprovalDecisionSchema.parse(request.body);
-    const approval = await repository.decideKpiApproval(studentId, body.decision, body.nextApproverId);
 
     if (approval === null) {
       response.status(404).json({ message: 'Student not found.' });

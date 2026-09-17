@@ -1204,7 +1204,7 @@ type KpiEntryFormGroup = FormGroup<{
                                 <td class="kpi-cell-weight">{{ entry.weight }}%</td>
                                 <td>{{ entry.target || 'Not provided' }}</td>
                                 <td>{{ entry.actual || 'Not provided' }}</td>
-                                <td class="kpi-cell-center"><span class="kpi-score-pill" [class.kpi-score-flag]="entry.overallScoring === 2" [class.kpi-score-empty]="entry.overallScoring === null">{{ kpiScoreLabel(entry.overallScoring) }}</span></td>
+                                <td class="kpi-cell-center"><span class="kpi-score-pill" [class.kpi-score-flag]="entry.overallScoring !== null && entry.overallScoring <= 2" [class.kpi-score-empty]="entry.overallScoring === null">{{ kpiScoreLabel(entry.overallScoring) }}</span></td>
                                 <td>{{ entry.comments || 'Not provided' }}</td>
                               </tr>
                             }
@@ -1277,7 +1277,7 @@ type KpiEntryFormGroup = FormGroup<{
                           <div class="idp-program-card-title-shell">
                             <span class="idp-program-card-title">KPI Table</span>
                             <span class="idp-program-count" aria-hidden="true">{{ kpiEntriesControls().length }}</span>
-                            <span class="kpi-total-weight" [class.kpi-total-weight-off]="kpiTotalWeight() !== 100">
+                            <span class="kpi-total-weight" [class.kpi-total-weight-off]="!isKpiWeightBalanced()">
                               Total weight: {{ kpiTotalWeight() }}% (must equal 100%)
                             </span>
                           </div>
@@ -1317,7 +1317,7 @@ type KpiEntryFormGroup = FormGroup<{
                                   <td><textarea rows="2" formControlName="target" placeholder="e.g. Produce 1000 cups a month"></textarea></td>
                                   <td><textarea rows="2" formControlName="actual" placeholder="e.g. Produced 940"></textarea></td>
                                   <td class="kpi-cell-center">
-                                    <select formControlName="overallScoring" [class.kpi-score-flag]="entryControl.controls.overallScoring.value === 2">
+                                    <select formControlName="overallScoring" [class.kpi-score-flag]="entryControl.controls.overallScoring.value !== null && entryControl.controls.overallScoring.value <= 2">
                                       <option [ngValue]="null">Not scored</option>
                                       @for (option of kpiScoreOptions; track option.value) {
                                         <option [ngValue]="option.value">{{ option.label }}</option>
@@ -1341,7 +1341,7 @@ type KpiEntryFormGroup = FormGroup<{
                               <tr class="kpi-totals-row">
                                 <td>Totals</td>
                                 <td></td>
-                                <td class="kpi-cell-weight" [class.kpi-total-weight-off]="kpiTotalWeight() !== 100">{{ kpiTotalWeight() }}%</td>
+                                <td class="kpi-cell-weight" [class.kpi-total-weight-off]="!isKpiWeightBalanced()">{{ kpiTotalWeight() }}%</td>
                                 <td></td>
                                 <td></td>
                                 <td class="kpi-cell-center"><span class="kpi-score-pill kpi-total-rating-pill">{{ formatKpiOverallRating(kpiOverallWeightedRating()) }}</span></td>
@@ -1357,13 +1357,13 @@ type KpiEntryFormGroup = FormGroup<{
                         @if (kpiSaved()) {
                           <p class="idp-form-status" role="status" aria-live="polite">KPI table saved.</p>
                         }
-                        @if (kpiTotalWeight() !== 100) {
+                        @if (!isKpiWeightBalanced()) {
                           <p class="kpi-weight-error" role="alert">Total weight must equal 100% before you can save — currently {{ kpiTotalWeight() }}%.</p>
                         }
                         @if (kpiHasSavedEntries()) {
                           <button type="button" class="idp-cancel-btn" (click)="cancelKpiEdit()">Cancel</button>
                         }
-                        <button class="idp-save-button" type="submit" [disabled]="kpiTotalWeight() !== 100">Save</button>
+                        <button class="idp-save-button" type="submit" [disabled]="!isKpiWeightBalanced()">Save</button>
                       </div>
                     </form>
                   }
@@ -7943,7 +7943,20 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   // keystroke in this form (OnPush still checks a component when a DOM event fires in its own
   // template, which every Weight/Scoring edit does).
   kpiTotalWeight(): number {
-    return this.kpiEntriesControls().reduce((total, control) => total + (control.controls.weight.value ?? 0), 0);
+    const total = this.kpiEntriesControls().reduce((sum, control) => sum + (control.controls.weight.value ?? 0), 0);
+    // Rounded before use anywhere (display and the isKpiWeightBalanced check below) — summing
+    // several decimal weights (e.g. ten rows at 10.1/10.1/.../9.1, which genuinely add to 100) can
+    // land on plain-floating-point noise like 99.99999999999999. Unrounded, that both displayed a
+    // confusing near-100 value AND permanently blocked Save on a table the server's own tolerance
+    // would accept.
+    return Math.round(total * 100) / 100;
+  }
+
+  // Matches the server's own tolerance (Math.abs(totalWeight - 100) <= 0.01 — see server.ts's KPI
+  // entry validation) instead of a strict === 100, so the client's Save-button gate and the
+  // server's actual acceptance rule never disagree on the same table.
+  isKpiWeightBalanced(): boolean {
+    return Math.abs(this.kpiTotalWeight() - 100) <= 0.01;
   }
 
   kpiOverallWeightedRating(): number | null {
@@ -8121,7 +8134,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     // Backstop for the disabled Save button above — a plain HTML <form> can still submit on
     // Enter pressed inside a text field even while its submit button is disabled, so the actual
     // 100%-total requirement has to be enforced here too, not just via [disabled].
-    if (this.kpiTotalWeight() !== 100) return;
+    if (!this.isKpiWeightBalanced()) return;
     const entries = this.kpiForm.controls.entries.controls.map((g) => ({
       id: g.controls.id.value?.trim() || '',
       keyResultArea: g.controls.keyResultArea.value ?? '',
