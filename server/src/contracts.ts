@@ -483,6 +483,29 @@ export type SuccessionRoleUpdateInput = {
   incumbentStudentId: string;
 };
 
+// A flat, admin-owned directory — no ownership/relation to any other record (unlike
+// SuccessionRoleRecord above). The existing free-text `provider` field on
+// ExternalTrainingRequestRecord is a separate, pre-existing concept and deliberately not linked
+// to this: that field is whatever a student/manager typed in at request time, this is an
+// administrator-maintained compliance list.
+export type TrainingProviderRecord = {
+  id: string;
+  name: string;
+  providerType: 'Accredited' | 'Internal' | 'Vendor' | 'Higher Education Institution';
+  setaAccreditationNumber: string;
+  accreditationStatus: 'Active' | 'Expired' | 'Pending' | 'Not Required';
+  accreditationExpiryDate: string;
+  bbbeeLevel: string;
+  primaryContactName: string;
+  email: string;
+  phone: string;
+  address: string;
+  website: string;
+  createdOn: string;
+};
+
+export type TrainingProviderInput = Omit<TrainingProviderRecord, 'id' | 'createdOn'>;
+
 export type SuccessionDevelopmentAction = {
   id: string;
   description: string;
@@ -848,6 +871,7 @@ export type LmsDataStore = {
   passwordResetTokens: PasswordResetTokenRecord[];
   successionRoles: SuccessionRoleRecord[];
   successorNominations: SuccessorNominationRecord[];
+  trainingProviders: TrainingProviderRecord[];
   updatedAt: string;
   // Org-wide KPI review cycle: currentKpiYear is the one year anyone can still edit; every year a
   // manager has ever opened (including the current one) is recorded in kpiYearsOpened so a year
@@ -904,6 +928,10 @@ export type LmsBootstrapResponse = {
   // successionStatus field on their own snapshot instead).
   successionRoles: SuccessionRoleRecord[];
   successorNominations: SuccessorNominationRecord[];
+  // Admin/manager only — never sent in a student's bootstrap (see getBootstrap), same reasoning
+  // as the exclusion note on successionRoles just above: this is an internal compliance
+  // directory, not something a student has any reason to see.
+  trainingProviders: TrainingProviderRecord[];
 };
 
 export type StudentSnapshotResponse = {

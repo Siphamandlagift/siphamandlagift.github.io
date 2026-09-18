@@ -27,6 +27,8 @@ import {
   TrainingMatchingPair,
   TrainingOffering,
   TrainingOfferingType,
+  TrainingProviderInput,
+  TrainingProviderRecord,
   TrainingQuestionType,
 } from './training-manager-data.service';
 import { LmsBackendService, type HrIntegrationConfig, type HrIntegrationConfigUpdate, type HrIntegrationSyncSummary, type LoginRole, type ManagedUserCredentialInput, type ManagedUserCredentialsUpsertResponse, type ResolveRolesEntry } from './lms-backend.service';
@@ -42,7 +44,7 @@ import { resolvePowerPointUploadType } from './powerpoint-preview';
 import { isFeatureAllowedForPlan } from './plan-features';
 import { readCompanyScopedCache, writeCompanyScopedCache } from './company-scoped-storage';
 
-type AdminPanel = 'dashboard' | 'users' | 'reports' | 'succession' | 'settings' | 'courses' | 'enrollment';
+type AdminPanel = 'dashboard' | 'users' | 'reports' | 'succession' | 'settings' | 'courses' | 'enrollment' | 'training-providers';
 
 type UserColumnId =
   | 'email' | 'department' | 'group' | 'learningStatus' | 'access'
@@ -411,6 +413,22 @@ type UserFormControls = {
 
 type UserFormGroup = FormGroup<UserFormControls>;
 
+type TrainingProviderFormControls = {
+  name: FormControl<string>;
+  providerType: FormControl<TrainingProviderRecord['providerType']>;
+  setaAccreditationNumber: FormControl<string>;
+  accreditationStatus: FormControl<TrainingProviderRecord['accreditationStatus']>;
+  accreditationExpiryDate: FormControl<string>;
+  bbbeeLevel: FormControl<string>;
+  primaryContactName: FormControl<string>;
+  email: FormControl<string>;
+  phone: FormControl<string>;
+  address: FormControl<string>;
+  website: FormControl<string>;
+};
+
+type TrainingProviderFormGroup = FormGroup<TrainingProviderFormControls>;
+
 /** Best-effort "First Last" display name derived from the logged-in username/email,
  *  used when there's no richer profile name available for this account yet. */
 function deriveDisplayNameFromIdentity(username: string | undefined, email: string | undefined): string {
@@ -590,6 +608,13 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                       <circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.8"></circle>
                       <path d="M19.4 12a7.4 7.4 0 0 0-.08-1l2-1.55-1.8-3.1-2.38.96a7.45 7.45 0 0 0-1.72-1l-.36-2.55H11l-.36 2.55a7.45 7.45 0 0 0-1.72 1l-2.38-.96-1.8 3.1 2 1.55a7.4 7.4 0 0 0 0 2l-2 1.55 1.8 3.1 2.38-.96c.52.42 1.1.76 1.72 1l.36 2.55h3.94l.36-2.55c.62-.24 1.2-.58 1.72-1l2.38.96 1.8-3.1-2-1.55c.05-.33.08-.67.08-1Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path>
+                    </svg>
+                  }
+                  @case ('training-providers') {
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                      <path d="M4 20V7l8-3.5L20 7v13" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
+                      <path d="M4 20h16M10 20v-4.5h4V20" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
+                      <path d="M8.5 10.5h.01M12 10.5h.01M15.5 10.5h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>
                     </svg>
                   }
                 }
@@ -2680,6 +2705,159 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
               </section>
               }
             </section>
+          }
+
+          @if (selectedPanel() === 'training-providers') {
+            <section class="admin-panel">
+              <div class="section-heading-block">
+                <p class="eyebrow">Training Providers</p>
+                <h1>Provider Directory</h1>
+                <p class="section-copy">Accredited training providers, vendors and institutions your company works with.</p>
+              </div>
+
+              <section class="admin-section-card">
+                <div class="admin-toolbar">
+                  <span class="admin-chip">{{ managerData.trainingProviders().length }} listed</span>
+                  <button type="button" class="admin-secondary-btn" (click)="openAddTrainingProviderForm()">Add Training Provider</button>
+                </div>
+
+                <div class="training-provider-list">
+                  @for (provider of managerData.trainingProviders(); track provider.id) {
+                    <article class="training-provider-row">
+                      <div class="training-provider-cell training-provider-primary">
+                        <div class="admin-user-field-label">Provider Name</div>
+                        <div class="training-provider-name">{{ provider.name }}</div>
+                      </div>
+                      <div class="training-provider-cell">
+                        <div class="admin-user-field-label">Type</div>
+                        <span>{{ provider.providerType }}</span>
+                      </div>
+                      <div class="training-provider-cell">
+                        <div class="admin-user-field-label">Accreditation</div>
+                        <span class="provider-status-pill"
+                          [class.provider-status-pill-active]="provider.accreditationStatus === 'Active'"
+                          [class.provider-status-pill-expired]="provider.accreditationStatus === 'Expired'"
+                          [class.provider-status-pill-pending]="provider.accreditationStatus === 'Pending'"
+                          [class.provider-status-pill-not-required]="provider.accreditationStatus === 'Not Required'">
+                          {{ provider.accreditationStatus }}
+                        </span>
+                      </div>
+                      <div class="training-provider-cell training-provider-actions-cell">
+                        <div class="admin-user-field-label">Actions</div>
+                        <div class="admin-user-actions">
+                          <button type="button" class="admin-inline-btn" (click)="openTrainingProviderEditor(provider)">Edit</button>
+                          <button type="button" class="admin-inline-btn admin-inline-btn-danger" (click)="deleteTrainingProvider(provider)">Delete</button>
+                        </div>
+                      </div>
+                    </article>
+                  } @empty {
+                    <div class="admin-empty-state">No training providers added yet.</div>
+                  }
+                </div>
+              </section>
+            </section>
+
+            @if (showAddTrainingProviderModal()) {
+              <div class="admin-modal-backdrop" (click)="closeAddTrainingProviderForm()">
+                <section class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="admin-add-training-provider-title" (click)="$event.stopPropagation()">
+                  <div class="admin-section-card-header">
+                    <h2 id="admin-add-training-provider-title">Add Training Provider</h2>
+                    <span>Manual entry</span>
+                  </div>
+
+                  @if (trainingProviderFormError(); as message) {
+                    <div class="admin-upload-feedback admin-upload-feedback-error" role="status" aria-live="polite">{{ message }}</div>
+                  }
+
+                  <form class="admin-edit-form" [formGroup]="addTrainingProviderForm" (ngSubmit)="saveNewTrainingProvider()">
+                    <ng-container [ngTemplateOutlet]="trainingProviderFormFields" [ngTemplateOutletContext]="{ form: addTrainingProviderForm }"></ng-container>
+                    <div class="admin-form-actions">
+                      <button type="submit" class="admin-primary-btn" [disabled]="addTrainingProviderForm.invalid">Save provider</button>
+                      <button type="button" class="admin-secondary-btn" (click)="closeAddTrainingProviderForm()">Cancel</button>
+                    </div>
+                  </form>
+                </section>
+              </div>
+            }
+
+            @if (editingTrainingProviderId()) {
+              <div class="admin-modal-backdrop" (click)="cancelTrainingProviderEdit()">
+                <section class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="admin-edit-training-provider-title" (click)="$event.stopPropagation()">
+                  <div class="admin-section-card-header">
+                    <h2 id="admin-edit-training-provider-title">Edit Training Provider</h2>
+                  </div>
+
+                  @if (trainingProviderFormError(); as message) {
+                    <div class="admin-upload-feedback admin-upload-feedback-error" role="status" aria-live="polite">{{ message }}</div>
+                  }
+
+                  <form class="admin-edit-form" [formGroup]="trainingProviderEditForm" (ngSubmit)="saveTrainingProviderEdit()">
+                    <ng-container [ngTemplateOutlet]="trainingProviderFormFields" [ngTemplateOutletContext]="{ form: trainingProviderEditForm }"></ng-container>
+                    <div class="admin-form-actions">
+                      <button type="submit" class="admin-primary-btn" [disabled]="trainingProviderEditForm.invalid">Save changes</button>
+                      <button type="button" class="admin-secondary-btn" (click)="cancelTrainingProviderEdit()">Cancel</button>
+                    </div>
+                  </form>
+                </section>
+              </div>
+            }
+
+            <ng-template #trainingProviderFormFields let-form="form">
+              <label>
+                Provider Name
+                <input type="text" [formControl]="form.controls.name" />
+              </label>
+              <label>
+                Provider Type
+                <select [formControl]="form.controls.providerType">
+                  <option value="Accredited">Accredited</option>
+                  <option value="Internal">Internal</option>
+                  <option value="Vendor">Vendor</option>
+                  <option value="Higher Education Institution">Higher Education Institution</option>
+                </select>
+              </label>
+              <label>
+                SETA Accreditation Number
+                <input type="text" [formControl]="form.controls.setaAccreditationNumber" />
+              </label>
+              <label>
+                Accreditation Status
+                <select [formControl]="form.controls.accreditationStatus">
+                  <option value="Active">Active</option>
+                  <option value="Expired">Expired</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Not Required">Not Required</option>
+                </select>
+              </label>
+              <label>
+                Accreditation Expiry Date
+                <input type="date" [formControl]="form.controls.accreditationExpiryDate" />
+              </label>
+              <label>
+                BBBEE Level
+                <input type="text" [formControl]="form.controls.bbbeeLevel" placeholder="e.g. Level 4" />
+              </label>
+              <label>
+                Primary Contact Name
+                <input type="text" [formControl]="form.controls.primaryContactName" />
+              </label>
+              <label>
+                Email
+                <input type="email" [formControl]="form.controls.email" />
+              </label>
+              <label>
+                Phone
+                <input type="tel" [formControl]="form.controls.phone" />
+              </label>
+              <label>
+                Website
+                <input type="text" [formControl]="form.controls.website" placeholder="e.g. www.provider.co.za" />
+              </label>
+              <label class="admin-edit-form-span-2">
+                Physical/Postal Address
+                <input type="text" [formControl]="form.controls.address" />
+              </label>
+            </ng-template>
           }
 
           @if (selectedPanel() === 'settings') {
@@ -6818,6 +6996,69 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       padding: 0.42rem 0.72rem;
       background: rgba(56, 189, 248, 0.12);
       color: #0f4c81;
+    }
+
+    /* Training Providers panel — a simpler, fixed-column sibling of .admin-user-table (no column
+       picker, so no need for its CSS-variable-driven column count). */
+    .training-provider-list {
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    .training-provider-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1fr);
+      gap: 0.75rem;
+      align-items: center;
+      padding: 0.85rem 1rem;
+      border-radius: 12px;
+      background: #fff;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+    }
+
+    .training-provider-cell {
+      display: grid;
+      gap: 0.2rem;
+      min-width: 0;
+    }
+
+    .training-provider-name {
+      font-weight: 700;
+      color: #173446;
+    }
+
+    .training-provider-actions-cell .admin-user-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .provider-status-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: fit-content;
+      padding: 0.3rem 0.65rem;
+      border-radius: 999px;
+      font-size: 0.76rem;
+      font-weight: 800;
+      white-space: nowrap;
+      background: #f1f5f9;
+      color: #475569;
+    }
+
+    .provider-status-pill-active { background: rgba(34, 197, 94, 0.14); color: #15803d; }
+    .provider-status-pill-expired { background: rgba(239, 68, 68, 0.12); color: #b91c1c; }
+    .provider-status-pill-pending { background: #fff7ed; color: #c2410c; }
+    .provider-status-pill-not-required { background: #f1f5f9; color: #64748b; }
+
+    .admin-edit-form-span-2 {
+      grid-column: 1 / -1;
+    }
+
+    @media (max-width: 720px) {
+      .training-provider-row {
+        grid-template-columns: 1fr;
+      }
     }
 
     .admin-user-table-wrap {
@@ -12076,6 +12317,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     { label: 'User Management', value: 'users' },
     { label: 'Reports', value: 'reports' },
     { label: 'Succession Planning', value: 'succession' },
+    { label: 'Training Providers', value: 'training-providers' },
     { label: 'LMS Settings', value: 'settings' },
   ];
   // Succession Planning is the only whole nav item a plan can hide today (see plan-features.ts)
@@ -13449,6 +13691,12 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   readonly singleUserForm = this.createUserForm();
   readonly userEditForm = this.createUserForm();
+
+  readonly addTrainingProviderForm = this.createTrainingProviderForm();
+  readonly trainingProviderEditForm = this.createTrainingProviderForm();
+  readonly showAddTrainingProviderModal = signal(false);
+  readonly editingTrainingProviderId = signal<string | null>(null);
+  readonly trainingProviderFormError = signal('');
 
   private welcomeBannerExitTimer: ReturnType<typeof setTimeout> | null = null;
   private welcomeBannerHideTimer: ReturnType<typeof setTimeout> | null = null;
@@ -14874,6 +15122,133 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       managerAccess: 'No',
       isAdmin: 'No',
     });
+  }
+
+  private createTrainingProviderForm(): TrainingProviderFormGroup {
+    return new FormGroup<TrainingProviderFormControls>({
+      name: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+      providerType: new FormControl<TrainingProviderRecord['providerType']>('Accredited', { nonNullable: true, validators: [Validators.required] }),
+      setaAccreditationNumber: new FormControl('', { nonNullable: true }),
+      accreditationStatus: new FormControl<TrainingProviderRecord['accreditationStatus']>('Active', { nonNullable: true, validators: [Validators.required] }),
+      accreditationExpiryDate: new FormControl('', { nonNullable: true }),
+      bbbeeLevel: new FormControl('', { nonNullable: true }),
+      primaryContactName: new FormControl('', { nonNullable: true }),
+      email: new FormControl('', { nonNullable: true }),
+      phone: new FormControl('', { nonNullable: true }),
+      address: new FormControl('', { nonNullable: true }),
+      website: new FormControl('', { nonNullable: true }),
+    });
+  }
+
+  private buildTrainingProviderInputFromForm(form: TrainingProviderFormGroup): TrainingProviderInput {
+    return {
+      name: form.controls.name.value.trim(),
+      providerType: form.controls.providerType.value,
+      setaAccreditationNumber: form.controls.setaAccreditationNumber.value.trim(),
+      accreditationStatus: form.controls.accreditationStatus.value,
+      accreditationExpiryDate: form.controls.accreditationExpiryDate.value,
+      bbbeeLevel: form.controls.bbbeeLevel.value.trim(),
+      primaryContactName: form.controls.primaryContactName.value.trim(),
+      email: form.controls.email.value.trim(),
+      phone: form.controls.phone.value.trim(),
+      address: form.controls.address.value.trim(),
+      website: form.controls.website.value.trim(),
+    };
+  }
+
+  openAddTrainingProviderForm() {
+    this.addTrainingProviderForm.reset({
+      name: '',
+      providerType: 'Accredited',
+      setaAccreditationNumber: '',
+      accreditationStatus: 'Active',
+      accreditationExpiryDate: '',
+      bbbeeLevel: '',
+      primaryContactName: '',
+      email: '',
+      phone: '',
+      address: '',
+      website: '',
+    });
+    this.trainingProviderFormError.set('');
+    this.showAddTrainingProviderModal.set(true);
+  }
+
+  closeAddTrainingProviderForm() {
+    this.showAddTrainingProviderModal.set(false);
+  }
+
+  async saveNewTrainingProvider() {
+    if (this.addTrainingProviderForm.invalid) {
+      this.addTrainingProviderForm.markAllAsTouched();
+      return;
+    }
+
+    this.trainingProviderFormError.set('');
+    const input = this.buildTrainingProviderInputFromForm(this.addTrainingProviderForm);
+
+    try {
+      await firstValueFrom(this.managerData.createTrainingProvider(input));
+      this.closeAddTrainingProviderForm();
+    } catch {
+      this.trainingProviderFormError.set('Could not save this training provider. Please check your connection and try again.');
+    }
+  }
+
+  openTrainingProviderEditor(provider: TrainingProviderRecord) {
+    this.trainingProviderEditForm.setValue({
+      name: provider.name,
+      providerType: provider.providerType,
+      setaAccreditationNumber: provider.setaAccreditationNumber,
+      accreditationStatus: provider.accreditationStatus,
+      accreditationExpiryDate: provider.accreditationExpiryDate,
+      bbbeeLevel: provider.bbbeeLevel,
+      primaryContactName: provider.primaryContactName,
+      email: provider.email,
+      phone: provider.phone,
+      address: provider.address,
+      website: provider.website,
+    });
+    this.trainingProviderFormError.set('');
+    this.editingTrainingProviderId.set(provider.id);
+  }
+
+  cancelTrainingProviderEdit() {
+    this.editingTrainingProviderId.set(null);
+  }
+
+  async saveTrainingProviderEdit() {
+    const providerId = this.editingTrainingProviderId();
+    if (!providerId || this.trainingProviderEditForm.invalid) {
+      this.trainingProviderEditForm.markAllAsTouched();
+      return;
+    }
+
+    this.trainingProviderFormError.set('');
+    const input = this.buildTrainingProviderInputFromForm(this.trainingProviderEditForm);
+
+    try {
+      await firstValueFrom(this.managerData.updateTrainingProvider(providerId, input));
+      this.cancelTrainingProviderEdit();
+    } catch {
+      this.trainingProviderFormError.set('Could not save these changes. Please check your connection and try again.');
+    }
+  }
+
+  async deleteTrainingProvider(provider: TrainingProviderRecord) {
+    const shouldDelete = confirm(`Delete "${provider.name}" from the training provider directory?`);
+    if (!shouldDelete) {
+      return;
+    }
+
+    try {
+      await firstValueFrom(this.managerData.deleteTrainingProvider(provider.id));
+      if (this.editingTrainingProviderId() === provider.id) {
+        this.cancelTrainingProviderEdit();
+      }
+    } catch {
+      alert(`Failed to delete "${provider.name}". Please check your connection and try again.`);
+    }
   }
 
   private buildStudentInputFromForm(form: UserFormGroup): EnrollmentStudentInput {

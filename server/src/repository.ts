@@ -70,6 +70,8 @@ import {
   TrainingContentItem,
   TrainingOffering,
   TrainingOfferingUpdate,
+  TrainingProviderInput,
+  TrainingProviderRecord,
 } from './contracts.js';
 
 const configuredDataDirectory = process.env['LMS_DATA_DIRECTORY']?.trim();
@@ -104,6 +106,7 @@ export const firestoreCollectionNames = [
   'passwordResetTokens',
   'successionRoles',
   'successorNominations',
+  'trainingProviders',
 ] as const satisfies readonly FirestoreCollectionName[];
 
 type FirestoreCollectionName = Exclude<keyof LmsDataStore, 'branding' | 'updatedAt' | 'currentKpiYear' | 'kpiYearsOpened' | 'currentIdpYear' | 'idpYearsOpened' | 'hrIntegration'>;
@@ -1209,6 +1212,7 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
     passwordResetTokens: (data.passwordResetTokens ?? defaults.passwordResetTokens).filter((token) => !token.consumedAt || new Date(token.consumedAt).getTime() > 0),
     successionRoles: data.successionRoles ?? defaults.successionRoles,
     successorNominations: data.successorNominations ?? defaults.successorNominations,
+    trainingProviders: data.trainingProviders ?? defaults.trainingProviders,
     updatedAt: data.updatedAt || new Date().toISOString(),
     currentKpiYear,
     kpiYearsOpened,
@@ -1427,6 +1431,9 @@ export class LmsRepository {
         externalTrainingRequests: data.externalTrainingRequests,
         successionRoles,
         successorNominations,
+        // Unlike succession's admin-vs-manager split above, this is a flat, ownerless directory —
+        // both roles see the same full list.
+        trainingProviders: data.trainingProviders,
       };
     }
 
@@ -1477,6 +1484,8 @@ export class LmsRepository {
       // since that would still leak the role's owner manager / incumbent fields.
       successionRoles: [],
       successorNominations: [],
+      // Admin/manager-only directory — a student session has no reason to see it.
+      trainingProviders: [],
     };
   }
 
@@ -3775,6 +3784,85 @@ export class LmsRepository {
     return next.successorNominations.find((entry) => entry.id === nominationId) ?? null;
   }
 
+  // A flat, admin-owned directory — no ownership/relation to any other record (unlike
+  // SuccessionRoleRecord above), so unlike that pair these need no incumbent/manager validation
+  // or cascading side effects on delete.
+  async listTrainingProviders() {
+    const data = await this.read();
+    return data.trainingProviders;
+  }
+
+  async createTrainingProvider(input: TrainingProviderInput) {
+    const name = input.name.trim();
+    if (!name) {
+      return null;
+    }
+
+    const data = await this.read();
+    const provider: TrainingProviderRecord = {
+      id: `training-provider-${Date.now()}`,
+      name,
+      providerType: input.providerType,
+      setaAccreditationNumber: input.setaAccreditationNumber.trim(),
+      accreditationStatus: input.accreditationStatus,
+      accreditationExpiryDate: input.accreditationExpiryDate.trim(),
+      bbbeeLevel: input.bbbeeLevel.trim(),
+      primaryContactName: input.primaryContactName.trim(),
+      email: input.email.trim(),
+      phone: input.phone.trim(),
+      address: input.address.trim(),
+      website: input.website.trim(),
+      createdOn: this.formatDisplayDate(new Date()),
+    };
+
+    data.trainingProviders.push(provider);
+    await this.write(data);
+    return provider;
+  }
+
+  async updateTrainingProvider(providerId: string, input: TrainingProviderInput) {
+    const name = input.name.trim();
+    if (!name) {
+      return null;
+    }
+
+    const data = await this.read();
+    const providerIndex = data.trainingProviders.findIndex((provider) => provider.id === providerId);
+    if (providerIndex === -1) {
+      return null;
+    }
+
+    const updatedProvider: TrainingProviderRecord = {
+      ...data.trainingProviders[providerIndex],
+      name,
+      providerType: input.providerType,
+      setaAccreditationNumber: input.setaAccreditationNumber.trim(),
+      accreditationStatus: input.accreditationStatus,
+      accreditationExpiryDate: input.accreditationExpiryDate.trim(),
+      bbbeeLevel: input.bbbeeLevel.trim(),
+      primaryContactName: input.primaryContactName.trim(),
+      email: input.email.trim(),
+      phone: input.phone.trim(),
+      address: input.address.trim(),
+      website: input.website.trim(),
+    };
+
+    data.trainingProviders[providerIndex] = updatedProvider;
+    await this.write(data);
+    return updatedProvider;
+  }
+
+  async deleteTrainingProvider(providerId: string) {
+    const data = await this.read();
+    if (!data.trainingProviders.some((provider) => provider.id === providerId)) {
+      return false;
+    }
+
+    data.trainingProviders = data.trainingProviders.filter((provider) => provider.id !== providerId);
+    await this.write(data);
+    return true;
+  }
+
   protected formatDisplayDate(date: Date) {
     return new Intl.DateTimeFormat('en-ZA', {
       day: '2-digit',
@@ -3891,6 +3979,7 @@ class FirestoreLmsRepository extends LmsRepository {
       passwordResetTokens,
       successionRoles,
       successorNominations,
+      trainingProviders,
     ] = await Promise.all([
       this.storeDocument.get(),
       this.readCollection('offerings'),
@@ -3907,6 +3996,7 @@ class FirestoreLmsRepository extends LmsRepository {
       this.readCollection('passwordResetTokens'),
       this.readCollection('successionRoles'),
       this.readCollection('successorNominations'),
+      this.readCollection('trainingProviders'),
     ]);
 
     const hasStoredCollections = [
@@ -3924,6 +4014,7 @@ class FirestoreLmsRepository extends LmsRepository {
       passwordResetTokens,
       successionRoles,
       successorNominations,
+      trainingProviders,
     ].some((records) => records.length > 0);
 
     if (!storeSnapshot.exists && !hasStoredCollections) {
@@ -3953,6 +4044,7 @@ class FirestoreLmsRepository extends LmsRepository {
       passwordResetTokens,
       successionRoles,
       successorNominations,
+      trainingProviders,
       updatedAt: storeData?.updatedAt ?? defaults.updatedAt,
       currentKpiYear: storeData?.currentKpiYear ?? defaults.currentKpiYear,
       kpiYearsOpened: storeData?.kpiYearsOpened ?? defaults.kpiYearsOpened,

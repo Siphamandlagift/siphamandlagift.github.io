@@ -410,6 +410,26 @@ export type SuccessionRoleUpdateInput = {
   incumbentStudentId: string;
 };
 
+// A flat, admin-owned directory — no ownership/relation to any other record. Deliberately not
+// linked to the separate, pre-existing free-text `provider` field on ExternalTrainingRequest.
+export type TrainingProviderRecord = {
+  id: string;
+  name: string;
+  providerType: 'Accredited' | 'Internal' | 'Vendor' | 'Higher Education Institution';
+  setaAccreditationNumber: string;
+  accreditationStatus: 'Active' | 'Expired' | 'Pending' | 'Not Required';
+  accreditationExpiryDate: string;
+  bbbeeLevel: string;
+  primaryContactName: string;
+  email: string;
+  phone: string;
+  address: string;
+  website: string;
+  createdOn: string;
+};
+
+export type TrainingProviderInput = Omit<TrainingProviderRecord, 'id' | 'createdOn'>;
+
 export type SuccessionDevelopmentAction = {
   id: string;
   description: string;
@@ -577,6 +597,8 @@ export class TrainingManagerDataService {
   // only those for roles they own.
   private readonly successionRolesSignal = signal<SuccessionRoleRecord[]>([]);
   private readonly successorNominationsSignal = signal<SuccessorNominationRecord[]>([]);
+  // Flat, ownerless directory — both admin and manager get the same full list unfiltered.
+  private readonly trainingProvidersSignal = signal<TrainingProviderRecord[]>([]);
   private readonly idpEntriesByStudentSignal = signal<Record<string, StudentIdpEntry[]>>({});
   private readonly kpiEntriesByStudentSignal = signal<Record<string, StudentKpiEntry[]>>({});
 
@@ -786,6 +808,7 @@ export class TrainingManagerDataService {
   );
   readonly successionRoles = this.successionRolesSignal.asReadonly();
   readonly successorNominations = this.successorNominationsSignal.asReadonly();
+  readonly trainingProviders = this.trainingProvidersSignal.asReadonly();
   // Case/whitespace-insensitive match: a manager's login email (session-derived) and their
   // directory email (used as approvingManagerEmail on requests) are meant to be the same value,
   // but an exact === comparison would silently show zero requests if they ever drift apart
@@ -1215,6 +1238,7 @@ export class TrainingManagerDataService {
         this.externalTrainingRequestsSignal.set(bootstrap.externalTrainingRequests);
         this.successionRolesSignal.set(bootstrap.successionRoles ?? []);
         this.successorNominationsSignal.set(bootstrap.successorNominations ?? []);
+        this.trainingProvidersSignal.set(bootstrap.trainingProviders ?? []);
         const backendIdpEntriesByStudent = this.normalizeIdpEntriesByStudent(bootstrap.idpEntriesByStudent);
         const mergedIdpEntriesByStudent = {
           ...localIdpEntriesByStudent,
@@ -3335,6 +3359,7 @@ export class TrainingManagerDataService {
           );
           this.successionRolesSignal.set(bootstrap.successionRoles ?? []);
           this.successorNominationsSignal.set(bootstrap.successorNominations ?? []);
+          this.trainingProvidersSignal.set(bootstrap.trainingProviders ?? []);
           // A year the local cache's dirty timestamps were recorded against isn't comparable to a
           // *different* year's server data once someone opens a new IDP year mid-session — the
           // dirty-merge logic assumes "local" and "server" are the same logical table, which is no
@@ -3583,6 +3608,26 @@ export class TrainingManagerDataService {
   setSuccessorNominationStatus(nominationId: string, status: SuccessionNominationStatus): Observable<SuccessorNominationRecord> {
     return this.backend.setSuccessorNominationStatus(nominationId, status).pipe(
       tap((nomination) => this.successorNominationsSignal.update((nominations) => nominations.map((entry) => (entry.id === nomination.id ? nomination : entry)))),
+    );
+  }
+
+  // Same wait-for-server reasoning as succession planning above — a flat, ownerless directory
+  // with no cascade concerns on delete.
+  createTrainingProvider(input: TrainingProviderInput): Observable<TrainingProviderRecord> {
+    return this.backend.createTrainingProvider(input).pipe(
+      tap((provider) => this.trainingProvidersSignal.update((providers) => [...providers, provider])),
+    );
+  }
+
+  updateTrainingProvider(providerId: string, input: TrainingProviderInput): Observable<TrainingProviderRecord> {
+    return this.backend.updateTrainingProvider(providerId, input).pipe(
+      tap((provider) => this.trainingProvidersSignal.update((providers) => providers.map((entry) => (entry.id === provider.id ? provider : entry)))),
+    );
+  }
+
+  deleteTrainingProvider(providerId: string): Observable<void> {
+    return this.backend.deleteTrainingProvider(providerId).pipe(
+      tap(() => this.trainingProvidersSignal.update((providers) => providers.filter((entry) => entry.id !== providerId))),
     );
   }
 

@@ -30,6 +30,8 @@ import type {
   TrainingOffering,
   TrainingQuestionType,
   TrainingOfferingUpdate,
+  TrainingProviderInput,
+  TrainingProviderRecord,
 } from './training-manager-data.service';
 import type {
   StudentAssessmentAttempt,
@@ -84,6 +86,7 @@ export type LmsBootstrapResponse = {
   externalTrainingRequests: ExternalTrainingRequestRecord[];
   successionRoles?: SuccessionRoleRecord[];
   successorNominations?: SuccessorNominationRecord[];
+  trainingProviders?: TrainingProviderRecord[];
 };
 
 export type QuizSubmissionAnswer = {
@@ -595,6 +598,18 @@ export class LmsBackendService {
 
   setSuccessorNominationStatus(nominationId: string, status: SuccessorNominationRecord['status']): Observable<SuccessorNominationRecord> {
     return this.http.put<SuccessorNominationRecord>(`${this.config.baseUrl}/succession/nominations/${nominationId}/status`, { status });
+  }
+
+  createTrainingProvider(input: TrainingProviderInput): Observable<TrainingProviderRecord> {
+    return this.http.post<TrainingProviderRecord>(`${this.config.baseUrl}/training-providers`, input);
+  }
+
+  updateTrainingProvider(providerId: string, input: TrainingProviderInput): Observable<TrainingProviderRecord> {
+    return this.http.put<TrainingProviderRecord>(`${this.config.baseUrl}/training-providers/${providerId}`, input);
+  }
+
+  deleteTrainingProvider(providerId: string): Observable<void> {
+    return this.http.delete<void>(`${this.config.baseUrl}/training-providers/${providerId}`);
   }
 
   patchManagerState(patch: ManagerStatePatch): Observable<unknown> {

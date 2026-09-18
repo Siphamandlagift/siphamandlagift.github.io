@@ -150,6 +150,7 @@ export function createDefaultData(companyId = ''): LmsDataStore {
     passwordResetTokens: [],
     successionRoles: [],
     successorNominations: [],
+    trainingProviders: [],
     updatedAt: new Date().toISOString(),
     currentKpiYear: new Date().getFullYear(),
     kpiYearsOpened: [new Date().getFullYear()],

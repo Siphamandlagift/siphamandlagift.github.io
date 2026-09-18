@@ -997,6 +997,24 @@ const successionRoleUpdateSchema = z.object({
   incumbentStudentId: z.string().min(1),
 });
 
+// Reused for both create and update bodies — a flat, ownerless directory has no reason for the
+// two to differ the way succession's input/update-input pair do (that split exists only because
+// creation there is implicit, via flagging an incumbent, while update lets the fields be
+// corrected afterward).
+const trainingProviderInputSchema = z.object({
+  name: z.string().min(1),
+  providerType: z.enum(['Accredited', 'Internal', 'Vendor', 'Higher Education Institution']),
+  setaAccreditationNumber: z.string(),
+  accreditationStatus: z.enum(['Active', 'Expired', 'Pending', 'Not Required']),
+  accreditationExpiryDate: z.string(),
+  bbbeeLevel: z.string(),
+  primaryContactName: z.string(),
+  email: z.string(),
+  phone: z.string(),
+  address: z.string(),
+  website: z.string(),
+});
+
 const successionDevelopmentActionSchema = z.object({
   id: z.string().min(1),
   description: z.string(),
@@ -3526,6 +3544,60 @@ app.put('/api/succession/nominations/:nominationId/status', requireTrainingManag
     }
 
     response.json(nomination);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Training Providers: a flat, administrator-owned compliance directory under the Admin menu —
+// no per-manager ownership to check (unlike succession's roles above), so plain
+// requireAdministrator is enough. The list itself rides along in GET /api/bootstrap (see
+// repository.getBootstrap), same as succession roles/nominations — no dedicated list route.
+app.post('/api/training-providers', requireAdministrator, async (request, response, next) => {
+  try {
+    const repository = request.repository!;
+    const body = trainingProviderInputSchema.parse(request.body);
+    const provider = await repository.createTrainingProvider(body);
+
+    if (!provider) {
+      response.status(400).json({ message: 'Provider name is required.' });
+      return;
+    }
+
+    response.status(201).json(provider);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/training-providers/:providerId', requireAdministrator, async (request, response, next) => {
+  try {
+    const repository = request.repository!;
+    const body = trainingProviderInputSchema.parse(request.body);
+    const provider = await repository.updateTrainingProvider(request.params['providerId'] as string, body);
+
+    if (!provider) {
+      response.status(404).json({ message: 'Training provider not found.' });
+      return;
+    }
+
+    response.json(provider);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/training-providers/:providerId', requireAdministrator, async (request, response, next) => {
+  try {
+    const repository = request.repository!;
+    const deleted = await repository.deleteTrainingProvider(request.params['providerId'] as string);
+
+    if (!deleted) {
+      response.status(404).json({ message: 'Training provider not found.' });
+      return;
+    }
+
+    response.status(204).end();
   } catch (error) {
     next(error);
   }
