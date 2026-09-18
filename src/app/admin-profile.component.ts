@@ -2721,12 +2721,24 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                   <button type="button" class="admin-secondary-btn" (click)="openAddTrainingProviderForm()">Add Training Provider</button>
                 </div>
 
-                <div class="training-provider-list">
+                <div class="training-provider-table-wrap">
+                  <div class="training-provider-row training-provider-table-head">
+                    <span>Provider Name</span>
+                    <span>Type</span>
+                    <span>Accreditation Status</span>
+                    <span>Expiry Date</span>
+                    <span>Actions</span>
+                  </div>
+
+                  <div class="training-provider-list">
                   @for (provider of managerData.trainingProviders(); track provider.id) {
                     <article class="training-provider-row">
                       <div class="training-provider-cell training-provider-primary">
-                        <div class="admin-user-field-label">Provider Name</div>
-                        <div class="training-provider-name">{{ provider.name }}</div>
+                        <span class="training-provider-avatar" aria-hidden="true">{{ provider.name[0] }}</span>
+                        <div>
+                          <div class="admin-user-field-label">Provider Name</div>
+                          <div class="training-provider-name">{{ provider.name }}</div>
+                        </div>
                       </div>
                       <div class="training-provider-cell">
                         <div class="admin-user-field-label">Type</div>
@@ -2743,7 +2755,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         </span>
                       </div>
                       <div class="training-provider-cell">
-                        <div class="admin-user-field-label">Accreditation Expiry Date</div>
+                        <div class="admin-user-field-label">Expiry Date</div>
                         <span>{{ provider.accreditationExpiryDate || '—' }}</span>
                       </div>
                       <div class="training-provider-cell training-provider-actions-cell">
@@ -2755,8 +2767,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       </div>
                     </article>
                   } @empty {
-                    <div class="admin-empty-state">No training providers added yet.</div>
+                    <div class="admin-empty-state">No training providers added yet. Click "Add Training Provider" to create your first record.</div>
                   }
+                  </div>
                 </div>
               </section>
             </section>
@@ -7003,10 +7016,31 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     /* Training Providers panel — a simpler, fixed-column sibling of .admin-user-table (no column
-       picker, so no need for its CSS-variable-driven column count). */
-    .training-provider-list {
+       picker, so no need for its CSS-variable-driven column count). Desktop gets a real header
+       row (.training-provider-table-head) with the column titles once; each data row's own
+       .admin-user-field-label repeats them per-cell but stays hidden until the narrow-screen
+       breakpoint collapses the grid to one column — same responsive split
+       admin-user-table/.admin-user-field-label already use. */
+    .training-provider-table-wrap {
       display: grid;
       gap: 0.5rem;
+      overflow-x: auto;
+    }
+
+    .training-provider-table-head {
+      padding: 0 1rem;
+      background: transparent;
+      border: none;
+      color: #64748b;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .training-provider-list {
+      display: grid;
+      gap: 0.55rem;
     }
 
     .training-provider-row {
@@ -7014,16 +7048,47 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       grid-template-columns: minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1fr);
       gap: 0.75rem;
       align-items: center;
-      padding: 0.85rem 1rem;
-      border-radius: 12px;
+      min-width: fit-content;
+    }
+
+    article.training-provider-row {
+      padding: 0.9rem 1rem;
+      border-radius: 14px;
       background: #fff;
-      border: 1px solid rgba(148, 163, 184, 0.22);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+
+    article.training-provider-row:hover {
+      border-color: rgba(56, 189, 248, 0.35);
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
     }
 
     .training-provider-cell {
       display: grid;
       gap: 0.2rem;
       min-width: 0;
+    }
+
+    .training-provider-primary {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+    }
+
+    .training-provider-avatar {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.35rem;
+      height: 2.35rem;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
+      color: #fff;
+      font-weight: 800;
+      font-size: 0.9rem;
+      flex-shrink: 0;
     }
 
     .training-provider-name {
@@ -7062,6 +7127,18 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     @media (max-width: 720px) {
       .training-provider-row {
         grid-template-columns: 1fr;
+      }
+
+      .training-provider-table-head {
+        display: none;
+      }
+
+      .training-provider-row .admin-user-field-label {
+        display: block;
+      }
+
+      .training-provider-actions-cell {
+        justify-self: stretch;
       }
     }
 
