@@ -2733,7 +2733,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         <span>{{ provider.providerType }}</span>
                       </div>
                       <div class="training-provider-cell">
-                        <div class="admin-user-field-label">Accreditation</div>
+                        <div class="admin-user-field-label">Accreditation Status</div>
                         <span class="provider-status-pill"
                           [class.provider-status-pill-active]="provider.accreditationStatus === 'Active'"
                           [class.provider-status-pill-expired]="provider.accreditationStatus === 'Expired'"
@@ -2741,6 +2741,10 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           [class.provider-status-pill-not-required]="provider.accreditationStatus === 'Not Required'">
                           {{ provider.accreditationStatus }}
                         </span>
+                      </div>
+                      <div class="training-provider-cell">
+                        <div class="admin-user-field-label">Accreditation Expiry Date</div>
+                        <span>{{ provider.accreditationExpiryDate || '—' }}</span>
                       </div>
                       <div class="training-provider-cell training-provider-actions-cell">
                         <div class="admin-user-field-label">Actions</div>
@@ -7007,7 +7011,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .training-provider-row {
       display: grid;
-      grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1fr);
       gap: 0.75rem;
       align-items: center;
       padding: 0.85rem 1rem;
