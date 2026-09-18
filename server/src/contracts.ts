@@ -385,6 +385,12 @@ export type EnrollmentStudentRecord = {
   nqfLevel?: string;
   disability?: 'Yes' | 'No';
   disabilityType?: string;
+  idDocumentFileName?: string;
+  idDocumentUrl?: string;
+  qualification?: string;
+  qualificationCertificateFileName?: string;
+  qualificationCertificateUrl?: string;
+  employmentType?: 'Employed' | 'Unemployed';
 };
 
 export type StudentIdpStatusRecord = 'Not Started' | 'In Progress' | 'Completed' | 'On Hold';

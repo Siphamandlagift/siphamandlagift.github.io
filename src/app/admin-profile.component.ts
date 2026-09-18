@@ -47,7 +47,8 @@ type AdminPanel = 'dashboard' | 'users' | 'reports' | 'succession' | 'settings' 
 type UserColumnId =
   | 'email' | 'department' | 'group' | 'learningStatus' | 'access'
   | 'jobTitle' | 'idNumber' | 'lineManager' | 'dateEnrolled' | 'deadlineDate'
-  | 'ofoCode' | 'race' | 'gender' | 'municipality' | 'dateOfBirth' | 'nqfLevel' | 'disability' | 'role';
+  | 'ofoCode' | 'race' | 'gender' | 'municipality' | 'dateOfBirth' | 'nqfLevel' | 'disability' | 'role'
+  | 'qualification' | 'employmentType';
 
 // ── Courses panel types (relocated from training-manager-profile.component.ts) ────
 type CoursesPanelView = 'create' | 'created' | 'submissions' | 'survey-results';
@@ -384,6 +385,8 @@ type UserFormControls = {
   password: FormControl<string>;
   jobTitle: FormControl<string>;
   idNumber: FormControl<string>;
+  idDocumentFileName: FormControl<string>;
+  idDocumentUrl: FormControl<string>;
   ofoCode: FormControl<string>;
   race: FormControl<string>;
   gender: FormControl<string>;
@@ -392,6 +395,10 @@ type UserFormControls = {
   nqfLevel: FormControl<string>;
   disability: FormControl<'Yes' | 'No'>;
   disabilityType: FormControl<string>;
+  qualification: FormControl<string>;
+  qualificationCertificateFileName: FormControl<string>;
+  qualificationCertificateUrl: FormControl<string>;
+  employmentType: FormControl<'Employed' | 'Unemployed'>;
   department: FormControl<string>;
   lineManagerId: FormControl<string>;
   group: FormControl<string>;
@@ -635,6 +642,20 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     ID Number
                     <input type="text" formControlName="idNumber" />
                   </label>
+                  <div class="admin-report-document-field">
+                    <span class="admin-report-document-label">ID Document</span>
+                    <label class="admin-upload-btn" [class.admin-upload-btn-disabled]="uploadingIdDocument()">
+                      <span>{{ uploadingIdDocument() ? 'Uploading…' : 'Choose file' }}</span>
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" [disabled]="uploadingIdDocument()" (change)="onIdDocumentSelected($event, userEditForm)" />
+                    </label>
+                    @if (userEditForm.controls.idDocumentFileName.value) {
+                      <span class="admin-report-upload-status">
+                        Current file:
+                        <a [href]="userEditForm.controls.idDocumentUrl.value" target="_blank" rel="noopener noreferrer">{{ userEditForm.controls.idDocumentFileName.value }}</a>
+                        <button type="button" class="admin-inline-btn" (click)="removeIdDocument(userEditForm)">Remove</button>
+                      </span>
+                    }
+                  </div>
                   <label>
                     OFO Code
                     <input type="text" formControlName="ofoCode" list="ofoCodeOptions" placeholder="Search job title or code…" autocomplete="off" />
@@ -699,6 +720,31 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       <input type="text" formControlName="disabilityType" placeholder="e.g. Visual, Hearing, Physical, Intellectual" />
                     </label>
                   }
+                  <label>
+                    Qualification
+                    <input type="text" formControlName="qualification" placeholder="e.g. BCom Accounting" />
+                  </label>
+                  <div class="admin-report-document-field">
+                    <span class="admin-report-document-label">Qualification Certificate</span>
+                    <label class="admin-upload-btn" [class.admin-upload-btn-disabled]="uploadingQualificationCertificate()">
+                      <span>{{ uploadingQualificationCertificate() ? 'Uploading…' : 'Choose file' }}</span>
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" [disabled]="uploadingQualificationCertificate()" (change)="onQualificationCertificateSelected($event, userEditForm)" />
+                    </label>
+                    @if (userEditForm.controls.qualificationCertificateFileName.value) {
+                      <span class="admin-report-upload-status">
+                        Current file:
+                        <a [href]="userEditForm.controls.qualificationCertificateUrl.value" target="_blank" rel="noopener noreferrer">{{ userEditForm.controls.qualificationCertificateFileName.value }}</a>
+                        <button type="button" class="admin-inline-btn" (click)="removeQualificationCertificate(userEditForm)">Remove</button>
+                      </span>
+                    }
+                  </div>
+                  <label>
+                    Employment Type
+                    <select formControlName="employmentType" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
+                      <option value="Employed">Employed</option>
+                      <option value="Unemployed">Unemployed</option>
+                    </select>
+                  </label>
                   <label>
                     Department
                     <input type="text" formControlName="department" />
@@ -856,6 +902,20 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     ID Number
                     <input type="text" formControlName="idNumber" />
                   </label>
+                  <div class="admin-report-document-field">
+                    <span class="admin-report-document-label">ID Document</span>
+                    <label class="admin-upload-btn" [class.admin-upload-btn-disabled]="uploadingIdDocument()">
+                      <span>{{ uploadingIdDocument() ? 'Uploading…' : 'Choose file' }}</span>
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" [disabled]="uploadingIdDocument()" (change)="onIdDocumentSelected($event, singleUserForm)" />
+                    </label>
+                    @if (singleUserForm.controls.idDocumentFileName.value) {
+                      <span class="admin-report-upload-status">
+                        Current file:
+                        <a [href]="singleUserForm.controls.idDocumentUrl.value" target="_blank" rel="noopener noreferrer">{{ singleUserForm.controls.idDocumentFileName.value }}</a>
+                        <button type="button" class="admin-inline-btn" (click)="removeIdDocument(singleUserForm)">Remove</button>
+                      </span>
+                    }
+                  </div>
                   <label>
                     OFO Code
                     <input type="text" formControlName="ofoCode" list="ofoCodeOptions" placeholder="Search job title or code…" autocomplete="off" />
@@ -920,6 +980,31 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       <input type="text" formControlName="disabilityType" placeholder="e.g. Visual, Hearing, Physical, Intellectual" />
                     </label>
                   }
+                  <label>
+                    Qualification
+                    <input type="text" formControlName="qualification" placeholder="e.g. BCom Accounting" />
+                  </label>
+                  <div class="admin-report-document-field">
+                    <span class="admin-report-document-label">Qualification Certificate</span>
+                    <label class="admin-upload-btn" [class.admin-upload-btn-disabled]="uploadingQualificationCertificate()">
+                      <span>{{ uploadingQualificationCertificate() ? 'Uploading…' : 'Choose file' }}</span>
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" [disabled]="uploadingQualificationCertificate()" (change)="onQualificationCertificateSelected($event, singleUserForm)" />
+                    </label>
+                    @if (singleUserForm.controls.qualificationCertificateFileName.value) {
+                      <span class="admin-report-upload-status">
+                        Current file:
+                        <a [href]="singleUserForm.controls.qualificationCertificateUrl.value" target="_blank" rel="noopener noreferrer">{{ singleUserForm.controls.qualificationCertificateFileName.value }}</a>
+                        <button type="button" class="admin-inline-btn" (click)="removeQualificationCertificate(singleUserForm)">Remove</button>
+                      </span>
+                    }
+                  </div>
+                  <label>
+                    Employment Type
+                    <select formControlName="employmentType" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
+                      <option value="Employed">Employed</option>
+                      <option value="Unemployed">Unemployed</option>
+                    </select>
+                  </label>
                   <label>
                     Department
                     <input type="text" formControlName="department" />
@@ -12137,6 +12222,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     { id: 'nqfLevel', label: 'NQF Level' },
     { id: 'disability', label: 'Disability' },
     { id: 'role', label: 'Role' },
+    { id: 'qualification', label: 'Qualification' },
+    { id: 'employmentType', label: 'Employment Type' },
   ];
   readonly selectedUserColumnIds = signal<UserColumnId[]>(this.loadUserColumnPreference());
   readonly userColumnsPanelOpen = signal(false);
@@ -12207,6 +12294,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       case 'nqfLevel': return student.nqfLevel || '—';
       case 'disability': return student.disability || '—';
       case 'role': return student.isAdmin ? 'Admin' : (student.role === 'manager' ? 'Manager' : 'Student');
+      case 'qualification': return student.qualification || '—';
+      case 'employmentType': return student.employmentType || '—';
     }
   }
 
@@ -12408,6 +12497,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly uploadingInvoice = signal(false);
   readonly uploadingProofOfPayment = signal(false);
   readonly uploadingCertificate = signal(false);
+  readonly uploadingIdDocument = signal(false);
+  readonly uploadingQualificationCertificate = signal(false);
   readonly selectedAnnualReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
   readonly selectedIdpReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
   readonly selectedSuccessionReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
@@ -14315,6 +14406,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       password: '',
       jobTitle: student.jobTitle,
       idNumber: student.idNumber,
+      idDocumentFileName: student.idDocumentFileName ?? '',
+      idDocumentUrl: student.idDocumentUrl ?? '',
       ofoCode: student.ofoCode ?? '',
       race: student.race ?? '',
       gender: student.gender ?? '',
@@ -14323,6 +14416,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       nqfLevel: student.nqfLevel ?? '',
       disability: student.disability ?? 'No',
       disabilityType: student.disabilityType ?? '',
+      qualification: student.qualification ?? '',
+      qualificationCertificateFileName: student.qualificationCertificateFileName ?? '',
+      qualificationCertificateUrl: student.qualificationCertificateUrl ?? '',
+      employmentType: student.employmentType ?? 'Employed',
       department: student.department,
       lineManagerId: student.lineManagerId ?? '',
       group: student.group,
@@ -14721,6 +14818,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       password: new FormControl('', { nonNullable: true, validators: [Validators.minLength(8)] }),
       jobTitle: new FormControl('', { nonNullable: true }),
       idNumber: new FormControl('', { nonNullable: true }),
+      idDocumentFileName: new FormControl('', { nonNullable: true }),
+      idDocumentUrl: new FormControl('', { nonNullable: true }),
       ofoCode: new FormControl('', { nonNullable: true }),
       race: new FormControl('', { nonNullable: true }),
       gender: new FormControl('', { nonNullable: true }),
@@ -14729,6 +14828,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       nqfLevel: new FormControl('', { nonNullable: true }),
       disability: new FormControl<'Yes' | 'No'>('No', { nonNullable: true, validators: [Validators.required] }),
       disabilityType: new FormControl('', { nonNullable: true }),
+      qualification: new FormControl('', { nonNullable: true }),
+      qualificationCertificateFileName: new FormControl('', { nonNullable: true }),
+      qualificationCertificateUrl: new FormControl('', { nonNullable: true }),
+      employmentType: new FormControl<'Employed' | 'Unemployed'>('Employed', { nonNullable: true, validators: [Validators.required] }),
       department: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
       lineManagerId: new FormControl('', { nonNullable: true }),
       group: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -14748,6 +14851,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       password: '',
       jobTitle: '',
       idNumber: '',
+      idDocumentFileName: '',
+      idDocumentUrl: '',
       ofoCode: '',
       race: '',
       gender: '',
@@ -14756,6 +14861,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       nqfLevel: '',
       disability: 'No',
       disabilityType: '',
+      qualification: '',
+      qualificationCertificateFileName: '',
+      qualificationCertificateUrl: '',
+      employmentType: 'Employed',
       department: '',
       lineManagerId: '',
       group: '',
@@ -14777,6 +14886,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       email: form.controls.email.value.trim(),
       jobTitle: form.controls.jobTitle.value.trim(),
       idNumber: form.controls.idNumber.value.trim(),
+      idDocumentFileName: form.controls.idDocumentFileName.value,
+      idDocumentUrl: form.controls.idDocumentUrl.value,
       ofoCode: form.controls.ofoCode.value.trim(),
       race: form.controls.race.value.trim(),
       gender: form.controls.gender.value.trim(),
@@ -14787,6 +14898,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       // Cleared rather than saved verbatim when disability is 'No' — otherwise toggling Yes to
       // No without also clearing the type field would silently keep it around underneath.
       disabilityType: form.controls.disability.value === 'Yes' ? form.controls.disabilityType.value.trim() : '',
+      qualification: form.controls.qualification.value.trim(),
+      qualificationCertificateFileName: form.controls.qualificationCertificateFileName.value,
+      qualificationCertificateUrl: form.controls.qualificationCertificateUrl.value,
+      employmentType: form.controls.employmentType.value,
       activeStatus: form.controls.activeStatus.value,
       department: form.controls.department.value.trim(),
       lineManagerId: form.controls.lineManagerId.value || undefined,
@@ -14821,6 +14936,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     const rawDisability = (record.get('disability') ?? '').trim().toLowerCase();
     const disability: 'Yes' | 'No' = ['yes', 'y', 'true'].includes(rawDisability) ? 'Yes' : 'No';
     const disabilityType = record.has('disabilitytype') ? (record.get('disabilitytype') ?? '').trim() : undefined;
+    const qualification = record.has('qualification') ? (record.get('qualification') ?? '').trim() : undefined;
+    const rawEmploymentType = (record.get('employmenttype') ?? '').trim().toLowerCase();
+    const employmentType: 'Employed' | 'Unemployed' = ['unemployed', 'no', 'false'].includes(rawEmploymentType) ? 'Unemployed' : 'Employed';
     const department = record.get('department') ?? '';
     const lineManager = record.has('linemanager') ? (record.get('linemanager') ?? '').trim() : undefined;
     // The single "add/edit user" form resolves Line Manager to an id via a dropdown of existing
@@ -14895,6 +15013,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         // otherwise a stray value in this column would linger unused, or worse, get restored the
         // next time disability flips back to 'Yes' from a completely unrelated row edit.
         ...(disabilityType !== undefined ? { disabilityType: disability === 'Yes' ? disabilityType : '' } : {}),
+        ...(qualification !== undefined ? { qualification } : {}),
+        // Same "only when the column is actually present" gating as Disability above — an absent
+        // Employment Type column on a re-upload must never silently reset an existing value.
+        ...(record.has('employmenttype') ? { employmentType } : {}),
         department: department.trim(),
         ...(lineManager !== undefined ? { lineManager } : {}),
         ...(lineManagerId !== undefined ? { lineManagerId } : {}),
@@ -14956,8 +15078,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   private getBulkUploadTemplateRows() {
     return [
-      ['Name', 'Surname', 'Email', 'Password', 'Job Title', 'ID Number', 'OFO Code', 'Race', 'Gender', 'Municipality', 'Date of Birth', 'NQF Level', 'Disability', 'Type of Disability', 'Department', 'Line Manager', 'Group', 'Start Date', 'End Date', 'Training Manager', 'Admin', 'Access'],
-      ['Lebo', 'Mokoena', 'lebo.mokoena@example.com', 'Welcome@123', 'Operations Coordinator', '9201015800083', '2021-121202 - Education Training and Skills Development Manager', 'African', 'Female', 'Buffalo City', '1992-04-15', 'Level 07', 'No', '', 'Operations', 'Nandi Khumalo', 'Cohort A', '2026-04-01', '2026-10-30', 'No', 'No', 'Active'],
+      ['Name', 'Surname', 'Email', 'Password', 'Job Title', 'ID Number', 'OFO Code', 'Race', 'Gender', 'Municipality', 'Date of Birth', 'NQF Level', 'Disability', 'Type of Disability', 'Qualification', 'Employment Type', 'Department', 'Line Manager', 'Group', 'Start Date', 'End Date', 'Training Manager', 'Admin', 'Access'],
+      ['Lebo', 'Mokoena', 'lebo.mokoena@example.com', 'Welcome@123', 'Operations Coordinator', '9201015800083', '2021-121202 - Education Training and Skills Development Manager', 'African', 'Female', 'Buffalo City', '1992-04-15', 'Level 07', 'No', '', 'National Diploma: Operations Management', 'Employed', 'Operations', 'Nandi Khumalo', 'Cohort A', '2026-04-01', '2026-10-30', 'No', 'No', 'Active'],
     ];
   }
 
@@ -15803,6 +15925,67 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         this.uploadingCertificate.set(false);
       },
     });
+  }
+
+  // Used by both the Add-user and Edit-user modals (they share one UserFormGroup shape via
+  // createUserForm), so the target form is passed in explicitly rather than assumed — the upload
+  // itself doesn't need a student id (a brand-new user in the Add modal doesn't have one yet), it
+  // just stages the resulting URL into the form; it's only actually persisted when the whole
+  // record is saved (saveSingleUser/saveUserEdit), same as any other field on this form.
+  onIdDocumentSelected(event: Event, form: UserFormGroup) {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (input) {
+      input.value = '';
+    }
+
+    if (!file || this.uploadingIdDocument()) {
+      return;
+    }
+
+    this.uploadingIdDocument.set(true);
+    this.backend.uploadFileBase64(file, 'user-documents').subscribe({
+      next: ({ url }) => {
+        this.uploadingIdDocument.set(false);
+        form.patchValue({ idDocumentFileName: file.name, idDocumentUrl: url });
+      },
+      error: () => {
+        this.uploadingIdDocument.set(false);
+        alert(`Failed to upload "${file.name}". Please check your connection and try again.`);
+      },
+    });
+  }
+
+  removeIdDocument(form: UserFormGroup) {
+    form.patchValue({ idDocumentFileName: '', idDocumentUrl: '' });
+  }
+
+  onQualificationCertificateSelected(event: Event, form: UserFormGroup) {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (input) {
+      input.value = '';
+    }
+
+    if (!file || this.uploadingQualificationCertificate()) {
+      return;
+    }
+
+    this.uploadingQualificationCertificate.set(true);
+    this.backend.uploadFileBase64(file, 'user-documents').subscribe({
+      next: ({ url }) => {
+        this.uploadingQualificationCertificate.set(false);
+        form.patchValue({ qualificationCertificateFileName: file.name, qualificationCertificateUrl: url });
+      },
+      error: () => {
+        this.uploadingQualificationCertificate.set(false);
+        alert(`Failed to upload "${file.name}". Please check your connection and try again.`);
+      },
+    });
+  }
+
+  removeQualificationCertificate(form: UserFormGroup) {
+    form.patchValue({ qualificationCertificateFileName: '', qualificationCertificateUrl: '' });
   }
 
   onLogoSelected(event: Event) {

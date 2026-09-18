@@ -766,6 +766,12 @@ const enrollmentStudentSchema = z.object({
   nqfLevel: z.string().optional(),
   disability: z.enum(['Yes', 'No']).optional(),
   disabilityType: z.string().optional(),
+  idDocumentFileName: z.string().optional(),
+  idDocumentUrl: z.string().optional(),
+  qualification: z.string().optional(),
+  qualificationCertificateFileName: z.string().optional(),
+  qualificationCertificateUrl: z.string().optional(),
+  employmentType: z.enum(['Employed', 'Unemployed']).optional(),
 });
 
 const studentMessageReplySchema = z.object({

@@ -219,6 +219,12 @@ export type EnrollmentStudent = {
   // Only meaningful when disability is 'Yes' — left blank/ignored otherwise, same as the SETA
   // reporting templates only ever ask for this alongside a 'Yes' disability status.
   disabilityType?: string;
+  idDocumentFileName?: string;
+  idDocumentUrl?: string;
+  qualification?: string;
+  qualificationCertificateFileName?: string;
+  qualificationCertificateUrl?: string;
+  employmentType?: 'Employed' | 'Unemployed';
 };
 
 export type EnrollmentStudentInput = Omit<EnrollmentStudent, 'id' | 'status' | 'assignedOfferingIds' | 'jobTitle' | 'idNumber' | 'lineManager'> & {
@@ -1821,6 +1827,12 @@ export class TrainingManagerDataService {
               nqfLevel: input.nqfLevel === undefined ? student.nqfLevel : input.nqfLevel.trim(),
               disability: input.disability === undefined ? student.disability : input.disability,
               disabilityType: input.disabilityType === undefined ? student.disabilityType : input.disabilityType.trim(),
+              idDocumentFileName: input.idDocumentFileName === undefined ? student.idDocumentFileName : input.idDocumentFileName.trim(),
+              idDocumentUrl: input.idDocumentUrl === undefined ? student.idDocumentUrl : input.idDocumentUrl.trim(),
+              qualification: input.qualification === undefined ? student.qualification : input.qualification.trim(),
+              qualificationCertificateFileName: input.qualificationCertificateFileName === undefined ? student.qualificationCertificateFileName : input.qualificationCertificateFileName.trim(),
+              qualificationCertificateUrl: input.qualificationCertificateUrl === undefined ? student.qualificationCertificateUrl : input.qualificationCertificateUrl.trim(),
+              employmentType: input.employmentType === undefined ? student.employmentType : input.employmentType,
               role: input.role,
               isAdmin: input.isAdmin,
             }
@@ -3640,6 +3652,12 @@ export class TrainingManagerDataService {
       ...(input.nqfLevel !== undefined ? { nqfLevel: input.nqfLevel.trim() } : {}),
       ...(input.disability !== undefined ? { disability: input.disability } : {}),
       ...(input.disabilityType !== undefined ? { disabilityType: input.disabilityType.trim() } : {}),
+      ...(input.idDocumentFileName !== undefined ? { idDocumentFileName: input.idDocumentFileName.trim() } : {}),
+      ...(input.idDocumentUrl !== undefined ? { idDocumentUrl: input.idDocumentUrl.trim() } : {}),
+      ...(input.qualification !== undefined ? { qualification: input.qualification.trim() } : {}),
+      ...(input.qualificationCertificateFileName !== undefined ? { qualificationCertificateFileName: input.qualificationCertificateFileName.trim() } : {}),
+      ...(input.qualificationCertificateUrl !== undefined ? { qualificationCertificateUrl: input.qualificationCertificateUrl.trim() } : {}),
+      ...(input.employmentType !== undefined ? { employmentType: input.employmentType } : {}),
       role: input.role,
       isAdmin: input.isAdmin,
     };
