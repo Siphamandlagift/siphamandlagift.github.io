@@ -1683,10 +1683,16 @@ export class LmsRepository {
       ...data.students[studentIndex],
       name: nextFirstName,
       surname: nextSurname,
-      email: snapshot.profile.email,
+      // email is never taken from the client here — the student profile UI no longer offers an
+      // editable email field (a student self-editing their own login identity risks colliding
+      // with another student's email, since it's never validated as unique across the roster —
+      // see resolveStudentIdForAccount/upsertManagedUserCredentials's own hardening against that
+      // exact class of bug), but this endpoint still has to stay safe if called directly. Email
+      // changes are an admin-only action via User Management.
+      email: data.students[studentIndex].email,
       idNumber: snapshot.profile.idNumber,
       ...(derivedStatus !== undefined ? { status: derivedStatus } : {}),
-      profile: snapshot.profile,
+      profile: { ...snapshot.profile, email: data.students[studentIndex].email },
       badgeState: snapshot.badgeState,
       certificatesAndLicences: snapshot.certificatesAndLicences ?? data.students[studentIndex].certificatesAndLicences ?? [],
       // themePreference is never taken from the client here — same reasoning as
@@ -4591,10 +4597,14 @@ class FirestoreLmsRepository extends LmsRepository {
         ...existing,
         name: nextFirstName,
         surname: nextSurname,
-        email: snapshot.profile.email,
+        // email is never taken from the client here — same reasoning as the inherited base-class
+        // path above: the student profile UI no longer offers an editable email field, and this
+        // endpoint has to stay safe on its own if called directly, since email is never validated
+        // as unique across the roster. Email changes are an admin-only action via User Management.
+        email: existing.email,
         idNumber: snapshot.profile.idNumber,
         ...(derivedStatus !== undefined ? { status: derivedStatus } : {}),
-        profile: snapshot.profile,
+        profile: { ...snapshot.profile, email: existing.email },
         badgeState: snapshot.badgeState,
         certificatesAndLicences: snapshot.certificatesAndLicences ?? existing.certificatesAndLicences ?? [],
         // themePreference is never taken from this snapshot save — same reasoning as the

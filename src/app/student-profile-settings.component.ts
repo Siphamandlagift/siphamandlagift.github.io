@@ -97,7 +97,8 @@ type ProfileSection = 'profile' | 'appearance' | null;
               </label>
               <label>
                 Email
-                <input formControlName="email" type="email" required aria-required="true" />
+                <input formControlName="email" type="email" readonly aria-readonly="true" title="Contact an administrator to change your email address." />
+                <span class="profile-field-hint">Contact an administrator to change your email address.</span>
               </label>
               <label>
                 Contact number
@@ -561,6 +562,23 @@ type ProfileSection = 'profile' | 'appearance' | null;
     form textarea:focus {
       border-color: var(--brand-primary);
       box-shadow: 0 0 0 4px var(--brand-tint);
+    }
+
+    form input[readonly] {
+      background: #f1f5f9;
+      color: #64748b;
+      cursor: not-allowed;
+    }
+
+    form input[readonly]:focus {
+      border-color: var(--brand-tint);
+      box-shadow: none;
+    }
+
+    .profile-field-hint {
+      font-weight: 500;
+      font-size: 0.78rem;
+      color: #64748b;
     }
 
     form button[type='submit'] {
