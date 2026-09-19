@@ -177,6 +177,9 @@ export type TrainingOffering = {
   contentItems: TrainingContentItem[];
   createdOn: string;
   status: 'Published' | 'Draft';
+  // Links this course to a TrainingProgrammeRecord — unrelated to `type` above (see the server
+  // contract's own comment on this same field for the full "why").
+  trainingProgrammeId?: string;
 };
 
 export type TrainingOfferingUpdate = {
@@ -189,6 +192,7 @@ export type TrainingOfferingUpdate = {
   status: TrainingOffering['status'];
   thumbnailDataUrl: string | null;
   contentItems?: TrainingContentItem[];
+  trainingProgrammeId?: string;
 };
 
 export type EnrollmentStudent = {
@@ -430,6 +434,34 @@ export type TrainingProviderRecord = {
 
 export type TrainingProviderInput = Omit<TrainingProviderRecord, 'id' | 'createdOn'>;
 
+// A second flat, admin-owned directory — see the server contract's own comment for why
+// providerIds/linked-courses are handled the way they are (a real field here, vs. a computed
+// filter over offerings for the reverse direction).
+export type TrainingProgrammeRecord = {
+  id: string;
+  name: string;
+  code: string;
+  category: string;
+  description: string;
+  learningOutcomes: string;
+  accredited: 'Yes' | 'No';
+  accreditingBody: string;
+  unitStandardOrQualificationId: string;
+  nqfLevel: string;
+  credits: number | null;
+  cpdPoints: number | null;
+  prerequisites: string;
+  duration: string;
+  assessmentMethod: string;
+  providerIds: string[];
+  status: 'Active' | 'Draft' | 'Archived' | 'Under Review';
+  versionRevisionDate: string;
+  owner: string;
+  createdOn: string;
+};
+
+export type TrainingProgrammeInput = Omit<TrainingProgrammeRecord, 'id' | 'createdOn'>;
+
 export type SuccessionDevelopmentAction = {
   id: string;
   description: string;
@@ -599,6 +631,7 @@ export class TrainingManagerDataService {
   private readonly successorNominationsSignal = signal<SuccessorNominationRecord[]>([]);
   // Flat, ownerless directory — both admin and manager get the same full list unfiltered.
   private readonly trainingProvidersSignal = signal<TrainingProviderRecord[]>([]);
+  private readonly trainingProgrammesSignal = signal<TrainingProgrammeRecord[]>([]);
   private readonly idpEntriesByStudentSignal = signal<Record<string, StudentIdpEntry[]>>({});
   private readonly kpiEntriesByStudentSignal = signal<Record<string, StudentKpiEntry[]>>({});
 
@@ -809,6 +842,7 @@ export class TrainingManagerDataService {
   readonly successionRoles = this.successionRolesSignal.asReadonly();
   readonly successorNominations = this.successorNominationsSignal.asReadonly();
   readonly trainingProviders = this.trainingProvidersSignal.asReadonly();
+  readonly trainingProgrammes = this.trainingProgrammesSignal.asReadonly();
   // Case/whitespace-insensitive match: a manager's login email (session-derived) and their
   // directory email (used as approvingManagerEmail on requests) are meant to be the same value,
   // but an exact === comparison would silently show zero requests if they ever drift apart
@@ -1239,6 +1273,7 @@ export class TrainingManagerDataService {
         this.successionRolesSignal.set(bootstrap.successionRoles ?? []);
         this.successorNominationsSignal.set(bootstrap.successorNominations ?? []);
         this.trainingProvidersSignal.set(bootstrap.trainingProviders ?? []);
+        this.trainingProgrammesSignal.set(bootstrap.trainingProgrammes ?? []);
         const backendIdpEntriesByStudent = this.normalizeIdpEntriesByStudent(bootstrap.idpEntriesByStudent);
         const mergedIdpEntriesByStudent = {
           ...localIdpEntriesByStudent,
@@ -1348,6 +1383,7 @@ export class TrainingManagerDataService {
     description: string;
     completionDeadline: string;
     thumbnailDataUrl: string | null;
+    trainingProgrammeId?: string;
     contentItems: Array<{
       id?: string;
       kind: TrainingContentKind;
@@ -1417,6 +1453,7 @@ export class TrainingManagerDataService {
       contentItems: normalizedContentItems,
       createdOn: this.formatDisplayDate(new Date()),
       status: 'Published',
+      trainingProgrammeId: input.trainingProgrammeId,
     };
 
     this.offeringsSignal.update((items) => [newOffering, ...items]);
@@ -1475,6 +1512,7 @@ export class TrainingManagerDataService {
           status: input.status,
           thumbnailDataUrl: input.thumbnailDataUrl,
           contentItems: normalizedContentItems ?? item.contentItems,
+          trainingProgrammeId: input.trainingProgrammeId,
         };
         return updatedOffering;
       }),
@@ -3360,6 +3398,7 @@ export class TrainingManagerDataService {
           this.successionRolesSignal.set(bootstrap.successionRoles ?? []);
           this.successorNominationsSignal.set(bootstrap.successorNominations ?? []);
           this.trainingProvidersSignal.set(bootstrap.trainingProviders ?? []);
+          this.trainingProgrammesSignal.set(bootstrap.trainingProgrammes ?? []);
           // A year the local cache's dirty timestamps were recorded against isn't comparable to a
           // *different* year's server data once someone opens a new IDP year mid-session — the
           // dirty-merge logic assumes "local" and "server" are the same logical table, which is no
@@ -3628,6 +3667,24 @@ export class TrainingManagerDataService {
   deleteTrainingProvider(providerId: string): Observable<void> {
     return this.backend.deleteTrainingProvider(providerId).pipe(
       tap(() => this.trainingProvidersSignal.update((providers) => providers.filter((entry) => entry.id !== providerId))),
+    );
+  }
+
+  createTrainingProgramme(input: TrainingProgrammeInput): Observable<TrainingProgrammeRecord> {
+    return this.backend.createTrainingProgramme(input).pipe(
+      tap((programme) => this.trainingProgrammesSignal.update((programmes) => [...programmes, programme])),
+    );
+  }
+
+  updateTrainingProgramme(programmeId: string, input: TrainingProgrammeInput): Observable<TrainingProgrammeRecord> {
+    return this.backend.updateTrainingProgramme(programmeId, input).pipe(
+      tap((programme) => this.trainingProgrammesSignal.update((programmes) => programmes.map((entry) => (entry.id === programme.id ? programme : entry)))),
+    );
+  }
+
+  deleteTrainingProgramme(programmeId: string): Observable<void> {
+    return this.backend.deleteTrainingProgramme(programmeId).pipe(
+      tap(() => this.trainingProgrammesSignal.update((programmes) => programmes.filter((entry) => entry.id !== programmeId))),
     );
   }
 

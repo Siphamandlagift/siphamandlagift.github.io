@@ -29,6 +29,8 @@ import {
   TrainingOfferingType,
   TrainingProviderInput,
   TrainingProviderRecord,
+  TrainingProgrammeInput,
+  TrainingProgrammeRecord,
   TrainingQuestionType,
 } from './training-manager-data.service';
 import { LmsBackendService, type HrIntegrationConfig, type HrIntegrationConfigUpdate, type HrIntegrationSyncSummary, type LoginRole, type ManagedUserCredentialInput, type ManagedUserCredentialsUpsertResponse, type ResolveRolesEntry } from './lms-backend.service';
@@ -44,7 +46,7 @@ import { resolvePowerPointUploadType } from './powerpoint-preview';
 import { isFeatureAllowedForPlan } from './plan-features';
 import { readCompanyScopedCache, writeCompanyScopedCache } from './company-scoped-storage';
 
-type AdminPanel = 'dashboard' | 'users' | 'reports' | 'succession' | 'settings' | 'courses' | 'enrollment' | 'training-providers';
+type AdminPanel = 'dashboard' | 'users' | 'reports' | 'succession' | 'settings' | 'courses' | 'enrollment' | 'training-providers' | 'training-programmes';
 
 type UserColumnId =
   | 'email' | 'department' | 'group' | 'learningStatus' | 'access'
@@ -429,6 +431,29 @@ type TrainingProviderFormControls = {
 
 type TrainingProviderFormGroup = FormGroup<TrainingProviderFormControls>;
 
+type TrainingProgrammeFormControls = {
+  name: FormControl<string>;
+  code: FormControl<string>;
+  category: FormControl<string>;
+  description: FormControl<string>;
+  learningOutcomes: FormControl<string>;
+  accredited: FormControl<TrainingProgrammeRecord['accredited']>;
+  accreditingBody: FormControl<string>;
+  unitStandardOrQualificationId: FormControl<string>;
+  nqfLevel: FormControl<string>;
+  credits: FormControl<number | null>;
+  cpdPoints: FormControl<number | null>;
+  prerequisites: FormControl<string>;
+  duration: FormControl<string>;
+  assessmentMethod: FormControl<string>;
+  providerIds: FormControl<string[]>;
+  status: FormControl<TrainingProgrammeRecord['status']>;
+  versionRevisionDate: FormControl<string>;
+  owner: FormControl<string>;
+};
+
+type TrainingProgrammeFormGroup = FormGroup<TrainingProgrammeFormControls>;
+
 /** Best-effort "First Last" display name derived from the logged-in username/email,
  *  used when there's no richer profile name available for this account yet. */
 function deriveDisplayNameFromIdentity(username: string | undefined, email: string | undefined): string {
@@ -615,6 +640,13 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       <path d="M4 20V7l8-3.5L20 7v13" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
                       <path d="M4 20h16M10 20v-4.5h4V20" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
                       <path d="M8.5 10.5h.01M12 10.5h.01M15.5 10.5h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path>
+                    </svg>
+                  }
+                  @case ('training-programmes') {
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                      <path d="M12 3.5 20.5 8 12 12.5 3.5 8 12 3.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
+                      <path d="M3.5 12 12 16.5 20.5 12" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
+                      <path d="M3.5 16 12 20.5 20.5 16" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
                     </svg>
                   }
                 }
@@ -2877,6 +2909,249 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
             </ng-template>
           }
 
+          @if (selectedPanel() === 'training-programmes') {
+            <section class="admin-panel">
+              <div class="section-heading-block">
+                <p class="eyebrow">Training Programmes</p>
+                <h1>Programme Directory</h1>
+                <p class="section-copy">Structured learning programmes — their accreditation, structure, and the providers/courses linked to them.</p>
+              </div>
+
+              <section class="admin-section-card">
+                <div class="admin-toolbar">
+                  <span class="admin-chip">{{ managerData.trainingProgrammes().length }} listed</span>
+                  <button type="button" class="admin-secondary-btn" (click)="openAddTrainingProgrammeForm()">Add Training Programme</button>
+                </div>
+
+                <div class="training-provider-table-wrap">
+                  <div class="training-provider-row training-programme-row training-provider-table-head">
+                    <span>Programme Name</span>
+                    <span>Code</span>
+                    <span>Status</span>
+                    <span>NQF Level</span>
+                    <span>Linked Courses</span>
+                    <span>Actions</span>
+                  </div>
+
+                  <div class="training-provider-list">
+                  @for (programme of managerData.trainingProgrammes(); track programme.id) {
+                    <article class="training-provider-row training-programme-row">
+                      <div class="training-provider-cell training-provider-primary">
+                        <span class="training-provider-avatar" aria-hidden="true">{{ programme.name[0] }}</span>
+                        <div>
+                          <div class="admin-user-field-label">Programme Name</div>
+                          <div class="training-provider-name">{{ programme.name }}</div>
+                        </div>
+                      </div>
+                      <div class="training-provider-cell">
+                        <div class="admin-user-field-label">Code</div>
+                        <span>{{ programme.code || '—' }}</span>
+                      </div>
+                      <div class="training-provider-cell">
+                        <div class="admin-user-field-label">Status</div>
+                        <span class="provider-status-pill"
+                          [class.provider-status-pill-active]="programme.status === 'Active'"
+                          [class.provider-status-pill-expired]="programme.status === 'Archived'"
+                          [class.provider-status-pill-pending]="programme.status === 'Under Review'"
+                          [class.provider-status-pill-not-required]="programme.status === 'Draft'">
+                          {{ programme.status }}
+                        </span>
+                      </div>
+                      <div class="training-provider-cell">
+                        <div class="admin-user-field-label">NQF Level</div>
+                        <span>{{ programme.nqfLevel || '—' }}</span>
+                      </div>
+                      <div class="training-provider-cell">
+                        <div class="admin-user-field-label">Linked Courses</div>
+                        <span>{{ linkedCoursesForProgramme(programme.id).length }}</span>
+                      </div>
+                      <div class="training-provider-cell training-provider-actions-cell">
+                        <div class="admin-user-field-label">Actions</div>
+                        <div class="admin-user-actions">
+                          <button type="button" class="admin-inline-btn" (click)="openTrainingProgrammeEditor(programme)">Edit</button>
+                          <button type="button" class="admin-inline-btn admin-inline-btn-danger" (click)="deleteTrainingProgramme(programme)">Delete</button>
+                        </div>
+                      </div>
+                    </article>
+                  } @empty {
+                    <div class="admin-empty-state">No training programmes added yet. Click "Add Training Programme" to create your first record.</div>
+                  }
+                  </div>
+                </div>
+              </section>
+            </section>
+
+            @if (showAddTrainingProgrammeModal()) {
+              <div class="admin-modal-backdrop" (click)="closeAddTrainingProgrammeForm()">
+                <section class="admin-modal admin-modal-wide" role="dialog" aria-modal="true" aria-labelledby="admin-add-training-programme-title" (click)="$event.stopPropagation()">
+                  <div class="admin-section-card-header">
+                    <h2 id="admin-add-training-programme-title">Add Training Programme</h2>
+                    <span>Manual entry</span>
+                  </div>
+
+                  @if (trainingProgrammeFormError(); as message) {
+                    <div class="admin-upload-feedback admin-upload-feedback-error" role="status" aria-live="polite">{{ message }}</div>
+                  }
+
+                  <form class="admin-edit-form" [formGroup]="addTrainingProgrammeForm" (ngSubmit)="saveNewTrainingProgramme()">
+                    <ng-container [ngTemplateOutlet]="trainingProgrammeFormFields" [ngTemplateOutletContext]="{ form: addTrainingProgrammeForm }"></ng-container>
+                    <div class="admin-form-actions">
+                      <button type="submit" class="admin-primary-btn" [disabled]="addTrainingProgrammeForm.invalid">Save programme</button>
+                      <button type="button" class="admin-secondary-btn" (click)="closeAddTrainingProgrammeForm()">Cancel</button>
+                    </div>
+                  </form>
+                </section>
+              </div>
+            }
+
+            @if (editingTrainingProgrammeId(); as editingProgrammeId) {
+              <div class="admin-modal-backdrop" (click)="cancelTrainingProgrammeEdit()">
+                <section class="admin-modal admin-modal-wide" role="dialog" aria-modal="true" aria-labelledby="admin-edit-training-programme-title" (click)="$event.stopPropagation()">
+                  <div class="admin-section-card-header">
+                    <h2 id="admin-edit-training-programme-title">Edit Training Programme</h2>
+                  </div>
+
+                  @if (trainingProgrammeFormError(); as message) {
+                    <div class="admin-upload-feedback admin-upload-feedback-error" role="status" aria-live="polite">{{ message }}</div>
+                  }
+
+                  <form class="admin-edit-form" [formGroup]="trainingProgrammeEditForm" (ngSubmit)="saveTrainingProgrammeEdit()">
+                    <ng-container [ngTemplateOutlet]="trainingProgrammeFormFields" [ngTemplateOutletContext]="{ form: trainingProgrammeEditForm }"></ng-container>
+
+                    <div class="admin-form-section-heading admin-form-span-full">Linked Courses (auto-populated from Courses)</div>
+                    @if (linkedCoursesForProgramme(editingProgrammeId).length) {
+                      <ul class="training-programme-linked-courses admin-form-span-full">
+                        @for (course of linkedCoursesForProgramme(editingProgrammeId); track course.id) {
+                          <li>{{ course.title }}</li>
+                        }
+                      </ul>
+                    } @else {
+                      <p class="admin-field-hint admin-form-span-full">No courses linked yet — set this programme on a course in Course Studio.</p>
+                    }
+
+                    <div class="admin-form-actions">
+                      <button type="submit" class="admin-primary-btn" [disabled]="trainingProgrammeEditForm.invalid">Save changes</button>
+                      <button type="button" class="admin-secondary-btn" (click)="cancelTrainingProgrammeEdit()">Cancel</button>
+                    </div>
+                  </form>
+                </section>
+              </div>
+            }
+
+            <ng-template #trainingProgrammeFormFields let-form="form">
+              <div class="admin-form-section-heading admin-form-span-full">Identity</div>
+              <label>
+                Programme Name
+                <input type="text" [formControl]="form.controls.name" />
+              </label>
+              <label>
+                Programme Code
+                <input type="text" [formControl]="form.controls.code" />
+              </label>
+              <label>
+                Category/Discipline
+                <input type="text" [formControl]="form.controls.category" />
+              </label>
+              <label class="admin-edit-form-span-2">
+                Description/Overview
+                <input type="text" [formControl]="form.controls.description" />
+              </label>
+              <label class="admin-edit-form-span-2">
+                Learning Outcomes
+                <input type="text" [formControl]="form.controls.learningOutcomes" />
+              </label>
+
+              <div class="admin-form-section-heading admin-form-span-full">Accreditation</div>
+              <label>
+                Accredited
+                <select [formControl]="form.controls.accredited">
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </label>
+              <label>
+                SETA/Accrediting Body
+                <input type="text" [formControl]="form.controls.accreditingBody" />
+              </label>
+              <label>
+                Unit Standard / Qualification ID
+                <input type="text" [formControl]="form.controls.unitStandardOrQualificationId" />
+              </label>
+              <label>
+                NQF Level
+                <select [formControl]="form.controls.nqfLevel">
+                  <option value="">-- None --</option>
+                  <option value="Below Level 01">Below Level 01</option>
+                  <option value="Level 01">Level 01</option>
+                  <option value="Level 02">Level 02</option>
+                  <option value="Level 03">Level 03</option>
+                  <option value="Level 04">Level 04</option>
+                  <option value="Level 05">Level 05</option>
+                  <option value="Level 06">Level 06</option>
+                  <option value="Level 07">Level 07</option>
+                  <option value="Level 08">Level 08</option>
+                  <option value="Level 09">Level 09</option>
+                  <option value="Level 10">Level 10</option>
+                </select>
+              </label>
+              <label>
+                Credits
+                <input type="number" [formControl]="form.controls.credits" />
+              </label>
+              <label>
+                CPD Points
+                <input type="number" [formControl]="form.controls.cpdPoints" />
+              </label>
+
+              <div class="admin-form-section-heading admin-form-span-full">Structure</div>
+              <label class="admin-edit-form-span-2">
+                Prerequisites
+                <input type="text" [formControl]="form.controls.prerequisites" />
+              </label>
+              <label>
+                Duration (typical)
+                <input type="text" [formControl]="form.controls.duration" placeholder="e.g. 6 months" />
+              </label>
+              <label>
+                Assessment Method
+                <input type="text" [formControl]="form.controls.assessmentMethod" />
+              </label>
+              <div class="admin-edit-form-span-2">
+                <span class="admin-field-group-label">Linked Provider(s)</span>
+                <div class="admin-user-columns-grid">
+                  @for (provider of managerData.trainingProviders(); track provider.id) {
+                    <label class="admin-user-column-option">
+                      <input type="checkbox" [checked]="form.controls.providerIds.value.includes(provider.id)" (change)="toggleTrainingProgrammeProvider(form, provider.id)" />
+                      <span>{{ provider.name }}</span>
+                    </label>
+                  }
+                  @if (!managerData.trainingProviders().length) {
+                    <span class="admin-field-hint">No training providers yet — add one under Training Providers first.</span>
+                  }
+                </div>
+              </div>
+
+              <div class="admin-form-section-heading admin-form-span-full">Status</div>
+              <label>
+                Status
+                <select [formControl]="form.controls.status">
+                  <option value="Active">Active</option>
+                  <option value="Draft">Draft</option>
+                  <option value="Under Review">Under Review</option>
+                  <option value="Archived">Archived</option>
+                </select>
+              </label>
+              <label>
+                Version/Revision Date
+                <input type="date" [formControl]="form.controls.versionRevisionDate" />
+              </label>
+              <label>
+                Owner
+                <input type="text" [formControl]="form.controls.owner" placeholder="Who maintains this programme record" />
+              </label>
+            </ng-template>
+          }
+
           @if (selectedPanel() === 'settings') {
             <section class="admin-panel">
               <section class="admin-section-card">
@@ -3423,6 +3698,16 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                 @if (courseForm.controls.category.touched && courseForm.controls.category.invalid) {
                                   <span class="field-error">Add a category to organise the item.</span>
                                 }
+                              </label>
+
+                              <label title="Link this course to a Training Programme record so it appears under that programme's Linked Courses.">
+                                <span>Training Programme</span>
+                                <select formControlName="trainingProgrammeId">
+                                  <option value="">No programme</option>
+                                  @for (programme of managerData.trainingProgrammes(); track programme.id) {
+                                    <option [value]="programme.id">{{ programme.name }}</option>
+                                  }
+                                </select>
                               </label>
 
                               <label class="upload-field form-grid-span-two" title="Upload a cover image for the course card.">
@@ -7122,6 +7407,56 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-edit-form-span-2 {
       grid-column: 1 / -1;
+    }
+
+    .admin-form-span-full {
+      grid-column: 1 / -1;
+    }
+
+    .admin-form-section-heading {
+      grid-column: 1 / -1;
+      margin: 0.4rem 0 -0.35rem;
+      padding-top: 0.65rem;
+      border-top: 1px solid rgba(148, 163, 184, 0.18);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+
+    .admin-form-section-heading:first-child {
+      padding-top: 0;
+      border-top: none;
+      margin-top: 0;
+    }
+
+    .admin-field-group-label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #334155;
+      margin-bottom: 0.35rem;
+    }
+
+    .admin-modal-wide {
+      width: min(1040px, 100%);
+    }
+
+    .training-programme-row {
+      grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.7fr) minmax(0, 0.9fr) minmax(0, 0.7fr) minmax(0, 0.9fr) minmax(0, 0.9fr);
+    }
+
+    .training-programme-linked-courses {
+      grid-column: 1 / -1;
+      margin: 0;
+      padding-left: 1.1rem;
+      font-size: 0.85rem;
+      color: #334155;
+    }
+
+    .training-programme-linked-courses li {
+      margin: 0.2rem 0;
     }
 
     @media (max-width: 720px) {
@@ -12399,6 +12734,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     { label: 'Reports', value: 'reports' },
     { label: 'Succession Planning', value: 'succession' },
     { label: 'Training Providers', value: 'training-providers' },
+    { label: 'Training Programmes', value: 'training-programmes' },
     { label: 'LMS Settings', value: 'settings' },
   ];
   // Succession Planning is the only whole nav item a plan can hide today (see plan-features.ts)
@@ -13778,6 +14114,12 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly showAddTrainingProviderModal = signal(false);
   readonly editingTrainingProviderId = signal<string | null>(null);
   readonly trainingProviderFormError = signal('');
+
+  readonly addTrainingProgrammeForm = this.createTrainingProgrammeForm();
+  readonly trainingProgrammeEditForm = this.createTrainingProgrammeForm();
+  readonly showAddTrainingProgrammeModal = signal(false);
+  readonly editingTrainingProgrammeId = signal<string | null>(null);
+  readonly trainingProgrammeFormError = signal('');
 
   private welcomeBannerExitTimer: ReturnType<typeof setTimeout> | null = null;
   private welcomeBannerHideTimer: ReturnType<typeof setTimeout> | null = null;
@@ -15329,6 +15671,173 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       }
     } catch {
       alert(`Failed to delete "${provider.name}". Please check your connection and try again.`);
+    }
+  }
+
+  linkedCoursesForProgramme(programmeId: string) {
+    return this.managerData.offerings().filter((offering) => offering.trainingProgrammeId === programmeId);
+  }
+
+  toggleTrainingProgrammeProvider(form: TrainingProgrammeFormGroup, providerId: string) {
+    const current = form.controls.providerIds.value;
+    const next = current.includes(providerId)
+      ? current.filter((id) => id !== providerId)
+      : [...current, providerId];
+    form.controls.providerIds.setValue(next);
+  }
+
+  private createTrainingProgrammeForm(): TrainingProgrammeFormGroup {
+    return new FormGroup<TrainingProgrammeFormControls>({
+      name: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+      code: new FormControl('', { nonNullable: true }),
+      category: new FormControl('', { nonNullable: true }),
+      description: new FormControl('', { nonNullable: true }),
+      learningOutcomes: new FormControl('', { nonNullable: true }),
+      accredited: new FormControl<TrainingProgrammeRecord['accredited']>('No', { nonNullable: true, validators: [Validators.required] }),
+      accreditingBody: new FormControl('', { nonNullable: true }),
+      unitStandardOrQualificationId: new FormControl('', { nonNullable: true }),
+      nqfLevel: new FormControl('', { nonNullable: true }),
+      credits: new FormControl<number | null>(null),
+      cpdPoints: new FormControl<number | null>(null),
+      prerequisites: new FormControl('', { nonNullable: true }),
+      duration: new FormControl('', { nonNullable: true }),
+      assessmentMethod: new FormControl('', { nonNullable: true }),
+      providerIds: new FormControl<string[]>([], { nonNullable: true }),
+      status: new FormControl<TrainingProgrammeRecord['status']>('Draft', { nonNullable: true, validators: [Validators.required] }),
+      versionRevisionDate: new FormControl('', { nonNullable: true }),
+      owner: new FormControl('', { nonNullable: true }),
+    });
+  }
+
+  private buildTrainingProgrammeInputFromForm(form: TrainingProgrammeFormGroup): TrainingProgrammeInput {
+    return {
+      name: form.controls.name.value.trim(),
+      code: form.controls.code.value.trim(),
+      category: form.controls.category.value.trim(),
+      description: form.controls.description.value.trim(),
+      learningOutcomes: form.controls.learningOutcomes.value.trim(),
+      accredited: form.controls.accredited.value,
+      accreditingBody: form.controls.accreditingBody.value.trim(),
+      unitStandardOrQualificationId: form.controls.unitStandardOrQualificationId.value.trim(),
+      nqfLevel: form.controls.nqfLevel.value,
+      credits: form.controls.credits.value,
+      cpdPoints: form.controls.cpdPoints.value,
+      prerequisites: form.controls.prerequisites.value.trim(),
+      duration: form.controls.duration.value.trim(),
+      assessmentMethod: form.controls.assessmentMethod.value.trim(),
+      providerIds: form.controls.providerIds.value,
+      status: form.controls.status.value,
+      versionRevisionDate: form.controls.versionRevisionDate.value,
+      owner: form.controls.owner.value.trim(),
+    };
+  }
+
+  openAddTrainingProgrammeForm() {
+    this.addTrainingProgrammeForm.reset({
+      name: '',
+      code: '',
+      category: '',
+      description: '',
+      learningOutcomes: '',
+      accredited: 'No',
+      accreditingBody: '',
+      unitStandardOrQualificationId: '',
+      nqfLevel: '',
+      credits: null,
+      cpdPoints: null,
+      prerequisites: '',
+      duration: '',
+      assessmentMethod: '',
+      providerIds: [],
+      status: 'Draft',
+      versionRevisionDate: '',
+      owner: '',
+    });
+    this.trainingProgrammeFormError.set('');
+    this.showAddTrainingProgrammeModal.set(true);
+  }
+
+  closeAddTrainingProgrammeForm() {
+    this.showAddTrainingProgrammeModal.set(false);
+  }
+
+  async saveNewTrainingProgramme() {
+    if (this.addTrainingProgrammeForm.invalid) {
+      this.addTrainingProgrammeForm.markAllAsTouched();
+      return;
+    }
+
+    this.trainingProgrammeFormError.set('');
+    const input = this.buildTrainingProgrammeInputFromForm(this.addTrainingProgrammeForm);
+
+    try {
+      await firstValueFrom(this.managerData.createTrainingProgramme(input));
+      this.closeAddTrainingProgrammeForm();
+    } catch {
+      this.trainingProgrammeFormError.set('Could not save this training programme. Please check your connection and try again.');
+    }
+  }
+
+  openTrainingProgrammeEditor(programme: TrainingProgrammeRecord) {
+    this.trainingProgrammeEditForm.setValue({
+      name: programme.name,
+      code: programme.code,
+      category: programme.category,
+      description: programme.description,
+      learningOutcomes: programme.learningOutcomes,
+      accredited: programme.accredited,
+      accreditingBody: programme.accreditingBody,
+      unitStandardOrQualificationId: programme.unitStandardOrQualificationId,
+      nqfLevel: programme.nqfLevel,
+      credits: programme.credits,
+      cpdPoints: programme.cpdPoints,
+      prerequisites: programme.prerequisites,
+      duration: programme.duration,
+      assessmentMethod: programme.assessmentMethod,
+      providerIds: programme.providerIds,
+      status: programme.status,
+      versionRevisionDate: programme.versionRevisionDate,
+      owner: programme.owner,
+    });
+    this.trainingProgrammeFormError.set('');
+    this.editingTrainingProgrammeId.set(programme.id);
+  }
+
+  cancelTrainingProgrammeEdit() {
+    this.editingTrainingProgrammeId.set(null);
+  }
+
+  async saveTrainingProgrammeEdit() {
+    const programmeId = this.editingTrainingProgrammeId();
+    if (!programmeId || this.trainingProgrammeEditForm.invalid) {
+      this.trainingProgrammeEditForm.markAllAsTouched();
+      return;
+    }
+
+    this.trainingProgrammeFormError.set('');
+    const input = this.buildTrainingProgrammeInputFromForm(this.trainingProgrammeEditForm);
+
+    try {
+      await firstValueFrom(this.managerData.updateTrainingProgramme(programmeId, input));
+      this.cancelTrainingProgrammeEdit();
+    } catch {
+      this.trainingProgrammeFormError.set('Could not save these changes. Please check your connection and try again.');
+    }
+  }
+
+  async deleteTrainingProgramme(programme: TrainingProgrammeRecord) {
+    const shouldDelete = confirm(`Delete "${programme.name}" from the training programme directory?`);
+    if (!shouldDelete) {
+      return;
+    }
+
+    try {
+      await firstValueFrom(this.managerData.deleteTrainingProgramme(programme.id));
+      if (this.editingTrainingProgrammeId() === programme.id) {
+        this.cancelTrainingProgrammeEdit();
+      }
+    } catch {
+      alert(`Failed to delete "${programme.name}". Please check your connection and try again.`);
     }
   }
 
@@ -17563,6 +18072,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     completionDeadline: new FormControl('', { nonNullable: true }),
     type: new FormControl<TrainingOfferingType>('Course', { nonNullable: true, validators: [Validators.required] }),
     category: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    trainingProgrammeId: new FormControl('', { nonNullable: true }),
     description: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(12)] }),
     contentItems: new FormArray<ContentItemFormGroup>([]),
   });
@@ -19402,6 +19912,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         completionDeadline: this.courseForm.controls.completionDeadline.value,
         type: this.courseForm.controls.type.value,
         category: this.courseForm.controls.category.value,
+        trainingProgrammeId: this.courseForm.controls.trainingProgrammeId.value || undefined,
         thumbnailDataUrl: this.thumbnailPreview(),
         description: this.courseForm.controls.description.value,
         status: editingOffering.status,
@@ -19425,6 +19936,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       completionDeadline: this.courseForm.controls.completionDeadline.value,
       type: this.courseForm.controls.type.value,
       category: this.courseForm.controls.category.value,
+      trainingProgrammeId: this.courseForm.controls.trainingProgrammeId.value || undefined,
       thumbnailDataUrl: this.thumbnailPreview(),
       description: this.courseForm.controls.description.value,
       contentItems: this.contentItemsPayload(),
@@ -19453,6 +19965,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       completionDeadline: offering.completionDeadline,
       type: offering.type,
       category: offering.category,
+      trainingProgrammeId: offering.trainingProgrammeId ?? '',
       description: offering.description,
     });
     this.courseForm.setControl(
@@ -19482,6 +19995,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       completionDeadline: '',
       type: 'Course',
       category: '',
+      trainingProgrammeId: '',
       description: '',
     });
     this.courseForm.setControl('contentItems', new FormArray<ContentItemFormGroup>([]));

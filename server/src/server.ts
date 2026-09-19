@@ -469,6 +469,9 @@ const trainingOfferingSchema = z.object({
   contentItems: z.array(trainingContentItemSchema),
   createdOn: z.string().min(1),
   status: z.enum(['Published', 'Draft']),
+  // Links to a TrainingProgrammeRecord — see the field's own comment in contracts.ts for why
+  // this is unrelated to `type` above.
+  trainingProgrammeId: z.string().optional(),
 }).superRefine(requireCategoryAndDescriptionUnlessSurveyOnly);
 
 const trainingOfferingUpdateSchema = z.object({
@@ -481,6 +484,7 @@ const trainingOfferingUpdateSchema = z.object({
   status: z.enum(['Published', 'Draft']),
   thumbnailDataUrl: z.string().nullable(),
   contentItems: z.array(trainingContentItemSchema).optional(),
+  trainingProgrammeId: z.string().optional(),
 }).superRefine(requireCategoryAndDescriptionUnlessSurveyOnly);
 
 const assignmentSubmissionSchema = z.object({
@@ -1013,6 +1017,28 @@ const trainingProviderInputSchema = z.object({
   phone: z.string(),
   address: z.string(),
   website: z.string(),
+});
+
+// Same reasoning as trainingProviderInputSchema above — reused for both create and update.
+const trainingProgrammeInputSchema = z.object({
+  name: z.string().min(1),
+  code: z.string(),
+  category: z.string(),
+  description: z.string(),
+  learningOutcomes: z.string(),
+  accredited: z.enum(['Yes', 'No']),
+  accreditingBody: z.string(),
+  unitStandardOrQualificationId: z.string(),
+  nqfLevel: z.string(),
+  credits: z.number().nullable(),
+  cpdPoints: z.number().nullable(),
+  prerequisites: z.string(),
+  duration: z.string(),
+  assessmentMethod: z.string(),
+  providerIds: z.array(z.string()),
+  status: z.enum(['Active', 'Draft', 'Archived', 'Under Review']),
+  versionRevisionDate: z.string(),
+  owner: z.string(),
 });
 
 const successionDevelopmentActionSchema = z.object({
@@ -3594,6 +3620,60 @@ app.delete('/api/training-providers/:providerId', requireAdministrator, async (r
 
     if (!deleted) {
       response.status(404).json({ message: 'Training provider not found.' });
+      return;
+    }
+
+    response.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Training Programmes: same shape as Training Providers above. providerIds is trusted as-is —
+// referential integrity against the Training Providers directory (e.g. a deleted provider still
+// named in some programme's providerIds) is not enforced here, same "no cascade" simplicity the
+// base repository methods themselves accept.
+app.post('/api/training-programmes', requireAdministrator, async (request, response, next) => {
+  try {
+    const repository = request.repository!;
+    const body = trainingProgrammeInputSchema.parse(request.body);
+    const programme = await repository.createTrainingProgramme(body);
+
+    if (!programme) {
+      response.status(400).json({ message: 'Programme name is required.' });
+      return;
+    }
+
+    response.status(201).json(programme);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/training-programmes/:programmeId', requireAdministrator, async (request, response, next) => {
+  try {
+    const repository = request.repository!;
+    const body = trainingProgrammeInputSchema.parse(request.body);
+    const programme = await repository.updateTrainingProgramme(request.params['programmeId'] as string, body);
+
+    if (!programme) {
+      response.status(404).json({ message: 'Training programme not found.' });
+      return;
+    }
+
+    response.json(programme);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/training-programmes/:programmeId', requireAdministrator, async (request, response, next) => {
+  try {
+    const repository = request.repository!;
+    const deleted = await repository.deleteTrainingProgramme(request.params['programmeId'] as string);
+
+    if (!deleted) {
+      response.status(404).json({ message: 'Training programme not found.' });
       return;
     }
 

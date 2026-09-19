@@ -72,6 +72,8 @@ import {
   TrainingOfferingUpdate,
   TrainingProviderInput,
   TrainingProviderRecord,
+  TrainingProgrammeInput,
+  TrainingProgrammeRecord,
 } from './contracts.js';
 
 const configuredDataDirectory = process.env['LMS_DATA_DIRECTORY']?.trim();
@@ -107,6 +109,7 @@ export const firestoreCollectionNames = [
   'successionRoles',
   'successorNominations',
   'trainingProviders',
+  'trainingProgrammes',
 ] as const satisfies readonly FirestoreCollectionName[];
 
 type FirestoreCollectionName = Exclude<keyof LmsDataStore, 'branding' | 'updatedAt' | 'currentKpiYear' | 'kpiYearsOpened' | 'currentIdpYear' | 'idpYearsOpened' | 'hrIntegration'>;
@@ -1213,6 +1216,7 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
     successionRoles: data.successionRoles ?? defaults.successionRoles,
     successorNominations: data.successorNominations ?? defaults.successorNominations,
     trainingProviders: data.trainingProviders ?? defaults.trainingProviders,
+    trainingProgrammes: data.trainingProgrammes ?? defaults.trainingProgrammes,
     updatedAt: data.updatedAt || new Date().toISOString(),
     currentKpiYear,
     kpiYearsOpened,
@@ -1434,6 +1438,7 @@ export class LmsRepository {
         // Unlike succession's admin-vs-manager split above, this is a flat, ownerless directory —
         // both roles see the same full list.
         trainingProviders: data.trainingProviders,
+        trainingProgrammes: data.trainingProgrammes,
       };
     }
 
@@ -1486,6 +1491,7 @@ export class LmsRepository {
       successorNominations: [],
       // Admin/manager-only directory — a student session has no reason to see it.
       trainingProviders: [],
+      trainingProgrammes: [],
     };
   }
 
@@ -2279,6 +2285,7 @@ export class LmsRepository {
         status: update.status,
         thumbnailDataUrl: update.thumbnailDataUrl,
         contentItems: update.contentItems ?? offering.contentItems,
+        trainingProgrammeId: update.trainingProgrammeId,
       };
     });
 
@@ -3863,6 +3870,100 @@ export class LmsRepository {
     return true;
   }
 
+  // Same shape/reasoning as Training Providers above — a flat, admin-owned directory. providerIds
+  // is stored verbatim (a plain array of other records' ids, not user-typed text needing a trim);
+  // "linked courses" is deliberately not a field here at all — see TrainingOffering.trainingProgrammeId's
+  // own comment for why that link only ever lives on the course side.
+  async listTrainingProgrammes() {
+    const data = await this.read();
+    return data.trainingProgrammes;
+  }
+
+  async createTrainingProgramme(input: TrainingProgrammeInput) {
+    const name = input.name.trim();
+    if (!name) {
+      return null;
+    }
+
+    const data = await this.read();
+    const programme: TrainingProgrammeRecord = {
+      id: `training-programme-${Date.now()}`,
+      name,
+      code: input.code.trim(),
+      category: input.category.trim(),
+      description: input.description.trim(),
+      learningOutcomes: input.learningOutcomes.trim(),
+      accredited: input.accredited,
+      accreditingBody: input.accreditingBody.trim(),
+      unitStandardOrQualificationId: input.unitStandardOrQualificationId.trim(),
+      nqfLevel: input.nqfLevel.trim(),
+      credits: input.credits,
+      cpdPoints: input.cpdPoints,
+      prerequisites: input.prerequisites.trim(),
+      duration: input.duration.trim(),
+      assessmentMethod: input.assessmentMethod.trim(),
+      providerIds: input.providerIds.filter((id) => id.trim()),
+      status: input.status,
+      versionRevisionDate: input.versionRevisionDate.trim(),
+      owner: input.owner.trim(),
+      createdOn: this.formatDisplayDate(new Date()),
+    };
+
+    data.trainingProgrammes.push(programme);
+    await this.write(data);
+    return programme;
+  }
+
+  async updateTrainingProgramme(programmeId: string, input: TrainingProgrammeInput) {
+    const name = input.name.trim();
+    if (!name) {
+      return null;
+    }
+
+    const data = await this.read();
+    const programmeIndex = data.trainingProgrammes.findIndex((programme) => programme.id === programmeId);
+    if (programmeIndex === -1) {
+      return null;
+    }
+
+    const updatedProgramme: TrainingProgrammeRecord = {
+      ...data.trainingProgrammes[programmeIndex],
+      name,
+      code: input.code.trim(),
+      category: input.category.trim(),
+      description: input.description.trim(),
+      learningOutcomes: input.learningOutcomes.trim(),
+      accredited: input.accredited,
+      accreditingBody: input.accreditingBody.trim(),
+      unitStandardOrQualificationId: input.unitStandardOrQualificationId.trim(),
+      nqfLevel: input.nqfLevel.trim(),
+      credits: input.credits,
+      cpdPoints: input.cpdPoints,
+      prerequisites: input.prerequisites.trim(),
+      duration: input.duration.trim(),
+      assessmentMethod: input.assessmentMethod.trim(),
+      providerIds: input.providerIds.filter((id) => id.trim()),
+      status: input.status,
+      versionRevisionDate: input.versionRevisionDate.trim(),
+      owner: input.owner.trim(),
+    };
+
+    data.trainingProgrammes[programmeIndex] = updatedProgramme;
+    await this.write(data);
+    return updatedProgramme;
+  }
+
+  async deleteTrainingProgramme(programmeId: string) {
+    const data = await this.read();
+    if (!data.trainingProgrammes.some((programme) => programme.id === programmeId)) {
+      return false;
+    }
+
+    data.trainingProgrammes = data.trainingProgrammes.filter((programme) => programme.id !== programmeId);
+    await this.write(data);
+    return true;
+  }
+
   protected formatDisplayDate(date: Date) {
     return new Intl.DateTimeFormat('en-ZA', {
       day: '2-digit',
@@ -3980,6 +4081,7 @@ class FirestoreLmsRepository extends LmsRepository {
       successionRoles,
       successorNominations,
       trainingProviders,
+      trainingProgrammes,
     ] = await Promise.all([
       this.storeDocument.get(),
       this.readCollection('offerings'),
@@ -3997,6 +4099,7 @@ class FirestoreLmsRepository extends LmsRepository {
       this.readCollection('successionRoles'),
       this.readCollection('successorNominations'),
       this.readCollection('trainingProviders'),
+      this.readCollection('trainingProgrammes'),
     ]);
 
     const hasStoredCollections = [
@@ -4015,6 +4118,7 @@ class FirestoreLmsRepository extends LmsRepository {
       successionRoles,
       successorNominations,
       trainingProviders,
+      trainingProgrammes,
     ].some((records) => records.length > 0);
 
     if (!storeSnapshot.exists && !hasStoredCollections) {
@@ -4045,6 +4149,7 @@ class FirestoreLmsRepository extends LmsRepository {
       successionRoles,
       successorNominations,
       trainingProviders,
+      trainingProgrammes,
       updatedAt: storeData?.updatedAt ?? defaults.updatedAt,
       currentKpiYear: storeData?.currentKpiYear ?? defaults.currentKpiYear,
       kpiYearsOpened: storeData?.kpiYearsOpened ?? defaults.kpiYearsOpened,
@@ -4862,6 +4967,7 @@ class FirestoreLmsRepository extends LmsRepository {
         status: update.status,
         thumbnailDataUrl: update.thumbnailDataUrl,
         contentItems: update.contentItems ?? existing.contentItems,
+        trainingProgrammeId: update.trainingProgrammeId,
       };
 
       transaction.set(ref, this.sanitizeForFirestore(nextOffering));

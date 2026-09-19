@@ -78,6 +78,12 @@ export type TrainingOffering = {
   contentItems: TrainingContentItem[];
   createdOn: string;
   status: 'Published' | 'Draft';
+  // Links this course to a TrainingProgrammeRecord — unrelated to `type` above (that's a
+  // per-offering SETA-reporting classification, "is this single course itself a Programme-type
+  // offering or a plain Course-type one"; this is a real parent-record link to the separate
+  // Training Programmes directory). A programme's own "linked courses" is never stored on the
+  // programme — it's always computed by filtering offerings for this field.
+  trainingProgrammeId?: string;
 };
 
 export type TrainingOfferingUpdate = {
@@ -90,6 +96,7 @@ export type TrainingOfferingUpdate = {
   status: TrainingOffering['status'];
   thumbnailDataUrl: string | null;
   contentItems?: TrainingContentItem[];
+  trainingProgrammeId?: string;
 };
 
 export type StudentCourseRecord = {
@@ -506,6 +513,40 @@ export type TrainingProviderRecord = {
 
 export type TrainingProviderInput = Omit<TrainingProviderRecord, 'id' | 'createdOn'>;
 
+// A second flat, admin-owned directory (same shape/reasoning as TrainingProviderRecord above),
+// with two relational fields: providerIds is a real field here (one programme -> many providers).
+// The reverse — "which courses belong to this programme" — is deliberately NOT a field on this
+// record at all; it's always computed by filtering TrainingOffering.trainingProgrammeId, so it
+// can never drift out of sync with the actual courses.
+export type TrainingProgrammeRecord = {
+  id: string;
+  // Identity
+  name: string;
+  code: string;
+  category: string;
+  description: string;
+  learningOutcomes: string;
+  // Accreditation
+  accredited: 'Yes' | 'No';
+  accreditingBody: string;
+  unitStandardOrQualificationId: string;
+  nqfLevel: string;
+  credits: number | null;
+  cpdPoints: number | null;
+  // Structure
+  prerequisites: string;
+  duration: string;
+  assessmentMethod: string;
+  providerIds: string[];
+  // Status
+  status: 'Active' | 'Draft' | 'Archived' | 'Under Review';
+  versionRevisionDate: string;
+  owner: string;
+  createdOn: string;
+};
+
+export type TrainingProgrammeInput = Omit<TrainingProgrammeRecord, 'id' | 'createdOn'>;
+
 export type SuccessionDevelopmentAction = {
   id: string;
   description: string;
@@ -872,6 +913,7 @@ export type LmsDataStore = {
   successionRoles: SuccessionRoleRecord[];
   successorNominations: SuccessorNominationRecord[];
   trainingProviders: TrainingProviderRecord[];
+  trainingProgrammes: TrainingProgrammeRecord[];
   updatedAt: string;
   // Org-wide KPI review cycle: currentKpiYear is the one year anyone can still edit; every year a
   // manager has ever opened (including the current one) is recorded in kpiYearsOpened so a year
@@ -932,6 +974,7 @@ export type LmsBootstrapResponse = {
   // as the exclusion note on successionRoles just above: this is an internal compliance
   // directory, not something a student has any reason to see.
   trainingProviders: TrainingProviderRecord[];
+  trainingProgrammes: TrainingProgrammeRecord[];
 };
 
 export type StudentSnapshotResponse = {

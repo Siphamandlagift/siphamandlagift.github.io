@@ -151,6 +151,7 @@ export function createDefaultData(companyId = ''): LmsDataStore {
     successionRoles: [],
     successorNominations: [],
     trainingProviders: [],
+    trainingProgrammes: [],
     updatedAt: new Date().toISOString(),
     currentKpiYear: new Date().getFullYear(),
     kpiYearsOpened: [new Date().getFullYear()],
