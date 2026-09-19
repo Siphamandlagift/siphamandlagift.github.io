@@ -6,6 +6,7 @@ import { AbstractControl, FormArray, FormControl, FormGroup, ReactiveFormsModule
 import { Router } from '@angular/router';
 import { firstValueFrom, interval } from 'rxjs';
 import {
+  AssignmentReviewStatus,
   AssignmentSubmissionRecord,
   EnrollmentStudent,
   EnrollmentStudentInput,
@@ -139,7 +140,7 @@ type BulkUploadIssue = {
 
 type AdminSettingsSection = 'profile-picture' | 'company-logo' | 'theme' | 'hr-integration' | 'approval-settings';
 type ReportDownloadFormat = 'CSV' | 'XLSX';
-type AdminReportView = 'annual-training' | 'idp-report' | 'performance-report' | 'certificate-licence-report' | 'seta-report';
+type AdminReportView = 'annual-training' | 'idp-report' | 'performance-report' | 'certificate-licence-report' | 'assignments-report' | 'seta-report';
 type TrainingReportSource = 'All' | 'LMS' | 'External';
 type SetaReportTab = 'atr' | 'wsp';
 type AtrSubReport = 'beneficiaries-completed' | 'number-beneficiaries' | 'pivotal-actual';
@@ -375,6 +376,21 @@ type CertificateLicenceReportRow = {
   expiryDateValue: string;
   renewalRequired: 'Yes' | 'No';
   status: string;
+};
+
+type AssignmentReportRow = {
+  id: string;
+  name: string;
+  surname: string;
+  email: string;
+  department: string;
+  courseName: string;
+  assessmentTitle: string;
+  submittedAt: string;
+  submittedAtValue: string;
+  marker: string;
+  status: string;
+  mark: string;
 };
 
 type ManagedUserUploadRow = {
@@ -1588,7 +1604,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                   <article class="admin-section-card admin-report-menu-card admin-report-menu-card-primary">
                     <div class="admin-section-card-header">
                       <h2>Report List</h2>
-                      <span>{{ extendedReportsAllowed() ? '5 available' : '1 available' }}</span>
+                      <span>{{ extendedReportsAllowed() ? '6 available' : '1 available' }}</span>
                     </div>
 
                     <div class="admin-report-menu" role="list" aria-label="Admin report list">
@@ -1658,6 +1674,22 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                           </span>
                         </button>
+                        <button type="button" class="admin-report-menu-item admin-report-menu-item-assignments" (click)="selectReportView('assignments-report')">
+                          <span class="admin-report-menu-icon" aria-hidden="true">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                              <path d="M8 4.75h6.5l3.75 3.75V19A1.75 1.75 0 0 1 16.5 20.75h-8A1.75 1.75 0 0 1 6.75 19V6.5A1.75 1.75 0 0 1 8.5 4.75Z" stroke="currentColor" stroke-width="1.8"/>
+                              <path d="M14.5 4.75V8.5h3.75" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                              <path d="m9.25 14.25 2 2 3.5-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                          </span>
+                          <span class="admin-report-menu-text">
+                            <strong>Assignments Report</strong>
+                            <span>Every assignment submission with its date, marker, and result.</span>
+                          </span>
+                          <span class="admin-report-menu-cta">View report
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                          </span>
+                        </button>
                         <button type="button" class="admin-report-menu-item admin-report-menu-item-seta" (click)="selectReportView('seta-report')">
                           <span class="admin-report-menu-icon" aria-hidden="true">
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -1701,6 +1733,11 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         @if (selectedReportView() === 'certificate-licence-report') {
                           <h2>Certificates and Licences Report</h2>
                           <span>{{ certificateLicenceReportRows().length }} records</span>
+                        }
+
+                        @if (selectedReportView() === 'assignments-report') {
+                          <h2>Assignments Report</h2>
+                          <span>{{ filteredAssignmentReportRows().length }} of {{ assignmentReportRows().length }} submissions</span>
                         }
 
                         @if (selectedReportView() === 'seta-report') {
@@ -2094,6 +2131,87 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                     <td>{{ row.expiryDate }}</td>
                                     <td>{{ row.renewalRequired }}</td>
                                     <td>{{ row.status }}</td>
+                                  </tr>
+                                }
+                              </tbody>
+                            </table>
+                          </div>
+                        }
+                      </div>
+                    }
+
+                    @if (selectedReportView() === 'assignments-report') {
+                      <div class="admin-report-content-stack">
+                        <article class="admin-section-card">
+                          <div class="admin-section-card-header">
+                            <h2>Report filters</h2>
+                            <span>{{ filteredAssignmentReportRows().length }} of {{ assignmentReportRows().length }} rows</span>
+                          </div>
+
+                          <div class="admin-report-filter-grid">
+                            <label class="admin-report-filter-field">
+                              <span>Search</span>
+                              <input type="text" [value]="assignmentReportSearchTerm()" (input)="updateAssignmentReportSearch($event)" placeholder="Student, course, marker" />
+                            </label>
+
+                            <label class="admin-report-filter-field">
+                              <span>Status</span>
+                              <select [value]="selectedAssignmentReportStatus()" (change)="updateAssignmentReportStatus($event)">
+                                <option value="All">All statuses</option>
+                                <option value="Pending Review">Pending Review</option>
+                                <option value="Approved">Approved</option>
+                                <option value="Needs Revision">Needs Revision</option>
+                              </select>
+                            </label>
+                          </div>
+
+                          <div class="admin-report-actions">
+                            <button type="button" class="admin-secondary-btn" (click)="clearAssignmentReportFilters()">Clear filters</button>
+                            <label class="admin-report-filter-field admin-report-download-field">
+                              <span>Download As</span>
+                              <select [value]="selectedAssignmentReportDownloadFormat()" (change)="updateAssignmentReportDownloadFormat($event)">
+                                <option value="CSV">CSV</option>
+                                <option value="XLSX">XLSX</option>
+                              </select>
+                            </label>
+                            <button type="button" class="admin-primary-btn" [disabled]="!canDownloadAssignmentReport()" (click)="downloadAssignmentReport()">Download report</button>
+                          </div>
+
+                          @if (!filteredAssignmentReportRows().length) {
+                            <div class="admin-empty-state">No assignment submissions match the current filters.</div>
+                          }
+                        </article>
+
+                        @if (filteredAssignmentReportRows().length) {
+                          <div class="admin-report-table-wrap">
+                            <table class="admin-report-table">
+                              <thead>
+                                <tr>
+                                  <th>Full Name</th>
+                                  <th>Surname</th>
+                                  <th>Email</th>
+                                  <th>Department</th>
+                                  <th>Course</th>
+                                  <th>Assessment</th>
+                                  <th>Date of Submission</th>
+                                  <th>Marker</th>
+                                  <th>Status</th>
+                                  <th>Mark</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                @for (row of filteredAssignmentReportRows(); track row.id) {
+                                  <tr>
+                                    <td>{{ row.name }}</td>
+                                    <td>{{ row.surname }}</td>
+                                    <td>{{ row.email }}</td>
+                                    <td>{{ row.department }}</td>
+                                    <td>{{ row.courseName }}</td>
+                                    <td>{{ row.assessmentTitle }}</td>
+                                    <td>{{ row.submittedAt }}</td>
+                                    <td>{{ row.marker }}</td>
+                                    <td>{{ row.status }}</td>
+                                    <td>{{ row.mark }}</td>
                                   </tr>
                                 }
                               </tbody>
@@ -13162,6 +13280,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly selectedSuccessionReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
   readonly selectedPerformanceReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
   readonly selectedCertificateReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
+  readonly selectedAssignmentReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
+  readonly assignmentReportSearchTerm = signal('');
+  readonly selectedAssignmentReportStatus = signal<AssignmentReviewStatus | 'All'>('All');
   readonly selectedAtrSubReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
   readonly selectedWspSubReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
   readonly selectedBulkUploadTemplateFormat = signal<ReportDownloadFormat>('CSV');
@@ -13644,6 +13765,54 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         return right.expiryDateValue.localeCompare(left.expiryDateValue);
       });
   });
+  readonly assignmentReportRows = computed<AssignmentReportRow[]>(() => {
+    const studentsById = new Map(this.users().map((student) => [student.id, student]));
+
+    return this.managerData.assignmentSubmissions()
+      .map((submission) => {
+        const student = studentsById.get(submission.studentId);
+
+        return {
+          id: submission.id,
+          name: student ? `${student.name} ${student.surname}`.trim() : submission.studentName,
+          surname: student?.surname ?? '',
+          email: student?.email || submission.studentEmail,
+          department: student?.department || 'Unassigned',
+          courseName: submission.offeringTitle,
+          assessmentTitle: submission.assessmentTitle,
+          submittedAt: this.formatReportDateLabel(submission.submittedAt),
+          submittedAtValue: this.normalizeReportDateValue(submission.submittedAt),
+          // The marker is whoever actually reviewed it — falling back to who the student assigned
+          // it to (see AssignmentSubmissionRecord.assignedReviewerName) while it's still pending.
+          marker: submission.reviewerName || submission.assignedReviewerName || 'Not yet marked',
+          status: submission.status,
+          mark: this.formatAssignmentMark(submission),
+        };
+      })
+      .sort((left, right) => right.submittedAtValue.localeCompare(left.submittedAtValue));
+  });
+  readonly filteredAssignmentReportRows = computed(() => {
+    const searchQuery = this.assignmentReportSearchTerm().trim().toLowerCase();
+    const status = this.selectedAssignmentReportStatus();
+
+    return this.assignmentReportRows().filter((row) => {
+      if (status !== 'All' && row.status !== status) {
+        return false;
+      }
+
+      if (searchQuery) {
+        const matchesSearch = [row.name, row.surname, row.email, row.courseName, row.assessmentTitle, row.marker]
+          .some((value) => value.toLowerCase().includes(searchQuery));
+
+        if (!matchesSearch) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  });
+  readonly canDownloadAssignmentReport = computed(() => this.filteredAssignmentReportRows().length > 0);
   readonly annualReportDepartments = computed(() =>
     Array.from(new Set(this.annualTrainingReportRows().map((row) => row.department).filter(Boolean))).sort((left, right) => left.localeCompare(right)),
   );
@@ -14679,6 +14848,29 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   updateCertificateReportDownloadFormat(event: Event) {
     const input = event.target as HTMLSelectElement | null;
     this.selectedCertificateReportDownloadFormat.set(input?.value === 'XLSX' ? 'XLSX' : 'CSV');
+  }
+
+  updateAssignmentReportDownloadFormat(event: Event) {
+    const input = event.target as HTMLSelectElement | null;
+    this.selectedAssignmentReportDownloadFormat.set(input?.value === 'XLSX' ? 'XLSX' : 'CSV');
+  }
+
+  updateAssignmentReportSearch(event: Event) {
+    const input = event.target as HTMLInputElement | null;
+    this.assignmentReportSearchTerm.set(input?.value ?? '');
+  }
+
+  updateAssignmentReportStatus(event: Event) {
+    const input = event.target as HTMLSelectElement | null;
+    const value = input?.value;
+    this.selectedAssignmentReportStatus.set(
+      value === 'Pending Review' || value === 'Approved' || value === 'Needs Revision' ? value : 'All',
+    );
+  }
+
+  clearAssignmentReportFilters() {
+    this.assignmentReportSearchTerm.set('');
+    this.selectedAssignmentReportStatus.set('All');
   }
 
   updateAnnualReportSearch(event: Event) {
@@ -16239,6 +16431,100 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         row.status,
       ]),
     };
+  }
+
+  private buildAssignmentReportExportRows() {
+    const columns = [
+      'Full Name',
+      'Surname',
+      'Email',
+      'Department',
+      'Course',
+      'Assessment',
+      'Date of Submission',
+      'Marker',
+      'Status',
+      'Mark',
+    ];
+    const reportRows = this.filteredAssignmentReportRows();
+
+    return {
+      columns,
+      reportRows,
+      rows: reportRows.map((row) => [
+        row.name,
+        row.surname,
+        row.email,
+        row.department,
+        row.courseName,
+        row.assessmentTitle,
+        row.submittedAt,
+        row.marker,
+        row.status,
+        row.mark,
+      ]),
+    };
+  }
+
+  downloadAssignmentReportCsv() {
+    const { columns, rows, reportRows } = this.buildAssignmentReportExportRows();
+
+    if (!rows.length) {
+      return;
+    }
+
+    const lines = [
+      ['Report', 'Assignments Report'],
+      ['Generated By', this.adminName()],
+      ['Generated On', this.reportGeneratedOnLabel()],
+      ['Rows Included', String(reportRows.length)],
+      [],
+      columns,
+      ...rows,
+    ];
+
+    const csv = lines
+      .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+
+    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), 'LMS-Assignments-Report.csv');
+  }
+
+  async downloadAssignmentReportXlsx() {
+    const { columns, rows, reportRows } = this.buildAssignmentReportExportRows();
+
+    if (!rows.length) {
+      return;
+    }
+
+    const xlsx = await import('xlsx');
+    const workbook = xlsx.utils.book_new();
+    const worksheetRows = [
+      ['Report', 'Assignments Report'],
+      ['Generated By', this.adminName()],
+      ['Generated On', this.reportGeneratedOnLabel()],
+      ['Rows Included', String(reportRows.length)],
+      [],
+      columns,
+      ...rows,
+    ];
+    const worksheet = xlsx.utils.aoa_to_sheet(worksheetRows);
+
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Assignments');
+    const workbookArray = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
+    this.triggerDownload(
+      new Blob([workbookArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      'LMS-Assignments-Report.xlsx',
+    );
+  }
+
+  downloadAssignmentReport() {
+    if (this.selectedAssignmentReportDownloadFormat() === 'XLSX') {
+      void this.downloadAssignmentReportXlsx();
+      return;
+    }
+
+    this.downloadAssignmentReportCsv();
   }
 
   resolveStudentOverallStatus(student: EnrollmentStudent): EnrollmentStudent['status'] {
