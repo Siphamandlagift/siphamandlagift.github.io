@@ -23,6 +23,16 @@ export type SystemTrainingManager = {
   email: string;
 };
 
+// Minimal, name/email-only directory of this company's admin users — used to populate the
+// "who should mark this assignment" picker on an Assignment submission (see
+// AssignmentSubmissionRecord.assignedReviewerId below). Server-derived only; never carries
+// password/hash fields.
+export type AdministratorDirectoryEntry = {
+  id: string;
+  name: string;
+  email: string;
+};
+
 export type TrainingOfferingType = 'Course' | 'Programme';
 export type LearningStatus = 'Completed' | 'In Progress' | 'Not Yet Started';
 export type TrainingAssessmentType = 'Quiz' | 'Assignment' | 'Mentorship' | 'Read and Acknowledge';
@@ -560,6 +570,11 @@ export type AssignmentSubmissionRecord = {
   reviewerName: string | null;
   reviewerFeedback: string;
   reviewedAt: string | null;
+  // Optional: the specific admin the student chose to mark this submission. Unset means today's
+  // behavior — any administrator/training-manager may review it.
+  assignedReviewerId?: string;
+  assignedReviewerName?: string;
+  assignedReviewerEmail?: string;
 };
 
 @Injectable({ providedIn: 'root' })
@@ -604,6 +619,8 @@ export class TrainingManagerDataService {
 
   private readonly offeringsSignal = signal<TrainingOffering[]>([]);
   private readonly trainingManagersSignal = signal<SystemTrainingManager[]>([]);
+  private readonly administratorsSignal = signal<AdministratorDirectoryEntry[]>([]);
+  readonly administrators = this.administratorsSignal.asReadonly();
   // The current company's subscription plan, for hiding plan-gated nav items (see
   // plan-features.ts). Set from bootstrap's own response, not persisted/cached locally like the
   // rest of this service's signals — always fresh from whatever the server just returned.
@@ -1265,6 +1282,7 @@ export class TrainingManagerDataService {
         this.saveStudents(mergedStudents);
         this.managerMessagesSignal.set(bootstrap.managerMessages);
         this.trainingManagersSignal.set(bootstrap.trainingManagers);
+        this.administratorsSignal.set(bootstrap.administrators ?? []);
         this.mentorshipAssignmentsSignal.set(bootstrap.mentorshipAssignments);
         this.mentorshipSubmissionsSignal.set(bootstrap.mentorshipSubmissions);
         this.assignmentSubmissionsSignal.set(this.hydrateAssignmentSubmissions(bootstrap.assignmentSubmissions));
@@ -2648,6 +2666,7 @@ export class TrainingManagerDataService {
     responseText?: string;
     documentFileName?: string;
     documentDataUrl?: string;
+    assignedReviewerId?: string;
   }): Promise<LearnerSubmissionResult> {
     const student = this.students().find((item) => item.id === input.studentId);
     const offering = this.offerings().find((item) => item.id === input.offeringId);
@@ -2716,6 +2735,13 @@ export class TrainingManagerDataService {
     }
 
     const recordIdSuffix = assessmentStepId.replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '') || 'default';
+    // Falls back to whatever was already assigned on a resubmission (revision flow) rather than
+    // silently dropping it just because the student didn't touch the picker again — an explicit
+    // different pick still overrides it.
+    const chosenReviewerId = input.assignedReviewerId || existingSubmission?.assignedReviewerId;
+    const chosenReviewer = chosenReviewerId
+      ? this.administratorsSignal().find((admin) => admin.id === chosenReviewerId)
+      : undefined;
 
     const nextSubmission: AssignmentSubmissionRecord = {
       id: existingSubmission?.id ?? `assignment-${student.id}-${offering.id}-${recordIdSuffix}`,
@@ -2740,6 +2766,9 @@ export class TrainingManagerDataService {
       reviewerName: null,
       reviewerFeedback: '',
       reviewedAt: null,
+      assignedReviewerId: chosenReviewer?.id,
+      assignedReviewerName: chosenReviewer?.name,
+      assignedReviewerEmail: chosenReviewer?.email,
     };
 
     const previousSubmissions = this.assignmentSubmissionsSignal();
@@ -3384,6 +3413,7 @@ export class TrainingManagerDataService {
             || (this.studentsDirtyAt !== null && this.studentsDirtyAt >= requestStartedAt);
           this.studentsSignal.set(isStudentsStale ? this.studentsSignal() : this.mergeServerAuthoritative(bootstrap.students, this.studentsSignal()));
           this.trainingManagersSignal.set(bootstrap.trainingManagers);
+          this.administratorsSignal.set(bootstrap.administrators ?? []);
           this.mentorshipAssignmentsSignal.set(this.mergeServerAuthoritative(bootstrap.mentorshipAssignments, this.mentorshipAssignmentsSignal()));
           this.mentorshipSubmissionsSignal.set(this.mergeServerAuthoritative(bootstrap.mentorshipSubmissions, this.mentorshipSubmissionsSignal()));
           this.assignmentSubmissionsSignal.set(

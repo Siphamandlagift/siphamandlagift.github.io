@@ -259,6 +259,18 @@ export type SystemTrainingManagerRecord = {
   email: string;
 };
 
+// Minimal, name/email-only directory of this company's admin users — assembled server-side
+// (see buildAdministratorDirectory in repository.ts) from bare authAccounts with role
+// 'administrator' unioned with isAdmin===true student records, the same union
+// isAdministratorAccount() already checks for authorization. Exposed via bootstrap so a student
+// can pick a specific admin to review their assignment submission (see
+// AssignmentSubmissionRecord.assignedReviewerId below) — never carries password/hash fields.
+export type AdministratorDirectoryEntry = {
+  id: string;
+  name: string;
+  email: string;
+};
+
 // Admin-configurable required sign-off counts for the two multi-approver chains below. Defaulting
 // both to 1 reproduces today's single-approver, immediately-final behavior exactly — see
 // ApprovalChainStepRecord/KpiApprovalRecord and the chain fields on ExternalTrainingRequestRecord.
@@ -769,6 +781,13 @@ export type AssignmentSubmissionRecord = {
   reviewerName: string | null;
   reviewerFeedback: string;
   reviewedAt: string | null;
+  // Optional: the specific admin the student chose to mark this submission (from
+  // AdministratorDirectoryEntry above), resolved and trusted server-side only — see
+  // buildAdministratorDirectory/POST /api/assignment-submissions in server.ts. Unset means
+  // today's behavior: any administrator/training-manager may review it.
+  assignedReviewerId?: string;
+  assignedReviewerName?: string;
+  assignedReviewerEmail?: string;
 };
 
 export type StudentAssessmentAttemptRecord = {
@@ -958,6 +977,7 @@ export type LmsBootstrapResponse = {
   // carries the entries array, never the year record's other fields (see StudentKpiYearRecord).
   kpiApprovalByStudent: Record<string, KpiApprovalRecord | null>;
   trainingManagers: SystemTrainingManagerRecord[];
+  administrators: AdministratorDirectoryEntry[];
   managerMessages: ManagerMessageRecord[];
   mentorshipAssignments: MentorshipAssignmentRecord[];
   assignmentSubmissions: AssignmentSubmissionRecord[];

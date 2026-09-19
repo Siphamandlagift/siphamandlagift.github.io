@@ -4,6 +4,7 @@ import { Observable, switchMap, map, catchError } from 'rxjs';
 import { FirebaseStorageService, UploadEvent } from './firebase-storage.service';
 import { LMS_API_CONFIG, LmsApiConfig } from './lms-api.config';
 import type {
+  AdministratorDirectoryEntry,
   ApprovalWorkflowSettings,
   AssignmentSubmissionRecord,
   EnrollmentStudent,
@@ -79,6 +80,7 @@ export type LmsBootstrapResponse = {
   // is 1 (the default) or the table hasn't been submitted for approval.
   kpiApprovalByStudent?: Record<string, KpiApprovalRecord | null>;
   trainingManagers: SystemTrainingManager[];
+  administrators?: AdministratorDirectoryEntry[];
   managerMessages: ManagerMessage[];
   mentorshipAssignments: MentorshipAssignmentRecord[];
   assignmentSubmissions: AssignmentSubmissionRecord[];

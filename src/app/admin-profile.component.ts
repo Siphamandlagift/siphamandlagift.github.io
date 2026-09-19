@@ -4408,6 +4408,10 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                 <strong>Reviewed</strong>
                                 <span>{{ activeSubmission.reviewedAt || 'Not reviewed yet' }}</span>
                               </div>
+                              <div>
+                                <strong>Assigned reviewer</strong>
+                                <span>{{ activeSubmission.assignedReviewerName || 'Any admin' }}</span>
+                              </div>
                             </div>
 
                             @if (activeSubmission.responseText) {
@@ -4434,25 +4438,29 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                               </div>
                             }
 
-                            <form class="mentorship-review-form" [formGroup]="assignmentWorkspaceReviewForm" (ngSubmit)="applyAssignmentWorkspaceReview('Approved')">
-                              <label>
-                                Mark awarded
-                                <input formControlName="awardedPoints" type="number" min="0" [max]="activeSubmission.possiblePoints" step="1" placeholder="Out of {{ activeSubmission.possiblePoints }}" />
-                              </label>
-                              <label>
-                                Feedback for learner
-                                <textarea formControlName="feedback" rows="5" placeholder="Add review feedback or revision guidance"></textarea>
-                              </label>
+                            @if (canReviewAssignmentSubmission(activeSubmission)) {
+                              <form class="mentorship-review-form" [formGroup]="assignmentWorkspaceReviewForm" (ngSubmit)="applyAssignmentWorkspaceReview('Approved')">
+                                <label>
+                                  Mark awarded
+                                  <input formControlName="awardedPoints" type="number" min="0" [max]="activeSubmission.possiblePoints" step="1" placeholder="Out of {{ activeSubmission.possiblePoints }}" />
+                                </label>
+                                <label>
+                                  Feedback for learner
+                                  <textarea formControlName="feedback" rows="5" placeholder="Add review feedback or revision guidance"></textarea>
+                                </label>
 
-                              @if (assignmentWorkspaceReviewError()) {
-                                <span class="field-error">{{ assignmentWorkspaceReviewError() }}</span>
-                              }
+                                @if (assignmentWorkspaceReviewError()) {
+                                  <span class="field-error">{{ assignmentWorkspaceReviewError() }}</span>
+                                }
 
-                              <div class="mentorship-review-actions">
-                                <button type="button" class="detail-action-btn" (click)="applyAssignmentWorkspaceReview('Needs Revision')">Request revision</button>
-                                <button type="submit" class="detail-action-btn detail-action-btn-primary">Approve submission</button>
-                              </div>
-                            </form>
+                                <div class="mentorship-review-actions">
+                                  <button type="button" class="detail-action-btn" (click)="applyAssignmentWorkspaceReview('Needs Revision')">Request revision</button>
+                                  <button type="submit" class="detail-action-btn detail-action-btn-primary">Approve submission</button>
+                                </div>
+                              </form>
+                            } @else {
+                              <p class="admin-field-hint">Assigned to {{ activeSubmission.assignedReviewerName }} — only they can review this submission.</p>
+                            }
                           </div>
                         }
                       </div>
@@ -18158,6 +18166,11 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     const activeSubmission = this.filteredAssignmentSubmissions().find((submission) => submission.id === submissionId) ?? null;
     this.assignmentWorkspaceReviewForm.reset({ awardedPoints: activeSubmission?.awardedPoints ?? null, feedback: activeSubmission?.reviewerFeedback ?? '' });
     this.assignmentWorkspaceReviewError.set('');
+  }
+
+  canReviewAssignmentSubmission(submission: AssignmentSubmissionRecord): boolean {
+    return !submission.assignedReviewerEmail
+      || submission.assignedReviewerEmail.trim().toLowerCase() === this.managerData.profile().email.trim().toLowerCase();
   }
 
   async applyAssignmentWorkspaceReview(status: 'Approved' | 'Needs Revision') {

@@ -17,7 +17,7 @@ import { z } from 'zod';
 import { getApp, getApps, initializeApp } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 import { createDefaultData } from './default-data.js';
-import { createLmsRepository, KpiApprovalAuthorizationError, maskAssessmentAnswerKey, type LmsRepository } from './repository.js';
+import { buildAdministratorDirectory, createLmsRepository, KpiApprovalAuthorizationError, maskAssessmentAnswerKey, type LmsRepository } from './repository.js';
 import { PasswordResetEmailService } from './email-service.js';
 import { isStrongPassword, passwordPolicyMessage } from './auth-utils.js';
 import {
@@ -510,6 +510,12 @@ const assignmentSubmissionSchema = z.object({
   reviewerName: z.string().nullable(),
   reviewerFeedback: z.string(),
   reviewedAt: z.string().nullable(),
+  // Client-supplied assignedReviewerId is re-validated against buildAdministratorDirectory
+  // server-side (see POST /api/assignment-submissions below) — name/email are never trusted
+  // as sent; the server always overwrites them from the resolved account.
+  assignedReviewerId: z.string().optional(),
+  assignedReviewerName: z.string().optional(),
+  assignedReviewerEmail: z.string().optional(),
 });
 
 const managerMessageReplySchema = z.object({
@@ -4096,12 +4102,31 @@ app.post('/api/assignment-submissions', async (request, response, next) => {
 
     const submission = assignmentSubmissionSchema.parse(request.body);
     const isManagerOrAdmin = identity.role === 'administrator' || identity.role === 'training-manager';
+    const data = await repository.read();
+    const existing = data.assignmentSubmissions.find((entry) => entry.id === submission.id);
 
     if (isReviewWrite(submission)) {
       if (!isManagerOrAdmin) {
         response.status(403).json({ message: 'Only a training manager or administrator can review a submission.' });
         return;
       }
+
+      // If the student assigned a specific admin to mark this submission, only that admin may
+      // act on it — mirrors isAssignedApprover for External Training Requests, but with no
+      // "any administrator overrides" escape hatch: the assigned party is itself already an
+      // admin, so restricting to literally them is what actually delivers "they will be the
+      // ones marking it" rather than leaving the shared pool open regardless.
+      const assignedReviewerEmail = existing?.assignedReviewerEmail?.trim().toLowerCase();
+      if (assignedReviewerEmail && assignedReviewerEmail !== identity.email.trim().toLowerCase()) {
+        response.status(403).json({ message: 'You are not the reviewer assigned to this assignment submission.' });
+        return;
+      }
+
+      // A review write never gets to change who was assigned to review it — always carries the
+      // existing record's assignment forward verbatim, regardless of what the reviewing client sent.
+      submission.assignedReviewerId = existing?.assignedReviewerId;
+      submission.assignedReviewerName = existing?.assignedReviewerName;
+      submission.assignedReviewerEmail = existing?.assignedReviewerEmail;
     } else {
       if (!isManagerOrAdmin && !(await isOwnStudentRecord(repository, submission.studentId, identity))) {
         response.status(403).json({ message: 'You can only submit your own assignment.' });
@@ -4112,6 +4137,16 @@ app.post('/api/assignment-submissions', async (request, response, next) => {
         response.status(409).json({ message: 'No attempts remain for this assignment.' });
         return;
       }
+
+      // Re-resolve the student's chosen reviewer against the real admin directory — name/email
+      // are never trusted from the client. An id that no longer resolves to a real admin falls
+      // open to today's shared pool rather than failing the whole submission.
+      const chosenReviewer = submission.assignedReviewerId
+        ? buildAdministratorDirectory(data).find((admin) => admin.id === submission.assignedReviewerId)
+        : undefined;
+      submission.assignedReviewerId = chosenReviewer?.id;
+      submission.assignedReviewerName = chosenReviewer?.name;
+      submission.assignedReviewerEmail = chosenReviewer?.email;
     }
 
     response.status(201).json(await repository.upsertAssignmentSubmission(submission));

@@ -15,6 +15,7 @@ import {
 } from './auth-utils.js';
 import {
   AdministratorAccountSummary,
+  AdministratorDirectoryEntry,
   ApprovalChainStepRecord,
   ApprovalWorkflowSettingsRecord,
   ApprovalWorkflowSettingsUpdateInput,
@@ -441,6 +442,38 @@ function isAdministratorAccount(data: LmsDataStore, account: Pick<AuthAccountRec
   }
 
   return resolveLinkedStudentRecord(data, account)?.isAdmin === true;
+}
+
+/** Minimal, name/email-only directory of this company's admin users — every authAccount
+ *  isAdministratorAccount() considers an admin (bare 'administrator' accounts and promoted
+ *  isAdmin===true students/managers alike), the same set that can actually log in and review a
+ *  submission. Iterating authAccounts rather than the student roster directly is deliberate: an
+ *  isAdmin flag with no login credentials yet couldn't review anything either, so it's correctly
+ *  excluded here too. Used to populate the assignment-submission reviewer picker (see
+ *  AssignmentSubmissionRecord.assignedReviewerId) — never carries password/hash fields. */
+export function buildAdministratorDirectory(data: LmsDataStore): AdministratorDirectoryEntry[] {
+  const entries: AdministratorDirectoryEntry[] = [];
+  const seenEmails = new Set<string>();
+
+  for (const account of data.authAccounts) {
+    if (!isAdministratorAccount(data, account)) {
+      continue;
+    }
+
+    const email = account.email.trim();
+    const normalizedEmail = email.toLowerCase();
+    if (!email || seenEmails.has(normalizedEmail)) {
+      continue;
+    }
+    seenEmails.add(normalizedEmail);
+
+    const identity = resolveAccountDisplayNameSync(data, account);
+    const name = identity ? `${identity.name} ${identity.surname}`.trim() : account.username;
+
+    entries.push({ id: account.id, name: name || account.username, email });
+  }
+
+  return entries.sort((left, right) => left.name.localeCompare(right.name) || left.email.localeCompare(right.email));
 }
 
 function mergeResolvedRole(results: ResolvedRoleEntry[], candidate: ResolvedRoleEntry) {
@@ -1389,6 +1422,7 @@ export class LmsRepository {
       data.students.map((student) => [student.id, findKpiYearApproval(student.kpiYears ?? [], data.currentKpiYear)]),
     );
     const students = data.students.map(({ courses, notifications, messages, notifiedOfferingIds, idpYears, kpiYears, ...student }) => student);
+    const administrators = buildAdministratorDirectory(data);
 
     const isPrivileged = caller?.role === 'administrator' || caller?.role === 'training-manager';
     if (isPrivileged) {
@@ -1426,6 +1460,7 @@ export class LmsRepository {
         approvalWorkflowSettings: data.approvalWorkflowSettings,
         kpiApprovalByStudent,
         trainingManagers: data.trainingManagers,
+        administrators,
         managerMessages: data.managerMessages,
         mentorshipAssignments: data.mentorshipAssignments,
         assignmentSubmissions: data.assignmentSubmissions,
@@ -1467,6 +1502,7 @@ export class LmsRepository {
       approvalWorkflowSettings: data.approvalWorkflowSettings,
       kpiApprovalByStudent: ownStudentId ? { [ownStudentId]: kpiApprovalByStudent[ownStudentId] ?? null } : {},
       trainingManagers: data.trainingManagers,
+      administrators,
       // The student-facing reply flow fetches its own thread through the dedicated, ownership-
       // scoped GET /api/manager-messages instead — nothing in the student UI reads this bootstrap
       // field, so it's left empty here rather than handing over every other student's inbox.

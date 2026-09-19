@@ -531,6 +531,16 @@ type ScormRuntimeState = {
                   </ng-container>
                 </ng-template>
 
+                <label
+                  class="workspace-response-field"
+                  *ngIf="selectedAssessment()?.assessmentType === 'Assignment' && !isAssessmentSubmitted()">
+                  <span>Who should mark this assignment?</span>
+                  <select [value]="selectedAssignmentReviewerId()" (change)="updateAssignmentReviewerId($any($event.target).value)">
+                    <option value="">No preference — any admin can review</option>
+                    <option *ngFor="let admin of managerData.administrators()" [value]="admin.id">{{ admin.name }}</option>
+                  </select>
+                </label>
+
                 <ng-template #nonShortAnswerAssessmentView>
                   <ng-container *ngIf="selectedAssessmentQuestion()!.questionType !== 'Matching'; else matchingAssessmentView">
                   <label
@@ -2390,6 +2400,7 @@ export class StudentCoursesComponent {
   readonly assessmentSelections = signal<Record<string, string>>({});
   readonly assessmentResponses = signal<Record<string, string>>({});
   readonly assignmentDocumentSubmissions = signal<Record<string, AssignmentDocumentSubmission>>({});
+  readonly assignmentReviewerSelections = signal<Record<string, string>>({});
   // In-memory only, same as assessmentSelections/assessmentResponses above — not persisted to
   // localStorage (see persistCourseProgressState), since a survey is submitted as one whole and
   // there's no partial-draft-recovery requirement for it.
@@ -2899,6 +2910,22 @@ export class StudentCoursesComponent {
       dataUrl: this.currentAssignmentSubmission()?.documentDataUrl ?? '',
     };
   });
+  // Defaults to whatever admin was already assigned on a prior submission for this question (the
+  // revision flow) — falling back to "no preference" only when nothing has been chosen or
+  // submitted yet, same draft-then-persisted-fallback shape as the two computeds above.
+  readonly selectedAssignmentReviewerId = computed(() => {
+    const assessmentKey = this.currentAssessmentAttemptKey();
+    if (!assessmentKey) {
+      return '';
+    }
+
+    const draftSelection = this.assignmentReviewerSelections()[assessmentKey];
+    if (draftSelection !== undefined) {
+      return draftSelection;
+    }
+
+    return this.currentAssignmentSubmission()?.assignedReviewerId ?? '';
+  });
   readonly selectedMentorshipSubmission = computed<MentorshipSubmission>(() => {
     const assessmentKey = this.currentAssessmentAttemptKey();
     if (!assessmentKey) {
@@ -3287,6 +3314,18 @@ export class StudentCoursesComponent {
 
     this.assessmentResponses.update((responses) => ({
       ...responses,
+      [assessmentKey]: value,
+    }));
+  }
+
+  updateAssignmentReviewerId(value: string) {
+    const assessmentKey = this.currentAssessmentAttemptKey();
+    if (!assessmentKey || this.isAssessmentSubmitted()) {
+      return;
+    }
+
+    this.assignmentReviewerSelections.update((selections) => ({
+      ...selections,
       [assessmentKey]: value,
     }));
   }
@@ -4017,6 +4056,7 @@ export class StudentCoursesComponent {
         responseText: assignmentQuestionType === 'Short Answer' || assignmentQuestionType === 'Long Answer' ? textResponse : undefined,
         documentFileName: assignmentQuestionType === 'Document Upload' ? documentSubmission.fileName : undefined,
         documentDataUrl: assignmentQuestionType === 'Document Upload' ? documentSubmission.dataUrl : undefined,
+        assignedReviewerId: this.selectedAssignmentReviewerId() || undefined,
       });
 
       if (!submissionResult.ok) {
