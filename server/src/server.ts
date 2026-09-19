@@ -21,7 +21,7 @@ import { createLmsRepository, KpiApprovalAuthorizationError, maskAssessmentAnswe
 import { PasswordResetEmailService } from './email-service.js';
 import { isStrongPassword, passwordPolicyMessage } from './auth-utils.js';
 import {
-  resolveCompanyIdForLoginIdentifier,
+  resolveCompanyIdsForLoginIdentifier,
   resolveCompanyIdForPasswordResetToken,
   getCompanySubscriptionContext,
   getCompanyPlan,
@@ -2222,16 +2222,20 @@ app.post('/api/admin/hr-integration/sync', requireAdministrator, requirePlanFeat
 app.post('/api/auth/login', async (request, response, next) => {
   try {
     const credentials = loginRequestSchema.parse(request.body);
-    const companyId = await resolveCompanyIdForLoginIdentifier(credentials.username);
-    if (!companyId) {
-      response.status(401).json({ message: 'Invalid login credentials.' });
-      return;
+    const candidateCompanyIds = await resolveCompanyIdsForLoginIdentifier(credentials.username);
+
+    let companyId: string | null = null;
+    let authenticated: Awaited<ReturnType<LmsRepository['authenticate']>> = null;
+    for (const candidateCompanyId of candidateCompanyIds) {
+      const candidateResult = await createLmsRepository(candidateCompanyId).authenticate(credentials);
+      if (candidateResult) {
+        companyId = candidateCompanyId;
+        authenticated = candidateResult;
+        break;
+      }
     }
 
-    const repository = createLmsRepository(companyId);
-    const authenticated = await repository.authenticate(credentials);
-
-    if (!authenticated) {
+    if (!companyId || !authenticated) {
       response.status(401).json({ message: 'Invalid login credentials.' });
       return;
     }
@@ -2258,14 +2262,26 @@ app.post('/api/auth/login', async (request, response, next) => {
 app.post('/api/auth/resolve-roles', async (request, response, next) => {
   try {
     const credentials = resolveRolesRequestSchema.parse(request.body);
-    const companyId = await resolveCompanyIdForLoginIdentifier(credentials.username);
-    if (!companyId) {
+    const candidateCompanyIds = await resolveCompanyIdsForLoginIdentifier(credentials.username);
+
+    let companyId: string | null = null;
+    let repository: LmsRepository | null = null;
+    let roles: Awaited<ReturnType<LmsRepository['resolveRoles']>> = [];
+    for (const candidateCompanyId of candidateCompanyIds) {
+      const candidateRepository = createLmsRepository(candidateCompanyId);
+      const candidateRoles = await candidateRepository.resolveRoles(credentials);
+      if (candidateRoles.length > 0) {
+        companyId = candidateCompanyId;
+        repository = candidateRepository;
+        roles = candidateRoles;
+        break;
+      }
+    }
+
+    if (!companyId || !repository) {
       response.status(401).json({ message: 'Invalid login credentials.' });
       return;
     }
-
-    const repository = createLmsRepository(companyId);
-    let roles = await repository.resolveRoles(credentials);
 
     // No Training Manager profile at all on a Starter plan — dropped before any of the logic
     // below, so a multi-role account (e.g. training-manager + student) simply never offers the
@@ -2629,20 +2645,23 @@ app.get('/api/auth/sso/microsoft/callback', async (request, response, next) => {
       }
     }
 
-    const ssoCompanyId = await resolveCompanyIdForLoginIdentifier(email);
-    if (!ssoCompanyId) {
-      response.redirect(buildMicrosoftSsoRedirect(stateAppBaseUrl, {
-        ssoError: 'This Microsoft account is not linked to an LMS user.',
-      }));
-      return;
+    const ssoCandidateCompanyIds = await resolveCompanyIdsForLoginIdentifier(email);
+
+    let ssoCompanyId: string | null = null;
+    let authenticated: Awaited<ReturnType<LmsRepository['authenticateSso']>> = null;
+    for (const candidateCompanyId of ssoCandidateCompanyIds) {
+      const candidateResult = await createLmsRepository(candidateCompanyId).authenticateSso({
+        email,
+        role: verifiedState.role,
+      });
+      if (candidateResult) {
+        ssoCompanyId = candidateCompanyId;
+        authenticated = candidateResult;
+        break;
+      }
     }
 
-    const authenticated = await createLmsRepository(ssoCompanyId).authenticateSso({
-      email,
-      role: verifiedState.role,
-    });
-
-    if (!authenticated) {
+    if (!ssoCompanyId || !authenticated) {
       response.redirect(buildMicrosoftSsoRedirect(stateAppBaseUrl, {
         ssoError: 'This Microsoft account is not linked to an LMS user.',
       }));
@@ -2679,19 +2698,22 @@ app.post('/api/auth/password-reset/request', async (request, response, next) => 
       return;
     }
 
-    const resetCompanyId = await resolveCompanyIdForLoginIdentifier(payload.email);
-    const resetRequest = resetCompanyId
-      ? await createLmsRepository(resetCompanyId).createPasswordResetRequest(payload.email)
-      : null;
-
-    if (resetRequest) {
-      const resetUrl = `${resolveAppBaseUrl(request)}/reset-password?token=${encodeURIComponent(resetRequest.token)}`;
-      await emailService.sendPasswordResetEmail({
-        to: resetRequest.accountEmail,
-        username: resetRequest.username,
-        resetUrl,
-        expiresAt: resetRequest.expiresAt,
-      });
+    // Usually exactly one company matches this email — but if two companies happen to share it
+    // (see resolveCompanyIdsForLoginIdentifier), send a working reset link for every one of them
+    // rather than arbitrarily picking one, so the account the requester actually meant always
+    // gets a real link regardless of Firestore's match order.
+    const resetCandidateCompanyIds = await resolveCompanyIdsForLoginIdentifier(payload.email);
+    for (const candidateCompanyId of resetCandidateCompanyIds) {
+      const resetRequest = await createLmsRepository(candidateCompanyId).createPasswordResetRequest(payload.email);
+      if (resetRequest) {
+        const resetUrl = `${resolveAppBaseUrl(request)}/reset-password?token=${encodeURIComponent(resetRequest.token)}`;
+        await emailService.sendPasswordResetEmail({
+          to: resetRequest.accountEmail,
+          username: resetRequest.username,
+          resetUrl,
+          expiresAt: resetRequest.expiresAt,
+        });
+      }
     }
 
     response.status(202).json({ message: 'If that email address exists in the LMS, a password reset link has been sent.' });

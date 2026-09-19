@@ -35,28 +35,36 @@ function companyIdFromSubcollectionDoc(ref: DocumentReference): string | null {
   return ref.parent.parent?.id ?? null;
 }
 
-// Resolves which company a login identifier belongs to. The identifier may be a username or an
-// email (this app has always accepted either at login — see AuthAccountRecord.username vs.
-// .email), so this tries emailLower first, then falls back to usernameLower.
-export async function resolveCompanyIdForLoginIdentifier(identifier: string): Promise<string | null> {
+// Resolves every company whose authAccounts contain a matching login identifier (username or
+// email — this app has always accepted either at login, see AuthAccountRecord.username vs.
+// .email). Email/username uniqueness is only enforced WITHIN one company at write time (see
+// createAdministratorAccount/upsertManagedUserCredentials), so two different companies can
+// legitimately end up with accounts sharing an identifier — most concretely, every brand-new
+// company's seeded default admin used to be identical across all companies. Returning every
+// candidate (instead of just the first Firestore happens to return) lets callers verify the
+// actual credential/token against each one and commit only to the company where that
+// verification succeeds, rather than trusting an arbitrary match.
+export async function resolveCompanyIdsForLoginIdentifier(identifier: string): Promise<string[]> {
   const normalized = identifier.trim().toLowerCase();
   if (!normalized) {
-    return null;
+    return [];
   }
 
   const firestore = getFirestoreClient();
+  const [byEmail, byUsername] = await Promise.all([
+    firestore.collectionGroup('authAccounts').where('emailLower', '==', normalized).get(),
+    firestore.collectionGroup('authAccounts').where('usernameLower', '==', normalized).get(),
+  ]);
 
-  const byEmail = await firestore.collectionGroup('authAccounts').where('emailLower', '==', normalized).limit(1).get();
-  if (!byEmail.empty) {
-    return companyIdFromSubcollectionDoc(byEmail.docs[0]!.ref);
+  const companyIds = new Set<string>();
+  for (const doc of [...byEmail.docs, ...byUsername.docs]) {
+    const companyId = companyIdFromSubcollectionDoc(doc.ref);
+    if (companyId) {
+      companyIds.add(companyId);
+    }
   }
 
-  const byUsername = await firestore.collectionGroup('authAccounts').where('usernameLower', '==', normalized).limit(1).get();
-  if (!byUsername.empty) {
-    return companyIdFromSubcollectionDoc(byUsername.docs[0]!.ref);
-  }
-
-  return null;
+  return [...companyIds];
 }
 
 // Resolves which company a password-reset token belongs to, by hashing it the same way

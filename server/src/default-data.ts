@@ -77,17 +77,25 @@ function createStudentSettings(): LmsDataStore['students'][number]['settings'] {
 // Firestore document (FirestoreLmsRepository.read()) — every other caller (local single-tenant
 // dev, or a "defaults" object used only as a fallback source for unrelated fields) leaves it
 // blank, since nothing ever persists this particular authAccounts array under those paths.
+// The username/email are namespaced by companyId (rather than the same literal
+// 'admin'/'admin@skillsconnect.app' every company used to get) so a brand-new company's default
+// admin can never collide with another company's login identifier — email/username uniqueness
+// is only enforced WITHIN one company at write time (see createAdministratorAccount), so an
+// identical seed across every company was a guaranteed cross-company collision at the login
+// identifier-resolution layer (see resolveCompanyIdsForLoginIdentifier in platform-repository.ts).
 function createAuthAccounts(companyId: string): LmsDataStore['authAccounts'] {
   const administratorPassword = createPasswordCredentials('admin');
+  const username = companyId ? `admin-${companyId}` : 'admin';
+  const email = companyId ? `admin+${companyId}@skillsconnect.app` : 'admin@skillsconnect.app';
 
   return [
     {
       id: 'auth-administrator',
       role: 'administrator',
-      username: 'admin',
-      email: 'admin@skillsconnect.app',
-      usernameLower: 'admin',
-      emailLower: 'admin@skillsconnect.app',
+      username,
+      email,
+      usernameLower: username.toLowerCase(),
+      emailLower: email.toLowerCase(),
       companyId,
       route: '/admin-profile',
       passwordHash: administratorPassword.passwordHash,
