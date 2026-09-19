@@ -429,8 +429,8 @@ export class LmsBackendService {
   // A true add/remove on the student's assignedOfferingIds, not a full roster patch — see
   // TrainingManagerDataService.assignStudentToOffering/removeStudentFromOffering for why this
   // exists as its own endpoint instead of going through patchManagerState.
-  setStudentOfferingAssignment(studentId: string, offeringId: string, assigned: boolean): Observable<EnrollmentStudent> {
-    return this.http.put<EnrollmentStudent>(`${this.config.baseUrl}/students/${studentId}/offering-assignment`, { offeringId, assigned });
+  setStudentOfferingAssignment(studentId: string, offeringId: string, assigned: boolean, deadline?: string): Observable<EnrollmentStudent> {
+    return this.http.put<EnrollmentStudent>(`${this.config.baseUrl}/students/${studentId}/offering-assignment`, { offeringId, assigned, deadline });
   }
 
   // A real, dedicated removal (also drops the student's linked login/license seat server-side) —

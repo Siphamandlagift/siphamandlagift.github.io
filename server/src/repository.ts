@@ -1133,22 +1133,31 @@ function pruneStaleAssessmentAttemptsOnReassignment(student: StudentRecord, prev
 // deadline-max-across-assigned-offerings precedence, same Active/Inactive and
 // Not-Started-to-In-Progress rules) so a server-side assignment change and the client's own
 // optimistic local update never disagree about what deadlineDate/activeStatus/status should be.
-// latestAssignedDeadline, when given (assign only — see setStudentOfferingAssignment below),
-// takes precedence over the computed max, matching the client's own precedence.
+// Per-offering deadlines come from nextAssignedOfferingDeadlines (set at assignment time — see
+// setStudentOfferingAssignment below) first, falling back to the offering's own now-legacy
+// completionDeadline for anything assigned before that map existed. latestAssignedDeadline, when
+// given (assign only), takes precedence over the computed max for the single deadlineDate rollup,
+// matching the client's own precedence — it does not affect the per-offering map itself.
 function resolveStudentAssignmentFields(
   student: Pick<EnrollmentStudentRecord, 'deadlineDate' | 'status'>,
   nextAssignedOfferingIds: string[],
   assignedOfferings: TrainingOffering[],
+  nextAssignedOfferingDeadlines: Record<string, string> | undefined,
   latestAssignedDeadline?: string,
-): Pick<EnrollmentStudentRecord, 'assignedOfferingIds' | 'deadlineDate' | 'activeStatus' | 'status'> {
+): Pick<EnrollmentStudentRecord, 'assignedOfferingIds' | 'deadlineDate' | 'activeStatus' | 'status' | 'assignedOfferingDeadlines'> {
   const resolvedDeadline = latestAssignedDeadline
-    ?? assignedOfferings.map((offering) => offering.completionDeadline).filter(Boolean).sort().at(-1)
+    ?? assignedOfferings
+      .map((offering) => nextAssignedOfferingDeadlines?.[offering.id] ?? offering.completionDeadline)
+      .filter(Boolean)
+      .sort()
+      .at(-1)
     ?? student.deadlineDate;
 
   if (!nextAssignedOfferingIds.length) {
     return {
       assignedOfferingIds: nextAssignedOfferingIds,
       deadlineDate: resolvedDeadline,
+      assignedOfferingDeadlines: nextAssignedOfferingDeadlines,
       activeStatus: 'Inactive',
       status: 'Not Yet Started',
     };
@@ -1157,9 +1166,34 @@ function resolveStudentAssignmentFields(
   return {
     assignedOfferingIds: nextAssignedOfferingIds,
     deadlineDate: resolvedDeadline,
+    assignedOfferingDeadlines: nextAssignedOfferingDeadlines,
     activeStatus: 'Active',
     status: student.status === 'Not Yet Started' ? 'In Progress' : student.status,
   };
+}
+
+// True only once a student's own effective deadline for this offering is strictly before today —
+// mirrors published-offering-card.component.ts's deadlineStatus() "overdue" semantics exactly
+// (date-only comparison, due-today is NOT yet overdue) so the cosmetic badge and this real
+// enforcement check can never disagree. Effective deadline: this student's own per-offering
+// override if one was set at assignment time, else the offering's own legacy completionDeadline.
+export function isOfferingDeadlinePassedForStudent(
+  student: Pick<EnrollmentStudentRecord, 'assignedOfferingDeadlines'>,
+  offeringId: string,
+  offerings: Pick<TrainingOffering, 'id' | 'completionDeadline'>[],
+): boolean {
+  const raw = (student.assignedOfferingDeadlines?.[offeringId] ?? offerings.find((offering) => offering.id === offeringId)?.completionDeadline ?? '').trim();
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!isoMatch) {
+    return false;
+  }
+
+  const [, year, month, day] = isoMatch;
+  const deadline = new Date(Number(year), Number(month) - 1, Number(day));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return deadline.getTime() < today.getTime();
 }
 
 // Same trimmed projection getBootstrap already builds its students list from — avoids sending an
@@ -2317,7 +2351,7 @@ export class LmsRepository {
         type: update.type,
         category: update.category,
         description: update.description,
-        completionDeadline: update.completionDeadline,
+        completionDeadline: update.completionDeadline ?? offering.completionDeadline,
         status: update.status,
         thumbnailDataUrl: update.thumbnailDataUrl,
         contentItems: update.contentItems ?? offering.contentItems,
@@ -2349,10 +2383,12 @@ export class LmsRepository {
 
       const assignedOfferingIds = student.assignedOfferingIds.filter((assignedId) => assignedId !== offeringId);
       const assignedOfferings = data.offerings.filter((offering) => assignedOfferingIds.includes(offering.id));
+      const assignedOfferingDeadlines = { ...(student.assignedOfferingDeadlines ?? {}) };
+      delete assignedOfferingDeadlines[offeringId];
 
       return {
         ...student,
-        ...resolveStudentAssignmentFields(student, assignedOfferingIds, assignedOfferings),
+        ...resolveStudentAssignmentFields(student, assignedOfferingIds, assignedOfferings, assignedOfferingDeadlines),
       };
     });
     data.assignmentSubmissions = data.assignmentSubmissions.filter((submission) => submission.offeringId !== offeringId);
@@ -2388,7 +2424,7 @@ export class LmsRepository {
   // can be stale for students they didn't just edit, and mergeEnrollmentStudentRecord's
   // {...existing, ...student} spread would otherwise let that stale assignedOfferingIds silently
   // overwrite a concurrent assignment from another manager.
-  async setStudentOfferingAssignment(studentId: string, offeringId: string, assigned: boolean) {
+  async setStudentOfferingAssignment(studentId: string, offeringId: string, assigned: boolean, deadline?: string) {
     const data = await this.read();
     const studentIndex = data.students.findIndex((entry) => entry.id === studentId);
     if (studentIndex === -1) {
@@ -2405,11 +2441,27 @@ export class LmsRepository {
       ? (student.assignedOfferingIds.includes(offeringId) ? student.assignedOfferingIds : [...student.assignedOfferingIds, offeringId])
       : student.assignedOfferingIds.filter((id) => id !== offeringId);
 
+    // deadline is this student's own per-course override, set at assignment time — never written
+    // onto the offering itself (that field is legacy now, see TrainingOffering.completionDeadline).
+    // Falling back to the offering's own legacy field when no explicit deadline is chosen preserves
+    // today's "leave blank to keep the current deadline" behavior for a first-time assignment.
+    const nextAssignedOfferingDeadlines = { ...(student.assignedOfferingDeadlines ?? {}) };
+    let latestAssignedDeadline: string | undefined;
+    if (assigned) {
+      const resolvedNewDeadline = deadline?.trim() || targetOffering?.completionDeadline || undefined;
+      if (resolvedNewDeadline) {
+        nextAssignedOfferingDeadlines[offeringId] = resolvedNewDeadline;
+        latestAssignedDeadline = resolvedNewDeadline;
+      }
+    } else {
+      delete nextAssignedOfferingDeadlines[offeringId];
+    }
+
     const assignedOfferings = data.offerings.filter((offering) => nextAssignedOfferingIds.includes(offering.id));
     const nextStudent = pruneStaleAssessmentAttemptsOnReassignment(
       {
         ...student,
-        ...resolveStudentAssignmentFields(student, nextAssignedOfferingIds, assignedOfferings, assigned ? targetOffering?.completionDeadline : undefined),
+        ...resolveStudentAssignmentFields(student, nextAssignedOfferingIds, assignedOfferings, nextAssignedOfferingDeadlines, latestAssignedDeadline),
       },
       student.assignedOfferingIds,
     );
@@ -4999,7 +5051,7 @@ class FirestoreLmsRepository extends LmsRepository {
         type: update.type,
         category: update.category,
         description: update.description,
-        completionDeadline: update.completionDeadline,
+        completionDeadline: update.completionDeadline ?? existing.completionDeadline,
         status: update.status,
         thumbnailDataUrl: update.thumbnailDataUrl,
         contentItems: update.contentItems ?? existing.contentItems,
@@ -5017,7 +5069,7 @@ class FirestoreLmsRepository extends LmsRepository {
   // inherited read()+write() full-store path, and never a full-array replace supplied by the
   // caller, so a manager's stale local roster snapshot can never silently revert another manager's
   // concurrent assignment. See the base LmsRepository implementation above for why this matters.
-  override async setStudentOfferingAssignment(studentId: string, offeringId: string, assigned: boolean) {
+  override async setStudentOfferingAssignment(studentId: string, offeringId: string, assigned: boolean, deadline?: string) {
     const ref = this.collection('students').doc(studentId);
 
     return this.firestore.runTransaction(async (transaction) => {
@@ -5055,6 +5107,22 @@ class FirestoreLmsRepository extends LmsRepository {
         assignedOfferings.push(targetOfferingSnapshot.data() as TrainingOffering);
       }
 
+      // deadline is this student's own per-course override, set at assignment time — never
+      // written onto the offering itself. See the base LmsRepository override above for the
+      // same logic against the JSON-file backend.
+      const nextAssignedOfferingDeadlines = { ...(student.assignedOfferingDeadlines ?? {}) };
+      let latestAssignedDeadline: string | undefined;
+      if (assigned) {
+        const targetOffering = targetOfferingSnapshot!.data() as TrainingOffering;
+        const resolvedNewDeadline = deadline?.trim() || targetOffering.completionDeadline || undefined;
+        if (resolvedNewDeadline) {
+          nextAssignedOfferingDeadlines[offeringId] = resolvedNewDeadline;
+          latestAssignedDeadline = resolvedNewDeadline;
+        }
+      } else {
+        delete nextAssignedOfferingDeadlines[offeringId];
+      }
+
       const nextStudent = pruneStaleAssessmentAttemptsOnReassignment(
         {
           ...student,
@@ -5062,7 +5130,8 @@ class FirestoreLmsRepository extends LmsRepository {
             student,
             nextAssignedOfferingIds,
             assignedOfferings,
-            assigned ? (targetOfferingSnapshot!.data() as TrainingOffering).completionDeadline : undefined,
+            nextAssignedOfferingDeadlines,
+            latestAssignedDeadline,
           ),
         },
         student.assignedOfferingIds,

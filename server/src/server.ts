@@ -17,7 +17,7 @@ import { z } from 'zod';
 import { getApp, getApps, initializeApp } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 import { createDefaultData } from './default-data.js';
-import { buildAdministratorDirectory, createLmsRepository, KpiApprovalAuthorizationError, maskAssessmentAnswerKey, type LmsRepository } from './repository.js';
+import { buildAdministratorDirectory, createLmsRepository, isOfferingDeadlinePassedForStudent, KpiApprovalAuthorizationError, maskAssessmentAnswerKey, type LmsRepository } from './repository.js';
 import { PasswordResetEmailService } from './email-service.js';
 import { isStrongPassword, passwordPolicyMessage } from './auth-utils.js';
 import {
@@ -480,7 +480,8 @@ const trainingOfferingUpdateSchema = z.object({
   type: z.enum(['Course', 'Programme']),
   category: z.string(),
   description: z.string(),
-  completionDeadline: z.string(),
+  // Legacy/frozen — omitted means "leave the current value alone" (see contracts.ts).
+  completionDeadline: z.string().optional(),
   status: z.enum(['Published', 'Draft']),
   thumbnailDataUrl: z.string().nullable(),
   contentItems: z.array(trainingContentItemSchema).optional(),
@@ -995,6 +996,9 @@ const kpiApprovalDecisionSchema = z.object({
 const studentOfferingAssignmentSchema = z.object({
   offeringId: z.string().min(1),
   assigned: z.boolean(),
+  // This student's own deadline for this course, chosen at assignment time (see
+  // EnrollmentStudentRecord.assignedOfferingDeadlines) — never written onto the offering itself.
+  deadline: z.string().optional(),
 });
 
 const successionRoleInputSchema = z.object({
@@ -2895,7 +2899,7 @@ app.put('/api/students/:studentId/offering-assignment', requireManagerOrAdminist
   try {
     const repository = request.repository!;
     const body = studentOfferingAssignmentSchema.parse(request.body);
-    const student = await repository.setStudentOfferingAssignment(request.params['studentId'] as string, body.offeringId, body.assigned);
+    const student = await repository.setStudentOfferingAssignment(request.params['studentId'] as string, body.offeringId, body.assigned, body.deadline);
 
     if (!student) {
       response.status(404).json({ message: 'Student or offering not found.' });
@@ -2915,7 +2919,8 @@ app.put('/api/students/:studentId/offering-assignment', requireManagerOrAdminist
           to: student.email,
           studentName: `${student.name} ${student.surname}`.trim(),
           offeringTitle: offering.title,
-          deadline: offering.completionDeadline,
+          // This student's own per-course deadline, not the offering's shared legacy field.
+          deadline: student.assignedOfferingDeadlines?.[body.offeringId] ?? offering.completionDeadline,
           appUrl: resolveAppBaseUrl(request),
         }).catch(() => { /* non-critical — do not fail the request */ });
       }
@@ -4138,6 +4143,12 @@ app.post('/api/assignment-submissions', async (request, response, next) => {
         return;
       }
 
+      const submittingStudent = data.students.find((entry) => entry.id === submission.studentId);
+      if (!isManagerOrAdmin && submittingStudent && isOfferingDeadlinePassedForStudent(submittingStudent, submission.offeringId, data.offerings)) {
+        response.status(409).json({ message: 'The deadline for this course has passed.' });
+        return;
+      }
+
       // Re-resolve the student's chosen reviewer against the real admin directory — name/email
       // are never trusted from the client. An id that no longer resolves to a real admin falls
       // open to today's shared pool rather than failing the whole submission.
@@ -4183,6 +4194,16 @@ app.post('/api/students/:studentId/quiz-attempts/:contentItemId', async (request
     }
 
     const { offeringId, answers } = quizAttemptRequestSchema.parse(request.body);
+
+    if (!isPrivileged) {
+      const data = await repository.read();
+      const student = data.students.find((entry) => entry.id === request.params.studentId);
+      if (student && isOfferingDeadlinePassedForStudent(student, offeringId, data.offerings)) {
+        response.status(409).json({ message: 'The deadline for this course has passed.' });
+        return;
+      }
+    }
+
     const result = await repository.gradeQuizAttempt(request.params.studentId, offeringId, request.params.contentItemId, answers);
 
     if ('error' in result) {
@@ -4216,6 +4237,15 @@ app.post('/api/quiz-submissions', async (request, response, next) => {
     if (!isManagerOrAdmin && !(await isOwnStudentRecord(repository, submission.studentId, identity))) {
       response.status(403).json({ message: 'You can only submit your own quiz.' });
       return;
+    }
+
+    if (!isManagerOrAdmin) {
+      const data = await repository.read();
+      const student = data.students.find((entry) => entry.id === submission.studentId);
+      if (student && isOfferingDeadlinePassedForStudent(student, submission.courseId, data.offerings)) {
+        response.status(409).json({ message: 'The deadline for this course has passed.' });
+        return;
+      }
     }
 
     response.status(201).json(await repository.upsertQuizSubmission(submission));
@@ -4256,6 +4286,15 @@ app.post('/api/survey-submissions', async (request, response, next) => {
       return;
     }
 
+    if (!isManagerOrAdmin) {
+      const data = await repository.read();
+      const student = data.students.find((entry) => entry.id === submission.studentId);
+      if (student && isOfferingDeadlinePassedForStudent(student, submission.offeringId, data.offerings)) {
+        response.status(409).json({ message: 'The deadline for this course has passed.' });
+        return;
+      }
+    }
+
     response.status(201).json(await repository.upsertSurveySubmission(submission));
   } catch (error) {
     next(error);
@@ -4279,9 +4318,20 @@ app.post('/api/mentorship-submissions', requirePlanFeature('student-mentorship')
         response.status(403).json({ message: 'Only a training manager or administrator can review a submission.' });
         return;
       }
-    } else if (!isManagerOrAdmin && !(await isOwnStudentRecord(repository, submission.studentId, identity))) {
-      response.status(403).json({ message: 'You can only submit your own mentorship response.' });
-      return;
+    } else {
+      if (!isManagerOrAdmin && !(await isOwnStudentRecord(repository, submission.studentId, identity))) {
+        response.status(403).json({ message: 'You can only submit your own mentorship response.' });
+        return;
+      }
+
+      if (!isManagerOrAdmin) {
+        const data = await repository.read();
+        const student = data.students.find((entry) => entry.id === submission.studentId);
+        if (student && isOfferingDeadlinePassedForStudent(student, submission.offeringId, data.offerings)) {
+          response.status(409).json({ message: 'The deadline for this course has passed.' });
+          return;
+        }
+      }
     }
 
     response.status(201).json(await repository.upsertMentorshipSubmission(submission));

@@ -3679,11 +3679,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                 }
                               </label>
 
-                              <label title="Choose when learners should complete this item.">
-                                <span>Completion Deadline</span>
-                                <input formControlName="completionDeadline" type="date" />
-                              </label>
-
                               <label>
                                 <span class="required-label">Type <span class="required-marker" aria-hidden="true">*</span></span>
                                 <select formControlName="type">
@@ -5150,12 +5145,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           (input)="assignWizardDeadline.set($any($event.target).value)" />
                       </label>
                       <p class="field-hint">
-                        @if (assignWizardSelectedOfferingCount() > 1) {
-                          Sets the completion deadline on every course/programme selected above — applies to everyone assigned to them, not just the students picked here.
-                        } @else {
-                          Sets this course's completion deadline — applies to everyone assigned to it, not just the students picked here.
-                        }
-                        Leave blank to keep the current deadline{{ assignWizardSelectedOfferingCount() > 1 ? 's' : '' }} unchanged.
+                        Sets the deadline for just the {{ assignWizardSelectedStudentCount() === 1 ? 'student' : 'students' }} picked here, on the {{ assignWizardSelectedOfferingCount() === 1 ? 'course selected' : 'courses selected' }} above — everyone else already assigned keeps their own deadline unchanged.
+                        Leave blank to skip setting a deadline for this assignment.
                       </p>
                     }
 
@@ -13984,7 +13975,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
           continue;
         }
 
-        if (!withinDateRange(offering.completionDeadline)) {
+        if (!withinDateRange(student.assignedOfferingDeadlines?.[offeringId] ?? offering.completionDeadline)) {
           continue;
         }
 
@@ -18077,7 +18068,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   readonly courseForm = new FormGroup({
     title: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    completionDeadline: new FormControl('', { nonNullable: true }),
     type: new FormControl<TrainingOfferingType>('Course', { nonNullable: true, validators: [Validators.required] }),
     category: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     trainingProgrammeId: new FormControl('', { nonNullable: true }),
@@ -18250,7 +18240,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     title: string;
     type: TrainingOfferingType;
     category: string;
-    completionDeadline: string;
     status: TrainingOffering['status'];
     description: string;
     thumbnailDataUrl: string | null;
@@ -18290,7 +18279,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   isCreateSectionComplete(section: CreateCourseSection) {
     if (section === 'basics') {
       return this.courseForm.controls.title.valid
-        && this.courseForm.controls.completionDeadline.valid
         && this.courseForm.controls.type.valid
         && this.courseForm.controls.category.valid
         && this.courseForm.controls.description.valid;
@@ -19865,7 +19853,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   private revealFirstInvalidSection() {
     if (
       this.courseForm.controls.title.invalid ||
-      this.courseForm.controls.completionDeadline.invalid ||
       this.courseForm.controls.type.invalid ||
       this.courseForm.controls.category.invalid
     ) {
@@ -19922,7 +19909,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       const updatedOffering = this.managerData.updateOffering({
         id: editingOffering.id,
         title: this.courseForm.controls.title.value,
-        completionDeadline: this.courseForm.controls.completionDeadline.value,
         type: this.courseForm.controls.type.value,
         category: this.courseForm.controls.category.value,
         trainingProgrammeId: this.courseForm.controls.trainingProgrammeId.value || undefined,
@@ -19946,7 +19932,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
     const createdOffering = this.managerData.createOffering({
       title: this.courseForm.controls.title.value,
-      completionDeadline: this.courseForm.controls.completionDeadline.value,
+      // Deadlines are set per student at assignment time now, not here — see the Assign Wizard.
+      completionDeadline: '',
       type: this.courseForm.controls.type.value,
       category: this.courseForm.controls.category.value,
       trainingProgrammeId: this.courseForm.controls.trainingProgrammeId.value || undefined,
@@ -19975,7 +19962,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.courseCreatedSignal.set(false);
     this.courseForm.reset({
       title: offering.title,
-      completionDeadline: offering.completionDeadline,
       type: offering.type,
       category: offering.category,
       trainingProgrammeId: offering.trainingProgrammeId ?? '',
@@ -20005,7 +19991,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   private resetCourseBuilder() {
     this.courseForm.reset({
       title: '',
-      completionDeadline: '',
       type: 'Course',
       category: '',
       trainingProgrammeId: '',
@@ -20575,28 +20560,14 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
     this.assignWizardSaving.set(true);
 
-    // A course's completion deadline is shared by everyone assigned to it (there's no per-
-    // student, per-course deadline in this app) — update it first so assignStudentToOffering
-    // below picks up the new value for students newly assigned in this same run.
-    const deadline = this.assignWizardDeadline().trim();
-    if (deadline) {
-      for (const offering of offerings) {
-        this.managerData.updateOffering({
-          id: offering.id,
-          title: offering.title,
-          type: offering.type,
-          category: offering.category,
-          description: offering.description,
-          completionDeadline: deadline,
-          status: offering.status,
-          thumbnailDataUrl: offering.thumbnailDataUrl,
-        });
-      }
-    }
+    // This student's own deadline for this course, set only on their own assignment — never
+    // written onto the course record, so assigning the same course to a different group later
+    // with a different deadline can no longer change it for students already assigned.
+    const deadline = this.assignWizardDeadline().trim() || undefined;
 
     for (const offering of offerings) {
       for (const student of students) {
-        this.managerData.assignStudentToOffering(student.id, offering.id);
+        this.managerData.assignStudentToOffering(student.id, offering.id, deadline);
       }
     }
 

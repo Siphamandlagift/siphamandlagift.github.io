@@ -12,7 +12,6 @@ type PublishedOfferingUpdate = {
   type: TrainingOfferingType;
   category: string;
   description: string;
-  completionDeadline: string;
   status: TrainingOffering['status'];
   thumbnailDataUrl: string | null;
 };
@@ -76,11 +75,6 @@ type PublishedOfferingPresentationPreview = {
             </label>
 
             <label>
-              <span>Completion Deadline</span>
-              <input formControlName="completionDeadline" type="date" />
-            </label>
-
-            <label>
               <span>Status</span>
               <select formControlName="status">
                 <option value="Published">Published</option>
@@ -120,7 +114,6 @@ type PublishedOfferingPresentationPreview = {
       } @else {
         <div class="published-offering-detail-meta">
           <span class="offering-meta-pill">Created: {{ offering().createdOn }}</span>
-          <span class="offering-meta-pill">Deadline: {{ offering().completionDeadline || 'Not set' }}</span>
           <span class="offering-meta-pill">{{ offering().type }}</span>
           <span class="offering-meta-pill">{{ assignedCount() }} assigned</span>
           <span class="offering-meta-pill">{{ contentSummary() }}</span>
@@ -757,7 +750,6 @@ export class PublishedOfferingDetailComponent {
     title: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     type: new FormControl<TrainingOfferingType>('Course', { nonNullable: true, validators: [Validators.required] }),
     category: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    completionDeadline: new FormControl('', { nonNullable: true }),
     status: new FormControl<TrainingOffering['status']>('Published', { nonNullable: true, validators: [Validators.required] }),
     description: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(12)] }),
   });
@@ -821,7 +813,6 @@ export class PublishedOfferingDetailComponent {
           title: offering.title,
           type: offering.type,
           category: offering.category,
-          completionDeadline: offering.completionDeadline,
           status: offering.status,
           description: offering.description,
         });
@@ -885,7 +876,6 @@ export class PublishedOfferingDetailComponent {
       title: offering.title,
       type: offering.type,
       category: offering.category,
-      completionDeadline: offering.completionDeadline,
       status: offering.status,
       description: offering.description,
     });
@@ -912,7 +902,6 @@ export class PublishedOfferingDetailComponent {
       title: this.editForm.controls.title.value,
       type: this.editForm.controls.type.value,
       category: this.editForm.controls.category.value,
-      completionDeadline: this.editForm.controls.completionDeadline.value,
       status: this.editForm.controls.status.value,
       description: this.editForm.controls.description.value,
       thumbnailDataUrl: this.thumbnailRemoved() ? null : (this.selectedThumbnailDataUrl() ?? this.offering().thumbnailDataUrl),

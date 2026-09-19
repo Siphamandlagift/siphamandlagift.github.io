@@ -437,6 +437,14 @@ type ScormRuntimeState = {
                   }
                 </div>
 
+                <div *ngIf="!isAssessmentSubmitted() && selectedCourse() && isCourseOverdue(selectedCourse()!)" class="workspace-mentorship-status-card">
+                  <div class="workspace-mentorship-status-row">
+                    <strong>Deadline passed</strong>
+                    <span class="workspace-mentorship-status-pill workspace-mentorship-status-pill-revision">Closed</span>
+                  </div>
+                  <p>The deadline for this course has passed, so new submissions are no longer accepted.</p>
+                </div>
+
                 <ng-container *ngIf="selectedAssessment()?.assessmentType === 'Mentorship'; else standardAssessmentResponseView">
                   <div class="mentorship-response-card">
                     <div class="mentorship-response-header">
@@ -2517,7 +2525,11 @@ export class StudentCoursesComponent {
       return null;
     }
 
-    const raw = this.resolveCourseOffering(course)?.completionDeadline?.trim();
+    // This student's own per-course deadline (set at assignment time) takes precedence over the
+    // offering's own now-legacy completionDeadline — see EnrollmentStudent.assignedOfferingDeadlines.
+    const offering = this.resolveCourseOffering(course);
+    const student = this.currentStudentRecord();
+    const raw = (offering ? (student?.assignedOfferingDeadlines?.[offering.id] ?? offering.completionDeadline) : '')?.trim();
     if (!raw) {
       return null;
     }
@@ -2552,6 +2564,15 @@ export class StudentCoursesComponent {
 
     return daysRemaining <= 7 ? 'soon' : 'normal';
   }
+
+  // Blocks new progress once a course's deadline has passed — quizzes/assignments/surveys/
+  // mentorship submissions and video/document mark-complete all check this (server-side too, on
+  // every scoped submission route — see isOfferingDeadlinePassedForStudent in repository.ts).
+  // Already-completed work stays fully visible; this only stops *new* progress.
+  isCourseOverdue(course: StudentCourse): boolean {
+    return this.courseDeadlineStatus(course) === 'overdue';
+  }
+
   readonly selectedCourseWorkspace = computed(() => {
     const course = this.selectedCourse();
     if (!course) {
@@ -3085,6 +3106,11 @@ export class StudentCoursesComponent {
       return false;
     }
 
+    const overdueCourse = this.selectedCourse();
+    if (overdueCourse && this.isCourseOverdue(overdueCourse)) {
+      return false;
+    }
+
     const assessment = this.selectedAssessment();
     const question = this.selectedAssessmentQuestion();
     if (!assessment || !question) {
@@ -3458,6 +3484,11 @@ export class StudentCoursesComponent {
       return false;
     }
 
+    const overdueCourse = this.selectedCourse();
+    if (overdueCourse && this.isCourseOverdue(overdueCourse)) {
+      return false;
+    }
+
     return survey.questions.every((question) => !question.required || this.isSurveyQuestionAnswered(question));
   }
 
@@ -3467,6 +3498,12 @@ export class StudentCoursesComponent {
 
   async submitSurvey() {
     if (!this.canSubmitSurvey()) {
+      return;
+    }
+
+    const overdueCourse = this.selectedCourse();
+    if (overdueCourse && this.isCourseOverdue(overdueCourse)) {
+      this.surveySubmissionError.set('The deadline for this course has passed.');
       return;
     }
 
@@ -3987,6 +4024,12 @@ export class StudentCoursesComponent {
 
   async submitAssessment() {
     if (!this.canSubmitAssessment() || this.isAssessmentSubmitted()) {
+      return;
+    }
+
+    const overdueCourse = this.selectedCourse();
+    if (overdueCourse && this.isCourseOverdue(overdueCourse)) {
+      this.setAssessmentSubmissionError('The deadline for this course has passed.');
       return;
     }
 
@@ -5054,8 +5097,13 @@ export class StudentCoursesComponent {
   }
 
   private markStepComplete(step: WorkspaceStep) {
-    const courseName = this.selectedCourse()?.name;
-    if (!courseName || step.kind === 'Assessment' || step.kind === 'Survey') {
+    const course = this.selectedCourse();
+    const courseName = course?.name;
+    if (!course || !courseName || step.kind === 'Assessment' || step.kind === 'Survey') {
+      return;
+    }
+
+    if (this.isCourseOverdue(course)) {
       return;
     }
 

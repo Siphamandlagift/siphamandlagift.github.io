@@ -182,6 +182,9 @@ export type TrainingOffering = {
   type: TrainingOfferingType;
   category: string;
   description: string;
+  // Legacy/frozen: deadlines are now set per student at assignment time
+  // (EnrollmentStudent.assignedOfferingDeadlines) — never edited from Course Studio anymore. Kept
+  // only as the fallback for an offering assigned before that field existed.
   completionDeadline: string;
   thumbnailDataUrl: string | null;
   contentItems: TrainingContentItem[];
@@ -198,7 +201,9 @@ export type TrainingOfferingUpdate = {
   type: TrainingOfferingType;
   category: string;
   description: string;
-  completionDeadline: string;
+  // Legacy/frozen (see TrainingOffering.completionDeadline above) — omitted means "leave the
+  // current value alone."
+  completionDeadline?: string;
   status: TrainingOffering['status'];
   thumbnailDataUrl: string | null;
   contentItems?: TrainingContentItem[];
@@ -221,6 +226,10 @@ export type EnrollmentStudent = {
   lineManagerId?: string;
   status: LearningStatus;
   assignedOfferingIds: string[];
+  // Per-student, per-course deadline set at assignment time — see resolveAssignmentState. An
+  // offering assigned before this field existed has no entry here; falls back to that offering's
+  // own (now legacy) completionDeadline.
+  assignedOfferingDeadlines?: Record<string, string>;
   role: 'student' | 'manager';
   isAdmin: boolean;
   ofoCode?: string;
@@ -1526,7 +1535,7 @@ export class TrainingManagerDataService {
           type: input.type,
           category: input.category,
           description: input.description,
-          completionDeadline: input.completionDeadline,
+          completionDeadline: input.completionDeadline ?? item.completionDeadline,
           status: input.status,
           thumbnailDataUrl: input.thumbnailDataUrl,
           contentItems: normalizedContentItems ?? item.contentItems,
@@ -1594,10 +1603,12 @@ export class TrainingManagerDataService {
         }
 
         const assignedOfferingIds = student.assignedOfferingIds.filter((assignedId) => assignedId !== normalizedOfferingId);
+        const assignedOfferingDeadlines = { ...(student.assignedOfferingDeadlines ?? {}) };
+        delete assignedOfferingDeadlines[normalizedOfferingId];
 
         return {
           ...student,
-          ...this.resolveAssignmentState(student, assignedOfferingIds),
+          ...this.resolveAssignmentState(student, assignedOfferingIds, assignedOfferingDeadlines),
         };
       }),
     );
@@ -1772,9 +1783,9 @@ export class TrainingManagerDataService {
     return Math.max(1, Math.round(value));
   }
 
-  assignStudentToOffering(studentId: string, offeringId: string) {
-    this.applyOfferingAssignmentLocally(studentId, offeringId, true);
-    this.persistStudentOfferingAssignment(studentId, offeringId, true);
+  assignStudentToOffering(studentId: string, offeringId: string, deadline?: string) {
+    this.applyOfferingAssignmentLocally(studentId, offeringId, true, deadline);
+    this.persistStudentOfferingAssignment(studentId, offeringId, true, deadline);
   }
 
   removeStudentFromOffering(studentId: string, offeringId: string) {
@@ -1791,7 +1802,10 @@ export class TrainingManagerDataService {
   // local state here (both for the initial optimistic update AND for reconciling a successful
   // response, see persistStudentOfferingAssignment) keeps multiple concurrent assignments to the
   // same student from stepping on each other. Returns whether anything actually changed.
-  private applyOfferingAssignmentLocally(studentId: string, offeringId: string, assigned: boolean): boolean {
+  // deadline is this student's own per-course override chosen at assignment time — never applied
+  // to the offering itself. Falls back to the offering's own legacy completionDeadline when left
+  // blank, matching setStudentOfferingAssignment server-side.
+  private applyOfferingAssignmentLocally(studentId: string, offeringId: string, assigned: boolean, deadline?: string): boolean {
     const assignedOffering = assigned ? this.offerings().find((offering) => offering.id === offeringId) : undefined;
     let changed = false;
 
@@ -1811,9 +1825,21 @@ export class TrainingManagerDataService {
           ? [...student.assignedOfferingIds, offeringId]
           : student.assignedOfferingIds.filter((assignedId) => assignedId !== offeringId);
 
+        const nextAssignedOfferingDeadlines = { ...(student.assignedOfferingDeadlines ?? {}) };
+        let latestAssignedDeadline: string | undefined;
+        if (assigned) {
+          const resolvedNewDeadline = deadline?.trim() || assignedOffering?.completionDeadline || undefined;
+          if (resolvedNewDeadline) {
+            nextAssignedOfferingDeadlines[offeringId] = resolvedNewDeadline;
+            latestAssignedDeadline = resolvedNewDeadline;
+          }
+        } else {
+          delete nextAssignedOfferingDeadlines[offeringId];
+        }
+
         return {
           ...student,
-          ...this.resolveAssignmentState(student, nextAssignedOfferingIds, assigned ? assignedOffering?.completionDeadline : undefined),
+          ...this.resolveAssignmentState(student, nextAssignedOfferingIds, nextAssignedOfferingDeadlines, latestAssignedDeadline),
         };
       }),
     );
@@ -1838,7 +1864,7 @@ export class TrainingManagerDataService {
   // being set up. Using the same idempotent add/remove (applyOfferingAssignmentLocally) for
   // confirmation *and* rollback means every call can only ever affect its own offeringId, so
   // concurrent calls for the same student can never step on each other regardless of arrival order.
-  private persistStudentOfferingAssignment(studentId: string, offeringId: string, assigned: boolean) {
+  private persistStudentOfferingAssignment(studentId: string, offeringId: string, assigned: boolean, deadline?: string) {
     this.studentsDirtyAt = Date.now();
     this.saveStudents(this.students());
 
@@ -1847,13 +1873,13 @@ export class TrainingManagerDataService {
     }
 
     this.pendingStudentWriteCount += 1;
-    this.backend.setStudentOfferingAssignment(studentId, offeringId, assigned).pipe(
+    this.backend.setStudentOfferingAssignment(studentId, offeringId, assigned, deadline).pipe(
       finalize(() => {
         this.pendingStudentWriteCount = Math.max(0, this.pendingStudentWriteCount - 1);
       }),
     ).subscribe({
       next: () => {
-        this.applyOfferingAssignmentLocally(studentId, offeringId, assigned);
+        this.applyOfferingAssignmentLocally(studentId, offeringId, assigned, deadline);
         this.saveStudents(this.students());
       },
       error: () => {
@@ -2058,10 +2084,12 @@ export class TrainingManagerDataService {
 
         removedCount += 1;
         const assignedOfferingIds = student.assignedOfferingIds.filter((assignedId) => assignedId !== offeringId);
+        const assignedOfferingDeadlines = { ...(student.assignedOfferingDeadlines ?? {}) };
+        delete assignedOfferingDeadlines[offeringId];
 
         return {
           ...student,
-          ...this.resolveAssignmentState(student, assignedOfferingIds),
+          ...this.resolveAssignmentState(student, assignedOfferingIds, assignedOfferingDeadlines),
         };
       }),
     );
@@ -4388,11 +4416,16 @@ export class TrainingManagerDataService {
     return Number.isNaN(parsed) ? 0 : parsed;
   }
 
-  private resolveAssignmentState(student: EnrollmentStudent, assignedOfferingIds: string[], latestAssignedDeadline?: string) {
+  private resolveAssignmentState(
+    student: EnrollmentStudent,
+    assignedOfferingIds: string[],
+    nextAssignedOfferingDeadlines?: Record<string, string>,
+    latestAssignedDeadline?: string,
+  ) {
     const resolvedDeadline = latestAssignedDeadline
       ?? this.offerings()
         .filter((offering) => assignedOfferingIds.includes(offering.id))
-        .map((offering) => offering.completionDeadline)
+        .map((offering) => nextAssignedOfferingDeadlines?.[offering.id] ?? offering.completionDeadline)
         .filter(Boolean)
         .sort()
         .at(-1)
@@ -4402,6 +4435,7 @@ export class TrainingManagerDataService {
       return {
         assignedOfferingIds,
         deadlineDate: resolvedDeadline,
+        assignedOfferingDeadlines: nextAssignedOfferingDeadlines,
         activeStatus: 'Inactive' as const,
         status: 'Not Yet Started' as LearningStatus,
       };
@@ -4410,6 +4444,7 @@ export class TrainingManagerDataService {
     return {
       assignedOfferingIds,
       deadlineDate: resolvedDeadline,
+      assignedOfferingDeadlines: nextAssignedOfferingDeadlines,
       activeStatus: 'Active' as const,
       status: student.status === 'Not Yet Started' ? 'In Progress' as LearningStatus : student.status,
     };

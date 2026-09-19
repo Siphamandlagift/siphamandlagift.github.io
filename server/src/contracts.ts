@@ -73,6 +73,10 @@ export type TrainingOffering = {
   type: TrainingOfferingType;
   category: string;
   description: string;
+  // Legacy/frozen: deadlines are now set per student at assignment time
+  // (EnrollmentStudentRecord.assignedOfferingDeadlines), never edited from Course Studio anymore.
+  // Kept only as the fallback for an offering assigned before that field existed — see
+  // resolveStudentAssignmentFields in repository.ts.
   completionDeadline: string;
   thumbnailDataUrl: string | null;
   contentItems: TrainingContentItem[];
@@ -92,7 +96,9 @@ export type TrainingOfferingUpdate = {
   type: TrainingOfferingType;
   category: string;
   description: string;
-  completionDeadline: string;
+  // Legacy/frozen (see TrainingOffering.completionDeadline) — optional because Course Studio and
+  // the course quick-edit panel no longer edit it; omitted means "leave the current value alone."
+  completionDeadline?: string;
   status: TrainingOffering['status'];
   thumbnailDataUrl: string | null;
   contentItems?: TrainingContentItem[];
@@ -394,6 +400,12 @@ export type EnrollmentStudentRecord = {
   lineManagerId?: string;
   status: 'Completed' | 'In Progress' | 'Not Yet Started';
   assignedOfferingIds: string[];
+  // Per-student, per-course deadline set at assignment time (see setStudentOfferingAssignment) —
+  // replaces relying on TrainingOffering.completionDeadline, which is shared by every student
+  // assigned to that course and can't hold different deadlines for different assignment runs. An
+  // offering assigned before this field existed has no entry here yet; resolveStudentAssignmentFields
+  // falls back to the offering's own (now legacy) completionDeadline in that case.
+  assignedOfferingDeadlines?: Record<string, string>;
   role: 'student' | 'manager';
   isAdmin: boolean;
   ofoCode?: string;
