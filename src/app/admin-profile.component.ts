@@ -1604,7 +1604,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                   <article class="admin-section-card admin-report-menu-card admin-report-menu-card-primary">
                     <div class="admin-section-card-header">
                       <h2>Report List</h2>
-                      <span>{{ extendedReportsAllowed() ? '6 available' : '1 available' }}</span>
+                      <span>{{ extendedReportsAllowed() ? '6 available' : '2 available' }}</span>
                     </div>
 
                     <div class="admin-report-menu" role="list" aria-label="Admin report list">
@@ -1620,6 +1620,22 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         <span class="admin-report-menu-text">
                           <strong>Training Report</strong>
                           <span>Training that has occurred — approved external training and completed LMS courses.</span>
+                        </span>
+                        <span class="admin-report-menu-cta">View report
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </span>
+                      </button>
+                      <button type="button" class="admin-report-menu-item admin-report-menu-item-assignments" (click)="selectReportView('assignments-report')">
+                        <span class="admin-report-menu-icon" aria-hidden="true">
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                            <path d="M8 4.75h6.5l3.75 3.75V19A1.75 1.75 0 0 1 16.5 20.75h-8A1.75 1.75 0 0 1 6.75 19V6.5A1.75 1.75 0 0 1 8.5 4.75Z" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M14.5 4.75V8.5h3.75" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                            <path d="m9.25 14.25 2 2 3.5-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                          </svg>
+                        </span>
+                        <span class="admin-report-menu-text">
+                          <strong>Assignments Report</strong>
+                          <span>Every assignment submission with its date, marker, and result.</span>
                         </span>
                         <span class="admin-report-menu-cta">View report
                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -1669,22 +1685,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           <span class="admin-report-menu-text">
                             <strong>Certificates and Licences Report</strong>
                             <span>Track employee certificate and licence expiry, renewal, and status.</span>
-                          </span>
-                          <span class="admin-report-menu-cta">View report
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                          </span>
-                        </button>
-                        <button type="button" class="admin-report-menu-item admin-report-menu-item-assignments" (click)="selectReportView('assignments-report')">
-                          <span class="admin-report-menu-icon" aria-hidden="true">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                              <path d="M8 4.75h6.5l3.75 3.75V19A1.75 1.75 0 0 1 16.5 20.75h-8A1.75 1.75 0 0 1 6.75 19V6.5A1.75 1.75 0 0 1 8.5 4.75Z" stroke="currentColor" stroke-width="1.8"/>
-                              <path d="M14.5 4.75V8.5h3.75" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-                              <path d="m9.25 14.25 2 2 3.5-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                          </span>
-                          <span class="admin-report-menu-text">
-                            <strong>Assignments Report</strong>
-                            <span>Every assignment submission with its date, marker, and result.</span>
                           </span>
                           <span class="admin-report-menu-cta">View report
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -14337,7 +14337,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   }
 
   selectReportView(view: AdminReportView) {
-    if (view !== 'annual-training' && !this.extendedReportsAllowed()) {
+    // Training Report and Assignments Report stay available on every plan — only the other four
+    // (IDP/Performance/Certificates/SETA) are gated behind admin-reports-extended.
+    if (view !== 'annual-training' && view !== 'assignments-report' && !this.extendedReportsAllowed()) {
       return;
     }
     this.selectedReportView.set(view);
