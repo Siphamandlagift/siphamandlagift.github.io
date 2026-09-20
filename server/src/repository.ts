@@ -510,13 +510,31 @@ function syncLinkedAuthAccounts(data: LmsDataStore) {
     }
   }
 
+  // Guard against a linkedStudentId shared by more than one account — a leftover mislink from
+  // before resolveStudentIdForAccount/upsertManagedUserCredentials/ensureSwitchStudentProfile were
+  // hardened against ambiguous emails could otherwise perpetuate forever below: this function used
+  // to trust ANY pre-existing linkedStudentId unconditionally, so two completely different logins
+  // sharing one stale link would each keep having that one student's name/email silently re-copied
+  // onto them on every single write, forever (this is how one account's login could show a totally
+  // different person's profile). Same "never guess when ambiguous" philosophy as the email guard
+  // above: an ambiguously-shared link is dropped back to null for every account holding it — a
+  // safe, recoverable state, since the per-email fallback just below will only ever re-adopt a
+  // student that uniquely matches that one account's own email again.
+  const accountCountByLinkedStudentId = new Map<string, number>();
+  for (const account of data.authAccounts) {
+    if (account.linkedStudentId) {
+      accountCountByLinkedStudentId.set(account.linkedStudentId, (accountCountByLinkedStudentId.get(account.linkedStudentId) ?? 0) + 1);
+    }
+  }
+
   data.authAccounts = data.authAccounts.reduce<AuthAccountRecord[]>((accounts, account) => {
+    const isAmbiguouslyLinked = !!account.linkedStudentId && (accountCountByLinkedStudentId.get(account.linkedStudentId) ?? 0) > 1;
     const emailMatches = account.role === 'student' ? studentIdsByEmail.get(account.email.toLowerCase()) : undefined;
-    const linkedStudentId = account.linkedStudentId
+    const linkedStudentId = (isAmbiguouslyLinked ? null : account.linkedStudentId)
       ?? (emailMatches?.length === 1 ? emailMatches[0] : null);
 
     if (!linkedStudentId) {
-      accounts.push(account);
+      accounts.push(isAmbiguouslyLinked ? { ...account, linkedStudentId: undefined } : account);
       return accounts;
     }
 
@@ -525,7 +543,12 @@ function syncLinkedAuthAccounts(data: LmsDataStore) {
       return accounts;
     }
 
-    const role = normalizeLoginRole(linkedStudent.role);
+    // An administrator's own base role never follows their linked switch-profile's directory role
+    // (always 'manager', see ensureSwitchStudentProfile) — admin access comes from the account's
+    // own role or the linked record's isAdmin flag (see isAdministratorAccount), two independent
+    // signals by design. Overwriting it here used to silently demote every admin who has a linked
+    // student profile down to 'training-manager' on the very next roster write.
+    const role = account.role === 'administrator' ? account.role : normalizeLoginRole(linkedStudent.role);
     accounts.push({
       ...account,
       linkedStudentId,
@@ -1362,7 +1385,11 @@ export class LmsRepository {
   private async readStoreFile(filePath: string) {
     try {
       const raw = await readFile(filePath, 'utf8');
-      return normalizeData(JSON.parse(raw) as LmsDataStore);
+      const data = normalizeData(JSON.parse(raw) as LmsDataStore);
+      // Self-heals a leftover ambiguous linkedStudentId on every read — see the matching comment
+      // in FirestoreLmsRepository.read().
+      syncLinkedAuthAccounts(data);
+      return data;
     } catch {
       return null;
     }
@@ -4220,7 +4247,7 @@ class FirestoreLmsRepository extends LmsRepository {
       ? (storeSnapshot.data() as Partial<Pick<LmsDataStore, 'branding' | 'updatedAt' | 'currentKpiYear' | 'kpiYearsOpened' | 'currentIdpYear' | 'idpYearsOpened' | 'hrIntegration' | 'approvalWorkflowSettings'>>)
       : undefined;
 
-    return normalizeData({
+    const data = normalizeData({
       offerings,
       students,
       branding: storeData?.branding ?? defaults.branding,
@@ -4246,6 +4273,14 @@ class FirestoreLmsRepository extends LmsRepository {
       hrIntegration: storeData?.hrIntegration ?? defaults.hrIntegration,
       approvalWorkflowSettings: storeData?.approvalWorkflowSettings ?? defaults.approvalWorkflowSettings,
     });
+
+    // Self-heals every read (not just the specific writes that already called this before
+    // persisting) — so a mislink left over from before syncLinkedAuthAccounts's own ambiguous-link
+    // guard existed stops affecting logins/bootstrap immediately, without needing to wait for some
+    // unrelated roster edit to happen to trigger the correction first. In-memory only here (no
+    // write() call) — the next real write to this company persists the correction for good.
+    syncLinkedAuthAccounts(data);
+    return data;
   }
 
   override async write(data: LmsDataStore): Promise<LmsDataStore> {
