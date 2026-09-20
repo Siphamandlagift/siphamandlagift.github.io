@@ -596,6 +596,28 @@ function resolveApprovingManagers(data: LmsDataStore): SystemTrainingManagerReco
   return managers;
 }
 
+// Decides whether the caller IS a specific approver-pool entry (see resolveApprovingManagers
+// above) — used by decideKpiApproval and the External Training Request review route. Tries the
+// id path first: a real, logged-in employee auto-included in the pool via their own student
+// record always gets the pool id `uploaded-manager-${studentId}` (see the push above), so a
+// direct id comparison against the caller's own identity.studentId is a precise, unambiguous
+// match with zero exposure to an email collision. Only falls back to the existing email
+// comparison when the caller has no studentId or it doesn't match the pool id — the one case
+// that fallback still has to cover is a pure address-book trainingManagers entry describing an
+// external approver who's never actually logged into this system, which has no id on the
+// caller's side to compare against.
+export function isCallerTheApprover(
+  approverPoolId: string,
+  approverEmail: string,
+  caller: { email: string; studentId: string | null },
+): boolean {
+  if (caller.studentId && `uploaded-manager-${caller.studentId}` === approverPoolId) {
+    return true;
+  }
+
+  return approverEmail.trim().toLowerCase() === caller.email.trim().toLowerCase();
+}
+
 // Feeds the "pick who reviews next" dropdown on both approval chains (training requests and KPI
 // tables) — the shared pool above minus whoever has already approved earlier in THIS chain, so
 // the same person can't be picked twice in one sequence.
@@ -1495,10 +1517,14 @@ export class LmsRepository {
       // currentManagerStudentId (training-manager-data.service.ts) and server.ts's
       // resolveOwnManagerStudentId, not the unrelated trainingManagers/approving-manager pool.
       const isAdministrator = caller?.role === 'administrator';
+      // Refuse to guess when ambiguous — same philosophy as resolveOwnManagerStudentId
+      // (server.ts). An arbitrary pick here would scope this bootstrap response's succession
+      // roles/nominations to a DIFFERENT manager's team instead of the caller's own.
       const ownManagerId = !isAdministrator && caller
-        ? data.students.find(
-          (student) => student.email.trim().toLowerCase() === caller.email.trim().toLowerCase(),
-        )?.id ?? null
+        ? (() => {
+            const matches = data.students.filter((student) => student.email.trim().toLowerCase() === caller.email.trim().toLowerCase());
+            return matches.length === 1 ? matches[0].id : null;
+          })()
         : null;
       const successionRoles = isAdministrator
         ? data.successionRoles
@@ -1540,10 +1566,16 @@ export class LmsRepository {
 
     // Same resolution order as isOwnStudentRecord in server.ts: prefer the session's studentId
     // claim, fall back to an email match against the roster (the claim can be absent on an older
-    // token, or stale if the roster entry was recreated after the session was issued).
+    // token, or stale if the roster entry was recreated after the session was issued). The
+    // fallback refuses to guess when ambiguous — this scopes the CALLER'S ENTIRE bootstrap
+    // response (IDP/KPI/assignments/surveys/external-training), so an arbitrary pick on a shared
+    // email would hand one student's whole data set to a completely different person.
     const ownStudent = caller
       ? students.find((student) => student.id === caller.studentId)
-        ?? students.find((student) => student.email.trim().toLowerCase() === caller.email.trim().toLowerCase())
+        ?? (() => {
+            const matches = students.filter((student) => student.email.trim().toLowerCase() === caller.email.trim().toLowerCase());
+            return matches.length === 1 ? matches[0] : undefined;
+          })()
       : undefined;
     const ownStudentId = ownStudent?.id ?? null;
     const ownEmail = (ownStudent?.email ?? caller?.email ?? '').trim().toLowerCase();
@@ -2040,8 +2072,8 @@ export class LmsRepository {
     return findKpiYearApproval(next.students.find((entry) => entry.id === studentId)?.kpiYears ?? [], next.currentKpiYear);
   }
 
-  // The current approver's decision on a submitted KPI table. Authorization (does the caller's
-  // identity.email actually match currentApproverEmail, or are they an administrator) MUST be
+  // The current approver's decision on a submitted KPI table. Authorization (is the caller
+  // isCallerTheApprover for currentApproverId/Email, or are they an administrator) MUST be
   // checked against the SAME approval snapshot this method is about to act on, not a separate
   // pre-read in server.ts — two near-simultaneous decisions could otherwise both read the record
   // while it still names the FIRST approver, both pass that stale check, and the second one would
@@ -2049,7 +2081,7 @@ export class LmsRepository {
   // approver's decision, since nothing re-confirms identity against what actually got read. Year
   // is always resolved server-side, never trusted from a caller, same reasoning as
   // submitKpiTableForApproval above.
-  async decideKpiApproval(studentId: string, decision: KpiApprovalStatus, nextApproverId: string | undefined, caller: { isAdministrator: boolean; email: string }) {
+  async decideKpiApproval(studentId: string, decision: KpiApprovalStatus, nextApproverId: string | undefined, caller: { isAdministrator: boolean; email: string; studentId: string | null }) {
     const data = await this.read();
     const studentIndex = data.students.findIndex((entry) => entry.id === studentId);
     if (studentIndex === -1) {
@@ -2063,7 +2095,7 @@ export class LmsRepository {
       throw new Error('This KPI table is not currently awaiting approval.');
     }
 
-    if (!caller.isAdministrator && approval.currentApproverEmail.trim().toLowerCase() !== caller.email.trim().toLowerCase()) {
+    if (!caller.isAdministrator && !isCallerTheApprover(approval.currentApproverId, approval.currentApproverEmail, caller)) {
       throw new KpiApprovalAuthorizationError('You are not the approver currently assigned to this KPI table.');
     }
 
@@ -4530,7 +4562,7 @@ class FirestoreLmsRepository extends LmsRepository {
     });
   }
 
-  override async decideKpiApproval(studentId: string, decision: KpiApprovalStatus, nextApproverId: string | undefined, caller: { isAdministrator: boolean; email: string }) {
+  override async decideKpiApproval(studentId: string, decision: KpiApprovalStatus, nextApproverId: string | undefined, caller: { isAdministrator: boolean; email: string; studentId: string | null }) {
     const data = await this.read();
     const ref = this.collection('students').doc(studentId);
     return this.firestore.runTransaction(async (transaction) => {
@@ -4549,7 +4581,7 @@ class FirestoreLmsRepository extends LmsRepository {
 
       // Checked against THIS transaction's own fresh read, not a separate pre-check in server.ts —
       // see the base LmsRepository.decideKpiApproval comment for the TOCTOU this closes.
-      if (!caller.isAdministrator && approval.currentApproverEmail.trim().toLowerCase() !== caller.email.trim().toLowerCase()) {
+      if (!caller.isAdministrator && !isCallerTheApprover(approval.currentApproverId, approval.currentApproverEmail, caller)) {
         throw new KpiApprovalAuthorizationError('You are not the approver currently assigned to this KPI table.');
       }
 

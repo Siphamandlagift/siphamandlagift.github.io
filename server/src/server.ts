@@ -17,7 +17,7 @@ import { z } from 'zod';
 import { getApp, getApps, initializeApp } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 import { createDefaultData } from './default-data.js';
-import { buildAdministratorDirectory, createLmsRepository, isOfferingDeadlinePassedForStudent, KpiApprovalAuthorizationError, maskAssessmentAnswerKey, type LmsRepository } from './repository.js';
+import { buildAdministratorDirectory, createLmsRepository, isCallerTheApprover, isOfferingDeadlinePassedForStudent, KpiApprovalAuthorizationError, maskAssessmentAnswerKey, type LmsRepository } from './repository.js';
 import { PasswordResetEmailService } from './email-service.js';
 import { isStrongPassword, passwordPolicyMessage } from './auth-utils.js';
 import {
@@ -3420,6 +3420,7 @@ app.put('/api/students/:studentId/kpi-entries/approval', requirePlanFeature('stu
       approval = await repository.decideKpiApproval(studentId, body.decision, body.nextApproverId, {
         isAdministrator: identity.role === 'administrator',
         email: identity.email,
+        studentId: identity.studentId,
       });
     } catch (error) {
       if (error instanceof KpiApprovalAuthorizationError) {
@@ -4103,11 +4104,13 @@ app.put('/api/external-training-requests/:requestId/review', requireManagerOrAdm
       return;
     }
 
-    // Only the request's own currentApprover (approvingManagerEmail) may act on it — role alone
-    // used to be enough, which let any manager/admin review (and approve) a request nobody had
-    // actually assigned to them. An administrator may still always override.
+    // Only the request's own currentApprover (approvingManagerId, falling back to
+    // approvingManagerEmail for an external approver with no linked login — see
+    // isCallerTheApprover) may act on it — role alone used to be enough, which let any
+    // manager/admin review (and approve) a request nobody had actually assigned to them. An
+    // administrator may still always override.
     const isAdministrator = identity.role === 'administrator';
-    const isAssignedApprover = existing.approvingManagerEmail.trim().toLowerCase() === identity.email.trim().toLowerCase();
+    const isAssignedApprover = isCallerTheApprover(existing.approvingManagerId, existing.approvingManagerEmail, { email: identity.email, studentId: identity.studentId });
     if (!isAdministrator && !isAssignedApprover) {
       response.status(403).json({ message: 'You are not the approver currently assigned to this training request.' });
       return;
