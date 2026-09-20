@@ -16172,6 +16172,13 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     if (['student', 'manager'].includes(rawRole)) {
       role = rawRole as 'student' | 'manager';
     }
+    // No Training Manager profile at all on a Starter plan — same reasoning as
+    // availableManagerAccessOptions above, just missed there since bulk import is a separate code
+    // path. Coerced silently rather than reported as an upload issue, matching how this same
+    // function already treats other unsupported/ambiguous column values (e.g. Employment Type).
+    if (role === 'manager' && !isFeatureAllowedForPlan(this.managerData.plan(), 'training-manager-profile')) {
+      role = 'student';
+    }
     const isAdmin = ['yes', 'y', 'true'].includes(rawAdmin);
     return {
       student: {
