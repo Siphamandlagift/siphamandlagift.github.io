@@ -30,7 +30,7 @@ import {
 } from './platform-repository.js';
 import { createSuperAdminRouter } from './super-admin-routes.js';
 import { isFeatureAllowedForPlan, type GatedFeature } from './plan-features.js';
-import type { SubscriptionPlan } from './contracts.js';
+import type { AuthAccountRecord, EnrollmentStudentRecord, SubscriptionPlan } from './contracts.js';
 
 // Augments Express's Request with the per-request state the middleware chain below attaches
 // after decoding the caller's JWT: their identity (including which company they belong to), a
@@ -3731,6 +3731,65 @@ function checkBulkReplaceGuard(currentCount: number, nextCount: number, label: s
   return null;
 }
 
+// Email is the only thing tying a login (AuthAccountRecord) back to a directory entry
+// (EnrollmentStudentRecord) whenever linkedStudentId isn't already set — see
+// resolveStudentIdForAccount/syncLinkedAuthAccounts/ensureSwitchStudentProfile/
+// upsertManagedUserCredentials in repository.ts, which all have to defensively "refuse to guess"
+// whenever two students share one. This is the root-cause fix: refuse to ever let that ambiguity
+// be created in the first place, at the one choke point every add/edit/bulk-import write goes
+// through. Checks against both the resulting student roster AND any bare authAccount (a login
+// with no id-matched student, e.g. a company admin) — a patch student ending up with the same
+// email as one of those is exactly the same collision class, just on the other collection.
+// Returns every conflicting email, or null if the patch is safe to apply.
+function checkDuplicateStudentEmails(
+  existingStudents: EnrollmentStudentRecord[],
+  existingAuthAccounts: AuthAccountRecord[],
+  patchStudents: EnrollmentStudentRecord[],
+): string | null {
+  const patchIds = new Set(patchStudents.map((student) => student.id));
+  const emailOwnerId = new Map<string, string>();
+
+  for (const student of existingStudents) {
+    if (!patchIds.has(student.id)) {
+      const email = student.email.trim().toLowerCase();
+      if (email) {
+        emailOwnerId.set(email, student.id);
+      }
+    }
+  }
+
+  for (const account of existingAuthAccounts) {
+    if (!account.linkedStudentId || !patchIds.has(account.linkedStudentId)) {
+      const email = account.email.trim().toLowerCase();
+      if (email && !emailOwnerId.has(email)) {
+        emailOwnerId.set(email, account.linkedStudentId ?? `auth-account:${account.id}`);
+      }
+    }
+  }
+
+  const conflicts = new Set<string>();
+  for (const student of patchStudents) {
+    const email = student.email.trim().toLowerCase();
+    if (!email) {
+      continue;
+    }
+
+    const ownerId = emailOwnerId.get(email);
+    if (ownerId && ownerId !== student.id) {
+      conflicts.add(student.email.trim());
+      continue;
+    }
+
+    emailOwnerId.set(email, student.id);
+  }
+
+  if (!conflicts.size) {
+    return null;
+  }
+
+  return `Email already in use by another user: ${[...conflicts].join(', ')}. Each user must have a unique email address.`;
+}
+
 app.put('/api/manager-state', async (request, response, next) => {
   try {
     const repository = request.repository!;
@@ -3753,6 +3812,12 @@ app.put('/api/manager-state', async (request, response, next) => {
         const guardMessage = checkBulkReplaceGuard(dataBefore.students.length, patch.students.length, 'student');
         if (guardMessage) {
           response.status(400).json({ message: guardMessage });
+          return;
+        }
+
+        const duplicateEmailMessage = checkDuplicateStudentEmails(dataBefore.students, dataBefore.authAccounts, patch.students);
+        if (duplicateEmailMessage) {
+          response.status(409).json({ message: duplicateEmailMessage });
           return;
         }
       }

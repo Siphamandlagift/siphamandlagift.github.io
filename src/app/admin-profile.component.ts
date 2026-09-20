@@ -14978,6 +14978,22 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       const result = this.managerData.bulkUpsertStudents(rows.map((row) => row.student));
 
       try {
+        // bulkUpsertStudents() above already persists via its own internal, fire-and-forget
+        // save (errors from that one are silently swallowed) — this explicit, awaited call is
+        // what actually lets this method find out whether the roster write was accepted, same
+        // pattern saveSingleUser()/saveUserEdit() already use. Without it, a save the server
+        // rejects (e.g. a row's email already belongs to a different existing user — see
+        // checkDuplicateStudentEmails in server.ts) would still report "Bulk upload complete"
+        // even though nothing was actually saved.
+        await firstValueFrom(this.backend.patchManagerState({ students: this.managerData.students() }));
+      } catch (error: any) {
+        await this.managerData.refreshNow();
+        this.bulkUploadTone.set('error');
+        this.bulkUploadMessage.set(error?.error?.message || 'Bulk upload could not be saved. Please check your connection and try again.');
+        return;
+      }
+
+      try {
         const credentialResult = await this.syncManagedUserCredentials(rows.map((row) => ({
           email: row.student.email,
           password: row.password,
@@ -15329,12 +15345,16 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       // login credentials to that record — otherwise the credentials call can silently skip
       // because it can't find a student that only exists in the local, not-yet-synced state yet.
       await firstValueFrom(this.backend.patchManagerState({ students: this.managerData.students() }));
-    } catch {
+    } catch (error: any) {
       // The record only exists in this session's local state at this point — it was never
       // actually written to the server, so don't claim it was saved (that previously showed a
       // misleading "password could not be updated" message even when nothing had persisted).
+      // refreshNow() discards that stale optimistic add so the list doesn't keep showing a
+      // record that was actually rejected (e.g. a duplicate email — see checkDuplicateStudentEmails
+      // in server.ts).
+      await this.managerData.refreshNow();
       this.singleUserTone.set('error');
-      this.singleUserMessage.set('User could not be saved. Please check your connection and try again.');
+      this.singleUserMessage.set(error?.error?.message || 'User could not be saved. Please check your connection and try again.');
       return;
     }
 
@@ -15418,12 +15438,15 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       // Wait for the directory record change (e.g. a role change) to actually land on the server
       // before syncing credentials against it — see saveSingleUser() for why this ordering matters.
       await firstValueFrom(this.backend.patchManagerState({ students: this.managerData.students() }));
-    } catch {
+    } catch (error: any) {
       // The edit only exists in this session's local state at this point — it was never actually
       // written to the server, so don't claim it was saved and don't close the form, so the admin
-      // knows to retry rather than assuming the change already went through.
+      // knows to retry rather than assuming the change already went through. refreshNow() discards
+      // the stale optimistic edit (e.g. an email that turned out to already belong to someone
+      // else) so the list reverts to the real, unedited value instead of showing the rejected one.
+      await this.managerData.refreshNow();
       this.singleUserTone.set('error');
-      this.singleUserMessage.set('User details could not be saved. Please check your connection and try again.');
+      this.singleUserMessage.set(error?.error?.message || 'User details could not be saved. Please check your connection and try again.');
       return;
     }
 
