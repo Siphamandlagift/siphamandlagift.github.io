@@ -30,7 +30,7 @@ import {
 } from './platform-repository.js';
 import { createSuperAdminRouter } from './super-admin-routes.js';
 import { isFeatureAllowedForPlan, type GatedFeature } from './plan-features.js';
-import type { AuthAccountRecord, EnrollmentStudentRecord, SubscriptionPlan } from './contracts.js';
+import type { AuthAccountRecord, EnrollmentStudentRecord, SubscriptionPlan, SystemTrainingManagerRecord } from './contracts.js';
 
 // Augments Express's Request with the per-request state the middleware chain below attaches
 // after decoding the caller's JWT: their identity (including which company they belong to), a
@@ -296,12 +296,16 @@ async function isOwnStudentRecord(repository: LmsRepository, studentId: string, 
   // would make the server reject a student's own legitimate write to their current, correct
   // record purely because it doesn't match an outdated id still sitting in their token — the
   // client resolves the same way (see matchedKpiStudentId in student-profile.component.ts), so
-  // this keeps the two in agreement instead of one trusting the claim and the other not. Safe the
-  // same way the old "claim absent" fallback already was: identity.email comes from the verified
-  // JWT, not from caller input, so this can't be used to write to an unrelated student's record.
+  // this keeps the two in agreement instead of one trusting the claim and the other not.
   const data = await repository.read();
-  const student = data.students.find((entry) => entry.id === studentId);
-  return Boolean(student && student.email.trim().toLowerCase() === identity.email.trim().toLowerCase());
+  const normalizedEmail = identity.email.trim().toLowerCase();
+  const matchingStudents = data.students.filter((entry) => entry.email.trim().toLowerCase() === normalizedEmail);
+  // Only trust this fallback when the email unambiguously identifies exactly one student — if
+  // two students happen to share an email (possible for data predating checkDuplicateStudentEmails
+  // in this same file), either one's own valid login could otherwise pass this ownership check
+  // for the OTHER one's record, since a bare id-match-then-compare-email doesn't verify the email
+  // is actually unique to that one id.
+  return matchingStudents.length === 1 && matchingStudents[0].id === studentId;
 }
 
 // A succession role's ownerManagerId is the flagging manager's own EnrollmentStudentRecord id
@@ -315,7 +319,12 @@ async function resolveOwnManagerStudentId(repository: LmsRepository, identity: A
 
   const data = await repository.read();
   const email = identity.email.trim().toLowerCase();
-  return data.students.find((student) => student.email.trim().toLowerCase() === email)?.id ?? null;
+  // Refuse to guess when ambiguous — same "never resolve an arbitrary match" philosophy as
+  // syncLinkedAuthAccounts in repository.ts. Picking an arbitrary match here would let one
+  // manager's login resolve to a DIFFERENT manager's student record, gaining ownerManagerId-gated
+  // access (create/edit/withdraw) over that other manager's succession roles and nominations.
+  const matchingStudents = data.students.filter((student) => student.email.trim().toLowerCase() === email);
+  return matchingStudents.length === 1 ? matchingStudents[0].id : null;
 }
 
 // Admin is fully view-only for succession planning — only the role's own flagging manager may
@@ -3790,6 +3799,38 @@ function checkDuplicateStudentEmails(
   return `Email already in use by another user: ${[...conflicts].join(', ')}. Each user must have a unique email address.`;
 }
 
+// Only checks for a duplicate WITHIN this one incoming list — two different entries in the same
+// admin-submitted trainingManagers patch sharing an email is unambiguously a data-entry mistake,
+// with no legitimate case for it. Deliberately does NOT check against students/authAccounts: a
+// trainingManagers entry sharing an email with a real, existing login is the normal, intended
+// case (resolveApprovingManagers/buildTrainingManagers merge this list with real
+// role==='manager' students specifically so an approval can route to someone's real account) —
+// rejecting that would break routing an approval to a real employee.
+function checkDuplicateTrainingManagerEmails(patchTrainingManagers: SystemTrainingManagerRecord[]): string | null {
+  const seenEmails = new Map<string, string>();
+  const conflicts = new Set<string>();
+
+  for (const manager of patchTrainingManagers) {
+    const email = manager.email.trim().toLowerCase();
+    if (!email) {
+      continue;
+    }
+
+    if (seenEmails.has(email) && seenEmails.get(email) !== manager.id) {
+      conflicts.add(manager.email.trim());
+      continue;
+    }
+
+    seenEmails.set(email, manager.id);
+  }
+
+  if (!conflicts.size) {
+    return null;
+  }
+
+  return `This training manager list has more than one entry using the same email: ${[...conflicts].join(', ')}. Each entry must have a unique email address.`;
+}
+
 app.put('/api/manager-state', async (request, response, next) => {
   try {
     const repository = request.repository!;
@@ -3834,6 +3875,12 @@ app.put('/api/manager-state', async (request, response, next) => {
         const guardMessage = checkBulkReplaceGuard(dataBefore.trainingManagers.length, patch.trainingManagers.length, 'training manager');
         if (guardMessage) {
           response.status(400).json({ message: guardMessage });
+          return;
+        }
+
+        const duplicateEmailMessage = checkDuplicateTrainingManagerEmails(patch.trainingManagers);
+        if (duplicateEmailMessage) {
+          response.status(409).json({ message: duplicateEmailMessage });
           return;
         }
       }

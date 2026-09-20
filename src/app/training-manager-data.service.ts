@@ -755,7 +755,11 @@ export class TrainingManagerDataService {
       return null;
     }
 
-    return this.students().find((student) => student.email.trim().toLowerCase() === currentManagerEmail)?.id ?? null;
+    // Refuse to guess when ambiguous — mirrors resolveOwnManagerStudentId server-side (server.ts):
+    // if two students share this manager's email, picking an arbitrary match here would show this
+    // manager a DIFFERENT manager's team/mentorship activity instead of their own.
+    const matchingStudents = this.students().filter((student) => student.email.trim().toLowerCase() === currentManagerEmail);
+    return matchingStudents.length === 1 ? matchingStudents[0].id : null;
   });
   readonly mentorshipAssignmentsForCurrentManager = computed(() => {
     const currentManagerName = this.normalizePersonName(this.profile().name);
