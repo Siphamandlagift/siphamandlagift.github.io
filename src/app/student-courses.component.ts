@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked, type WritableSignal } from '@angular/core';
 import { CommonModule, DOCUMENT } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
@@ -2432,6 +2432,68 @@ export class StudentCoursesComponent {
   readonly loadedVideoDurations = signal<Record<string, string>>({});
   readonly completedCourseSteps = signal<Record<string, boolean>>(this.loadPersistedCourseProgressState().completedCourseSteps);
 
+  // Migrates any legacy, course-NAME-keyed progress entries (from before courseStepKey moved to
+  // offeringId-based keys — see that function's own comment) forward to the new format, for
+  // whichever offering the student is CURRENTLY assigned to. Without this, a student's real,
+  // already-recorded Video/Document/Scorm completion would appear to reset the moment this key
+  // format changed. The legacy entry is deleted either way, migrated or not: leaving it sitting
+  // there under the shared course name is exactly what would let a LATER reassignment to a
+  // DIFFERENT offering that happens to share the same title wrongly inherit it — the bug this key
+  // change exists to close in the first place. Runs independently of
+  // pruneStaleCourseProgressEffect below (registration order doesn't matter between them): that
+  // effect only ever removes a key matching no current course by name at all, which a
+  // just-migrated-and-deleted legacy key never does.
+  private readonly migrateLegacyCourseStepKeysEffect = effect(() => {
+    const currentCourses = this.studentData.courses();
+    if (!currentCourses.length) {
+      return;
+    }
+
+    untracked(() => {
+      const migrate = <T>(store: WritableSignal<Record<string, T>>): boolean => {
+        const current = store();
+        const next = { ...current };
+        let changed = false;
+
+        for (const course of currentCourses) {
+          if (!course.offeringId) {
+            continue;
+          }
+
+          const legacyPrefix = `${course.name}::`;
+          for (const key of Object.keys(current)) {
+            if (!key.startsWith(legacyPrefix)) {
+              continue;
+            }
+
+            const newKey = `${course.offeringId}::${key.slice(legacyPrefix.length)}`;
+            if (next[newKey] === undefined) {
+              next[newKey] = current[key];
+            }
+            delete next[key];
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          store.set(next);
+        }
+        return changed;
+      };
+
+      const completedStepsChanged = migrate(this.completedCourseSteps);
+      const acknowledgedChanged = migrate(this.acknowledgedDocuments);
+      const scormChanged = migrate(this.scormRuntime);
+
+      if (completedStepsChanged || acknowledgedChanged) {
+        this.persistCourseProgressState();
+      }
+      if (scormChanged) {
+        this.persistScormRuntime();
+      }
+    });
+  });
+
   // completedCourseSteps/acknowledgedDocuments/scormRuntime are keyed by course NAME (courseStepKey
   // above), and nothing ever told them when a course was unassigned — student-data.service.ts's own
   // removal grace period eventually drops the StudentCourse record, but this per-step state just sat
@@ -3190,7 +3252,7 @@ export class StudentCoursesComponent {
         return;
       }
 
-      const nextProgress = this.calculateCourseProgress(course.name, workspace.steps);
+      const nextProgress = this.calculateCourseProgress(course, workspace.steps);
       const updatedCourse = this.studentData.syncCourseProgress(course.name, nextProgress);
 
       if (updatedCourse && this.selectedCourse()?.name === course.name) {
@@ -3400,14 +3462,14 @@ export class StudentCoursesComponent {
   }
 
   private surveyDraftKey(questionId: string) {
-    const courseName = this.selectedCourse()?.name;
+    const course = this.selectedCourse();
     const contentItemId = this.selectedCourseStep()?.id ?? '';
 
-    if (!courseName || !contentItemId) {
+    if (!course || !contentItemId) {
       return '';
     }
 
-    return `${courseName}::${contentItemId}::${questionId}`;
+    return `${course.offeringId || course.name}::${contentItemId}::${questionId}`;
   }
 
   surveyAnswerDraftFor(questionId: string): SurveyAnswerDraft {
@@ -4334,7 +4396,7 @@ export class StudentCoursesComponent {
       return '';
     }
 
-    return this.courseStepKey(selectedCourse.name, selectedStep.id);
+    return this.courseStepKey(selectedCourse, selectedStep.id);
   }
 
   private defaultScormRuntimeState(): ScormRuntimeState {
@@ -4890,15 +4952,18 @@ export class StudentCoursesComponent {
   // not-yet-acknowledged once (a one-time re-prompt), the unavoidable cost of correcting an
   // identity key that previously collided across genuinely different content.
   private selectedDocumentKey() {
-    const courseName = this.selectedCourse()?.name;
+    const course = this.selectedCourse();
     const document = this.selectedDocument();
 
-    if (!courseName || !document) {
+    if (!course || !document) {
       return '';
     }
 
+    // Must produce the exact same key courseStepKey(course, step.id) does for a real step — this
+    // key is what actually gets WRITTEN to acknowledgedDocuments on open/acknowledge, and
+    // isStepCompleted reads it back through courseStepKey when computing progress.
     const stepId = this.selectedCourseStep()?.document ? this.selectedCourseStep()?.id : undefined;
-    return `${courseName}::${stepId ?? document.title}`;
+    return `${course.offeringId || course.name}::${stepId ?? document.title}`;
   }
 
   private selectedVideoKey() {
@@ -5005,18 +5070,18 @@ export class StudentCoursesComponent {
     }));
   }
 
-  private calculateCourseProgress(courseName: string, steps: WorkspaceStep[]) {
+  private calculateCourseProgress(course: StudentCourse, steps: WorkspaceStep[]) {
     if (!steps.length) {
       return 0;
     }
 
-    const completedStepCount = steps.filter((step) => this.isStepCompleted(courseName, step)).length;
+    const completedStepCount = steps.filter((step) => this.isStepCompleted(course, step)).length;
     return (completedStepCount / steps.length) * 100;
   }
 
-  private isStepCompleted(courseName: string, step: WorkspaceStep) {
+  private isStepCompleted(course: StudentCourse, step: WorkspaceStep) {
     if (step.kind === 'Assessment') {
-      return this.isAssessmentComplete(courseName, step);
+      return this.isAssessmentComplete(course.name, step);
     }
 
     if (step.kind === 'Survey') {
@@ -5024,16 +5089,16 @@ export class StudentCoursesComponent {
     }
 
     const completedSteps = this.completedCourseSteps();
-    const stepKey = this.courseStepKey(courseName, step.id);
+    const stepKey = this.courseStepKey(course, step.id);
 
     if (completedSteps[stepKey]) {
       return true;
     }
 
     if (step.kind === 'Document' && step.document?.requiresAcknowledgement) {
-      // Same `${courseName}::${step.id}` format selectedDocumentKey() now writes under — must
-      // match exactly, or a real acknowledgement would never be recognized as complete here.
-      return this.acknowledgedDocuments()[this.courseStepKey(courseName, step.id)] ?? false;
+      // Same format selectedDocumentKey() now writes under — must match exactly, or a real
+      // acknowledgement would never be recognized as complete here.
+      return this.acknowledgedDocuments()[this.courseStepKey(course, step.id)] ?? false;
     }
 
     return false;
@@ -5107,7 +5172,7 @@ export class StudentCoursesComponent {
       return;
     }
 
-    const stepKey = this.courseStepKey(courseName, step.id);
+    const stepKey = this.courseStepKey(course, step.id);
     this.completedCourseSteps.update((current) => ({
       ...current,
       [stepKey]: true,
@@ -5115,8 +5180,16 @@ export class StudentCoursesComponent {
     this.persistCourseProgressState();
   }
 
-  private courseStepKey(courseName: string, stepId: string) {
-    return `${courseName}::${stepId}`;
+  // Keyed by offeringId (falling back to name only for a legacy course with no id), same as
+  // assessmentAttemptKey below — content-item step ids are NOT globally unique (an item with no
+  // explicit id gets one generated from the offering's own title + index), so two DIFFERENT
+  // offerings sharing a title and content order generate identical step ids. Keying by name alone
+  // used to let a student reassigned to a different offering of the same title instantly inherit
+  // the previous offering's Video/Document/Scorm completion — see
+  // migrateLegacyCourseStepKeysEffect below for how already-persisted, name-keyed progress is
+  // carried forward safely instead of being silently reset by this change.
+  private courseStepKey(course: Pick<StudentCourse, 'offeringId' | 'name'>, stepId: string) {
+    return `${course.offeringId || course.name}::${stepId}`;
   }
 
   private assessmentAttemptKey(course: StudentCourse, stepId: string) {

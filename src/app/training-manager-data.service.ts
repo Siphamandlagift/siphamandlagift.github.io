@@ -2071,6 +2071,14 @@ export class TrainingManagerDataService {
     });
   }
 
+  // Goes through the same scoped removeStudentFromOffering per member as the Assign Wizard
+  // already uses for group-assign (assignStudentToOffering in a loop) — NOT the generic
+  // persistStudents()/patchManagerState path this used to take. assignedOfferingIds is
+  // deliberately pinned to the server's own value by mergeEnrollmentStudentRecord (repository.ts)
+  // for every write that goes through that generic path, specifically so a stale roster snapshot
+  // can never silently revert a real, concurrent assignment change — which meant this method's
+  // own attempt to remove an offering via that same path could never actually persist: the UI
+  // showed it removed, then it silently reappeared on the next reload.
   removeGroupFromOffering(groupName: string, offeringId: string) {
     const normalizedGroupName = groupName.trim();
 
@@ -2078,29 +2086,15 @@ export class TrainingManagerDataService {
       return 0;
     }
 
-    let removedCount = 0;
+    const affectedStudentIds = this.students()
+      .filter((student) => student.group === normalizedGroupName && student.assignedOfferingIds.includes(offeringId))
+      .map((student) => student.id);
 
-    this.studentsSignal.update((students) =>
-      students.map((student) => {
-        if (student.group !== normalizedGroupName || !student.assignedOfferingIds.includes(offeringId)) {
-          return student;
-        }
+    for (const studentId of affectedStudentIds) {
+      this.removeStudentFromOffering(studentId, offeringId);
+    }
 
-        removedCount += 1;
-        const assignedOfferingIds = student.assignedOfferingIds.filter((assignedId) => assignedId !== offeringId);
-        const assignedOfferingDeadlines = { ...(student.assignedOfferingDeadlines ?? {}) };
-        delete assignedOfferingDeadlines[offeringId];
-
-        return {
-          ...student,
-          ...this.resolveAssignmentState(student, assignedOfferingIds, assignedOfferingDeadlines),
-        };
-      }),
-    );
-
-    this.persistStudents();
-
-    return removedCount;
+    return affectedStudentIds.length;
   }
 
   updateGroup(groupName: string, input: { name: string; startDate: string; endDate: string; additionalStudentIds?: string[]; removedStudentIds?: string[] }) {
