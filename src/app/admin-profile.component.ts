@@ -814,7 +814,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     }
                   </div>
                   <div class="admin-report-document-field">
-                    <span class="admin-report-document-label">Agreement/Learnership/Bursary</span>
+                    <span class="admin-report-document-label">Agreement(Learnership, Internship, Bursary etc)</span>
                     <label class="admin-upload-btn" [class.admin-upload-btn-disabled]="uploadingAgreementDocument()">
                       <span>{{ uploadingAgreementDocument() ? 'Uploading…' : 'Choose file' }}</span>
                       <input type="file" accept=".pdf,.jpg,.jpeg,.png" [disabled]="uploadingAgreementDocument()" (change)="onAgreementDocumentSelected($event, userEditForm)" />
@@ -1088,7 +1088,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     }
                   </div>
                   <div class="admin-report-document-field">
-                    <span class="admin-report-document-label">Agreement/Learnership/Bursary</span>
+                    <span class="admin-report-document-label">Agreement(Learnership, Internship, Bursary etc)</span>
                     <label class="admin-upload-btn" [class.admin-upload-btn-disabled]="uploadingAgreementDocument()">
                       <span>{{ uploadingAgreementDocument() ? 'Uploading…' : 'Choose file' }}</span>
                       <input type="file" accept=".pdf,.jpg,.jpeg,.png" [disabled]="uploadingAgreementDocument()" (change)="onAgreementDocumentSelected($event, singleUserForm)" />
