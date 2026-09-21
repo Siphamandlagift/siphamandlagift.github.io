@@ -214,6 +214,12 @@ export type StudentNotificationRecord = {
   title: string;
   body: string;
   dateLabel: string;
+  // ISO timestamp of when this notification was actually created — lets the client render a
+  // live, ever-updating "X hours/days ago" label (see relativeTimeLabel in
+  // student-dashboard.component.ts) instead of the frozen dateLabel string, which was always set
+  // to a hardcoded 'Just now' at creation time and never changed afterward. Optional only for
+  // notifications persisted before this field existed.
+  createdAt?: string;
   unread: boolean;
 };
 

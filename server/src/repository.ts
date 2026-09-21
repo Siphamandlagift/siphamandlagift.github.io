@@ -229,6 +229,7 @@ function createOfferingNotification(offering: TrainingOffering): StudentNotifica
     title: 'New course available',
     body: `${offering.title} has been loaded to your learner profile and is ready to open.`,
     dateLabel: 'Just now',
+    createdAt: new Date().toISOString(),
     unread: true,
   };
 }
@@ -240,6 +241,7 @@ function createSuccessionNotification(role: SuccessionRoleRecord): StudentNotifi
     title: "You've been earmarked for a role",
     body: `You've been identified as a potential successor for ${role.title}. View your succession status on your profile.`,
     dateLabel: 'Just now',
+    createdAt: new Date().toISOString(),
     unread: true,
   };
 }
@@ -251,6 +253,7 @@ function createSuccessionIncumbentNotification(role: SuccessionRoleRecord): Stud
     title: 'Your role has been flagged as business-critical',
     body: `Your manager has identified your position (${role.title}) as a critical role for succession planning. A development entry has been added to your IDP.`,
     dateLabel: 'Just now',
+    createdAt: new Date().toISOString(),
     unread: true,
   };
 }
@@ -262,6 +265,7 @@ function createKpiYearOpenedNotification(year: number): StudentNotificationRecor
     title: 'New KPI year started',
     body: `A new KPI year (${year}) has started. Your manager will set up your KPI table for this year.`,
     dateLabel: 'Just now',
+    createdAt: new Date().toISOString(),
     unread: true,
   };
 }
@@ -273,6 +277,7 @@ function createTrainingRequestApprovedNotification(requestId: string, courseName
     title: 'Training request approved',
     body: `Your request for "${courseName}" has been approved.`,
     dateLabel: 'Just now',
+    createdAt: new Date().toISOString(),
     unread: true,
   };
 }
@@ -284,6 +289,7 @@ function createTrainingRequestNeedsRevisionNotification(requestId: string, cours
     title: 'Training request needs changes',
     body: `Your request for "${courseName}" was sent back for changes. Edit and resubmit it for review.`,
     dateLabel: 'Just now',
+    createdAt: new Date().toISOString(),
     unread: true,
   };
 }
@@ -295,6 +301,7 @@ function createIdpYearOpenedNotification(year: number): StudentNotificationRecor
     title: 'New IDP year started',
     body: `A new IDP year (${year}) has started. Your manager will set up your Individual Development Plan for this year.`,
     dateLabel: 'Just now',
+    createdAt: new Date().toISOString(),
     unread: true,
   };
 }

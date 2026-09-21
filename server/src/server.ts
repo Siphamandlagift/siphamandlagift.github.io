@@ -822,6 +822,7 @@ const studentNotificationSchema = z.object({
   title: z.string().min(1),
   body: z.string().min(1),
   dateLabel: z.string().min(1),
+  createdAt: z.string().optional(),
   unread: z.boolean(),
 });
 
