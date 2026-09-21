@@ -30,7 +30,7 @@ import {
 } from './platform-repository.js';
 import { createSuperAdminRouter } from './super-admin-routes.js';
 import { isFeatureAllowedForPlan, type GatedFeature } from './plan-features.js';
-import type { AuthAccountRecord, EnrollmentStudentRecord, SubscriptionPlan, SystemTrainingManagerRecord } from './contracts.js';
+import type { AuthAccountRecord, EnrollmentStudentRecord, SubscriptionPlan } from './contracts.js';
 
 // Augments Express's Request with the per-request state the middleware chain below attaches
 // after decoding the caller's JWT: their identity (including which company they belong to), a
@@ -549,12 +549,11 @@ const managerMessageSchema = z.object({
 });
 
 
-const systemTrainingManagerSchema = z.object({
-  id: z.string(),
-  name: z.string(),
+const trainingManagerInputSchema = z.object({
+  name: z.string().min(1),
   role: z.string(),
   team: z.string(),
-  email: z.string(),
+  email: z.string().min(1),
 });
 
 const externalTrainingRequestSchema = z.object({
@@ -1155,7 +1154,8 @@ const studentSnapshotUpdateSchema = z.object({
 
 const managerStatePatchSchema = z.object({
   students: z.array(enrollmentStudentSchema).optional(),
-  trainingManagers: z.array(systemTrainingManagerSchema).optional(),
+  // trainingManagers is deliberately absent — see its own scoped CRUD routes
+  // (/api/approving-managers) and the ManagerStatePatch contract's comment on why.
   managerMessages: z.array(managerMessageSchema).optional(),
   mentorshipAssignments: z.array(mentorshipAssignmentSchema).optional(),
   mentorshipSubmissions: z.array(mentorshipSubmissionSchema).optional(),
@@ -3675,6 +3675,76 @@ app.delete('/api/training-providers/:providerId', requireAdministrator, async (r
   }
 });
 
+// Approving Managers (Settings > Approval Settings): scoped per-record CRUD, same reasoning as
+// Training Providers above and IDP/KPI entries elsewhere — a generic full-array-replace here (the
+// old PATCH /api/manager-state trainingManagers field) let a stale client cache permanently delete
+// another admin's concurrent addition, since the write path treats the array it's given as the
+// complete, authoritative list. See ManagerStatePatch's own comment in contracts.ts.
+app.post('/api/approving-managers', requireAdministrator, async (request, response, next) => {
+  try {
+    const repository = request.repository!;
+    const body = trainingManagerInputSchema.parse(request.body);
+
+    const existing = await repository.read();
+    const normalizedEmail = body.email.trim().toLowerCase();
+    if (normalizedEmail && existing.trainingManagers.some((manager) => manager.email.trim().toLowerCase() === normalizedEmail)) {
+      response.status(409).json({ message: 'Another approving manager already uses this email address.' });
+      return;
+    }
+
+    const manager = await repository.createApprovingManager(body);
+    if (!manager) {
+      response.status(400).json({ message: 'Name and email are required.' });
+      return;
+    }
+
+    response.status(201).json(manager);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/approving-managers/:managerId', requireAdministrator, async (request, response, next) => {
+  try {
+    const repository = request.repository!;
+    const managerId = request.params['managerId'] as string;
+    const body = trainingManagerInputSchema.parse(request.body);
+
+    const existing = await repository.read();
+    const normalizedEmail = body.email.trim().toLowerCase();
+    if (normalizedEmail && existing.trainingManagers.some((manager) => manager.id !== managerId && manager.email.trim().toLowerCase() === normalizedEmail)) {
+      response.status(409).json({ message: 'Another approving manager already uses this email address.' });
+      return;
+    }
+
+    const manager = await repository.updateApprovingManager(managerId, body);
+    if (!manager) {
+      response.status(404).json({ message: 'Approving manager not found.' });
+      return;
+    }
+
+    response.json(manager);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/approving-managers/:managerId', requireAdministrator, async (request, response, next) => {
+  try {
+    const repository = request.repository!;
+    const deleted = await repository.deleteApprovingManager(request.params['managerId'] as string);
+
+    if (!deleted) {
+      response.status(404).json({ message: 'Approving manager not found.' });
+      return;
+    }
+
+    response.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Training Programmes: same shape as Training Providers above. providerIds is trusted as-is —
 // referential integrity against the Training Providers directory (e.g. a deleted provider still
 // named in some programme's providerIds) is not enforced here, same "no cascade" simplicity the
@@ -3729,9 +3799,9 @@ app.delete('/api/training-programmes/:programmeId', requireAdministrator, async 
   }
 });
 
-// `students`, `externalTrainingRequests`, and `trainingManagers` are patched by replacing the
-// entire collection (this is how "delete" features work — a record missing from the array is
-// treated as deleted). Every legitimate caller only ever removes a few records at a time, from a
+// `students` and `externalTrainingRequests` are patched by replacing the entire collection (this
+// is how "delete" features work — a record missing from the array is treated as deleted). Every
+// legitimate caller only ever removes a few records at a time, from a
 // fully-hydrated client list. An array far smaller than the current collection almost certainly
 // means the caller sent a partial/stale list by mistake — refuse rather than silently delete
 // everything else. Returns an error message, or null if the replacement looks safe.
@@ -3803,51 +3873,19 @@ function checkDuplicateStudentEmails(
   return `Email already in use by another user: ${[...conflicts].join(', ')}. Each user must have a unique email address.`;
 }
 
-// Only checks for a duplicate WITHIN this one incoming list — two different entries in the same
-// admin-submitted trainingManagers patch sharing an email is unambiguously a data-entry mistake,
-// with no legitimate case for it. Deliberately does NOT check against students/authAccounts: a
-// trainingManagers entry sharing an email with a real, existing login is the normal, intended
-// case (resolveApprovingManagers/buildTrainingManagers merge this list with real
-// role==='manager' students specifically so an approval can route to someone's real account) —
-// rejecting that would break routing an approval to a real employee.
-function checkDuplicateTrainingManagerEmails(patchTrainingManagers: SystemTrainingManagerRecord[]): string | null {
-  const seenEmails = new Map<string, string>();
-  const conflicts = new Set<string>();
-
-  for (const manager of patchTrainingManagers) {
-    const email = manager.email.trim().toLowerCase();
-    if (!email) {
-      continue;
-    }
-
-    if (seenEmails.has(email) && seenEmails.get(email) !== manager.id) {
-      conflicts.add(manager.email.trim());
-      continue;
-    }
-
-    seenEmails.set(email, manager.id);
-  }
-
-  if (!conflicts.size) {
-    return null;
-  }
-
-  return `This training manager list has more than one entry using the same email: ${[...conflicts].join(', ')}. Each entry must have a unique email address.`;
-}
-
 app.put('/api/manager-state', async (request, response, next) => {
   try {
     const repository = request.repository!;
     const patch = managerStatePatchSchema.parse(request.body);
 
-    if (patch.students || patch.externalTrainingRequests || patch.trainingManagers) {
-      // These fields cover the student roster (including role/isAdmin) and the manager
-      // directory — student sessions legitimately PATCH this same endpoint for their own
+    if (patch.students || patch.externalTrainingRequests) {
+      // These fields cover the student roster (including role/isAdmin) and external training
+      // requests — student sessions legitimately PATCH this same endpoint for their own
       // mentorship/message data, but must not be able to touch these manager/admin-owned
       // collections, or a student could e.g. grant themselves isAdmin via a roster patch.
       const identity = getAuthenticatedIdentity(request);
       if (!identity || (identity.role !== 'administrator' && identity.role !== 'training-manager')) {
-        response.status(403).json({ message: 'You do not have permission to update student, manager, or external training records.' });
+        response.status(403).json({ message: 'You do not have permission to update student or external training records.' });
         return;
       }
 
@@ -3871,20 +3909,6 @@ app.put('/api/manager-state', async (request, response, next) => {
         const guardMessage = checkBulkReplaceGuard(dataBefore.externalTrainingRequests.length, patch.externalTrainingRequests.length, 'external training request');
         if (guardMessage) {
           response.status(400).json({ message: guardMessage });
-          return;
-        }
-      }
-
-      if (patch.trainingManagers) {
-        const guardMessage = checkBulkReplaceGuard(dataBefore.trainingManagers.length, patch.trainingManagers.length, 'training manager');
-        if (guardMessage) {
-          response.status(400).json({ message: guardMessage });
-          return;
-        }
-
-        const duplicateEmailMessage = checkDuplicateTrainingManagerEmails(patch.trainingManagers);
-        if (duplicateEmailMessage) {
-          response.status(409).json({ message: duplicateEmailMessage });
           return;
         }
       }

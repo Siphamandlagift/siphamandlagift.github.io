@@ -28,6 +28,7 @@ import type {
   SuccessorNominationUpdateInput,
   SurveySubmissionRecord,
   SystemTrainingManager,
+  TrainingManagerInput,
   TrainingOffering,
   TrainingQuestionType,
   TrainingOfferingUpdate,
@@ -163,7 +164,9 @@ export type ScormUploadEvent =
 
 export type ManagerStatePatch = {
   students?: EnrollmentStudent[];
-  trainingManagers?: SystemTrainingManager[];
+  // trainingManagers deliberately absent — see createApprovingManager/updateApprovingManager/
+  // deleteApprovingManager on TrainingManagerDataService and their scoped /api/approving-managers
+  // endpoints instead (server/src/contracts.ts's ManagerStatePatch has the full reasoning).
   managerMessages?: ManagerMessage[];
   mentorshipAssignments?: MentorshipAssignmentRecord[];
   mentorshipSubmissions?: MentorshipSubmissionRecord[];
@@ -615,6 +618,18 @@ export class LmsBackendService {
 
   deleteTrainingProvider(providerId: string): Observable<void> {
     return this.http.delete<void>(`${this.config.baseUrl}/training-providers/${providerId}`);
+  }
+
+  createApprovingManager(input: TrainingManagerInput): Observable<SystemTrainingManager> {
+    return this.http.post<SystemTrainingManager>(`${this.config.baseUrl}/approving-managers`, input);
+  }
+
+  updateApprovingManager(managerId: string, input: TrainingManagerInput): Observable<SystemTrainingManager> {
+    return this.http.put<SystemTrainingManager>(`${this.config.baseUrl}/approving-managers/${managerId}`, input);
+  }
+
+  deleteApprovingManager(managerId: string): Observable<void> {
+    return this.http.delete<void>(`${this.config.baseUrl}/approving-managers/${managerId}`);
   }
 
   createTrainingProgramme(input: TrainingProgrammeInput): Observable<TrainingProgrammeRecord> {

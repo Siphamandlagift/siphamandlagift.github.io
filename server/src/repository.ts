@@ -67,6 +67,7 @@ import {
   SuccessorNominationUpdateInput,
   SurveySubmissionRecord,
   SystemTrainingManagerRecord,
+  TrainingManagerInput,
   TrainingAssessmentQuestion,
   TrainingContentItem,
   TrainingOffering,
@@ -2564,10 +2565,6 @@ export class LmsRepository {
       syncLinkedAuthAccounts(data);
     }
 
-    if (patch.trainingManagers) {
-      data.trainingManagers = patch.trainingManagers;
-    }
-
     if (patch.managerMessages) {
       // Merge by ID: preserve any messages added by students that the manager's session
       // doesn't know about yet (e.g. messages delivered via POST /api/manager-messages).
@@ -2594,7 +2591,14 @@ export class LmsRepository {
     }
 
     if (patch.externalTrainingRequests) {
-      data.externalTrainingRequests = patch.externalTrainingRequests;
+      // Merge by ID, same reasoning as managerMessages/mentorshipAssignments above — a naive
+      // replace here would let a stale client cache silently drop another request (submitted or
+      // reviewed by a different session in the meantime). No client currently sends this field
+      // (requests go through their own dedicated submit/review routes), but keep this path safe
+      // rather than leaving a raw-replace landmine for whatever eventually does.
+      const patchById = new Map(patch.externalTrainingRequests.map((r) => [r.id, r]));
+      const onlyInDb = data.externalTrainingRequests.filter((r) => !patchById.has(r.id));
+      data.externalTrainingRequests = [...onlyInDb, ...patch.externalTrainingRequests];
     }
 
     return this.write(data);
@@ -4027,6 +4031,66 @@ export class LmsRepository {
     return true;
   }
 
+  // Scoped per-record CRUD for the Settings > Approval Settings directory — see ManagerStatePatch's
+  // own comment in contracts.ts for why this replaced a generic full-array-replace patch field.
+  async createApprovingManager(input: TrainingManagerInput) {
+    const name = input.name.trim();
+    const email = input.email.trim();
+    if (!name || !email) {
+      return null;
+    }
+
+    const data = await this.read();
+    const manager: SystemTrainingManagerRecord = {
+      id: `training-manager-${Date.now()}`,
+      name,
+      role: input.role.trim(),
+      team: input.team.trim(),
+      email,
+    };
+
+    data.trainingManagers.push(manager);
+    await this.write(data);
+    return manager;
+  }
+
+  async updateApprovingManager(managerId: string, input: TrainingManagerInput) {
+    const name = input.name.trim();
+    const email = input.email.trim();
+    if (!name || !email) {
+      return null;
+    }
+
+    const data = await this.read();
+    const managerIndex = data.trainingManagers.findIndex((manager) => manager.id === managerId);
+    if (managerIndex === -1) {
+      return null;
+    }
+
+    const updatedManager: SystemTrainingManagerRecord = {
+      ...data.trainingManagers[managerIndex],
+      name,
+      role: input.role.trim(),
+      team: input.team.trim(),
+      email,
+    };
+
+    data.trainingManagers[managerIndex] = updatedManager;
+    await this.write(data);
+    return updatedManager;
+  }
+
+  async deleteApprovingManager(managerId: string) {
+    const data = await this.read();
+    if (!data.trainingManagers.some((manager) => manager.id === managerId)) {
+      return false;
+    }
+
+    data.trainingManagers = data.trainingManagers.filter((manager) => manager.id !== managerId);
+    await this.write(data);
+    return true;
+  }
+
   // Same shape/reasoning as Training Providers above — a flat, admin-owned directory. providerIds
   // is stored verbatim (a plain array of other records' ids, not user-typed text needing a trim);
   // "linked courses" is deliberately not a field here at all — see TrainingOffering.trainingProgrammeId's
@@ -4815,7 +4879,7 @@ class FirestoreLmsRepository extends LmsRepository {
   // document, a concurrent write forces this transaction to retry against fresh data instead of
   // racing it — see updateStudentSnapshot's override below for the same pattern.
   //
-  // Everything else in the patch (trainingManagers/managerMessages/mentorshipAssignments/
+  // Everything else in the patch (managerMessages/mentorshipAssignments/
   // mentorshipSubmissions/externalTrainingRequests) isn't independently written by any other
   // transactional endpoint, so it doesn't carry this race — its merge semantics are kept exactly
   // as the inherited path computes them, just committed through a batch scoped to only the
@@ -4847,16 +4911,12 @@ class FirestoreLmsRepository extends LmsRepository {
     }
 
     const hasOtherChanges = Boolean(
-      patch.trainingManagers || patch.managerMessages || patch.mentorshipAssignments
+      patch.managerMessages || patch.mentorshipAssignments
       || patch.mentorshipSubmissions || patch.externalTrainingRequests,
     );
 
     if (hasOtherChanges) {
       const data = await this.read();
-
-      if (patch.trainingManagers) {
-        data.trainingManagers = patch.trainingManagers;
-      }
 
       if (patch.managerMessages) {
         const patchById = new Map(patch.managerMessages.map((m) => [m.id, m]));
@@ -4877,7 +4937,11 @@ class FirestoreLmsRepository extends LmsRepository {
       }
 
       if (patch.externalTrainingRequests) {
-        data.externalTrainingRequests = patch.externalTrainingRequests;
+        // Merge by ID — see the base LmsRepository.patchManagerState's identical copy of this
+        // fix for the full reasoning.
+        const patchById = new Map(patch.externalTrainingRequests.map((r) => [r.id, r]));
+        const onlyInDb = data.externalTrainingRequests.filter((r) => !patchById.has(r.id));
+        data.externalTrainingRequests = [...onlyInDb, ...patch.externalTrainingRequests];
       }
 
       const batchOperations: FirestoreBatchOperation[] = [
@@ -4886,9 +4950,6 @@ class FirestoreLmsRepository extends LmsRepository {
         },
       ];
 
-      if (patch.trainingManagers) {
-        await this.queueCollectionSync(batchOperations, 'trainingManagers', data.trainingManagers);
-      }
       if (patch.managerMessages) {
         await this.queueCollectionSync(batchOperations, 'managerMessages', data.managerMessages);
       }

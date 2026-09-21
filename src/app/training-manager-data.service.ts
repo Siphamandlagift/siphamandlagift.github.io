@@ -23,6 +23,8 @@ export type SystemTrainingManager = {
   email: string;
 };
 
+export type TrainingManagerInput = Omit<SystemTrainingManager, 'id'>;
+
 // Minimal, name/email-only directory of this company's admin users — used to populate the
 // "who should mark this assignment" picker on an Assignment submission (see
 // AssignmentSubmissionRecord.assignedReviewerId below). Server-derived only; never carries
@@ -252,10 +254,14 @@ export type EnrollmentStudent = {
   agreementDocumentUrl?: string;
 };
 
-export type EnrollmentStudentInput = Omit<EnrollmentStudent, 'id' | 'status' | 'assignedOfferingIds' | 'jobTitle' | 'idNumber' | 'lineManager'> & {
+export type EnrollmentStudentInput = Omit<EnrollmentStudent, 'id' | 'status' | 'assignedOfferingIds' | 'jobTitle' | 'idNumber' | 'lineManager' | 'activeStatus'> & {
   jobTitle?: string;
   idNumber?: string;
   lineManager?: string;
+  // Optional (unlike the base EnrollmentStudent type) so a bulk-upload row from a file missing
+  // this column can omit it entirely and fall through to "keep the existing value" — see
+  // buildBulkUploadRow's own comment for why defaulting an absent column to 'Active' was a bug.
+  activeStatus?: 'Active' | 'Inactive';
 };
 
 export type ManagerDashboardCard = {
@@ -603,9 +609,9 @@ export class TrainingManagerDataService {
   // used to read/write these keys directly as bare arrays/objects — a real cross-tenant leak: the
   // keys are global, not scoped by company, so a browser that had ever logged into Company A would
   // still have A's cached students sitting under the same key Company B's session reads from.
-  // mergeWithLocalStudents/mergeWithLocalOfferings below deliberately re-add any cached record the
-  // backend doesn't recognize (to survive a write that failed or hasn't propagated yet) — exactly
-  // the mechanism that made A's cached students reappear as "not yet synced" the moment B's
+  // mergeServerAuthoritative below deliberately re-adds any cached record the backend doesn't
+  // recognize (to survive a write that failed or hasn't propagated yet) — exactly the mechanism
+  // that made A's cached students reappear as "not yet synced" the moment B's
   // (much shorter, or empty) real roster came back from the backend. And the bootstrap fetch's own
   // error handler falls back to this cache with NO server check at all if the request fails outright.
   // Fixed via company-scoped-storage.ts's readCompanyScopedCache/writeCompanyScopedCache, shared
@@ -1269,8 +1275,18 @@ export class TrainingManagerDataService {
     // after logging into a different account" bug. See hydrateOwnDisplayName's own copy of this
     // guard for the matching topbar-identity half of the same bug.
     const requestCompanyId = getCurrentCompanyId();
+    // Same requestStartedAt/pending-write guard refreshBootstrapState uses below — captured here
+    // too so the very first hydrate of a session gets the same protection an in-flight local edit
+    // already has on every later poll (see mergeServerAuthoritative and studentsDirtyAt/
+    // pendingStudentWriteCount/pendingOfferingWriteCount's own comments for the full reasoning).
+    const requestStartedAt = Date.now();
 
     this.hydrateOwnDisplayName();
+
+    const localOfferings = this.loadOfferings();
+    if (localOfferings.length) {
+      this.offeringsSignal.set(localOfferings);
+    }
 
     const localStudents = this.loadStudents();
     if (localStudents.length) {
@@ -1295,8 +1311,17 @@ export class TrainingManagerDataService {
           return;
         }
 
-        const mergedOfferings = this.mergeWithLocalOfferings(bootstrap.offerings);
-        const mergedStudents = this.mergeWithLocalStudents(bootstrap.students);
+        // Server-authoritative, not "local wins when different" (that used to mean a browser's
+        // leftover cache from BEFORE an HR sync, or another admin's edit, would win over fresher
+        // server data on every fresh login/tab-open, silently reverting it) — same merge and the
+        // same pending-write/dirty-timestamp gating refreshBootstrapState's poll already uses, so
+        // a real edit made in the brief window before this first fetch resolves still isn't lost.
+        const mergedOfferings = this.pendingOfferingWriteCount > 0
+          ? this.offeringsSignal()
+          : this.mergeServerAuthoritative(bootstrap.offerings, this.offeringsSignal());
+        const isStudentsStale = this.pendingStudentWriteCount > 0
+          || (this.studentsDirtyAt !== null && this.studentsDirtyAt >= requestStartedAt);
+        const mergedStudents = isStudentsStale ? this.studentsSignal() : this.mergeServerAuthoritative(bootstrap.students, this.studentsSignal());
         this.offeringsSignal.set(mergedOfferings);
         this.saveOfferings(mergedOfferings);
         this.studentsSignal.set(mergedStudents);
@@ -1933,7 +1958,7 @@ export class TrainingManagerDataService {
               email: normalizedEmail,
               jobTitle: input.jobTitle === undefined ? student.jobTitle : input.jobTitle.trim(),
               idNumber: input.idNumber === undefined ? student.idNumber : input.idNumber.trim(),
-              activeStatus: input.activeStatus,
+              activeStatus: input.activeStatus === undefined ? student.activeStatus : input.activeStatus,
               department: normalizedDepartment,
               lineManager: input.lineManager === undefined ? student.lineManager : input.lineManager.trim(),
               lineManagerId: input.lineManagerId === undefined ? student.lineManagerId : (input.lineManagerId.trim() || undefined),
@@ -2006,6 +2031,7 @@ export class TrainingManagerDataService {
           ...input,
           jobTitle: input.jobTitle?.trim() ?? '',
           idNumber: input.idNumber?.trim() ?? '',
+          activeStatus: input.activeStatus ?? 'Active',
           status: 'Not Yet Started',
           assignedOfferingIds: [],
           lineManager: input.lineManager?.trim() ?? '',
@@ -3808,7 +3834,7 @@ export class TrainingManagerDataService {
       email: normalizedEmail,
       ...(input.jobTitle !== undefined ? { jobTitle: input.jobTitle.trim() } : {}),
       ...(input.idNumber !== undefined ? { idNumber: input.idNumber.trim() } : {}),
-      activeStatus: input.activeStatus,
+      ...(input.activeStatus !== undefined ? { activeStatus: input.activeStatus } : {}),
       department: normalizedDepartment,
       ...(input.lineManager !== undefined ? { lineManager: input.lineManager.trim() } : {}),
       ...(input.lineManagerId !== undefined ? { lineManagerId: input.lineManagerId.trim() || undefined } : {}),
@@ -3864,77 +3890,74 @@ export class TrainingManagerDataService {
     };
   }
 
-  // Admin-facing approving-manager management (Settings > Approval settings) — adds/edits/removes
-  // an explicit trainingManagers entry. Uses the same full-array-replace PUT /api/manager-state
-  // path every other collection here already persists through (see persistStudents et al.), rather
-  // than adding a dedicated endpoint for a rarely-written admin list.
-  upsertApprovingManager(manager: SystemTrainingManager) {
-    this.trainingManagersSignal.update((managers) => (
-      managers.some((entry) => entry.id === manager.id)
-        ? managers.map((entry) => (entry.id === manager.id ? manager : entry))
-        : [...managers, manager]
-    ));
-    this.persistTrainingManagers();
+  // Admin-facing approving-manager management (Settings > Approval settings) — scoped, per-record
+  // create/update/delete against their own dedicated endpoints, rather than the old full-array-
+  // replace PUT /api/manager-state path: that let a stale client cache permanently DELETE another
+  // admin's concurrent addition, since the server-side write treated whatever array it was given
+  // as the complete, authoritative list. See ManagerStatePatch's own comment (contracts.ts) for
+  // the full reasoning. Each method only ever touches local state after the server confirms the
+  // write, so there's nothing to roll back on failure.
+  async createApprovingManager(input: Omit<SystemTrainingManager, 'id'>): Promise<{ success: true; manager: SystemTrainingManager } | { success: false; errorMessage: string }> {
+    try {
+      const manager = await firstValueFrom(this.backend.createApprovingManager(input));
+      this.trainingManagersSignal.update((managers) => [...managers, manager]);
+      return { success: true, manager };
+    } catch (error: any) {
+      return { success: false, errorMessage: error?.error?.message || 'Could not add this approving manager. Please check your connection and try again.' };
+    }
   }
 
-  deleteApprovingManager(managerId: string) {
-    this.trainingManagersSignal.update((managers) => managers.filter((entry) => entry.id !== managerId));
-    this.persistTrainingManagers();
+  async updateApprovingManager(managerId: string, input: Omit<SystemTrainingManager, 'id'>): Promise<{ success: true; manager: SystemTrainingManager } | { success: false; errorMessage: string }> {
+    try {
+      const manager = await firstValueFrom(this.backend.updateApprovingManager(managerId, input));
+      this.trainingManagersSignal.update((managers) => managers.map((entry) => (entry.id === managerId ? manager : entry)));
+      return { success: true, manager };
+    } catch (error: any) {
+      return { success: false, errorMessage: error?.error?.message || 'Could not save this approving manager. Please check your connection and try again.' };
+    }
+  }
+
+  async deleteApprovingManager(managerId: string): Promise<boolean> {
+    try {
+      await firstValueFrom(this.backend.deleteApprovingManager(managerId));
+      this.trainingManagersSignal.update((managers) => managers.filter((entry) => entry.id !== managerId));
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   // Matched/deduped by email (case-insensitive), same as bulkUpsertStudents above — a row whose
   // email matches an existing approving manager updates that record in place (keeping its id)
-  // rather than creating a duplicate entry.
-  bulkUpsertApprovingManagers(inputs: Omit<SystemTrainingManager, 'id'>[]) {
-    if (!inputs.length) {
-      return { added: 0, updated: 0 };
-    }
-
+  // rather than creating a duplicate entry. Rows are sent one at a time (this is an admin-curated,
+  // rarely-large list) so each one is checked against the outcome of the ones before it in the
+  // same file, not just the pre-upload snapshot.
+  async bulkUpsertApprovingManagers(inputs: Omit<SystemTrainingManager, 'id'>[]): Promise<{ added: number; updated: number; failed: number }> {
     let added = 0;
     let updated = 0;
+    let failed = 0;
 
-    this.trainingManagersSignal.update((managers) => {
-      const nextManagers = [...managers];
-      const managersByEmail = new Map(nextManagers.map((manager) => [manager.email.toLowerCase(), manager]));
+    for (const input of inputs) {
+      const emailKey = input.email.toLowerCase();
+      const existing = this.trainingManagersSignal().find((manager) => manager.email.toLowerCase() === emailKey);
 
-      for (const input of inputs) {
-        const emailKey = input.email.toLowerCase();
-        const existing = managersByEmail.get(emailKey);
+      const result = existing
+        ? await this.updateApprovingManager(existing.id, input)
+        : await this.createApprovingManager(input);
 
-        if (existing) {
-          const existingIndex = nextManagers.findIndex((manager) => manager.id === existing.id);
-          if (existingIndex >= 0) {
-            nextManagers[existingIndex] = { ...existing, ...input };
-            managersByEmail.set(emailKey, nextManagers[existingIndex]);
-            updated += 1;
-          }
-
-          continue;
-        }
-
-        const newManager: SystemTrainingManager = { id: `training-manager-${Date.now()}-${added + updated}`, ...input };
-        nextManagers.push(newManager);
-        managersByEmail.set(emailKey, newManager);
-        added += 1;
+      if (!result.success) {
+        failed += 1;
+        continue;
       }
 
-      return nextManagers;
-    });
-
-    this.persistTrainingManagers();
-    return { added, updated };
-  }
-
-  private persistTrainingManagers() {
-    if (!this.backendHydrated) {
-      return;
+      if (existing) {
+        updated += 1;
+      } else {
+        added += 1;
+      }
     }
 
-    this.backend.patchManagerState({ trainingManagers: this.trainingManagersSignal() }).subscribe({
-      error: () => {
-        // Keep local state if the API is temporarily unavailable.
-      },
-    });
+    return { added, updated, failed };
   }
 
   private createUniqueStudentId(input: EnrollmentStudentInput, usedIds: Set<string>) {
@@ -4023,62 +4046,6 @@ export class TrainingManagerDataService {
   private loadStudents() {
     const data = readCompanyScopedCache(TrainingManagerDataService.studentsStorageKey);
     return Array.isArray(data) ? (data as EnrollmentStudent[]) : [];
-  }
-
-  private mergeWithLocalStudents(backendStudents: EnrollmentStudent[]): EnrollmentStudent[] {
-    const localStudents = this.loadStudents();
-    if (!localStudents.length) {
-      return backendStudents;
-    }
-
-    const localById = new Map(localStudents.map((student) => [student.id, student]));
-    const merged = backendStudents.map((backendStudent) => {
-      const local = localById.get(backendStudent.id);
-      if (!local) {
-        return backendStudent;
-      }
-
-      // Keep local student data when it differs; this prevents assignments from
-      // disappearing if a prior backend write failed or has not propagated yet.
-      return JSON.stringify(local) !== JSON.stringify(backendStudent)
-        ? local
-        : backendStudent;
-    });
-
-    for (const local of localStudents) {
-      if (!merged.some((student) => student.id === local.id)) {
-        merged.push(local);
-      }
-    }
-
-    return merged;
-  }
-
-  private mergeWithLocalOfferings(backendOfferings: TrainingOffering[]): TrainingOffering[] {
-    const localOfferings = this.loadOfferings();
-    if (!localOfferings.length) {
-      return backendOfferings;
-    }
-    const localById = new Map(localOfferings.map((o) => [o.id, o]));
-    const merged = backendOfferings.map((backendOffering) => {
-      const local = localById.get(backendOffering.id);
-      if (!local) return backendOffering;
-
-      // If both copies exist but differ, keep local to avoid user edits disappearing
-      // when a previous backend save failed or lagged behind.
-      if (JSON.stringify(local) !== JSON.stringify(backendOffering)) {
-        return local;
-      }
-
-      return backendOffering;
-    });
-    // Append local-only offerings the backend does not yet know about
-    for (const local of localOfferings) {
-      if (!merged.some((o) => o.id === local.id)) {
-        merged.push(local);
-      }
-    }
-    return merged;
   }
 
   private saveOfferings(offerings: TrainingOffering[]) {

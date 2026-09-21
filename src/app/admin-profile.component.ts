@@ -14443,10 +14443,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   }
 
   // ── Approval settings ─────────────────────────────────────────────────
-  // The trainingManagers collection (patched via the existing PUT /api/manager-state — see
-  // TrainingManagerDataService.upsertApprovingManager/deleteApprovingManager) is the admin-managed
-  // pool a student picks from when choosing who should approve an external training request. It
-  // had no management UI anywhere before this.
+  // The trainingManagers collection (scoped CRUD via /api/approving-managers — see
+  // TrainingManagerDataService.createApprovingManager/updateApprovingManager/deleteApprovingManager)
+  // is the admin-managed pool a student picks from when choosing who should approve an external
+  // training request. It had no management UI anywhere before this.
   readonly editingApprovingManagerId = signal<string | null>(null);
   readonly approvingManagerFormName = signal('');
   readonly approvingManagerFormRole = signal('');
@@ -14533,7 +14533,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.editingApprovingManagerId.set(null);
   }
 
-  saveApprovingManagerForm() {
+  async saveApprovingManagerForm() {
     const name = this.approvingManagerFormName().trim();
     const role = this.approvingManagerFormRole().trim();
     const team = this.approvingManagerFormTeam().trim();
@@ -14559,19 +14559,30 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const id = isNew ? `training-manager-${Date.now()}` : editingId;
+    const result = isNew
+      ? await this.managerData.createApprovingManager({ name, role, team, email })
+      : await this.managerData.updateApprovingManager(editingId, { name, role, team, email });
 
-    this.managerData.upsertApprovingManager({ id, name, role, team, email });
+    if (!result.success) {
+      this.approvingManagerFormError.set(result.errorMessage);
+      return;
+    }
+
     this.editingApprovingManagerId.set(null);
   }
 
-  deleteApprovingManagerFromForm() {
+  async deleteApprovingManagerFromForm() {
     const managerId = this.editingApprovingManagerId();
     if (!managerId || managerId === 'new') {
       return;
     }
 
-    this.managerData.deleteApprovingManager(managerId);
+    const deleted = await this.managerData.deleteApprovingManager(managerId);
+    if (!deleted) {
+      this.approvingManagerFormError.set('Could not remove this approving manager. Please check your connection and try again.');
+      return;
+    }
+
     this.editingApprovingManagerId.set(null);
   }
 
@@ -14630,10 +14641,11 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         return;
       }
 
-      const result = this.managerData.bulkUpsertApprovingManagers(parsedUpload.rows);
-      this.managerBulkUploadTone.set(parsedUpload.issues.length ? 'error' : 'success');
+      const result = await this.managerData.bulkUpsertApprovingManagers(parsedUpload.rows);
+      const issueCount = parsedUpload.issues.length + result.failed;
+      this.managerBulkUploadTone.set(issueCount ? 'error' : 'success');
       this.managerBulkUploadMessage.set(
-        `Bulk upload complete. ${result.added} added, ${result.updated} updated.${parsedUpload.issues.length ? ` ${parsedUpload.issues.length} row issue(s) need attention.` : ''}`,
+        `Bulk upload complete. ${result.added} added, ${result.updated} updated.${result.failed ? ` ${result.failed} row(s) could not be saved.` : ''}${parsedUpload.issues.length ? ` ${parsedUpload.issues.length} row issue(s) need attention.` : ''}`,
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Bulk upload failed.';
@@ -16250,7 +16262,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         group: group.trim(),
         dateEnrolled,
         deadlineDate,
-        activeStatus: rawStatus.toLowerCase() === 'inactive' ? 'Inactive' : 'Active',
+        // Same "only when the column is actually present" gating as Disability/Employment Type
+        // above — an absent Access/Status column (e.g. deselected in the roster export before
+        // re-uploading) must never silently reactivate an existing Inactive/terminated user.
+        ...(record.has('activestatus') ? { activeStatus: rawStatus.toLowerCase() === 'inactive' ? 'Inactive' : 'Active' } : {}),
         role,
         isAdmin,
       },

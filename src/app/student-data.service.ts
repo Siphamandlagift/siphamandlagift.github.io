@@ -608,7 +608,35 @@ export class StudentDataService {
       passwordUpdatedAt,
     }));
 
-    this.persistStudentSnapshot();
+    // persistStudentSnapshot() resolves false (rather than throwing) specifically so a caller can
+    // warn the user instead of assuming the save reached the server — every sibling
+    // updateMentorship*/updateThemePreference method already awaits and surfaces this; this one
+    // used to fire-and-forget it, so a failed save still showed "Profile saved!" and the edit was
+    // silently discarded the next time the periodic snapshot refresh pulled the real (unsaved)
+    // server state back over it.
+    const snapshotSaved = await this.persistStudentSnapshot();
+    if (!snapshotSaved) {
+      // Roll back only the fields this call just optimistically changed — the password change (if
+      // any) above already succeeded against the server independently, so passwordUpdatedAt stays.
+      this.profileSignal.update((current) => ({
+        ...current,
+        idNumber: currentProfile.idNumber,
+        name: currentProfile.name,
+        email: currentProfile.email,
+        age: currentProfile.age,
+        contactNumber: currentProfile.contactNumber,
+        address: currentProfile.address,
+        profileImageDataUrl: currentProfile.profileImageDataUrl,
+        profileImageUrl: currentProfile.profileImageUrl,
+      }));
+
+      const snapshotErrorMessage = 'Profile details could not be saved. Please check your connection and try again.';
+      return {
+        success: false,
+        errorMessage: errorMessage ? `${errorMessage} ${snapshotErrorMessage}` : snapshotErrorMessage,
+      };
+    }
+
     return { success: !errorMessage, errorMessage };
   }
 

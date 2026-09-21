@@ -271,6 +271,8 @@ export type SystemTrainingManagerRecord = {
   email: string;
 };
 
+export type TrainingManagerInput = Omit<SystemTrainingManagerRecord, 'id'>;
+
 // Minimal, name/email-only directory of this company's admin users — assembled server-side
 // (see buildAdministratorDirectory in repository.ts) from bare authAccounts with role
 // 'administrator' unioned with isAdmin===true student records, the same union
@@ -1062,7 +1064,12 @@ export type StudentSnapshotUpdate = {
 
 export type ManagerStatePatch = {
   students?: EnrollmentStudentRecord[];
-  trainingManagers?: SystemTrainingManagerRecord[];
+  // trainingManagers deliberately has no field here — it has its own scoped, per-record CRUD
+  // (createApprovingManager/updateApprovingManager/deleteApprovingManager in repository.ts, routes
+  // at /api/approving-managers) for the same reason KPI/IDP entries were pulled out of the
+  // student snapshot patch: a generic full-array replace here let a stale client cache silently
+  // delete another admin's concurrent addition (queueCollectionSync treats the array it's given
+  // as authoritative and deletes anything missing from it).
   managerMessages?: ManagerMessageRecord[];
   mentorshipAssignments?: MentorshipAssignmentRecord[];
   mentorshipSubmissions?: MentorshipSubmissionRecord[];
