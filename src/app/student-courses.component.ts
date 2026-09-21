@@ -2439,10 +2439,10 @@ export class StudentCoursesComponent {
   // format changed. The legacy entry is deleted either way, migrated or not: leaving it sitting
   // there under the shared course name is exactly what would let a LATER reassignment to a
   // DIFFERENT offering that happens to share the same title wrongly inherit it — the bug this key
-  // change exists to close in the first place. Runs independently of
-  // pruneStaleCourseProgressEffect below (registration order doesn't matter between them): that
-  // effect only ever removes a key matching no current course by name at all, which a
-  // just-migrated-and-deleted legacy key never does.
+  // change exists to close in the first place. pruneStaleCourseProgressEffect below must accept
+  // the offeringId-keyed entries this migration produces as valid for a current course too — it
+  // used to check the course name only, which treated every just-migrated (or freshly-written)
+  // offeringId-keyed entry as stale and deleted it right back out on the same tick.
   private readonly migrateLegacyCourseStepKeysEffect = effect(() => {
     const currentCourses = this.studentData.courses();
     if (!currentCourses.length) {
@@ -2504,18 +2504,27 @@ export class StudentCoursesComponent {
   // step/document/SCORM state whose course name doesn't match a course the student currently has,
   // whenever the course list changes.
   private readonly pruneStaleCourseProgressEffect = effect(() => {
-    const currentCourseNames = this.studentData.courses().map((course) => course.name);
+    const currentCourses = this.studentData.courses();
 
     // Skip when the list is empty — almost always a load-in-progress race (same guard
     // student-data.service.ts's own pruneRemovedOfferingNotifications uses for the same reason),
     // not a genuine "this student now has zero courses" state; pruning here would risk wiping real
     // progress out from under a fetch that just hasn't landed yet.
-    if (!currentCourseNames.length) {
+    if (!currentCourses.length) {
       return;
     }
 
     untracked(() => {
-      const isStaleKey = (key: string) => !currentCourseNames.some((name) => key.startsWith(`${name}::`));
+      // Must accept BOTH prefixes courseStepKey can produce for a current course — offeringId
+      // (what every real, currently-assigned course is actually keyed by now) and name (the
+      // legacy format, kept here only as a safety net). Checking name only, as this used to,
+      // treated every offeringId-keyed entry as belonging to no current course at all: it doesn't
+      // just fail to catch the legacy keys migrateLegacyCourseStepKeysEffect above already deletes
+      // — it deletes the very entries that effect just wrote in their place, on the same tick,
+      // wiping a student's real Video/Document/Scorm completion the moment they made any of it.
+      const isStaleKey = (key: string) => !currentCourses.some((course) =>
+        key.startsWith(`${course.offeringId || course.name}::`) || key.startsWith(`${course.name}::`),
+      );
       let prunedCourseProgress = false;
       let prunedScormRuntime = false;
 
