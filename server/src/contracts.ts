@@ -422,6 +422,8 @@ export type EnrollmentStudentRecord = {
   qualificationCertificateFileName?: string;
   qualificationCertificateUrl?: string;
   employmentType?: 'Employed' | 'Unemployed';
+  agreementDocumentFileName?: string;
+  agreementDocumentUrl?: string;
 };
 
 export type StudentIdpStatusRecord = 'Not Started' | 'In Progress' | 'Completed' | 'On Hold';

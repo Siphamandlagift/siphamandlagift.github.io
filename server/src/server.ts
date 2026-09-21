@@ -792,6 +792,8 @@ const enrollmentStudentSchema = z.object({
   qualificationCertificateFileName: z.string().optional(),
   qualificationCertificateUrl: z.string().optional(),
   employmentType: z.enum(['Employed', 'Unemployed']).optional(),
+  agreementDocumentFileName: z.string().optional(),
+  agreementDocumentUrl: z.string().optional(),
 });
 
 const studentMessageReplySchema = z.object({

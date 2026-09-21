@@ -248,6 +248,8 @@ export type EnrollmentStudent = {
   qualificationCertificateFileName?: string;
   qualificationCertificateUrl?: string;
   employmentType?: 'Employed' | 'Unemployed';
+  agreementDocumentFileName?: string;
+  agreementDocumentUrl?: string;
 };
 
 export type EnrollmentStudentInput = Omit<EnrollmentStudent, 'id' | 'status' | 'assignedOfferingIds' | 'jobTitle' | 'idNumber' | 'lineManager'> & {
@@ -1943,6 +1945,8 @@ export class TrainingManagerDataService {
               qualificationCertificateFileName: input.qualificationCertificateFileName === undefined ? student.qualificationCertificateFileName : input.qualificationCertificateFileName.trim(),
               qualificationCertificateUrl: input.qualificationCertificateUrl === undefined ? student.qualificationCertificateUrl : input.qualificationCertificateUrl.trim(),
               employmentType: input.employmentType === undefined ? student.employmentType : input.employmentType,
+              agreementDocumentFileName: input.agreementDocumentFileName === undefined ? student.agreementDocumentFileName : input.agreementDocumentFileName.trim(),
+              agreementDocumentUrl: input.agreementDocumentUrl === undefined ? student.agreementDocumentUrl : input.agreementDocumentUrl.trim(),
               role: input.role,
               isAdmin: input.isAdmin,
             }
@@ -3816,6 +3820,8 @@ export class TrainingManagerDataService {
       ...(input.qualificationCertificateFileName !== undefined ? { qualificationCertificateFileName: input.qualificationCertificateFileName.trim() } : {}),
       ...(input.qualificationCertificateUrl !== undefined ? { qualificationCertificateUrl: input.qualificationCertificateUrl.trim() } : {}),
       ...(input.employmentType !== undefined ? { employmentType: input.employmentType } : {}),
+      ...(input.agreementDocumentFileName !== undefined ? { agreementDocumentFileName: input.agreementDocumentFileName.trim() } : {}),
+      ...(input.agreementDocumentUrl !== undefined ? { agreementDocumentUrl: input.agreementDocumentUrl.trim() } : {}),
       role: input.role,
       isAdmin: input.isAdmin,
     };

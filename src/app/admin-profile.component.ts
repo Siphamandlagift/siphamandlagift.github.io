@@ -419,6 +419,8 @@ type UserFormControls = {
   qualificationCertificateFileName: FormControl<string>;
   qualificationCertificateUrl: FormControl<string>;
   employmentType: FormControl<'Employed' | 'Unemployed'>;
+  agreementDocumentFileName: FormControl<string>;
+  agreementDocumentUrl: FormControl<string>;
   department: FormControl<string>;
   lineManagerId: FormControl<string>;
   group: FormControl<string>;
@@ -811,6 +813,20 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       </span>
                     }
                   </div>
+                  <div class="admin-report-document-field">
+                    <span class="admin-report-document-label">Agreement/Learnership/Bursary</span>
+                    <label class="admin-upload-btn" [class.admin-upload-btn-disabled]="uploadingAgreementDocument()">
+                      <span>{{ uploadingAgreementDocument() ? 'Uploading…' : 'Choose file' }}</span>
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" [disabled]="uploadingAgreementDocument()" (change)="onAgreementDocumentSelected($event, userEditForm)" />
+                    </label>
+                    @if (userEditForm.controls.agreementDocumentFileName.value) {
+                      <span class="admin-report-upload-status">
+                        Current file:
+                        <a [href]="userEditForm.controls.agreementDocumentUrl.value" target="_blank" rel="noopener noreferrer">{{ userEditForm.controls.agreementDocumentFileName.value }}</a>
+                        <button type="button" class="admin-inline-btn" (click)="removeAgreementDocument(userEditForm)">Remove</button>
+                      </span>
+                    }
+                  </div>
                   <label>
                     Employment Type
                     <select formControlName="employmentType" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
@@ -1068,6 +1084,20 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         Current file:
                         <a [href]="singleUserForm.controls.qualificationCertificateUrl.value" target="_blank" rel="noopener noreferrer">{{ singleUserForm.controls.qualificationCertificateFileName.value }}</a>
                         <button type="button" class="admin-inline-btn" (click)="removeQualificationCertificate(singleUserForm)">Remove</button>
+                      </span>
+                    }
+                  </div>
+                  <div class="admin-report-document-field">
+                    <span class="admin-report-document-label">Agreement/Learnership/Bursary</span>
+                    <label class="admin-upload-btn" [class.admin-upload-btn-disabled]="uploadingAgreementDocument()">
+                      <span>{{ uploadingAgreementDocument() ? 'Uploading…' : 'Choose file' }}</span>
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" [disabled]="uploadingAgreementDocument()" (change)="onAgreementDocumentSelected($event, singleUserForm)" />
+                    </label>
+                    @if (singleUserForm.controls.agreementDocumentFileName.value) {
+                      <span class="admin-report-upload-status">
+                        Current file:
+                        <a [href]="singleUserForm.controls.agreementDocumentUrl.value" target="_blank" rel="noopener noreferrer">{{ singleUserForm.controls.agreementDocumentFileName.value }}</a>
+                        <button type="button" class="admin-inline-btn" (click)="removeAgreementDocument(singleUserForm)">Remove</button>
                       </span>
                     }
                   </div>
@@ -13275,6 +13305,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly uploadingCertificate = signal(false);
   readonly uploadingIdDocument = signal(false);
   readonly uploadingQualificationCertificate = signal(false);
+  readonly uploadingAgreementDocument = signal(false);
   readonly selectedAnnualReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
   readonly selectedIdpReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
   readonly selectedSuccessionReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
@@ -15300,6 +15331,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       qualificationCertificateFileName: student.qualificationCertificateFileName ?? '',
       qualificationCertificateUrl: student.qualificationCertificateUrl ?? '',
       employmentType: student.employmentType ?? 'Employed',
+      agreementDocumentFileName: student.agreementDocumentFileName ?? '',
+      agreementDocumentUrl: student.agreementDocumentUrl ?? '',
       department: student.department,
       lineManagerId: student.lineManagerId ?? '',
       group: student.group,
@@ -15719,6 +15752,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       qualificationCertificateFileName: new FormControl('', { nonNullable: true }),
       qualificationCertificateUrl: new FormControl('', { nonNullable: true }),
       employmentType: new FormControl<'Employed' | 'Unemployed'>('Employed', { nonNullable: true, validators: [Validators.required] }),
+      agreementDocumentFileName: new FormControl('', { nonNullable: true }),
+      agreementDocumentUrl: new FormControl('', { nonNullable: true }),
       department: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
       lineManagerId: new FormControl('', { nonNullable: true }),
       group: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -15752,6 +15787,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       qualificationCertificateFileName: '',
       qualificationCertificateUrl: '',
       employmentType: 'Employed',
+      agreementDocumentFileName: '',
+      agreementDocumentUrl: '',
       department: '',
       lineManagerId: '',
       group: '',
@@ -16083,6 +16120,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       qualificationCertificateFileName: form.controls.qualificationCertificateFileName.value,
       qualificationCertificateUrl: form.controls.qualificationCertificateUrl.value,
       employmentType: form.controls.employmentType.value,
+      agreementDocumentFileName: form.controls.agreementDocumentFileName.value,
+      agreementDocumentUrl: form.controls.agreementDocumentUrl.value,
       activeStatus: form.controls.activeStatus.value,
       department: form.controls.department.value.trim(),
       lineManagerId: form.controls.lineManagerId.value || undefined,
@@ -17268,6 +17307,34 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   removeQualificationCertificate(form: UserFormGroup) {
     form.patchValue({ qualificationCertificateFileName: '', qualificationCertificateUrl: '' });
+  }
+
+  onAgreementDocumentSelected(event: Event, form: UserFormGroup) {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (input) {
+      input.value = '';
+    }
+
+    if (!file || this.uploadingAgreementDocument()) {
+      return;
+    }
+
+    this.uploadingAgreementDocument.set(true);
+    this.backend.uploadFileBase64(file, 'user-documents').subscribe({
+      next: ({ url }) => {
+        this.uploadingAgreementDocument.set(false);
+        form.patchValue({ agreementDocumentFileName: file.name, agreementDocumentUrl: url });
+      },
+      error: () => {
+        this.uploadingAgreementDocument.set(false);
+        alert(`Failed to upload "${file.name}". Please check your connection and try again.`);
+      },
+    });
+  }
+
+  removeAgreementDocument(form: UserFormGroup) {
+    form.patchValue({ agreementDocumentFileName: '', agreementDocumentUrl: '' });
   }
 
   onLogoSelected(event: Event) {
