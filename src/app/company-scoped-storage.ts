@@ -16,7 +16,7 @@
 // cache written before this module existed carries no tag at all, which fails the same check a
 // mismatched one does, so old unscoped entries are simply discarded rather than trusted.
 
-export function getCurrentCompanyId(): string | null {
+function decodeSessionTokenPayload(): { companyId?: unknown; email?: unknown } | null {
   if (typeof localStorage === 'undefined') {
     return null;
   }
@@ -30,11 +30,26 @@ export function getCurrentCompanyId(): string | null {
 
     const normalized = payloadSegment.replace(/-/g, '+').replace(/_/g, '/');
     const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
-    const payload = JSON.parse(atob(padded)) as { companyId?: unknown };
-    return typeof payload.companyId === 'string' && payload.companyId ? payload.companyId : null;
+    return JSON.parse(atob(padded)) as { companyId?: unknown; email?: unknown };
   } catch {
     return null;
   }
+}
+
+export function getCurrentCompanyId(): string | null {
+  const payload = decodeSessionTokenPayload();
+  return typeof payload?.companyId === 'string' && payload.companyId ? payload.companyId : null;
+}
+
+// Distinct from companyId: two different accounts in the SAME company (e.g. two managers, or a
+// manager and an admin) produce the same companyId, so a companyId-only staleness guard can't
+// tell them apart. Used alongside getCurrentCompanyId() specifically for per-ACCOUNT state (like
+// the topbar's own name/profile picture) that a stale in-flight request from a previous account
+// must never be allowed to overwrite after a different account has since logged in — same tab, no
+// reload — even though both sessions share one company.
+export function getCurrentSessionEmail(): string | null {
+  const payload = decodeSessionTokenPayload();
+  return typeof payload?.email === 'string' && payload.email ? payload.email.trim().toLowerCase() : null;
 }
 
 export function readCompanyScopedCache(storageKey: string): unknown {

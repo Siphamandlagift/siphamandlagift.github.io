@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { finalize, firstValueFrom, interval, tap, throwError, type Observable } from 'rxjs';
 import { LmsBackendService, type SubscriptionPlan } from './lms-backend.service';
-import { getCurrentCompanyId, readCompanyScopedCache, writeCompanyScopedCache } from './company-scoped-storage';
+import { getCurrentCompanyId, getCurrentSessionEmail, readCompanyScopedCache, writeCompanyScopedCache } from './company-scoped-storage';
 import { combineDisplayName, readLmsSessionRecord } from './session-auth';
 import type { StudentMessage } from './student-data.service';
 
@@ -643,6 +643,12 @@ export class TrainingManagerDataService {
   // name from the session so an admin (or any manager not in that list) sees their own info
   // instead of a hardcoded placeholder.
   private readonly profileSignal = signal<ManagerProfile>(this.resolveInitialManagerProfile());
+  // Which account's identity profileSignal currently reflects (company + email) — lets
+  // hydrateOwnDisplayName() tell a genuine same-account refresh apart from a DIFFERENT account
+  // having since logged in in this tab, so it can wipe a previous account's stale name/picture
+  // immediately instead of leaving it visible until the fresh fetch resolves. Null until the
+  // first successful hydrate.
+  private profileOwnerSessionKey: string | null = null;
 
   private readonly managerMessagesSignal = signal<ManagerMessage[]>([]);
 
@@ -4369,12 +4375,25 @@ export class TrainingManagerDataService {
     // name/avatar specifically: this has no in-flight guard of its own and is called on every
     // profile-shell mount (refreshOwnIdentity), so a slow response from a PREVIOUS session can
     // resolve after a different account has logged in (same tab, no reload) and overwrite
-    // profileSignal with the wrong person's name and picture.
+    // profileSignal with the wrong person's name and picture. Guarded by session email as well
+    // as company, since two different accounts in the SAME company (e.g. two managers) would
+    // otherwise pass a companyId-only check — this was the concrete cross-account leak: account
+    // B could briefly (or, on a slow/out-of-order response, indefinitely) see account A's name
+    // and profile picture in the topbar.
     const requestCompanyId = getCurrentCompanyId();
+    const requestSessionEmail = getCurrentSessionEmail();
+    const requestSessionKey = `${requestCompanyId ?? ''}::${requestSessionEmail ?? ''}`;
+
+    // profileSignal still holds whatever a DIFFERENT account's own hydrate last wrote into it —
+    // clear it to this session's own (picture-less) fallback right away, rather than leaving the
+    // previous account's picture on screen for however long this fetch takes to resolve.
+    if (this.profileOwnerSessionKey !== null && this.profileOwnerSessionKey !== requestSessionKey) {
+      this.profileSignal.set(this.resolveInitialManagerProfile());
+    }
 
     this.backend.getMyIdentity().subscribe({
       next: (identity) => {
-        if (requestCompanyId !== getCurrentCompanyId()) {
+        if (requestCompanyId !== getCurrentCompanyId() || requestSessionEmail !== getCurrentSessionEmail()) {
           return;
         }
 
@@ -4384,6 +4403,7 @@ export class TrainingManagerDataService {
           name: fullName ?? profile.name,
           profileImageUrl: identity.profileImageUrl || identity.profileImageDataUrl || null,
         }));
+        this.profileOwnerSessionKey = requestSessionKey;
       },
       error: () => {
         // Keep the derived fallback name and initials avatar if the lookup fails.
