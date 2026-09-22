@@ -125,7 +125,17 @@ export async function getCompanySubscriptionContext(companyId: string): Promise<
   // A Super Admin can schedule a subscription to begin in the future (e.g. onboarding set up
   // ahead of the agreed start date) — the "Start date" field means nothing if access is granted
   // the moment status flips to 'active', regardless of whether that date has actually arrived yet.
-  const active = now >= new Date(subscription.startDate).getTime() && now <= new Date(subscription.endDate).getTime();
+  //
+  // endDate is a bare "YYYY-MM-DD" (no time component — see updateSubscriptionSchema/
+  // createCompanySchema in super-admin-routes.ts), and `new Date("2026-09-22")` parses as UTC
+  // MIDNIGHT AT THE START of that day. Comparing straight against that instant cut a company off
+  // from the very first minute of its own end date — up to ~24 hours before a reasonable person
+  // (paying "through" that date) would expect, depending on the caller's UTC offset. Compare
+  // against the END of the end date instead, so a company keeps access for the whole day it was
+  // promised.
+  const endOfEndDate = new Date(subscription.endDate);
+  endOfEndDate.setUTCHours(23, 59, 59, 999);
+  const active = now >= new Date(subscription.startDate).getTime() && now <= endOfEndDate.getTime();
   return { active, plan };
 }
 

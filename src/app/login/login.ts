@@ -126,9 +126,15 @@ export class Login implements OnInit {
           }
         },
         error: (error) => {
+          // A subscription-expired rejection carries the server's own specific message (see
+          // /api/auth/resolve-roles in server.ts) — show that directly rather than the generic
+          // fallback below, which would otherwise leave the user thinking something's just
+          // temporarily broken instead of telling them what's actually wrong.
           this.errorMessage = error?.status === 401
             ? 'Invalid login. Check your username and password.'
-            : 'Login is unavailable right now. Please try again.';
+            : error?.error?.reason === 'subscription-inactive'
+              ? error.error.message
+              : 'Login is unavailable right now. Please try again.';
           this.shaking.set(true);
           this.cdr.markForCheck();
           setTimeout(() => this.shaking.set(false), 600);
@@ -215,6 +221,15 @@ export class Login implements OnInit {
     const query = this.activatedRoute.snapshot.queryParamMap;
     const ssoPayloadEncoded = query.get('sso');
     const ssoError = query.get('ssoError');
+    // Set by lmsAuthInterceptor when a company's subscription lapses mid-session and it force-
+    // logs-out the current user, redirecting here with the server's own explanation.
+    const sessionError = query.get('sessionError');
+
+    if (sessionError) {
+      this.errorMessage = sessionError;
+      void this.router.navigate([], { queryParams: {}, replaceUrl: true });
+      return;
+    }
 
     if (ssoPayloadEncoded) {
       const parsedPayload = this.parseSsoPayload(ssoPayloadEncoded);

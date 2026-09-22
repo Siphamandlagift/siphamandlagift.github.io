@@ -249,7 +249,10 @@ async function attachRequestContext(request: express.Request, response: express.
 
   const { active, plan } = await getCompanySubscriptionContext(identity.companyId);
   if (!active) {
-    response.status(403).json({ message: "This company's SkillsConnect subscription is not active. Please contact your administrator." });
+    // reason is a stable field the client's interceptor matches on (see lms-auth.interceptor.ts)
+    // to force a logout-with-explanation instead of leaving an already-open session showing
+    // increasingly stale data forever — message text alone isn't safe to match against.
+    response.status(403).json({ message: "This company's SkillsConnect subscription is not active. Please contact your administrator.", reason: 'subscription-inactive' });
     return;
   }
 
@@ -2305,6 +2308,16 @@ app.post('/api/auth/login', async (request, response, next) => {
       return;
     }
 
+    // Refuse a fresh login outright for an expired/inactive company, rather than issuing a token
+    // that only fails on the very next request (attachRequestContext's own copy of this check) —
+    // that left the user thinking they'd logged in successfully with no explanation for the
+    // confusing failure right after. Checked after credentials are verified (not before) so this
+    // can't be used to probe whether a given username's company has lapsed without a real password.
+    if (!(await getCompanySubscriptionContext(companyId)).active) {
+      response.status(403).json({ message: "Your company's SkillsConnect subscription has expired. Please contact your administrator.", reason: 'subscription-inactive' });
+      return;
+    }
+
     // No Training Manager profile at all on a Starter plan — treated as an ordinary invalid-
     // credentials response rather than a distinct error, so this doesn't double as a way to
     // probe which plan a company is on.
@@ -2345,6 +2358,13 @@ app.post('/api/auth/resolve-roles', async (request, response, next) => {
 
     if (!companyId || !repository) {
       response.status(401).json({ message: 'Invalid login credentials.' });
+      return;
+    }
+
+    // Same "refuse a fresh login outright, don't just let it fail on the next request" reasoning
+    // as /api/auth/login above.
+    if (!(await getCompanySubscriptionContext(companyId)).active) {
+      response.status(403).json({ message: "Your company's SkillsConnect subscription has expired. Please contact your administrator.", reason: 'subscription-inactive' });
       return;
     }
 
@@ -2729,6 +2749,16 @@ app.get('/api/auth/sso/microsoft/callback', async (request, response, next) => {
     if (!ssoCompanyId || !authenticated) {
       response.redirect(buildMicrosoftSsoRedirect(stateAppBaseUrl, {
         ssoError: 'This Microsoft account is not linked to an LMS user.',
+      }));
+      return;
+    }
+
+    // Same "refuse a fresh login outright" reasoning as /api/auth/login above — this flow is a
+    // full-page redirect, not an XHR call, so it reuses the ssoError query param login.ts already
+    // reads and displays rather than the JSON reason field the other two login routes use.
+    if (!(await getCompanySubscriptionContext(ssoCompanyId)).active) {
+      response.redirect(buildMicrosoftSsoRedirect(stateAppBaseUrl, {
+        ssoError: "Your company's SkillsConnect subscription has expired. Please contact your administrator.",
       }));
       return;
     }
