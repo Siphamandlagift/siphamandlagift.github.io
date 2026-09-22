@@ -27,6 +27,9 @@ export type CompanyWithUsage = {
   createdBySuperAdminId: string;
   subscription: SubscriptionRecord;
   usage: CompanyUsageSummary;
+  // URL slug for this company's own branded login page (.../login/{slug}) — unset until a Super
+  // Admin assigns one (see updateCompanySlug below).
+  slug?: string;
 };
 
 export type PlatformLoginRequest = {
@@ -140,5 +143,17 @@ export class PlatformBackendService {
 
   updateBranding(input: PlatformBrandingSettings): Observable<PlatformBrandingSettings> {
     return this.http.put<PlatformBrandingSettings>(`${this.baseUrl}/branding`, input);
+  }
+
+  getCompanyBranding(companyId: string): Observable<PlatformBrandingSettings> {
+    return this.http.get<PlatformBrandingSettings>(`${this.baseUrl}/companies/${encodeURIComponent(companyId)}/branding`);
+  }
+
+  updateCompanyBranding(companyId: string, input: PlatformBrandingSettings): Observable<PlatformBrandingSettings> {
+    return this.http.put<PlatformBrandingSettings>(`${this.baseUrl}/companies/${encodeURIComponent(companyId)}/branding`, input);
+  }
+
+  updateCompanySlug(companyId: string, slug: string): Observable<CompanyWithUsage> {
+    return this.http.patch<CompanyWithUsage>(`${this.baseUrl}/companies/${encodeURIComponent(companyId)}/slug`, { slug });
   }
 }

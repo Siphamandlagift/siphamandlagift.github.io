@@ -1170,6 +1170,12 @@ export type CompanyRecord = {
   createdAt: string;
   createdBySuperAdminId: string;
   subscription: SubscriptionRecord;
+  // URL-safe, unique-across-companies identifier for this company's own branded login page
+  // (.../login/{slug}) — distinct from `id`, which already carries a random suffix
+  // (slugify(name)-{8 random chars}) not meant for a public URL. Unset until a Super Admin
+  // deliberately assigns one (see updateCompanySlug in platform-repository.ts); a company with no
+  // slug simply has no custom login URL yet and every visitor sees the shared platform branding.
+  slug?: string;
 };
 
 export type PlatformRole = 'super-admin';

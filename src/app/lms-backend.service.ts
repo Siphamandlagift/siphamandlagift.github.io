@@ -281,6 +281,11 @@ export type BrandingSettings = {
   companyLogoDataUrl: string | null;
 };
 
+export type CompanyBrandingLookup = {
+  companyName: string;
+  branding: BrandingSettings;
+};
+
 export type HrIntegrationSyncSummary = {
   added: number;
   updated: number;
@@ -395,6 +400,12 @@ export class LmsBackendService {
   // branding instead of always the default company's. See LmsBrandingService.
   getMyBranding(): Observable<BrandingSettings> {
     return this.http.get<BrandingSettings>(`${this.config.baseUrl}/auth/branding`);
+  }
+
+  // Public, pre-login lookup for a company's own branded login URL (.../login/:slug) — 404s for
+  // an unset/unrecognized slug, which LmsBrandingService falls back to getBranding() for.
+  getCompanyBrandingBySlug(slug: string): Observable<CompanyBrandingLookup> {
+    return this.http.get<CompanyBrandingLookup>(`${this.config.baseUrl}/companies/${encodeURIComponent(slug)}/branding`);
   }
 
   updateBranding(input: BrandingSettings): Observable<BrandingSettings> {

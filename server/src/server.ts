@@ -23,6 +23,7 @@ import { isStrongPassword, passwordPolicyMessage } from './auth-utils.js';
 import {
   resolveCompanyIdsForLoginIdentifier,
   resolveCompanyIdForPasswordResetToken,
+  getCompanyRecordBySlug,
   getCompanySubscriptionContext,
   getCompanyPlan,
   getCompanyUsage,
@@ -135,9 +136,22 @@ const publicPaths = new Set([
   '/api/platform/auth/login',
 ]);
 
+// GET /api/companies/:slug/branding (server.ts, above) is the one public route with a wildcard
+// URL segment publicPaths' plain Set can't hold — narrowly matched (not just startsWith
+// '/api/companies/') so nothing else ever added under that prefix is accidentally made public by
+// this check.
+function isPublicCompanyBrandingPath(path: string): boolean {
+  return /^\/api\/companies\/[^/]+\/branding$/.test(path);
+}
+
 function requireAuth(request: express.Request, response: express.Response, next: express.NextFunction) {
   // Publicly readable uploaded files do not require auth.
-  if (publicPaths.has(request.path) || request.path.startsWith('/api/files/') || request.path.startsWith('/api/storage/scorm')) {
+  if (
+    publicPaths.has(request.path)
+    || request.path.startsWith('/api/files/')
+    || request.path.startsWith('/api/storage/scorm')
+    || isPublicCompanyBrandingPath(request.path)
+  ) {
     next();
     return;
   }
@@ -212,6 +226,7 @@ async function attachRequestContext(request: express.Request, response: express.
     || request.path.startsWith('/api/files/')
     || request.path.startsWith('/api/storage/scorm')
     || request.path.startsWith('/api/platform/')
+    || isPublicCompanyBrandingPath(request.path)
   ) {
     next();
     return;
@@ -2154,11 +2169,13 @@ app.get('/api/bootstrap', async (request, response, next) => {
   }
 });
 
-// Public, pre-login: every company's login screen shows this SAME branding — there's no way to
-// know which company an unauthenticated visitor belongs to without asking them to type something
-// first, and a company-aware pre-login screen was deliberately tried and reverted (see the
-// login-screen retrofit plan) in favor of one shared look, managed by a Super Admin (see
-// super-admin-routes.ts's own branding routes) rather than any one company's own settings.
+// Public, pre-login default: shown at the plain /login route, and as the fallback for any
+// visitor whose URL either names no company at all or a slug that doesn't resolve to one (see
+// GET /api/companies/:slug/branding below) — there's no way to know which company an
+// unauthenticated visitor belongs to without either asking them to type something first (tried
+// and deliberately reverted — see the login-screen retrofit plan) or the company being named
+// directly in the URL itself, which is what that route is for. This one stays the
+// Super-Admin-managed shared look (see super-admin-routes.ts's own branding routes).
 app.get('/api/branding', async (_request, response, next) => {
   try {
     response.json(await getPlatformBranding());
@@ -2172,6 +2189,29 @@ app.put('/api/branding', requireAdministrator, async (request, response, next) =
     const repository = request.repository!;
     const payload = brandingSettingsSchema.parse(request.body);
     response.json(await repository.updateBranding(payload));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Public, pre-login, for a company reached by its own branded login URL (.../login/:slug — see
+// app.routes.ts). Unlike the shared default above, the company IS known here — directly from the
+// URL, with no visitor input needed — so this can safely return that one company's own branding.
+// 404s (rather than falling back to the default itself) for an unset/unrecognized slug, letting
+// the client fall back to GET /api/branding — the exact same shared look an unslugged /login
+// shows, so a bad/stale bookmark degrades gracefully instead of erroring. Added to requireAuth's/
+// attachRequestContext's public-path prefix exceptions below (this repo's other unauthenticated
+// GET, unlike /api/branding, needs a wildcard segment a plain Set can't hold).
+app.get('/api/companies/:slug/branding', async (request, response, next) => {
+  try {
+    const company = await getCompanyRecordBySlug(request.params['slug'] as string);
+    if (!company) {
+      response.status(404).json({ message: 'No company found for this login URL.' });
+      return;
+    }
+
+    const repository = createLmsRepository(company.id);
+    response.json({ companyName: company.name, branding: await repository.getBranding() });
   } catch (error) {
     next(error);
   }

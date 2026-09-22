@@ -16,6 +16,7 @@ import {
   getCompanyUserCount,
   getPlatformBranding,
   listCompanies,
+  updateCompanySlug,
   updateCompanySubscription,
   updatePlatformBranding,
 } from './platform-repository.js';
@@ -65,6 +66,10 @@ const createCompanyAdminSchema = z.object({
 
 const resetCompanyAdminPasswordSchema = z.object({
   password: z.string().min(1),
+});
+
+const updateCompanySlugSchema = z.object({
+  slug: z.string().min(1),
 });
 
 // The one login screen's branding, shared by every company (see platform-repository.ts's
@@ -337,6 +342,75 @@ export function createSuperAdminRouter(options: { jwtSecret: string; jwtExpiresI
     try {
       const payload = platformBrandingUpdateSchema.parse(request.body);
       response.json(await updatePlatformBranding(payload));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // A specific company's own login-page branding — reuses the exact same per-company
+  // BrandingSettingsRecord/repository.getBranding/updateBranding a company's own admin already
+  // edits via PUT /api/branding, just targeting a company the Super Admin explicitly names
+  // instead of resolving one from the caller's own JWT (see createLmsRepository(companyId) usage
+  // elsewhere in this file for the identical pattern). Reuses platformBrandingUpdateSchema's
+  // base64-data-URI shape (rather than server.ts's Storage-upload-backed one) since the Super
+  // Admin dashboard reuses the same logo-upload UI already built for the platform-wide branding
+  // above, not a Storage upload flow scoped to this target company.
+  router.get('/companies/:companyId/branding', requireSuperAdmin, async (request, response, next) => {
+    try {
+      const companyId = request.params['companyId'] as string;
+      const company = await getCompanyRecord(companyId);
+      if (!company) {
+        response.status(404).json({ message: 'Company not found.' });
+        return;
+      }
+
+      const repository = createLmsRepository(companyId);
+      response.json(await repository.getBranding());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put('/companies/:companyId/branding', requireSuperAdmin, async (request, response, next) => {
+    try {
+      const companyId = request.params['companyId'] as string;
+      const company = await getCompanyRecord(companyId);
+      if (!company) {
+        response.status(404).json({ message: 'Company not found.' });
+        return;
+      }
+
+      const payload = platformBrandingUpdateSchema.parse(request.body);
+      const repository = createLmsRepository(companyId);
+      response.json(await repository.updateBranding(payload));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Sets/changes the URL slug this company's own branded login page is reached at
+  // (.../login/{slug} — see GET /api/companies/:slug/branding, the public route in server.ts that
+  // actually resolves it). Unset by default; a company has no custom login URL until a Super
+  // Admin deliberately assigns one here.
+  router.patch('/companies/:companyId/slug', requireSuperAdmin, async (request, response, next) => {
+    try {
+      const companyId = request.params['companyId'] as string;
+      const { slug } = updateCompanySlugSchema.parse(request.body);
+      const result = await updateCompanySlug(companyId, slug);
+
+      switch (result.status) {
+        case 'not-found':
+          response.status(404).json({ message: 'Company not found.' });
+          return;
+        case 'invalid':
+          response.status(400).json({ message: 'Slug must be lowercase letters, numbers and hyphens only (2-40 characters), and cannot start or end with a hyphen.' });
+          return;
+        case 'taken':
+          response.status(409).json({ message: 'Another company already uses this login URL. Choose a different one.' });
+          return;
+      }
+
+      response.json(result.company);
     } catch (error) {
       next(error);
     }

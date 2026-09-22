@@ -162,6 +162,7 @@ function companyDocToRecord(id: string, data: FirebaseFirestore.DocumentData): C
     createdAt: data['createdAt'],
     createdBySuperAdminId: data['createdBySuperAdminId'],
     subscription: data['subscription'],
+    ...(typeof data['slug'] === 'string' && data['slug'] ? { slug: data['slug'] } : {}),
   } as CompanyRecord;
 }
 
@@ -183,6 +184,25 @@ export async function getCompanyRecord(companyId: string): Promise<CompanyRecord
   }
 
   return companyDocToRecord(snapshot.id, snapshot.data()!);
+}
+
+// Public, pre-login lookup (see GET /api/companies/:slug/branding in server.ts) — the one way an
+// unauthenticated visitor's browsable URL resolves to a specific company, so this must never
+// return more than an exact, unambiguous match (a plain equality query already guarantees that;
+// slug uniqueness itself is enforced at write time by updateCompanySlug below).
+export async function getCompanyRecordBySlug(slug: string): Promise<CompanyRecord | null> {
+  const normalized = slug.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  const firestore = getFirestoreClient();
+  const snapshot = await firestore.collection(COMPANIES_COLLECTION_ID).where('slug', '==', normalized).limit(1).get();
+  if (snapshot.empty) {
+    return null;
+  }
+
+  return companyDocToRecord(snapshot.docs[0]!.id, snapshot.docs[0]!.data());
 }
 
 function slugify(name: string): string {
@@ -241,6 +261,38 @@ export async function updateCompanySubscription(companyId: string, patch: Update
   return { ...existing, subscription: nextSubscription };
 }
 
+export type UpdateCompanySlugResult =
+  | { status: 'ok'; company: CompanyRecord }
+  | { status: 'not-found' }
+  | { status: 'invalid' }
+  | { status: 'taken' };
+
+// Sets/changes the slug a company's own branded login page (.../login/{slug}) is reached at —
+// see getCompanyRecordBySlug's own comment for why this must stay unambiguous. Format matches
+// slugify's own output (lowercase letters/digits/hyphens only) so a Super Admin can't
+// accidentally create a slug the URL router or slugify's own future auto-suggestions would mangle.
+export async function updateCompanySlug(companyId: string, rawSlug: string): Promise<UpdateCompanySlugResult> {
+  const existing = await getCompanyRecord(companyId);
+  if (!existing) {
+    return { status: 'not-found' };
+  }
+
+  const slug = rawSlug.trim().toLowerCase();
+  if (!/^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/.test(slug)) {
+    return { status: 'invalid' };
+  }
+
+  const conflict = await getCompanyRecordBySlug(slug);
+  if (conflict && conflict.id !== companyId) {
+    return { status: 'taken' };
+  }
+
+  const firestore = getFirestoreClient();
+  await firestore.collection(COMPANIES_COLLECTION_ID).doc(companyId).set({ slug }, { merge: true });
+
+  return { status: 'ok', company: { ...existing, slug } };
+}
+
 export async function getCompanyUserCount(companyId: string): Promise<number> {
   const firestore = getFirestoreClient();
   const countSnapshot = await firestore.collection(COMPANIES_COLLECTION_ID).doc(companyId).collection('authAccounts').count().get();
@@ -257,12 +309,14 @@ export async function getCompanyUsage(companyId: string): Promise<CompanyUsageSu
   return { userCount, licenseLimit: company.subscription.licenseLimit };
 }
 
-// The ONE login screen's branding, shared by every company (see the login-screen retrofit plan:
-// per-company pre-login branding was tried and deliberately reverted — every visitor sees the
-// same SkillsConnect look until they actually sign in, at which point their own company's
-// branding takes over via GET /api/auth/branding). Lives in its own top-level singleton document
-// rather than any one company's, since it isn't owned by a company at all — only a Super Admin
-// (see super-admin-routes.ts's own branding routes) may change it.
+// The DEFAULT login screen's branding — shown at the plain /login route, and as the fallback for
+// any company that hasn't been given its own slug (or whose slug in the URL doesn't resolve to
+// one — see GET /api/companies/:slug/branding in server.ts). A company-aware pre-login screen
+// asking the visitor to identify themselves first was tried and deliberately reverted (see the
+// login-screen retrofit plan); a company reached by its own URL doesn't have that problem, since
+// the company is already known from the URL itself with no visitor input needed. Lives in its own
+// top-level singleton document rather than any one company's, since it isn't owned by a company
+// at all — only a Super Admin (see super-admin-routes.ts's own branding routes) may change it.
 export async function getPlatformBranding(): Promise<BrandingSettingsRecord> {
   const firestore = getFirestoreClient();
   const snapshot = await firestore.collection(PLATFORM_SETTINGS_COLLECTION_ID).doc(PLATFORM_BRANDING_DOC_ID).get();

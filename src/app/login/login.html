@@ -10,6 +10,9 @@
 				<span>SC</span>
 			}
 		</div>
+		@if (branding.companyDisplayName(); as companyName) {
+			<p class="login-company-name">Signing in to {{ companyName }}</p>
+		}
 
 		@if (loginStep === 'credentials') {
 			<h2 class="login-title">Sign in to your account</h2>

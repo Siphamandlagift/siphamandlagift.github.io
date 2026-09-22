@@ -1,5 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { BrandingSettings, LmsBackendService, LmsBrandThemeId } from './lms-backend.service';
+import { BrandingSettings, CompanyBrandingLookup, LmsBackendService, LmsBrandThemeId } from './lms-backend.service';
 import { hasActiveLmsSession } from './session-auth';
 import { LMS_BRAND_THEME_OPTIONS, type LmsBrandThemeOption } from './lms-brand-themes';
 
@@ -30,6 +30,13 @@ export class LmsBrandingService {
 
   private readonly companyLogoDataUrlSignal = signal<string | null>(null);
   readonly companyLogoDataUrl = this.companyLogoDataUrlSignal.asReadonly();
+
+  // Set only when the pre-login screen resolved a specific company from its own branded URL
+  // (login/:companySlug) — lets that screen show "Signing in to <company>" for a clear visual
+  // confirmation. Null for the shared default screen, and cleared again if a slug fetch falls
+  // back to the default (see fetchPublicBrandingForSlug).
+  private readonly companyDisplayNameSignal = signal<string | null>(null);
+  readonly companyDisplayName = this.companyDisplayNameSignal.asReadonly();
 
   // Guards against a real race: the constructor's own public fetch (fired at page load, before
   // any login) and refreshForAuthenticatedSession()'s fetch (fired right after a successful
@@ -79,16 +86,41 @@ export class LmsBrandingService {
   // the one shared, Super-Admin-managed login screen every company sees identically. This fetch's
   // generation stamp (see fetchGeneration) wins over that earlier, wrong guess regardless of which
   // response lands first, the same way refreshForAuthenticatedSession's does in the other direction.
-  refreshForPublicScreen() {
-    this.fetchPublicBranding();
+  //
+  // companySlug is set when the visitor reached a company's own branded URL (login/:companySlug —
+  // see login.ts) — tries that company's own branding first, falling back to the shared default
+  // for an unset/unrecognized slug (or when there's no slug at all) so a bad/stale bookmark
+  // degrades gracefully instead of erroring.
+  refreshForPublicScreen(companySlug?: string) {
+    if (companySlug) {
+      this.fetchPublicBrandingForSlug(companySlug);
+    } else {
+      this.fetchPublicBranding();
+    }
   }
 
   private fetchPublicBranding() {
     const generation = ++this.fetchGeneration;
+    this.companyDisplayNameSignal.set(null);
     this.backend.getBranding().subscribe({
       next: (branding) => this.applyBranding(branding, generation),
       error: () => {
         // Neutral default (already set above) stays in place if the API is unavailable.
+      },
+    });
+  }
+
+  private fetchPublicBrandingForSlug(companySlug: string) {
+    const generation = ++this.fetchGeneration;
+    this.backend.getCompanyBrandingBySlug(companySlug).subscribe({
+      next: (lookup) => this.applyCompanyBranding(lookup, generation),
+      error: () => {
+        // Unset/unrecognized slug (404), or the API is temporarily unavailable — either way, fall
+        // back to the one shared default every /login visitor without a company URL already sees,
+        // rather than showing an error or a half-applied state. This fallback fetch's own
+        // generation stamp supersedes this one, so a still-later fetch (e.g. a rapid route change)
+        // correctly wins over it in turn.
+        this.fetchPublicBranding();
       },
     });
   }
@@ -115,6 +147,15 @@ export class LmsBrandingService {
 
     this.selectedThemeIdSignal.set(branding.themeId);
     this.companyLogoDataUrlSignal.set(branding.companyLogoDataUrl);
+  }
+
+  private applyCompanyBranding(lookup: CompanyBrandingLookup, generation: number) {
+    if (generation !== this.fetchGeneration) {
+      return;
+    }
+
+    this.companyDisplayNameSignal.set(lookup.companyName);
+    this.applyBranding(lookup.branding, generation);
   }
 
   selectTheme(themeId: LmsBrandThemeId): Promise<boolean> {

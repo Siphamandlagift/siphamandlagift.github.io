@@ -66,12 +66,14 @@ export class Login implements OnInit {
   readonly shaking = signal(false);
 
   ngOnInit() {
-    // Always show the one shared, Super-Admin-managed login theme here — regardless of whether
-    // this browser also happens to still have a valid session from a previous login (LmsBrandingService's
-    // own constructor can't distinguish "fresh load of an authenticated route" from "fresh load of
-    // the login route with a stale-but-valid session sitting around", and guesses wrong for the
-    // latter). See LmsBrandingService.refreshForPublicScreen for the full reasoning.
-    this.branding.refreshForPublicScreen();
+    // Always show the login theme here — the one shared, Super-Admin-managed default, or (when
+    // this company has its own login/:companySlug URL) that company's own branding — regardless of
+    // whether this browser also happens to still have a valid session from a previous login
+    // (LmsBrandingService's own constructor can't distinguish "fresh load of an authenticated
+    // route" from "fresh load of the login route with a stale-but-valid session sitting around",
+    // and guesses wrong for the latter). See LmsBrandingService.refreshForPublicScreen for the
+    // full reasoning.
+    this.branding.refreshForPublicScreen(this.activatedRoute.snapshot.paramMap.get('companySlug') ?? undefined);
     this.consumeSsoQueryParams();
   }
 

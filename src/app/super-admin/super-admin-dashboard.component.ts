@@ -15,7 +15,7 @@ import {
 import { clearPlatformAuthSession, readPlatformSessionRecord } from './platform-session-auth';
 import { LMS_BRAND_THEME_OPTIONS, type LmsBrandThemeId } from '../lms-brand-themes';
 
-type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-admins';
+type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-admins' | 'edit-branding';
 
 @Component({
   selector: 'app-super-admin-dashboard',
@@ -167,6 +167,7 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-adm
                   <div class="company-cell company-cell-actions">
                     <button type="button" class="inline-btn" (click)="openEditSubscription(company)">Edit subscription</button>
                     <button type="button" class="inline-btn" (click)="openManageAdmins(company)">Admins</button>
+                    <button type="button" class="inline-btn" (click)="openEditBranding(company)">Login URL &amp; branding</button>
                   </div>
                 </article>
               }
@@ -360,6 +361,79 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-adm
             </button>
           </div>
         </form>
+      </div>
+    }
+
+    @if (activePanel() === 'edit-branding' && editingCompany(); as company) {
+      <div class="overlay-panel" role="dialog" aria-modal="true">
+        <div class="overlay-header">
+          <h3>Login URL &amp; branding — {{ company.name }}</h3>
+          <button type="button" class="icon-btn" (click)="closePanel()" aria-label="Close">✕</button>
+        </div>
+
+        @if (companyBrandingLoading()) {
+          <div class="empty-state">Loading…</div>
+        } @else {
+          <form (ngSubmit)="submitEditBranding()">
+            <label>
+              <span>Login URL</span>
+              <div class="slug-input-row">
+                <span class="slug-input-prefix">/login/</span>
+                <input type="text" name="editBrandingSlug" [(ngModel)]="editBrandingSlug" placeholder="acme-corp" pattern="[a-z0-9-]*" />
+              </div>
+              <span class="branding-hint">
+                @if (editBrandingSlug.trim()) {
+                  Visitors reach {{ company.name }}'s own branded login at .../login/{{ editBrandingSlug.trim().toLowerCase() }}
+                } @else {
+                  No custom login URL set yet — {{ company.name }} still shows the shared default login screen.
+                }
+              </span>
+            </label>
+
+            <div class="overlay-divider"></div>
+
+            <div class="branding-editor">
+              <div class="branding-logo-block">
+                <div class="branding-logo-preview" [class.branding-logo-preview-has-image]="!!companyBrandingLogoPreview()">
+                  @if (companyBrandingLogoPreview(); as previewUrl) {
+                    <img [src]="previewUrl" alt="" />
+                  } @else {
+                    <span>{{ company.name.slice(0, 2).toUpperCase() }}</span>
+                  }
+                </div>
+                <div class="branding-logo-actions">
+                  <label class="secondary-btn branding-upload-btn">
+                    <span>Upload logo</span>
+                    <input type="file" accept="image/*" (change)="onCompanyBrandingLogoSelected($event)" />
+                  </label>
+                  <button type="button" class="secondary-btn" [disabled]="!companyBrandingLogoPreview()" (click)="removeCompanyBrandingLogo()">Remove logo</button>
+                </div>
+              </div>
+
+              <div class="branding-theme-field">
+                <label>
+                  <span>Theme colour</span>
+                  <select name="editBrandingThemeId" [(ngModel)]="editBrandingThemeId">
+                    @for (theme of themeOptions; track theme.id) {
+                      <option [value]="theme.id">{{ theme.label }}</option>
+                    }
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            @if (companyBrandingError()) {
+              <div class="error">{{ companyBrandingError() }}</div>
+            }
+
+            <div class="overlay-footer">
+              <button type="button" class="secondary-btn" (click)="closePanel()">Cancel</button>
+              <button type="submit" class="primary-btn" [disabled]="companyBrandingSaving()">
+                {{ companyBrandingSaving() ? 'Saving…' : 'Save' }}
+              </button>
+            </div>
+          </form>
+        }
       </div>
     }
 
@@ -985,6 +1059,31 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-adm
       gap: 0.75rem;
     }
 
+    .slug-input-row {
+      display: flex;
+      align-items: center;
+      border: 1px solid rgba(100, 116, 139, 0.35);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .slug-input-row input {
+      border: none;
+      border-radius: 0;
+      flex: 1;
+    }
+
+    .slug-input-row input:focus {
+      box-shadow: none;
+    }
+
+    .slug-input-prefix {
+      padding: 0.6rem 0 0.6rem 0.75rem;
+      color: #64748b;
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+
     .admin-list {
       display: grid;
       gap: 0.5rem;
@@ -1094,9 +1193,30 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
   readonly platformBrandingToast = signal<string | null>(null);
   private platformBrandingToastTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // ── Per-company login URL & branding (edit-branding panel) ─────────────
+  // Single-form-with-one-Save-button, unlike the immediate-autosave platform editor above —
+  // matches this dashboard's own edit-subscription/manage-admins panels instead. Reuses the same
+  // crop modal below for the logo (see cropTarget).
+  readonly companyBranding = signal<PlatformBrandingSettings | null>(null);
+  readonly companyBrandingLoading = signal(false);
+  readonly companyBrandingSaving = signal(false);
+  readonly companyBrandingError = signal('');
+  editBrandingSlug = '';
+  editBrandingThemeId: LmsBrandThemeId = 'ocean';
+  // Staged new logo (via the crop modal) or an explicit removal — undefined means "no change,
+  // still showing whatever companyBranding() already had" (see companyBrandingLogoPreview below).
+  private readonly companyBrandingPendingLogoDataUrl = signal<string | null | undefined>(undefined);
+  readonly companyBrandingLogoPreview = computed(() => {
+    const pending = this.companyBrandingPendingLogoDataUrl();
+    return pending !== undefined ? pending : this.companyBranding()?.companyLogoDataUrl ?? null;
+  });
+
   // ── Logo crop modal ───────────────────────────────────────────────────
   // A freshly picked file is never staged as the pending logo directly — it opens this modal
   // first so the admin can pan/zoom to the exact region they want before it becomes the preview.
+  // cropTarget routes applyCrop()'s result to the right pending-logo signal — the platform-wide
+  // editor's own, or this one company's, since both reuse this one shared modal.
+  private cropTarget: 'platform' | 'company' = 'platform';
   readonly cropModalOpen = signal(false);
   readonly cropImageSrc = signal<string | null>(null);
   readonly cropNaturalSize = signal<{ width: number; height: number } | null>(null);
@@ -1437,6 +1557,83 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
       });
   }
 
+  openEditBranding(company: CompanyWithUsage) {
+    this.activeCompanyId.set(company.id);
+    this.activeCompanySnapshot.set(company);
+    this.editBrandingSlug = company.slug ?? '';
+    this.companyBrandingPendingLogoDataUrl.set(undefined);
+    this.companyBranding.set(null);
+    this.companyBrandingError.set('');
+    this.activePanel.set('edit-branding');
+
+    this.companyBrandingLoading.set(true);
+    this.backend.getCompanyBranding(company.id)
+      .pipe(finalize(() => this.companyBrandingLoading.set(false)))
+      .subscribe({
+        next: (branding) => {
+          this.companyBranding.set(branding);
+          this.editBrandingThemeId = branding.themeId;
+        },
+        error: () => {
+          this.companyBrandingError.set('Could not load this company\'s current branding.');
+        },
+      });
+  }
+
+  removeCompanyBrandingLogo() {
+    this.companyBrandingPendingLogoDataUrl.set(null);
+  }
+
+  // Slug and branding are two separate endpoints server-side (see platform-backend.service.ts) —
+  // saved in sequence here so one combined form/Save button still reports a single clear error if
+  // either half fails, matching this panel's own single-form design (unlike the platform-wide
+  // editor's per-field autosave above).
+  submitEditBranding() {
+    const companyId = this.activeCompanyId();
+    if (!companyId || this.companyBrandingSaving()) {
+      return;
+    }
+
+    this.companyBrandingSaving.set(true);
+    this.companyBrandingError.set('');
+
+    const trimmedSlug = this.editBrandingSlug.trim().toLowerCase();
+    const currentSlug = this.activeCompanySnapshot()?.slug ?? '';
+    const slugChanged = trimmedSlug !== '' && trimmedSlug !== currentSlug;
+
+    const saveBranding = () => {
+      const pendingLogo = this.companyBrandingPendingLogoDataUrl();
+      const nextBranding: PlatformBrandingSettings = {
+        themeId: this.editBrandingThemeId,
+        companyLogoDataUrl: pendingLogo !== undefined ? pendingLogo : this.companyBranding()?.companyLogoDataUrl ?? null,
+      };
+
+      this.backend.updateCompanyBranding(companyId, nextBranding)
+        .pipe(finalize(() => this.companyBrandingSaving.set(false)))
+        .subscribe({
+          next: () => {
+            this.closePanel();
+            this.loadAll();
+          },
+          error: (error) => {
+            this.companyBrandingError.set(error?.error?.message || 'Could not save this branding.');
+          },
+        });
+    };
+
+    if (slugChanged) {
+      this.backend.updateCompanySlug(companyId, trimmedSlug).subscribe({
+        next: saveBranding,
+        error: (error) => {
+          this.companyBrandingSaving.set(false);
+          this.companyBrandingError.set(error?.error?.message || 'Could not save this login URL.');
+        },
+      });
+    } else {
+      saveBranding();
+    }
+  }
+
   // Only stages a preview — nothing is sent to the server until "Save theme" is clicked (see
   // saveTheme below). Re-picking the currently-saved value clears the pending state entirely
   // rather than leaving a pointless "Not saved yet" chip for a no-op change.
@@ -1472,6 +1669,17 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
   // Opens the crop modal rather than staging the raw file directly — applyCrop() below is what
   // actually sets pendingLogoDataUrl, once the admin has picked the region they want.
   onPlatformLogoSelected(event: Event) {
+    this.cropTarget = 'platform';
+    this.openCropModalForFile(event, (message) => this.platformBrandingError.set(message));
+  }
+
+  // Same flow, for the per-company edit-branding panel — see cropTarget/applyCrop.
+  onCompanyBrandingLogoSelected(event: Event) {
+    this.cropTarget = 'company';
+    this.openCropModalForFile(event, (message) => this.companyBrandingError.set(message));
+  }
+
+  private openCropModalForFile(event: Event, onError: (message: string) => void) {
     const input = event.target as HTMLInputElement | null;
     const file = input?.files?.[0];
     if (!file) {
@@ -1482,13 +1690,13 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
       input.value = '';
     }
 
-    this.platformBrandingError.set('');
+    onError('');
 
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = typeof reader.result === 'string' ? reader.result : '';
       if (!dataUrl) {
-        this.platformBrandingError.set('Could not read the selected file.');
+        onError('Could not read the selected file.');
         return;
       }
 
@@ -1501,7 +1709,7 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
       this.cropModalOpen.set(true);
     };
     reader.onerror = () => {
-      this.platformBrandingError.set('Could not read the selected file.');
+      onError('Could not read the selected file.');
     };
     reader.readAsDataURL(file);
   }
@@ -1597,12 +1805,18 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
     canvas.height = this.cropOutputSize;
     const context = canvas.getContext('2d');
     if (!context) {
-      this.platformBrandingError.set('Could not crop this image. Please try again.');
+      const setError = this.cropTarget === 'company' ? this.companyBrandingError : this.platformBrandingError;
+      setError.set('Could not crop this image. Please try again.');
       return;
     }
 
     context.drawImage(image, sourceX, sourceY, sourceSize, sourceSize, 0, 0, this.cropOutputSize, this.cropOutputSize);
-    this.pendingLogoDataUrl.set(canvas.toDataURL('image/png'));
+    const croppedDataUrl = canvas.toDataURL('image/png');
+    if (this.cropTarget === 'company') {
+      this.companyBrandingPendingLogoDataUrl.set(croppedDataUrl);
+    } else {
+      this.pendingLogoDataUrl.set(croppedDataUrl);
+    }
     this.cancelCrop();
   }
 
