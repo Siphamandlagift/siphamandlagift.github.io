@@ -14,6 +14,7 @@ export const routes: Routes = [
     loadComponent: () => import('./super-admin/super-admin-dashboard.component').then((m) => m.SuperAdminDashboardComponent),
     canActivate: [superAdminAuthGuard],
   },
+  { path: 'super-admin/reset-password', loadComponent: () => import('./super-admin/super-admin-reset-password.component').then((m) => m.SuperAdminResetPasswordComponent) },
   { path: 'reset-password', loadComponent: () => import('./reset-password/reset-password').then((m) => m.ResetPasswordComponent) },
   { path: 'admin-profile', loadComponent: () => import('./admin-profile.component').then((m) => m.AdminProfileComponent), canActivate: [authGuard] },
   { path: 'student-profile', loadComponent: () => import('./student-profile.component').then((m) => m.StudentProfileComponent), canActivate: [authGuard] },

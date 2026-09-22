@@ -134,6 +134,9 @@ const publicPaths = new Set([
   '/api/auth/password-reset/validate',
   '/api/auth/password-reset/confirm',
   '/api/platform/auth/login',
+  '/api/platform/auth/password-reset/request',
+  '/api/platform/auth/password-reset/validate',
+  '/api/platform/auth/password-reset/confirm',
 ]);
 
 // GET /api/companies/:slug/branding (server.ts, above) is the one public route with a wildcard
@@ -1327,7 +1330,7 @@ app.post('/api/admin/reset-data', requireAdministrator, async (request, response
 });
 
 // --- SUPER ADMIN PLATFORM (see super-admin-routes.ts) ---
-app.use('/api/platform', createSuperAdminRouter({ jwtSecret, jwtExpiresIn }));
+app.use('/api/platform', createSuperAdminRouter({ jwtSecret, jwtExpiresIn, emailService, resolveAppBaseUrl }));
 
 // Rate-limit the login endpoint: max 10 attempts per 15 minutes per IP.
 const loginRateLimiter = rateLimit({

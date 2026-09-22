@@ -1190,6 +1190,14 @@ export type PlatformAdminRecord = {
   passwordSalt: string;
 };
 
+// Safe to return to a Super Admin caller — never carries passwordHash/passwordSalt, same
+// convention as AdministratorAccountSummary for company admins.
+export type PlatformAdminSummary = {
+  id: string;
+  name: string;
+  email: string;
+};
+
 // --- Phase 3: Super Admin API request/response shapes ---
 
 export type PlatformLoginInput = {

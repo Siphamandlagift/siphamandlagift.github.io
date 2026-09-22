@@ -1,13 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { getApp, getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, type Firestore, type DocumentReference } from 'firebase-admin/firestore';
-import { hashPasswordResetToken } from './auth-utils.js';
+import { createPasswordCredentials, generatePasswordResetToken, hashPasswordResetToken, isStrongPassword } from './auth-utils.js';
 import type {
   BrandingSettingsRecord,
   CompanyRecord,
   CompanyUsageSummary,
   CreateCompanyInput,
   PlatformAdminRecord,
+  PlatformAdminSummary,
   SubscriptionPlan,
   UpdateCompanySubscriptionInput,
 } from './contracts.js';
@@ -16,6 +17,9 @@ const COMPANIES_COLLECTION_ID = 'companies';
 const PLATFORM_ADMINS_COLLECTION_ID = 'platformAdmins';
 const PLATFORM_SETTINGS_COLLECTION_ID = 'platformSettings';
 const PLATFORM_BRANDING_DOC_ID = 'branding';
+const PLATFORM_PASSWORD_RESET_TOKENS_COLLECTION_ID = 'platformPasswordResetTokens';
+// Same 1-hour lifetime as the company-level flow's own passwordResetLifetimeMs (repository.ts).
+const platformPasswordResetLifetimeMs = 60 * 60 * 1000;
 const defaultPlatformBranding: BrandingSettingsRecord = { themeId: 'ocean', companyLogoDataUrl: null };
 
 // Company-agnostic Firestore operations — things that have to run BEFORE any companyId is known,
@@ -153,6 +157,140 @@ export async function findPlatformAdminByEmail(email: string): Promise<PlatformA
   }
 
   return snapshot.docs[0]!.data() as PlatformAdminRecord;
+}
+
+export async function listPlatformAdmins(): Promise<PlatformAdminSummary[]> {
+  const firestore = getFirestoreClient();
+  const snapshot = await firestore.collection(PLATFORM_ADMINS_COLLECTION_ID).get();
+  return snapshot.docs.map((doc) => {
+    const data = doc.data() as PlatformAdminRecord;
+    return { id: data.id, name: data.name, email: data.email };
+  });
+}
+
+export type CreatePlatformAdminResult =
+  | { status: 'ok'; admin: PlatformAdminSummary }
+  | { status: 'email-taken' }
+  | { status: 'invalid' };
+
+// Unlike upsertPlatformAdmin above (create-or-overwrite-by-id, only meant for the re-runnable
+// seed script), this is a genuine create: a fresh random id every time, and it refuses outright
+// if the email is already in use rather than silently overwriting that admin's password.
+export async function createPlatformAdmin(input: { name: string; email: string; password: string }): Promise<CreatePlatformAdminResult> {
+  const name = input.name.trim();
+  const email = input.email.trim();
+  const emailLower = email.toLowerCase();
+
+  if (!name || !emailLower || !isStrongPassword(input.password)) {
+    return { status: 'invalid' };
+  }
+
+  const existing = await findPlatformAdminByEmail(emailLower);
+  if (existing) {
+    return { status: 'email-taken' };
+  }
+
+  const credentials = createPasswordCredentials(input.password);
+  const record: PlatformAdminRecord = {
+    id: `super-admin-${randomUUID()}`,
+    role: 'super-admin',
+    name,
+    email,
+    emailLower,
+    passwordHash: credentials.passwordHash,
+    passwordSalt: credentials.passwordSalt,
+  };
+
+  const firestore = getFirestoreClient();
+  await firestore.collection(PLATFORM_ADMINS_COLLECTION_ID).doc(record.id).set(record);
+
+  return { status: 'ok', admin: { id: record.id, name: record.name, email: record.email } };
+}
+
+// Platform-level counterpart of repository.ts's createPasswordResetRequest/
+// getPasswordResetTokenStatus/resetPassword, simplified since a Super Admin isn't scoped to any
+// company: tokens live in their own top-level collection, keyed by the token's own hash as the
+// document id — a direct doc(hash).get() rather than the company flow's collection-group query,
+// since there's no cross-company ambiguity to resolve here at all.
+export async function createPlatformPasswordResetRequest(email: string): Promise<{ token: string; adminName: string; adminEmail: string; expiresAt: string } | null> {
+  const admin = await findPlatformAdminByEmail(email);
+  if (!admin) {
+    return null;
+  }
+
+  const token = generatePasswordResetToken();
+  const issuedAt = new Date();
+  const expiresAt = new Date(issuedAt.getTime() + platformPasswordResetLifetimeMs);
+
+  const firestore = getFirestoreClient();
+  await firestore.collection(PLATFORM_PASSWORD_RESET_TOKENS_COLLECTION_ID).doc(hashPasswordResetToken(token)).set({
+    adminId: admin.id,
+    createdAt: issuedAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    consumedAt: null,
+  });
+
+  return { token, adminName: admin.name, adminEmail: admin.email, expiresAt: expiresAt.toISOString() };
+}
+
+type PlatformPasswordResetTokenDoc = {
+  adminId: string;
+  createdAt: string;
+  expiresAt: string;
+  consumedAt: string | null;
+};
+
+async function findActivePlatformPasswordResetToken(token: string) {
+  const firestore = getFirestoreClient();
+  const ref = firestore.collection(PLATFORM_PASSWORD_RESET_TOKENS_COLLECTION_ID).doc(hashPasswordResetToken(token));
+  const snapshot = await ref.get();
+  if (!snapshot.exists) {
+    return null;
+  }
+
+  const record = snapshot.data() as PlatformPasswordResetTokenDoc;
+  if (record.consumedAt || new Date(record.expiresAt).getTime() <= Date.now()) {
+    return null;
+  }
+
+  const firestoreAdmins = await firestore.collection(PLATFORM_ADMINS_COLLECTION_ID).doc(record.adminId).get();
+  if (!firestoreAdmins.exists) {
+    return null;
+  }
+
+  return { ref, record, admin: firestoreAdmins.data() as PlatformAdminRecord };
+}
+
+export async function getPlatformPasswordResetTokenStatus(token: string): Promise<{ valid: boolean; email?: string; expiresAt?: string }> {
+  const match = await findActivePlatformPasswordResetToken(token);
+  if (!match) {
+    return { valid: false };
+  }
+
+  return { valid: true, email: match.admin.email, expiresAt: match.record.expiresAt };
+}
+
+export async function resetPlatformAdminPassword(token: string, nextPassword: string): Promise<{ name: string; email: string } | null> {
+  const password = nextPassword.trim();
+  if (!isStrongPassword(password)) {
+    return null;
+  }
+
+  const match = await findActivePlatformPasswordResetToken(token);
+  if (!match) {
+    return null;
+  }
+
+  const credentials = createPasswordCredentials(password);
+  const firestore = getFirestoreClient();
+  const adminRef = firestore.collection(PLATFORM_ADMINS_COLLECTION_ID).doc(match.admin.id);
+
+  await Promise.all([
+    adminRef.set({ passwordHash: credentials.passwordHash, passwordSalt: credentials.passwordSalt }, { merge: true }),
+    match.ref.set({ consumedAt: new Date().toISOString() }, { merge: true }),
+  ]);
+
+  return { name: match.admin.name, email: match.admin.email };
 }
 
 function companyDocToRecord(id: string, data: FirebaseFirestore.DocumentData): CompanyRecord {

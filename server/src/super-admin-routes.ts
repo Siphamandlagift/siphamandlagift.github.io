@@ -8,14 +8,20 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { createPasswordCredentials, isStrongPassword, passwordPolicyMessage, verifyPassword } from './auth-utils.js';
 import { createLmsRepository } from './repository.js';
+import type { PasswordResetEmailService } from './email-service.js';
 import {
   createCompanyRecord,
+  createPlatformAdmin,
+  createPlatformPasswordResetRequest,
   findPlatformAdminByEmail,
   getCompanyRecord,
   getCompanyUsage,
   getCompanyUserCount,
   getPlatformBranding,
+  getPlatformPasswordResetTokenStatus,
   listCompanies,
+  listPlatformAdmins,
+  resetPlatformAdminPassword,
   updateCompanySlug,
   updateCompanySubscription,
   updatePlatformBranding,
@@ -72,6 +78,23 @@ const updateCompanySlugSchema = z.object({
   slug: z.string().min(1),
 });
 
+const strongPasswordSchema = z.string().refine(isStrongPassword, { message: passwordPolicyMessage });
+
+const createSuperAdminSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  password: strongPasswordSchema,
+});
+
+const platformPasswordResetRequestSchema = z.object({
+  email: z.string().email(),
+});
+
+const platformPasswordResetConfirmSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(1),
+});
+
 // The one login screen's branding, shared by every company (see platform-repository.ts's
 // getPlatformBranding/updatePlatformBranding) — a data: URI stored directly on the settings
 // document rather than a Storage upload, since this is a single small, rarely-changed image with
@@ -82,8 +105,13 @@ const platformBrandingUpdateSchema = z.object({
   companyLogoDataUrl: z.string().max(1_000_000).regex(/^data:image\//, 'Logo must be an image file.').nullable(),
 });
 
-export function createSuperAdminRouter(options: { jwtSecret: string; jwtExpiresIn: jwt.SignOptions['expiresIn'] }): express.Router {
-  const { jwtSecret, jwtExpiresIn } = options;
+export function createSuperAdminRouter(options: {
+  jwtSecret: string;
+  jwtExpiresIn: jwt.SignOptions['expiresIn'];
+  emailService: PasswordResetEmailService;
+  resolveAppBaseUrl: (request?: express.Request) => string;
+}): express.Router {
+  const { jwtSecret, jwtExpiresIn, emailService, resolveAppBaseUrl } = options;
   const router = express.Router();
 
   function requireSuperAdmin(request: express.Request, response: express.Response, next: express.NextFunction) {
@@ -130,6 +158,100 @@ export function createSuperAdminRouter(options: { jwtSecret: string; jwtExpiresI
       );
 
       response.json({ adminId: admin.id, name: admin.name, email: admin.email, token });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Platform-level counterpart of POST /api/auth/password-reset/request in server.ts — same
+  // "always respond 202 with a generic message" shape to avoid confirming whether a given email
+  // has a Super Admin account. No cross-company candidate loop needed here (unlike the company
+  // flow): a Super Admin email is either registered once in platformAdmins, or not at all.
+  router.post('/auth/password-reset/request', async (request, response, next) => {
+    try {
+      const payload = platformPasswordResetRequestSchema.parse(request.body);
+
+      if (!emailService.isConfigured()) {
+        response.status(503).json({ message: 'Password reset email is not configured on the server.' });
+        return;
+      }
+
+      const resetRequest = await createPlatformPasswordResetRequest(payload.email);
+      if (resetRequest) {
+        const resetUrl = `${resolveAppBaseUrl(request)}/super-admin/reset-password?token=${encodeURIComponent(resetRequest.token)}`;
+        await emailService.sendPasswordResetEmail({
+          to: resetRequest.adminEmail,
+          username: resetRequest.adminName,
+          resetUrl,
+          expiresAt: resetRequest.expiresAt,
+        });
+      }
+
+      response.status(202).json({ message: 'If that email address belongs to a Super Admin account, a password reset link has been sent.' });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get('/auth/password-reset/validate', async (request, response, next) => {
+    try {
+      const token = String(request.query['token'] || '');
+      if (!token) {
+        response.status(400).json({ valid: false, message: 'Reset token is required.' });
+        return;
+      }
+
+      response.json(await getPlatformPasswordResetTokenStatus(token));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post('/auth/password-reset/confirm', async (request, response, next) => {
+    try {
+      const payload = platformPasswordResetConfirmSchema.parse(request.body);
+      const result = await resetPlatformAdminPassword(payload.token, payload.password);
+
+      if (!result) {
+        response.status(400).json({ message: 'This password reset link is invalid or has expired.' });
+        return;
+      }
+
+      response.json({ message: 'Password updated successfully.', name: result.name, email: result.email });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Lists every OTHER Super Admin (excludes the caller) — used by the dashboard's "Manage Super
+  // Admins" panel.
+  router.get('/admins', requireSuperAdmin, async (request, response, next) => {
+    try {
+      const admins = await listPlatformAdmins();
+      response.json(admins.filter((admin) => admin.id !== request.platformAuth!.adminId));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Same "creator sets the initial password directly" shape as POST
+  // /companies/:companyId/admins below — no invite-email flow for admin creation anywhere in
+  // this codebase.
+  router.post('/admins', requireSuperAdmin, async (request, response, next) => {
+    try {
+      const input = createSuperAdminSchema.parse(request.body);
+      const result = await createPlatformAdmin(input);
+
+      switch (result.status) {
+        case 'email-taken':
+          response.status(409).json({ message: 'A Super Admin account with this email already exists.' });
+          return;
+        case 'invalid':
+          response.status(400).json({ message: 'Invalid name, email, or password.' });
+          return;
+      }
+
+      response.status(201).json(result.admin);
     } catch (error) {
       next(error);
     }

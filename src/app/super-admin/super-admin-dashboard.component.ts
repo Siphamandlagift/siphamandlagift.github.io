@@ -11,11 +11,12 @@ import {
   PlatformUsageOverview,
   SubscriptionPlan,
   SubscriptionStatus,
+  SuperAdminSummary,
 } from './platform-backend.service';
 import { clearPlatformAuthSession, readPlatformSessionRecord } from './platform-session-auth';
 import { LMS_BRAND_THEME_OPTIONS, type LmsBrandThemeId } from '../lms-brand-themes';
 
-type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-admins' | 'edit-branding';
+type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-admins' | 'edit-branding' | 'manage-super-admins';
 
 @Component({
   selector: 'app-super-admin-dashboard',
@@ -37,6 +38,7 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-adm
 
         <div class="topbar-right">
           <span class="admin-name">{{ adminName() }}</span>
+          <button type="button" class="ghost-btn" (click)="openManageSuperAdmins()">Manage Super Admins</button>
           <button type="button" class="ghost-btn" (click)="logout()">Log out</button>
         </div>
       </header>
@@ -434,6 +436,63 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-adm
             </div>
           </form>
         }
+      </div>
+    }
+
+    @if (activePanel() === 'manage-super-admins') {
+      <div class="overlay-panel" role="dialog" aria-modal="true">
+        <div class="overlay-header">
+          <h3>Super Admins</h3>
+          <button type="button" class="icon-btn" (click)="closePanel()" aria-label="Close">✕</button>
+        </div>
+
+        @if (loadingSuperAdmins()) {
+          <div class="empty-state">Loading…</div>
+        } @else {
+          <div class="admin-list">
+            @for (admin of superAdmins(); track admin.id) {
+              <div class="admin-list-row">
+                <span class="admin-list-email">{{ admin.name }} — {{ admin.email }}</span>
+              </div>
+            } @empty {
+              <div class="empty-state">No other Super Admins yet.</div>
+            }
+          </div>
+        }
+
+        <div class="overlay-divider"></div>
+        <h4 class="overlay-subheading">Add Super Admin</h4>
+
+        <form (ngSubmit)="submitAddSuperAdmin()">
+          <label>
+            <span>Name</span>
+            <input type="text" name="newSuperAdminName" [(ngModel)]="newSuperAdminName" required />
+          </label>
+
+          <label>
+            <span>Email</span>
+            <input type="email" name="newSuperAdminEmail" [(ngModel)]="newSuperAdminEmail" required />
+          </label>
+
+          <label>
+            <span>Password</span>
+            <input type="password" name="newSuperAdminPassword" [(ngModel)]="newSuperAdminPassword" required autocomplete="new-password" />
+          </label>
+
+          @if (addSuperAdminError()) {
+            <div class="error">{{ addSuperAdminError() }}</div>
+          }
+          @if (addSuperAdminSuccess()) {
+            <div class="success">{{ addSuperAdminSuccess() }}</div>
+          }
+
+          <div class="overlay-footer">
+            <button type="button" class="secondary-btn" (click)="closePanel()">Close</button>
+            <button type="submit" class="primary-btn" [disabled]="creatingSuperAdmin()">
+              {{ creatingSuperAdmin() ? 'Creating…' : 'Add Super Admin' }}
+            </button>
+          </div>
+        </form>
       </div>
     }
 
@@ -1319,6 +1378,16 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
   readonly resetAdminPasswordError = signal('');
   readonly resetAdminPasswordSuccess = signal('');
 
+  // ── Manage Super Admins panel — platform-level, not company-scoped ─────
+  readonly superAdmins = signal<SuperAdminSummary[]>([]);
+  readonly loadingSuperAdmins = signal(false);
+  newSuperAdminName = '';
+  newSuperAdminEmail = '';
+  newSuperAdminPassword = '';
+  readonly addSuperAdminError = signal('');
+  readonly addSuperAdminSuccess = signal('');
+  readonly creatingSuperAdmin = signal(false);
+
   ngOnInit() {
     this.loadAll();
     this.loadPlatformBranding();
@@ -1517,6 +1586,56 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           this.addAdminError.set(error?.error?.message || 'Could not create this administrator account.');
+        },
+      });
+  }
+
+  openManageSuperAdmins() {
+    this.newSuperAdminName = '';
+    this.newSuperAdminEmail = '';
+    this.newSuperAdminPassword = '';
+    this.addSuperAdminError.set('');
+    this.addSuperAdminSuccess.set('');
+    this.superAdmins.set([]);
+    this.activePanel.set('manage-super-admins');
+    this.loadSuperAdmins();
+  }
+
+  private loadSuperAdmins() {
+    this.loadingSuperAdmins.set(true);
+    this.backend.listAdmins()
+      .pipe(finalize(() => this.loadingSuperAdmins.set(false)))
+      .subscribe({
+        next: (admins) => this.superAdmins.set(admins),
+        error: () => this.superAdmins.set([]),
+      });
+  }
+
+  submitAddSuperAdmin() {
+    if (this.creatingSuperAdmin()) {
+      return;
+    }
+
+    this.creatingSuperAdmin.set(true);
+    this.addSuperAdminError.set('');
+    this.addSuperAdminSuccess.set('');
+
+    this.backend.createAdmin({
+      name: this.newSuperAdminName.trim(),
+      email: this.newSuperAdminEmail.trim(),
+      password: this.newSuperAdminPassword,
+    })
+      .pipe(finalize(() => this.creatingSuperAdmin.set(false)))
+      .subscribe({
+        next: (admin) => {
+          this.addSuperAdminSuccess.set(`Super Admin account created: ${admin.email}`);
+          this.newSuperAdminName = '';
+          this.newSuperAdminEmail = '';
+          this.newSuperAdminPassword = '';
+          this.loadSuperAdmins();
+        },
+        error: (error) => {
+          this.addSuperAdminError.set(error?.error?.message || 'Could not create this Super Admin account.');
         },
       });
   }

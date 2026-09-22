@@ -71,6 +71,43 @@ export type AdministratorAccountSummary = {
   username: string;
 };
 
+export type SuperAdminSummary = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+export type CreateSuperAdminRequest = {
+  name: string;
+  email: string;
+  password: string;
+};
+
+export type PlatformPasswordResetRequest = {
+  email: string;
+};
+
+export type PlatformPasswordResetRequestResponse = {
+  message: string;
+};
+
+export type PlatformPasswordResetTokenStatus = {
+  valid: boolean;
+  email?: string;
+  expiresAt?: string;
+};
+
+export type PlatformPasswordResetConfirmRequest = {
+  token: string;
+  password: string;
+};
+
+export type PlatformPasswordResetConfirmResponse = {
+  message: string;
+  name: string;
+  email: string;
+};
+
 export type PlatformUsageOverview = {
   companyCount: number;
   totalUsers: number;
@@ -100,6 +137,26 @@ export class PlatformBackendService {
 
   login(input: PlatformLoginRequest): Observable<PlatformLoginResponse> {
     return this.http.post<PlatformLoginResponse>(`${this.baseUrl}/auth/login`, input);
+  }
+
+  requestPasswordReset(input: PlatformPasswordResetRequest): Observable<PlatformPasswordResetRequestResponse> {
+    return this.http.post<PlatformPasswordResetRequestResponse>(`${this.baseUrl}/auth/password-reset/request`, input);
+  }
+
+  validatePasswordResetToken(token: string): Observable<PlatformPasswordResetTokenStatus> {
+    return this.http.get<PlatformPasswordResetTokenStatus>(`${this.baseUrl}/auth/password-reset/validate`, { params: { token } });
+  }
+
+  confirmPasswordReset(input: PlatformPasswordResetConfirmRequest): Observable<PlatformPasswordResetConfirmResponse> {
+    return this.http.post<PlatformPasswordResetConfirmResponse>(`${this.baseUrl}/auth/password-reset/confirm`, input);
+  }
+
+  listAdmins(): Observable<SuperAdminSummary[]> {
+    return this.http.get<SuperAdminSummary[]>(`${this.baseUrl}/admins`);
+  }
+
+  createAdmin(input: CreateSuperAdminRequest): Observable<SuperAdminSummary> {
+    return this.http.post<SuperAdminSummary>(`${this.baseUrl}/admins`, input);
   }
 
   listCompanies(): Observable<CompanyWithUsage[]> {
