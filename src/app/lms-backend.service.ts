@@ -279,6 +279,7 @@ export type PasswordResetConfirmResponse = {
 export type BrandingSettings = {
   themeId: LmsBrandThemeId;
   companyLogoDataUrl: string | null;
+  backgroundImageUrl: string | null;
 };
 
 export type CompanyBrandingLookup = {

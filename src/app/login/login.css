@@ -10,6 +10,17 @@
 	font-family: 'Inter', 'Segoe UI', 'Roboto', Arial, sans-serif;
 }
 
+/* Super-Admin-set login background picture — entirely replaces the theme-color gradient above
+   with the picture plus a dark scrim (so the white login card stays readable regardless of the
+   picture's own colors), rather than layering on top of it. Companies with no background image
+   set never get this class at all, so their look is completely unaffected. */
+.login-bg-has-image {
+	background-image: linear-gradient(rgba(15, 23, 42, 0.4), rgba(15, 23, 42, 0.4)), var(--brand-background-image);
+	background-size: cover;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
 .login-dialog-backdrop {
 	position: fixed;
 	inset: 0;

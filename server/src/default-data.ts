@@ -153,6 +153,7 @@ export function createDefaultData(companyId = ''): LmsDataStore {
     branding: {
       themeId: 'ocean',
       companyLogoDataUrl: null,
+      backgroundImageUrl: null,
     },
     authAccounts: createAuthAccounts(companyId),
     passwordResetTokens: [],

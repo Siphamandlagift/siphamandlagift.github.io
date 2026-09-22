@@ -20,7 +20,7 @@ const PLATFORM_BRANDING_DOC_ID = 'branding';
 const PLATFORM_PASSWORD_RESET_TOKENS_COLLECTION_ID = 'platformPasswordResetTokens';
 // Same 1-hour lifetime as the company-level flow's own passwordResetLifetimeMs (repository.ts).
 const platformPasswordResetLifetimeMs = 60 * 60 * 1000;
-const defaultPlatformBranding: BrandingSettingsRecord = { themeId: 'ocean', companyLogoDataUrl: null };
+const defaultPlatformBranding: BrandingSettingsRecord = { themeId: 'ocean', companyLogoDataUrl: null, backgroundImageUrl: null };
 
 // Company-agnostic Firestore operations — things that have to run BEFORE any companyId is known,
 // so they can't go through FirestoreLmsRepository (which always operates inside one already-known
@@ -494,6 +494,7 @@ export async function getPlatformBranding(): Promise<BrandingSettingsRecord> {
   return {
     themeId: data?.themeId ?? defaultPlatformBranding.themeId,
     companyLogoDataUrl: data?.companyLogoDataUrl ?? null,
+    backgroundImageUrl: data?.backgroundImageUrl ?? null,
   };
 }
 

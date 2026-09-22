@@ -118,6 +118,31 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-adm
                 }
               </div>
 
+              <div class="branding-logo-block">
+                <div class="branding-bg-preview" [class.branding-bg-preview-has-image]="!!(pendingBackgroundImageUrl() ?? platformBranding()?.backgroundImageUrl)">
+                  @if (pendingBackgroundImageUrl() ?? platformBranding()?.backgroundImageUrl; as previewUrl) {
+                    <img [src]="previewUrl" alt="" />
+                  } @else {
+                    <span>No image set</span>
+                  }
+                </div>
+                <div class="branding-logo-actions">
+                  @if (pendingBackgroundImageUrl() !== null) {
+                    <span class="branding-pending-chip">Not saved yet</span>
+                    <button type="button" class="secondary-btn branding-save-btn" [disabled]="platformBrandingSaving()" (click)="saveBackgroundImage()">
+                      {{ platformBrandingSaving() ? 'Saving…' : 'Save background' }}
+                    </button>
+                    <button type="button" class="secondary-btn" [disabled]="platformBrandingSaving()" (click)="cancelPendingBackgroundImage()">Cancel</button>
+                  } @else {
+                    <label class="secondary-btn branding-upload-btn">
+                      <span>{{ platformBrandingBackgroundUploading() ? 'Uploading…' : 'Upload background' }}</span>
+                      <input type="file" accept="image/*" [disabled]="platformBrandingBackgroundUploading()" (change)="onPlatformBackgroundImageSelected($event)" />
+                    </label>
+                    <button type="button" class="secondary-btn" [disabled]="!platformBranding()?.backgroundImageUrl || platformBrandingSaving()" (click)="removePlatformBackgroundImage()">Remove background</button>
+                  }
+                </div>
+              </div>
+
               @if (platformBrandingError()) {
                 <div class="error">{{ platformBrandingError() }}</div>
               }
@@ -421,6 +446,23 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-adm
                     }
                   </select>
                 </label>
+              </div>
+
+              <div class="branding-logo-block">
+                <div class="branding-bg-preview" [class.branding-bg-preview-has-image]="!!companyBrandingBackgroundImagePreview()">
+                  @if (companyBrandingBackgroundImagePreview(); as previewUrl) {
+                    <img [src]="previewUrl" alt="" />
+                  } @else {
+                    <span>No image set</span>
+                  }
+                </div>
+                <div class="branding-logo-actions">
+                  <label class="secondary-btn branding-upload-btn">
+                    <span>{{ companyBrandingBackgroundUploading() ? 'Uploading…' : 'Upload background' }}</span>
+                    <input type="file" accept="image/*" [disabled]="companyBrandingBackgroundUploading()" (change)="onCompanyBrandingBackgroundImageSelected($event, company.id)" />
+                  </label>
+                  <button type="button" class="secondary-btn" [disabled]="!companyBrandingBackgroundImagePreview()" (click)="removeCompanyBrandingBackgroundImage()">Remove background</button>
+                </div>
               </div>
             </div>
 
@@ -739,6 +781,38 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-adm
     }
 
     .branding-logo-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .branding-bg-preview {
+      width: 6rem;
+      height: 4rem;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(145deg, #eef2ff 0%, #e0f2fe 100%);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .branding-bg-preview span {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #64748b;
+      text-align: center;
+      padding: 0 0.4rem;
+    }
+
+    .branding-bg-preview-has-image {
+      background: #fff;
+      border-color: rgba(100, 116, 139, 0.25);
+    }
+
+    .branding-bg-preview img {
       width: 100%;
       height: 100%;
       object-fit: cover;
@@ -1240,10 +1314,17 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
   readonly platformBrandingLoading = signal(true);
   readonly platformBrandingSaving = signal(false);
   readonly platformBrandingLogoUploading = signal(false);
+  readonly platformBrandingBackgroundUploading = signal(false);
   readonly platformBrandingError = signal('');
   // Set once a logo file is picked, cleared once it's saved (or cancelled) — a newly selected
   // logo is only previewed, never actually sent to the server, until "Save logo" is clicked.
   readonly pendingLogoDataUrl = signal<string | null>(null);
+  // Same staging pattern, for the background image — null means "no pending change", a string
+  // (including '' is never used; a real upload always returns a real URL) is a newly uploaded
+  // image awaiting Save. No crop step here (unlike the logo): a background image fills the
+  // viewport via background-size: cover, so precise per-pixel cropping isn't needed the way it is
+  // for the small circular logo mark.
+  readonly pendingBackgroundImageUrl = signal<string | null>(null);
   // Same staging pattern as the logo, for the same reason: picking a theme in the dropdown
   // should only preview it until "Save theme" is explicitly clicked, not save on every change.
   readonly pendingThemeId = signal<LmsBrandThemeId | null>(null);
@@ -1268,6 +1349,16 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
   readonly companyBrandingLogoPreview = computed(() => {
     const pending = this.companyBrandingPendingLogoDataUrl();
     return pending !== undefined ? pending : this.companyBranding()?.companyLogoDataUrl ?? null;
+  });
+
+  // Same staging pattern as the logo, for the background image — uploaded immediately on
+  // selection (no crop step, see pendingBackgroundImageUrl's own comment) straight to a
+  // companyId-scoped Storage path.
+  readonly companyBrandingBackgroundUploading = signal(false);
+  private readonly companyBrandingPendingBackgroundImageUrl = signal<string | null | undefined>(undefined);
+  readonly companyBrandingBackgroundImagePreview = computed(() => {
+    const pending = this.companyBrandingPendingBackgroundImageUrl();
+    return pending !== undefined ? pending : this.companyBranding()?.backgroundImageUrl ?? null;
   });
 
   // ── Logo crop modal ───────────────────────────────────────────────────
@@ -1681,6 +1772,7 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
     this.activeCompanySnapshot.set(company);
     this.editBrandingSlug = company.slug ?? '';
     this.companyBrandingPendingLogoDataUrl.set(undefined);
+    this.companyBrandingPendingBackgroundImageUrl.set(undefined);
     this.companyBranding.set(null);
     this.companyBrandingError.set('');
     this.activePanel.set('edit-branding');
@@ -1703,6 +1795,31 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
     this.companyBrandingPendingLogoDataUrl.set(null);
   }
 
+  onCompanyBrandingBackgroundImageSelected(event: Event, companyId: string) {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (input) {
+      input.value = '';
+    }
+
+    if (!file || this.companyBrandingBackgroundUploading()) {
+      return;
+    }
+
+    this.companyBrandingError.set('');
+    this.companyBrandingBackgroundUploading.set(true);
+    this.backend.uploadBrandingImage(file, companyId)
+      .pipe(finalize(() => this.companyBrandingBackgroundUploading.set(false)))
+      .subscribe({
+        next: (result) => this.companyBrandingPendingBackgroundImageUrl.set(result.url),
+        error: () => this.companyBrandingError.set(`Could not upload "${file.name}". Please check your connection and try again.`),
+      });
+  }
+
+  removeCompanyBrandingBackgroundImage() {
+    this.companyBrandingPendingBackgroundImageUrl.set(null);
+  }
+
   // Slug and branding are two separate endpoints server-side (see platform-backend.service.ts) —
   // saved in sequence here so one combined form/Save button still reports a single clear error if
   // either half fails, matching this panel's own single-form design (unlike the platform-wide
@@ -1722,9 +1839,11 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
 
     const saveBranding = () => {
       const pendingLogo = this.companyBrandingPendingLogoDataUrl();
+      const pendingBackgroundImage = this.companyBrandingPendingBackgroundImageUrl();
       const nextBranding: PlatformBrandingSettings = {
         themeId: this.editBrandingThemeId,
         companyLogoDataUrl: pendingLogo !== undefined ? pendingLogo : this.companyBranding()?.companyLogoDataUrl ?? null,
+        backgroundImageUrl: pendingBackgroundImage !== undefined ? pendingBackgroundImage : this.companyBranding()?.backgroundImageUrl ?? null,
       };
 
       this.backend.updateCompanyBranding(companyId, nextBranding)
@@ -1969,6 +2088,58 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
     }
 
     this.savePlatformBranding({ ...current, companyLogoDataUrl: null }, 'Logo removed.');
+  }
+
+  // No crop modal for this one (see pendingBackgroundImageUrl's own comment) — uploads
+  // immediately on selection, straight to Storage, and stages the returned URL as pending until
+  // "Save background" is clicked.
+  onPlatformBackgroundImageSelected(event: Event) {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (input) {
+      input.value = '';
+    }
+
+    if (!file || this.platformBrandingBackgroundUploading()) {
+      return;
+    }
+
+    this.platformBrandingError.set('');
+    this.platformBrandingBackgroundUploading.set(true);
+    this.backend.uploadBrandingImage(file)
+      .pipe(finalize(() => this.platformBrandingBackgroundUploading.set(false)))
+      .subscribe({
+        next: (result) => this.pendingBackgroundImageUrl.set(result.url),
+        error: () => this.platformBrandingError.set(`Could not upload "${file.name}". Please check your connection and try again.`),
+      });
+  }
+
+  cancelPendingBackgroundImage() {
+    this.pendingBackgroundImageUrl.set(null);
+    this.platformBrandingError.set('');
+  }
+
+  saveBackgroundImage() {
+    const current = this.platformBranding();
+    const pending = this.pendingBackgroundImageUrl();
+    if (!current || pending === null) {
+      return;
+    }
+
+    this.savePlatformBranding(
+      { ...current, backgroundImageUrl: pending },
+      'Background image saved — every company\'s login screen now shows it.',
+      () => this.pendingBackgroundImageUrl.set(null),
+    );
+  }
+
+  removePlatformBackgroundImage() {
+    const current = this.platformBranding();
+    if (!current || !current.backgroundImageUrl) {
+      return;
+    }
+
+    this.savePlatformBranding({ ...current, backgroundImageUrl: null }, 'Background image removed.');
   }
 
   private showPlatformBrandingToast(message: string) {

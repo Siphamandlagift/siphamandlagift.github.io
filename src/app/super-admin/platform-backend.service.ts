@@ -124,6 +124,12 @@ export type PlatformUsageOverview = {
 export type PlatformBrandingSettings = {
   themeId: LmsBrandThemeId;
   companyLogoDataUrl: string | null;
+  backgroundImageUrl: string | null;
+};
+
+export type UploadedBrandingImage = {
+  url: string;
+  path: string;
 };
 
 @Injectable({ providedIn: 'root' })
@@ -137,6 +143,29 @@ export class PlatformBackendService {
 
   login(input: PlatformLoginRequest): Observable<PlatformLoginResponse> {
     return this.http.post<PlatformLoginResponse>(`${this.baseUrl}/auth/login`, input);
+  }
+
+  // Mirrors LmsBackendService.uploadFileBase64's FileReader-to-base64 pattern — a Super Admin
+  // token has no companyId of its own, so companyId is passed explicitly only when uploading FOR
+  // a specific company's branding (scopes the Storage path the same way that company's own
+  // admin-set logo already is); omitted for the platform-wide default.
+  uploadBrandingImage(file: File, companyId?: string): Observable<UploadedBrandingImage> {
+    return new Observable((observer) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = typeof reader.result === 'string' ? reader.result : '';
+        const dataBase64 = result.slice(result.indexOf(',') + 1);
+        this.http.post<UploadedBrandingImage>(`${this.baseUrl}/storage/upload-base64`, {
+          folder: 'branding',
+          fileName: file.name,
+          contentType: file.type || 'application/octet-stream',
+          dataBase64,
+          ...(companyId ? { companyId } : {}),
+        }).subscribe(observer);
+      };
+      reader.onerror = () => observer.error(reader.error ?? new Error('Could not read the selected file.'));
+      reader.readAsDataURL(file);
+    });
   }
 
   requestPasswordReset(input: PlatformPasswordResetRequest): Observable<PlatformPasswordResetRequestResponse> {

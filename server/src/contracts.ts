@@ -716,6 +716,10 @@ export type StudentRecord = EnrollmentStudentRecord & {
 export type BrandingSettingsRecord = {
   themeId: 'ocean' | 'forest' | 'sunrise' | 'purple' | 'black' | 'grey';
   companyLogoDataUrl: string | null;
+  // A public Storage URL (never embedded base64 — see the upload route this is populated from)
+  // shown as the login page's full-page background image when set, in place of the gradient
+  // built from themeId's colors.
+  backgroundImageUrl: string | null;
 };
 
 export type HrIntegrationSyncSummary = {
@@ -1134,7 +1138,16 @@ export type PasswordResetConfirmInput = {
   password: string;
 };
 
-export type BrandingSettingsUpdateInput = BrandingSettingsRecord;
+// backgroundImageUrl is optional here (unlike the stored/read record, where it's always a
+// concrete value) — the company admin's own PUT /api/branding never manages it at all (see
+// server.ts's brandingSettingsSchema), so its input has no opinion on the field one way or the
+// other. Both updateBranding implementations (repository.ts) merge against the EXISTING stored
+// value when this key is absent, rather than treating a missing field as "clear it" — otherwise
+// a company admin saving their own theme/logo would silently wipe out a Super-Admin-set
+// background image the two routes both ultimately write to the same underlying record.
+export type BrandingSettingsUpdateInput = Omit<BrandingSettingsRecord, 'backgroundImageUrl'> & {
+  backgroundImageUrl?: string | null;
+};
 
 export type ChangePasswordInput = {
   email: string;

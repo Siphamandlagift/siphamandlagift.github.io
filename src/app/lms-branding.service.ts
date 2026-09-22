@@ -31,6 +31,12 @@ export class LmsBrandingService {
   private readonly companyLogoDataUrlSignal = signal<string | null>(null);
   readonly companyLogoDataUrl = this.companyLogoDataUrlSignal.asReadonly();
 
+  // Super-Admin-managed only (platform-wide default, or a specific company's own branded login
+  // URL) — this service never writes it itself, only displays whatever the last fetch returned;
+  // see the login page for where it's actually rendered.
+  private readonly backgroundImageUrlSignal = signal<string | null>(null);
+  readonly backgroundImageUrl = this.backgroundImageUrlSignal.asReadonly();
+
   // Set only when the pre-login screen resolved a specific company from its own branded URL
   // (login/:companySlug) — lets that screen show "Signing in to <company>" for a clear visual
   // confirmation. Null for the shared default screen, and cleared again if a slug fetch falls
@@ -147,6 +153,7 @@ export class LmsBrandingService {
 
     this.selectedThemeIdSignal.set(branding.themeId);
     this.companyLogoDataUrlSignal.set(branding.companyLogoDataUrl);
+    this.backgroundImageUrlSignal.set(branding.backgroundImageUrl);
   }
 
   private applyCompanyBranding(lookup: CompanyBrandingLookup, generation: number) {
@@ -167,7 +174,7 @@ export class LmsBrandingService {
         // Roll back so the UI doesn't keep showing a theme that was never actually saved —
         // otherwise a reload (or another admin's session) would silently revert it anyway.
         this.selectedThemeIdSignal.set(previousThemeId);
-        this.saveToLocalStorage({ themeId: previousThemeId, companyLogoDataUrl: this.companyLogoDataUrlSignal() });
+        this.saveToLocalStorage({ themeId: previousThemeId, companyLogoDataUrl: this.companyLogoDataUrlSignal(), backgroundImageUrl: this.backgroundImageUrlSignal() });
       }
 
       return saved;
@@ -181,7 +188,7 @@ export class LmsBrandingService {
     return this.persistBranding().then((saved) => {
       if (!saved) {
         this.companyLogoDataUrlSignal.set(previousLogoDataUrl);
-        this.saveToLocalStorage({ themeId: this.selectedThemeIdSignal(), companyLogoDataUrl: previousLogoDataUrl });
+        this.saveToLocalStorage({ themeId: this.selectedThemeIdSignal(), companyLogoDataUrl: previousLogoDataUrl, backgroundImageUrl: this.backgroundImageUrlSignal() });
       }
 
       return saved;
@@ -193,9 +200,15 @@ export class LmsBrandingService {
   }
 
   private persistBranding(): Promise<boolean> {
+    // backgroundImageUrl rides along here even though this service never lets a company admin
+    // change it (Super-Admin-only) — sent as whatever the last fetch returned so a round-trip
+    // theme/logo save can't accidentally look like it's clearing it. server.ts's own
+    // brandingSettingsSchema for THIS route doesn't declare the field at all, so it's stripped
+    // and ignored either way — this is just keeping the local echo consistent.
     const branding: BrandingSettings = {
       themeId: this.selectedThemeIdSignal(),
       companyLogoDataUrl: this.companyLogoDataUrlSignal(),
+      backgroundImageUrl: this.backgroundImageUrlSignal(),
     };
 
     this.saveToLocalStorage(branding);

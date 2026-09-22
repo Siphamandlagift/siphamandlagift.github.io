@@ -1333,7 +1333,11 @@ app.post('/api/admin/reset-data', requireAdministrator, async (request, response
 });
 
 // --- SUPER ADMIN PLATFORM (see super-admin-routes.ts) ---
-app.use('/api/platform', createSuperAdminRouter({ jwtSecret, jwtExpiresIn, emailService, resolveAppBaseUrl }));
+// storageBucket is declared just below (resolveStorageBucket is a hoisted function declaration,
+// so calling it here, before its own definition further down, is safe) — needed here for the
+// Super Admin branding-image upload route, which has no company-scoped upload path of its own.
+const storageBucket = resolveStorageBucket();
+app.use('/api/platform', createSuperAdminRouter({ jwtSecret, jwtExpiresIn, emailService, resolveAppBaseUrl, storageBucket }));
 
 // Rate-limit the login endpoint: max 10 attempts per 15 minutes per IP.
 const loginRateLimiter = rateLimit({
@@ -1370,7 +1374,6 @@ function resolveStorageBucket(): string {
   }
   return '';
 }
-const storageBucket = resolveStorageBucket();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 9 * 1024 * 1024 }, // 9 MB safety cap for small/thumbnail uploads

@@ -2189,6 +2189,10 @@ export class LmsRepository {
     data.branding = {
       themeId: input.themeId,
       companyLogoDataUrl: input.companyLogoDataUrl,
+      // Preserve the existing value when the caller's input doesn't manage this field at all
+      // (the company admin's own PUT /api/branding) — see BrandingSettingsUpdateInput's own
+      // comment for why an absent field must never be treated as "clear it".
+      backgroundImageUrl: input.backgroundImageUrl !== undefined ? input.backgroundImageUrl : data.branding.backgroundImageUrl,
     };
 
     const next = await this.write(data);
@@ -4453,16 +4457,22 @@ class FirestoreLmsRepository extends LmsRepository {
   }
 
   override async updateBranding(input: BrandingSettingsUpdateInput) {
-    const branding: LmsDataStore['branding'] = {
+    const branding: BrandingSettingsUpdateInput = {
       themeId: input.themeId,
       companyLogoDataUrl: input.companyLogoDataUrl,
+      backgroundImageUrl: input.backgroundImageUrl,
     };
 
+    // When the caller's input doesn't manage backgroundImageUrl at all (the company admin's own
+    // PUT /api/branding — see BrandingSettingsUpdateInput's own comment), it stays `undefined`
+    // here, and sanitizeForFirestore's JSON round-trip drops undefined keys entirely — combined
+    // with this write's existing {merge: true}, Firestore then leaves that one nested field
+    // exactly as it already was, rather than clearing it, with no extra read needed.
     await this.storeDocument.set(
       this.sanitizeForFirestore({ branding, updatedAt: new Date().toISOString() }),
       { merge: true },
     );
-    return branding;
+    return (await this.getBranding());
   }
 
   // Scoped, transactional overrides for the two high-frequency single-student KPI writes.

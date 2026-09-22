@@ -6,6 +6,8 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
+import { getApp, getApps, initializeApp } from 'firebase-admin/app';
+import { getStorage } from 'firebase-admin/storage';
 import { createPasswordCredentials, isStrongPassword, passwordPolicyMessage, verifyPassword } from './auth-utils.js';
 import { createLmsRepository } from './repository.js';
 import type { PasswordResetEmailService } from './email-service.js';
@@ -96,13 +98,17 @@ const platformPasswordResetConfirmSchema = z.object({
 });
 
 // The one login screen's branding, shared by every company (see platform-repository.ts's
-// getPlatformBranding/updatePlatformBranding) — a data: URI stored directly on the settings
-// document rather than a Storage upload, since this is a single small, rarely-changed image with
-// no per-company scoping to route it through; the length cap leaves generous headroom under
-// Firestore's 1 MiB document limit once base64's ~4/3 overhead is accounted for.
+// getPlatformBranding/updatePlatformBranding) — the logo is a data: URI stored directly on the
+// settings document rather than a Storage upload, since it's a single small, rarely-changed image
+// with no per-company scoping to route it through; the length cap leaves generous headroom under
+// Firestore's 1 MiB document limit once base64's ~4/3 overhead is accounted for. backgroundImageUrl
+// is a real Storage URL instead (see POST /storage/upload-base64 below) — a full-page background
+// picture is expected to be larger/more detailed than the small logo mark, so it's uploaded to
+// Storage first rather than embedded, keeping this document small regardless of image size.
 const platformBrandingUpdateSchema = z.object({
   themeId: z.enum(['ocean', 'forest', 'sunrise', 'purple', 'black', 'grey']),
   companyLogoDataUrl: z.string().max(1_000_000).regex(/^data:image\//, 'Logo must be an image file.').nullable(),
+  backgroundImageUrl: z.string().url().nullable().optional(),
 });
 
 export function createSuperAdminRouter(options: {
@@ -110,8 +116,9 @@ export function createSuperAdminRouter(options: {
   jwtExpiresIn: jwt.SignOptions['expiresIn'];
   emailService: PasswordResetEmailService;
   resolveAppBaseUrl: (request?: express.Request) => string;
+  storageBucket: string;
 }): express.Router {
-  const { jwtSecret, jwtExpiresIn, emailService, resolveAppBaseUrl } = options;
+  const { jwtSecret, jwtExpiresIn, emailService, resolveAppBaseUrl, storageBucket } = options;
   const router = express.Router();
 
   function requireSuperAdmin(request: express.Request, response: express.Response, next: express.NextFunction) {
@@ -448,6 +455,67 @@ export function createSuperAdminRouter(options: {
     }
   });
 
+  // Mirrors server.ts's own POST /api/storage/upload-base64 (same Cloud-Functions-multipart
+  // workaround, same JSON/base64-in-body approach) — a Super Admin token has no companyId of its
+  // own to scope an upload path to, so this instead takes an OPTIONAL companyId in the body: when
+  // editing one company's branding, the dashboard passes that company's id, scoping the Storage
+  // path the exact same way that company's own admin-set logo already is
+  // (lms-uploads/{companyId}/branding/...); when editing the platform-wide default, it's omitted
+  // and the file goes under a shared platform-branding/ path instead. Used today for the login
+  // background image only — the logo stays embedded as base64 (see platformBrandingUpdateSchema's
+  // own comment for why that's still fine for a small logo but not for a full-page picture).
+  const maxJsonUploadBytes = 8 * 1024 * 1024;
+  router.post('/storage/upload-base64', requireSuperAdmin, async (request, response, next) => {
+    try {
+      if (!storageBucket) {
+        response.status(503).json({ message: 'File storage is not configured on this server.' });
+        return;
+      }
+
+      const { folder, fileName, contentType, dataBase64, companyId } = z.object({
+        folder: z.string().regex(/^[a-zA-Z0-9_-]+$/).max(64),
+        fileName: z.string().min(1).max(255),
+        contentType: z.string().min(1).max(127),
+        dataBase64: z.string().min(1),
+        companyId: z.string().min(1).optional(),
+      }).parse(request.body);
+
+      if (!contentType.startsWith('image/')) {
+        response.status(400).json({ message: 'Only image files are allowed.' });
+        return;
+      }
+
+      const buffer = Buffer.from(dataBase64, 'base64');
+      if (buffer.length > maxJsonUploadBytes) {
+        response.status(413).json({ message: 'File is too large. Please upload a file under 8 MB.' });
+        return;
+      }
+
+      if (companyId && !(await getCompanyRecord(companyId))) {
+        response.status(404).json({ message: 'Company not found.' });
+        return;
+      }
+
+      const ext = fileName.split('.').pop() ?? '';
+      const safeName = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext ? '.' + ext : ''}`;
+      const filePath = companyId
+        ? `lms-uploads/${companyId}/${folder}/${safeName}`
+        : `platform-branding/${folder}/${safeName}`;
+
+      const adminApp = getApps().length > 0 ? getApp() : initializeApp();
+      const bucket = getStorage(adminApp).bucket(storageBucket);
+      const storageFile = bucket.file(filePath);
+
+      await storageFile.save(buffer, { contentType });
+      await storageFile.makePublic();
+
+      const publicUrl = `https://storage.googleapis.com/${storageBucket}/${filePath}`;
+      response.json({ url: publicUrl, path: filePath });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // The one login screen's branding — GET is intentionally also gated to requireSuperAdmin (the
   // dashboard's own edit panel needs to read the current value before showing it), unlike
   // GET /api/branding in server.ts, which is the public, unauthenticated route every visitor's
@@ -463,7 +531,10 @@ export function createSuperAdminRouter(options: {
   router.put('/branding', requireSuperAdmin, async (request, response, next) => {
     try {
       const payload = platformBrandingUpdateSchema.parse(request.body);
-      response.json(await updatePlatformBranding(payload));
+      // Unlike the per-company branding route below, this is the ONE caller of
+      // updatePlatformBranding — always defaulted to a concrete value here (never left undefined)
+      // since that function does a full replace, not a merge (see its own comment).
+      response.json(await updatePlatformBranding({ ...payload, backgroundImageUrl: payload.backgroundImageUrl ?? null }));
     } catch (error) {
       next(error);
     }

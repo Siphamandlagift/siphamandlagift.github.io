@@ -1,7 +1,9 @@
 <div class="login-bg"
+	[class.login-bg-has-image]="!!branding.backgroundImageUrl()"
 	[style.--brand-primary]="branding.currentTheme().primary"
 	[style.--brand-secondary]="branding.currentTheme().secondary"
-	[style.--brand-tint]="branding.currentTheme().tint">
+	[style.--brand-tint]="branding.currentTheme().tint"
+	[style.--brand-background-image]="branding.backgroundImageUrl() ? 'url(' + branding.backgroundImageUrl() + ')' : null">
 	<div class="login-card" [class.shake]="shaking()">
 		<div class="login-company-logo" [class.login-company-logo-has-image]="!!branding.companyLogoDataUrl()" aria-hidden="true">
 			@if (branding.companyLogoDataUrl()) {
