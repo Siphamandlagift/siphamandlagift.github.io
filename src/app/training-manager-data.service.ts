@@ -2938,7 +2938,15 @@ export class TrainingManagerDataService {
 
       for (let questionIndex = 0; questionIndex < item.questions.length; questionIndex += 1) {
         const question = item.questions[questionIndex];
-        const stepId = this.createAssessmentStepId(offering.id, item.id, itemIndex, questionIndex);
+        // Mirrors buildWorkspaceAssessment's usePersistedQuestionId convention in
+        // student-courses.component.ts: Assignment/Mentorship questions are identified by their
+        // own persisted id (present on every authored question — see createAssessmentQuestionIdFallback
+        // above), not a position-derived one, so that reordering/deleting an earlier question never
+        // reshuffles a later question's identity. That's the id the client actually sends as
+        // assessmentStepId; matching only the position-derived id here (as this used to) meant it
+        // never equaled what the client sent, so findAssessmentStep always returned null and every
+        // Assignment/Mentorship submission failed with a generic "could not be submitted" error.
+        const stepId = question.id?.trim() || this.createAssessmentStepId(offering.id, item.id, itemIndex, questionIndex);
         if (!normalizedStepId || stepId === normalizedStepId) {
           return { item, question, stepId };
         }
