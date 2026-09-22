@@ -271,26 +271,44 @@ export type UpdateCompanySlugResult =
 // see getCompanyRecordBySlug's own comment for why this must stay unambiguous. Format matches
 // slugify's own output (lowercase letters/digits/hyphens only) so a Super Admin can't
 // accidentally create a slug the URL router or slugify's own future auto-suggestions would mangle.
+//
+// The uniqueness check and the write run inside one Firestore transaction — checking then writing
+// as two separate calls (the original implementation) left a real race: two concurrent requests
+// assigning the same slug to two different companies could both read "not taken" before either
+// wrote, so both would commit, leaving getCompanyRecordBySlug's plain equality query to return
+// whichever of the two documents Firestore happened to order first — an arbitrary, non-deterministic
+// company for anyone visiting that slug's login URL. A transaction closes this: Firestore tracks
+// the query's result set as part of the transaction's read set, so if the losing request's query
+// result changes before it commits (because the winner's write landed first), its transaction is
+// invalidated and automatically retried — on retry it sees the now-conflicting document and
+// correctly returns 'taken' instead of also committing.
 export async function updateCompanySlug(companyId: string, rawSlug: string): Promise<UpdateCompanySlugResult> {
-  const existing = await getCompanyRecord(companyId);
-  if (!existing) {
-    return { status: 'not-found' };
-  }
-
   const slug = rawSlug.trim().toLowerCase();
   if (!/^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/.test(slug)) {
     return { status: 'invalid' };
   }
 
-  const conflict = await getCompanyRecordBySlug(slug);
-  if (conflict && conflict.id !== companyId) {
-    return { status: 'taken' };
-  }
-
   const firestore = getFirestoreClient();
-  await firestore.collection(COMPANIES_COLLECTION_ID).doc(companyId).set({ slug }, { merge: true });
+  const companyRef = firestore.collection(COMPANIES_COLLECTION_ID).doc(companyId);
 
-  return { status: 'ok', company: { ...existing, slug } };
+  return firestore.runTransaction(async (transaction): Promise<UpdateCompanySlugResult> => {
+    const [companySnapshot, conflictSnapshot] = await Promise.all([
+      transaction.get(companyRef),
+      transaction.get(firestore.collection(COMPANIES_COLLECTION_ID).where('slug', '==', slug).limit(1)),
+    ]);
+
+    if (!companySnapshot.exists) {
+      return { status: 'not-found' };
+    }
+
+    const conflictDoc = conflictSnapshot.docs[0];
+    if (conflictDoc && conflictDoc.id !== companyId) {
+      return { status: 'taken' };
+    }
+
+    transaction.set(companyRef, { slug }, { merge: true });
+    return { status: 'ok', company: companyDocToRecord(companyId, { ...companySnapshot.data(), slug }) };
+  });
 }
 
 export async function getCompanyUserCount(companyId: string): Promise<number> {

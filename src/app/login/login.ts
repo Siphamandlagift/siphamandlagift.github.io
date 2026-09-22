@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -38,6 +39,7 @@ type SsoLoginPayload = {
 export class Login implements OnInit {
   private readonly router = inject(Router);
   private readonly activatedRoute = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly backend = inject(LmsBackendService);
   readonly branding = inject(LmsBrandingService);
@@ -73,7 +75,18 @@ export class Login implements OnInit {
     // route" from "fresh load of the login route with a stale-but-valid session sitting around",
     // and guesses wrong for the latter). See LmsBrandingService.refreshForPublicScreen for the
     // full reasoning.
-    this.branding.refreshForPublicScreen(this.activatedRoute.snapshot.paramMap.get('companySlug') ?? undefined);
+    //
+    // Subscribes to paramMap rather than reading activatedRoute.snapshot once: '' and
+    // 'login/:companySlug' are two distinct routeConfig entries, but two DIFFERENT slugs both
+    // match the same 'login/:companySlug' entry — so a client-side navigation between two
+    // already-visited company login URLs (e.g. browser back/forward, no full reload) reuses this
+    // same component instance without re-running ngOnInit. A one-time snapshot read would leave
+    // the FIRST company's branding on screen under the SECOND company's URL; this re-fetches on
+    // every param change instead. (Login itself is unaffected either way — onSubmit() below never
+    // depends on which company's branding is showing, only on the credentials typed in.)
+    this.activatedRoute.paramMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((params) => this.branding.refreshForPublicScreen(params.get('companySlug') ?? undefined));
     this.consumeSsoQueryParams();
   }
 
