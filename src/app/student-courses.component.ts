@@ -7,7 +7,7 @@ import { PdfViewerComponent } from './pdf-viewer.component';
 import { PowerPointWindowComponent } from './powerpoint-window.component';
 import { StudentAssessmentAttempt, StudentCourse, StudentDataService } from './student-data.service';
 import { resolvePowerPointUploadType } from './powerpoint-preview';
-import { AssignmentSubmissionRecord, SurveyAnswer, SurveyQuestionType, SurveySubmissionRecord, TrainingAssessmentType, TrainingContentItem, TrainingContentKind, TrainingManagerDataService, TrainingOffering, TrainingQuestionType } from './training-manager-data.service';
+import { AdministratorDirectoryEntry, AssignmentSubmissionRecord, SurveyAnswer, SurveyQuestionType, SurveySubmissionRecord, TrainingAssessmentType, TrainingContentItem, TrainingContentKind, TrainingManagerDataService, TrainingOffering, TrainingQuestionType } from './training-manager-data.service';
 import { readLmsSessionRecord } from './session-auth';
 import { readCompanyScopedCache, writeCompanyScopedCache } from './company-scoped-storage';
 
@@ -543,10 +543,17 @@ type ScormRuntimeState = {
                   class="workspace-response-field"
                   *ngIf="selectedAssessment()?.assessmentType === 'Assignment' && !isAssessmentSubmitted()">
                   <span>Who should mark this assignment?</span>
-                  <select [value]="selectedAssignmentReviewerId()" (change)="updateAssignmentReviewerId($any($event.target).value)">
-                    <option value="">No preference — any admin can review</option>
-                    <option *ngFor="let admin of managerData.administrators()" [value]="admin.id">{{ admin.name }}</option>
-                  </select>
+                  <input
+                    type="text"
+                    list="assignmentReviewerOptions"
+                    autocomplete="off"
+                    placeholder="Search by name or email…"
+                    [value]="selectedAssignmentReviewerSearchText()"
+                    (input)="updateAssignmentReviewerSelection($any($event.target).value)" />
+                  <datalist id="assignmentReviewerOptions">
+                    <option *ngFor="let admin of managerData.administrators()" [value]="assignmentReviewerLabel(admin)"></option>
+                  </datalist>
+                  <span class="workspace-response-field-hint">Leave blank if you have no preference — any admin can review it.</span>
                 </label>
 
                 <ng-template #nonShortAnswerAssessmentView>
@@ -1844,6 +1851,12 @@ type ScormRuntimeState = {
       background: #fff;
     }
 
+    .workspace-response-field-hint {
+      color: #64748b;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+
     .workspace-document-response-card {
       display: grid;
       gap: 0.9rem;
@@ -3005,10 +3018,21 @@ export class StudentCoursesComponent {
       dataUrl: this.currentAssignmentSubmission()?.documentDataUrl ?? '',
     };
   });
+  // The reviewer picker is a free-text search box (native <input list> + <datalist>, matching this
+  // app's established searchable-field convention — see ofoCode/municipality in
+  // admin-profile.component.ts) rather than a <select>, so what's typed/chosen is a display label
+  // ("Name — email"), not an admin id directly. assignmentReviewerLabel/resolvedAssignmentReviewerId
+  // below bridge label text back to an actual admin.id, resolved only on an exact match so a typo
+  // or partial search never silently assigns the wrong reviewer.
+  assignmentReviewerLabel(admin: AdministratorDirectoryEntry): string {
+    return `${admin.name} — ${admin.email}`;
+  }
+
   // Defaults to whatever admin was already assigned on a prior submission for this question (the
-  // revision flow) — falling back to "no preference" only when nothing has been chosen or
-  // submitted yet, same draft-then-persisted-fallback shape as the two computeds above.
-  readonly selectedAssignmentReviewerId = computed(() => {
+  // revision flow), shown as that admin's label — falling back to "no preference" only when
+  // nothing has been chosen or submitted yet, same draft-then-persisted-fallback shape as the two
+  // computeds above.
+  readonly selectedAssignmentReviewerSearchText = computed(() => {
     const assessmentKey = this.currentAssessmentAttemptKey();
     if (!assessmentKey) {
       return '';
@@ -3019,7 +3043,28 @@ export class StudentCoursesComponent {
       return draftSelection;
     }
 
-    return this.currentAssignmentSubmission()?.assignedReviewerId ?? '';
+    const existingReviewerId = this.currentAssignmentSubmission()?.assignedReviewerId;
+    if (!existingReviewerId) {
+      return '';
+    }
+
+    const existingReviewer = this.managerData.administrators().find((admin) => admin.id === existingReviewerId);
+    return existingReviewer ? this.assignmentReviewerLabel(existingReviewer) : '';
+  });
+
+  // Resolves the current search text back to an admin id for submission — only on an exact,
+  // case-insensitive match against a real admin's label, so an unfinished or mistyped search never
+  // gets sent as if it were a deliberate reviewer choice.
+  readonly resolvedAssignmentReviewerId = computed(() => {
+    const searchText = this.selectedAssignmentReviewerSearchText().trim().toLowerCase();
+    if (!searchText) {
+      return '';
+    }
+
+    const match = this.managerData.administrators().find(
+      (admin) => this.assignmentReviewerLabel(admin).trim().toLowerCase() === searchText,
+    );
+    return match?.id ?? '';
   });
   readonly selectedMentorshipSubmission = computed<MentorshipSubmission>(() => {
     const assessmentKey = this.currentAssessmentAttemptKey();
@@ -3422,7 +3467,7 @@ export class StudentCoursesComponent {
     }));
   }
 
-  updateAssignmentReviewerId(value: string) {
+  updateAssignmentReviewerSelection(value: string) {
     const assessmentKey = this.currentAssessmentAttemptKey();
     if (!assessmentKey || this.isAssessmentSubmitted()) {
       return;
@@ -4196,7 +4241,7 @@ export class StudentCoursesComponent {
         responseText: assignmentQuestionType === 'Short Answer' || assignmentQuestionType === 'Long Answer' ? textResponse : undefined,
         documentFileName: assignmentQuestionType === 'Document Upload' ? documentSubmission.fileName : undefined,
         documentDataUrl: assignmentQuestionType === 'Document Upload' ? documentSubmission.dataUrl : undefined,
-        assignedReviewerId: this.selectedAssignmentReviewerId() || undefined,
+        assignedReviewerId: this.resolvedAssignmentReviewerId() || undefined,
       });
 
       if (!submissionResult.ok) {
