@@ -532,7 +532,12 @@ const assignmentSubmissionSchema = z.object({
   questionType: z.enum(['Short Answer', 'Long Answer', 'Document Upload']),
   responseText: z.string(),
   documentFileName: z.string(),
-  documentDataUrl: z.string(),
+  // A short Storage URL (see uploadFileBase64/the /storage/upload-base64 route the client now
+  // uploads through first), never the raw file — capped defensively well below any realistic URL
+  // length so a client sending the raw base64 data: URL this field used to hold gets a clean 400
+  // instead of risking a Firestore write failure past its 1 MiB document limit for anything but a
+  // tiny file.
+  documentDataUrl: z.string().max(2000),
   possiblePoints: z.number(),
   attemptsUsed: z.number().int().min(1).optional(),
   awardedPoints: z.number().nullable(),

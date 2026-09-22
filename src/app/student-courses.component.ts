@@ -509,20 +509,20 @@ type ScormRuntimeState = {
                       </div>
 
                       <div class="workspace-document-response-actions">
-                        <label class="workspace-document-upload-btn" [class.workspace-document-upload-btn-disabled]="isAssessmentSubmitted()">
+                        <label class="workspace-document-upload-btn" [class.workspace-document-upload-btn-disabled]="isAssessmentSubmitted() || assignmentDocumentUploading()">
                           <input
                             type="file"
                             accept=".pdf,.doc,.docx,.ppt,.pptx,.xlsx,.txt"
-                            [disabled]="isAssessmentSubmitted()"
+                            [disabled]="isAssessmentSubmitted() || assignmentDocumentUploading()"
                             (change)="onAssignmentDocumentSelected($event)" />
-                          <span>{{ selectedAssignmentDocumentSubmission().fileName ? 'Replace document' : 'Choose document' }}</span>
+                          <span>{{ assignmentDocumentUploading() ? 'Uploading…' : (selectedAssignmentDocumentSubmission().fileName ? 'Replace document' : 'Choose document') }}</span>
                         </label>
 
                         <button
                           *ngIf="selectedAssignmentDocumentSubmission().fileName"
                           type="button"
                           class="workspace-document-open-btn"
-                          [disabled]="isAssessmentSubmitted()"
+                          [disabled]="isAssessmentSubmitted() || assignmentDocumentUploading()"
                           (click)="clearAssignmentDocumentSubmission()">
                           Remove document
                         </button>
@@ -2408,6 +2408,9 @@ export class StudentCoursesComponent {
   readonly assessmentSelections = signal<Record<string, string>>({});
   readonly assessmentResponses = signal<Record<string, string>>({});
   readonly assignmentDocumentSubmissions = signal<Record<string, AssignmentDocumentSubmission>>({});
+  // True while a just-selected assignment document is uploading — gates canSubmitAssessment so a
+  // student can't hit Submit before the real Storage URL is back (see onAssignmentDocumentSelected).
+  readonly assignmentDocumentUploading = signal(false);
   readonly assignmentReviewerSelections = signal<Record<string, string>>({});
   // In-memory only, same as assessmentSelections/assessmentResponses above — not persisted to
   // localStorage (see persistCourseProgressState), since a survey is submitted as one whole and
@@ -3177,6 +3180,10 @@ export class StudentCoursesComponent {
       return false;
     }
 
+    if (this.assignmentDocumentUploading()) {
+      return false;
+    }
+
     const overdueCourse = this.selectedCourse();
     if (overdueCourse && this.isCourseOverdue(overdueCourse)) {
       return false;
@@ -3427,30 +3434,49 @@ export class StudentCoursesComponent {
     }));
   }
 
+  // Uploads to Storage and stores the returned short URL — NOT a raw base64 data: URL read
+  // straight off the file, which is what this used to do. That data: URL got sent as-is to the
+  // server and stored verbatim as one field on the submission's own Firestore document; any file
+  // over roughly 750KB (base64's ~4/3 overhead pushes it past Firestore's 1 MiB document limit —
+  // a plausible size for a real scanned/photographed assignment) made that write fail outright,
+  // silently discarding the submission behind a generic "check your connection" error with no
+  // indication of the real cause. Uploading first, the same way every other file upload in this
+  // app already works (uploadFileBase64), keeps the stored field tiny regardless of file size.
   onAssignmentDocumentSelected(event: Event) {
     const assessmentKey = this.currentAssessmentAttemptKey();
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
+    input.value = '';
 
-    if (!assessmentKey || this.isAssessmentSubmitted() || !file) {
-      input.value = '';
+    if (!assessmentKey || this.isAssessmentSubmitted() || !file || this.assignmentDocumentUploading()) {
       return;
     }
 
     this.clearAssessmentSubmissionFeedback();
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      this.assignmentDocumentSubmissions.update((submissions) => ({
-        ...submissions,
-        [assessmentKey]: {
-          fileName: file.name,
-          dataUrl: typeof reader.result === 'string' ? reader.result : '',
-        },
-      }));
-      input.value = '';
-    };
-    reader.readAsDataURL(file);
+    // Matches the server's own maxJsonUploadBytes cap (server.ts, /api/storage/upload-base64) —
+    // checked here too so an oversized file is rejected immediately with a clear reason, instead
+    // of only after a slow upload attempt.
+    const maxUploadBytes = 8 * 1024 * 1024;
+    if (file.size > maxUploadBytes) {
+      this.setAssessmentSubmissionError(`"${file.name}" is too large. Please choose a file under 8 MB.`);
+      return;
+    }
+
+    this.assignmentDocumentUploading.set(true);
+    this.backend.uploadFileBase64(file, 'assignment-submissions').subscribe({
+      next: ({ url }) => {
+        this.assignmentDocumentUploading.set(false);
+        this.assignmentDocumentSubmissions.update((submissions) => ({
+          ...submissions,
+          [assessmentKey]: { fileName: file.name, dataUrl: url },
+        }));
+      },
+      error: () => {
+        this.assignmentDocumentUploading.set(false);
+        this.setAssessmentSubmissionError(`Could not upload "${file.name}". Please check your connection and try again.`);
+      },
+    });
   }
 
   clearAssignmentDocumentSubmission() {
