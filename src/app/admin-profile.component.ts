@@ -968,15 +968,15 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
                 <form class="admin-edit-form admin-single-user-form" [formGroup]="singleUserForm" (ngSubmit)="saveSingleUser()">
                   <label>
-                    Name
+                    <span class="required-label">Name <span class="required-marker" aria-hidden="true">*</span></span>
                     <input type="text" formControlName="name" />
                   </label>
                   <label>
-                    Surname
+                    <span class="required-label">Surname <span class="required-marker" aria-hidden="true">*</span></span>
                     <input type="text" formControlName="surname" />
                   </label>
                   <label>
-                    Email
+                    <span class="required-label">Email <span class="required-marker" aria-hidden="true">*</span></span>
                     <input type="email" formControlName="email" />
                   </label>
                   <label>
@@ -1057,7 +1057,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     </select>
                   </label>
                   <label>
-                    Disability
+                    <span class="required-label">Disability <span class="required-marker" aria-hidden="true">*</span></span>
                     <select formControlName="disability" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
                       <option value="No">No</option>
                       <option value="Yes">Yes</option>
@@ -1102,14 +1102,14 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     }
                   </div>
                   <label>
-                    Employment Type
+                    <span class="required-label">Employment Type <span class="required-marker" aria-hidden="true">*</span></span>
                     <select formControlName="employmentType" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
                       <option value="Employed">Employed</option>
                       <option value="Unemployed">Unemployed</option>
                     </select>
                   </label>
                   <label>
-                    Department
+                    <span class="required-label">Department <span class="required-marker" aria-hidden="true">*</span></span>
                     <input type="text" formControlName="department" />
                   </label>
                   <label>
@@ -1122,19 +1122,19 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     </select>
                   </label>
                   <label>
-                    Group
+                    <span class="required-label">Group <span class="required-marker" aria-hidden="true">*</span></span>
                     <input type="text" formControlName="group" />
                   </label>
                   <label>
-                    Start Date
+                    <span class="required-label">Start Date <span class="required-marker" aria-hidden="true">*</span></span>
                     <input type="date" formControlName="dateEnrolled" />
                   </label>
                   <label>
-                    End Date
+                    <span class="required-label">End Date <span class="required-marker" aria-hidden="true">*</span></span>
                     <input type="date" formControlName="deadlineDate" />
                   </label>
                   <label>
-                    Role
+                    <span class="required-label">Role <span class="required-marker" aria-hidden="true">*</span></span>
                     <select formControlName="managerAccess" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
                       @for (option of availableManagerAccessOptions(); track option.value) {
                         <option [value]="option.value">{{ option.label }}</option>
@@ -1142,7 +1142,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     </select>
                   </label>
                   <label>
-                    Admin
+                    <span class="required-label">Admin <span class="required-marker" aria-hidden="true">*</span></span>
                     <select formControlName="isAdmin" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
                       @for (option of adminAccessOptions; track option.value) {
                         <option [value]="option.value">{{ option.label }}</option>
@@ -1150,7 +1150,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     </select>
                   </label>
                   <label>
-                    Access
+                    <span class="required-label">Access <span class="required-marker" aria-hidden="true">*</span></span>
                     <select formControlName="activeStatus" style="width: 100%; background: #fffbe6; border: 2px solid #f9c74f; color: #222; padding: 8px; margin-top: 4px; display: block;">
                       <option value="Active">Active</option>
                       <option value="Inactive">Inactive</option>
