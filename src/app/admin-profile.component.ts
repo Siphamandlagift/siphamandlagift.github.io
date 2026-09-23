@@ -4481,6 +4481,16 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           placeholder="Search by learner, course, email, type, or status" />
                       </label>
 
+                      <label class="admin-report-filter-field admin-report-download-field">
+                        <span>Group</span>
+                        <select [value]="assignmentSubmissionGroupFilter()" (change)="setAssignmentSubmissionGroupFilter($any($event.target).value)">
+                          <option value="">All groups</option>
+                          @for (group of assignmentSubmissionGroupOptions(); track group) {
+                            <option [value]="group">{{ group }}</option>
+                          }
+                        </select>
+                      </label>
+
                       <div class="student-chip-row" aria-label="Assignment review status filters">
                         @for (status of assignmentSubmissionFilterOptions; track status) {
                           <button
@@ -4494,123 +4504,141 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       </div>
                     </div>
 
-                    @if (filteredAssignmentSubmissions().length) {
-                      <div class="mentorship-review-layout">
-                        <div class="mentorship-review-list" role="list" aria-label="Assignment submissions list">
-                          @for (submission of filteredAssignmentSubmissions(); track submission.id) {
-                            <button
-                              type="button"
-                              class="mentorship-review-list-item"
-                              [class.mentorship-review-list-item-active]="selectedAssignmentSubmission()?.id === submission.id"
-                              (click)="openAssignmentSubmission(submission.id)">
-                              <strong>{{ submission.studentName }}</strong>
-                              <small>{{ submission.offeringTitle }}</small>
-                              <small>{{ submission.questionType }} • Submitted {{ submission.submittedAt }}</small>
-                              <div class="mentorship-review-chip-row">
-                                @if (submission.awardedPoints !== null) {
-                                  <span class="mentorship-review-score-chip">{{ formatAssignmentMark(submission) }}</span>
-                                }
-                                <span class="mentorship-review-status-pill" [class.mentorship-review-status-pill-approved]="submission.status === 'Approved'" [class.mentorship-review-status-pill-revision]="submission.status === 'Needs Revision'">
-                                  {{ submission.status }}
-                                </span>
-                              </div>
-                            </button>
-                          }
-                        </div>
-
-                        @if (selectedAssignmentSubmission(); as activeSubmission) {
-                          <div class="mentorship-review-detail-card">
-                            <div class="mentorship-review-detail-header">
-                              <div>
-                                <h3>{{ activeSubmission.studentName }}</h3>
-                                <span>{{ activeSubmission.offeringTitle }} • {{ activeSubmission.assessmentTitle }}</span>
-                              </div>
-                              <span class="mentorship-review-status-pill" [class.mentorship-review-status-pill-approved]="activeSubmission.status === 'Approved'" [class.mentorship-review-status-pill-revision]="activeSubmission.status === 'Needs Revision'">
-                                {{ activeSubmission.status }}
-                              </span>
-                            </div>
-
-                            <div class="mentorship-review-meta-grid">
-                              <div>
-                                <strong>Learner email</strong>
-                                <span>{{ activeSubmission.studentEmail }}</span>
-                              </div>
-                              <div>
-                                <strong>Submission type</strong>
-                                <span>{{ activeSubmission.questionType }}</span>
-                              </div>
-                              <div>
-                                <strong>Mark</strong>
-                                <span>{{ formatAssignmentMark(activeSubmission) }}</span>
-                              </div>
-                              <div>
-                                <strong>Submitted</strong>
-                                <span>{{ activeSubmission.submittedAt }}</span>
-                              </div>
-                              <div>
-                                <strong>Reviewed</strong>
-                                <span>{{ activeSubmission.reviewedAt || 'Not reviewed yet' }}</span>
-                              </div>
-                              <div>
-                                <strong>Assigned reviewer</strong>
-                                <span>{{ activeSubmission.assignedReviewerName || 'Any admin' }}</span>
-                              </div>
-                            </div>
-
-                            @if (activeSubmission.responseText) {
-                              <div class="mentorship-review-action-plan">
-                                <strong>Submitted response</strong>
-                                <p>{{ activeSubmission.responseText }}</p>
-                              </div>
+                    @if (assignmentSubmissionRows().length) {
+                      <div class="admin-report-table-wrap">
+                        <table class="admin-report-table assignment-review-table">
+                          <thead>
+                            <tr>
+                              <th>Assignment</th>
+                              <th>Name</th>
+                              <th>Surname</th>
+                              <th>Group</th>
+                              <th>Submitted</th>
+                              <th>Status</th>
+                              <th>Mark</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            @for (row of assignmentSubmissionRows(); track row.submission.id) {
+                              <tr class="assignment-review-row" (click)="openAssignmentSubmission(row.submission.id)">
+                                <td>{{ row.submission.assessmentTitle }}</td>
+                                <td>
+                                  <button type="button" class="assignment-review-name-btn" (click)="openAssignmentSubmission(row.submission.id); $event.stopPropagation()">{{ row.firstName }}</button>
+                                </td>
+                                <td>{{ row.surname }}</td>
+                                <td>{{ row.group }}</td>
+                                <td>{{ row.submission.submittedAt }}</td>
+                                <td>
+                                  <span class="mentorship-review-status-pill" [class.mentorship-review-status-pill-approved]="row.submission.status === 'Approved'" [class.mentorship-review-status-pill-revision]="row.submission.status === 'Needs Revision'">
+                                    {{ row.submission.status }}
+                                  </span>
+                                </td>
+                                <td>{{ formatAssignmentMark(row.submission) }}</td>
+                              </tr>
                             }
-
-                            @if (activeSubmission.documentFileName) {
-                              <div class="mentorship-review-history">
-                                <strong>Submitted document</strong>
-                                <span>{{ activeSubmission.documentFileName }}</span>
-                                <div class="mentorship-review-actions">
-                                  <button type="button" class="detail-action-btn" (click)="downloadSupportingDocument(activeSubmission.documentDataUrl, activeSubmission.documentFileName)">Download assignment</button>
-                                </div>
-                              </div>
-                            }
-
-                            @if (activeSubmission.reviewerFeedback) {
-                              <div class="mentorship-review-history">
-                                <strong>{{ activeSubmission.reviewerName || 'Manager' }} feedback</strong>
-                                <p>{{ activeSubmission.reviewerFeedback }}</p>
-                              </div>
-                            }
-
-                            @if (canReviewAssignmentSubmission(activeSubmission)) {
-                              <form class="mentorship-review-form" [formGroup]="assignmentWorkspaceReviewForm" (ngSubmit)="applyAssignmentWorkspaceReview('Approved')">
-                                <label>
-                                  Mark awarded
-                                  <input formControlName="awardedPoints" type="number" min="0" [max]="activeSubmission.possiblePoints" step="1" placeholder="Out of {{ activeSubmission.possiblePoints }}" />
-                                </label>
-                                <label>
-                                  Feedback for learner
-                                  <textarea formControlName="feedback" rows="5" placeholder="Add review feedback or revision guidance"></textarea>
-                                </label>
-
-                                @if (assignmentWorkspaceReviewError()) {
-                                  <span class="field-error">{{ assignmentWorkspaceReviewError() }}</span>
-                                }
-
-                                <div class="mentorship-review-actions">
-                                  <button type="button" class="detail-action-btn" (click)="applyAssignmentWorkspaceReview('Needs Revision')">Request revision</button>
-                                  <button type="submit" class="detail-action-btn detail-action-btn-primary">Approve submission</button>
-                                </div>
-                              </form>
-                            } @else {
-                              <p class="admin-field-hint">Assigned to {{ activeSubmission.assignedReviewerName }} — only they can review this submission.</p>
-                            }
-                          </div>
-                        }
+                          </tbody>
+                        </table>
                       </div>
                     } @else {
-                      <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">No assignment submissions match the current search and filter.</div>
+                      <div class="mentorship-review-empty-state">No assignment submissions match the current search and filter.</div>
                     }
                   </section>
+                }
+
+                @if (assignmentReviewModalOpen() && selectedAssignmentSubmission(); as activeSubmission) {
+                  <div class="assignment-review-overlay" (keydown.escape)="closeAssignmentReviewModal()">
+                    <button type="button" class="assignment-review-overlay-backdrop" aria-label="Close submission details" (click)="closeAssignmentReviewModal()"></button>
+
+                    <div class="assignment-review-overlay-panel" role="dialog" aria-modal="true">
+                      <div class="mentorship-review-detail-header">
+                        <div>
+                          <h3>{{ activeSubmission.studentName }}</h3>
+                          <span>{{ activeSubmission.offeringTitle }} • {{ activeSubmission.assessmentTitle }}</span>
+                        </div>
+                        <div class="assignment-review-overlay-header-actions">
+                          <span class="mentorship-review-status-pill" [class.mentorship-review-status-pill-approved]="activeSubmission.status === 'Approved'" [class.mentorship-review-status-pill-revision]="activeSubmission.status === 'Needs Revision'">
+                            {{ activeSubmission.status }}
+                          </span>
+                          <button type="button" class="admin-secondary-btn" (click)="closeAssignmentReviewModal()">Close</button>
+                        </div>
+                      </div>
+
+                      <div class="mentorship-review-meta-grid">
+                        <div>
+                          <strong>Learner email</strong>
+                          <span>{{ activeSubmission.studentEmail }}</span>
+                        </div>
+                        <div>
+                          <strong>Submission type</strong>
+                          <span>{{ activeSubmission.questionType }}</span>
+                        </div>
+                        <div>
+                          <strong>Mark</strong>
+                          <span>{{ formatAssignmentMark(activeSubmission) }}</span>
+                        </div>
+                        <div>
+                          <strong>Submitted</strong>
+                          <span>{{ activeSubmission.submittedAt }}</span>
+                        </div>
+                        <div>
+                          <strong>Reviewed</strong>
+                          <span>{{ activeSubmission.reviewedAt || 'Not reviewed yet' }}</span>
+                        </div>
+                        <div>
+                          <strong>Assigned reviewer</strong>
+                          <span>{{ activeSubmission.assignedReviewerName || 'Any admin' }}</span>
+                        </div>
+                      </div>
+
+                      @if (activeSubmission.responseText) {
+                        <div class="mentorship-review-action-plan">
+                          <strong>Submitted response</strong>
+                          <p>{{ activeSubmission.responseText }}</p>
+                        </div>
+                      }
+
+                      @if (activeSubmission.documentFileName) {
+                        <div class="mentorship-review-history">
+                          <strong>Submitted document</strong>
+                          <span>{{ activeSubmission.documentFileName }}</span>
+                          <div class="mentorship-review-actions">
+                            <button type="button" class="detail-action-btn" (click)="downloadSupportingDocument(activeSubmission.documentDataUrl, activeSubmission.documentFileName)">Download assignment</button>
+                          </div>
+                        </div>
+                      }
+
+                      @if (activeSubmission.reviewerFeedback) {
+                        <div class="mentorship-review-history">
+                          <strong>{{ activeSubmission.reviewerName || 'Manager' }} feedback</strong>
+                          <p>{{ activeSubmission.reviewerFeedback }}</p>
+                        </div>
+                      }
+
+                      @if (canReviewAssignmentSubmission(activeSubmission)) {
+                        <form class="mentorship-review-form" [formGroup]="assignmentWorkspaceReviewForm" (ngSubmit)="applyAssignmentWorkspaceReview('Approved')">
+                          <label>
+                            Mark awarded
+                            <input formControlName="awardedPoints" type="number" min="0" [max]="activeSubmission.possiblePoints" step="1" placeholder="Out of {{ activeSubmission.possiblePoints }}" />
+                          </label>
+                          <label>
+                            Feedback for learner
+                            <textarea formControlName="feedback" rows="5" placeholder="Add review feedback or revision guidance"></textarea>
+                          </label>
+
+                          @if (assignmentWorkspaceReviewError()) {
+                            <span class="field-error">{{ assignmentWorkspaceReviewError() }}</span>
+                          }
+
+                          <div class="mentorship-review-actions">
+                            <button type="button" class="detail-action-btn" (click)="applyAssignmentWorkspaceReview('Needs Revision')">Request revision</button>
+                            <button type="submit" class="detail-action-btn detail-action-btn-primary">Approve submission</button>
+                          </div>
+                        </form>
+                      } @else {
+                        <p class="admin-field-hint">Assigned to {{ activeSubmission.assignedReviewerName }} — only they can review this submission.</p>
+                      }
+                    </div>
+                  </div>
                 }
 
                 @if (selectedCoursesView() === 'survey-results') {
@@ -11378,25 +11406,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       }
     }
 
-    .mentorship-review-chip-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        align-items: center;
-      }
-
-      .mentorship-review-score-chip {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0.35rem 0.7rem;
-        border-radius: 999px;
-        background: #eff6ff;
-        color: #1d4ed8;
-        font-size: 0.76rem;
-        font-weight: 800;
-      }
-
       /* ── Assignment Submissions review workspace ─────────────────────
          The mentorship-review family of classes (and mentorship-panel-nav-btn) were
          carried over from the Courses/Enrollment relocation (see this style block's
@@ -11432,60 +11441,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
         color: #fff;
         border-color: transparent;
         box-shadow: 0 2px 6px rgba(23, 52, 70, 0.14);
-      }
-
-      .mentorship-review-layout {
-        display: grid;
-        grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
-        gap: 1rem;
-        align-items: start;
-      }
-
-      .mentorship-review-list {
-        display: grid;
-        gap: 0.6rem;
-        max-height: 42rem;
-        overflow-y: auto;
-        padding-right: 0.2rem;
-      }
-
-      .mentorship-review-list-item {
-        display: grid;
-        gap: 0.3rem;
-        padding: 0.8rem 0.9rem;
-        border: 1px solid rgba(148, 163, 184, 0.28);
-        border-radius: 12px;
-        background: #ffffff;
-        color: #173446;
-        text-align: left;
-        font: inherit;
-        cursor: pointer;
-        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
-      }
-
-      .mentorship-review-list-item strong {
-        font-size: 0.92rem;
-        color: #173446;
-      }
-
-      .mentorship-review-list-item small {
-        color: #64748b;
-        font-size: 0.78rem;
-      }
-
-      .mentorship-review-list-item:hover,
-      .mentorship-review-list-item:focus-visible {
-        transform: translateY(-1px);
-        border-color: var(--admin-secondary);
-        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.1);
-        outline: none;
-      }
-
-      .mentorship-review-list-item-active {
-        border-color: var(--admin-primary);
-        background: var(--admin-tint);
-        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.1);
       }
 
       .mentorship-review-status-pill {
@@ -11614,9 +11569,86 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
         background: #f8fafc;
       }
 
-      @media (max-width: 860px) {
-        .mentorship-review-layout {
-          grid-template-columns: 1fr;
+      .assignment-review-table tbody .assignment-review-row {
+        cursor: pointer;
+        transition: background 0.15s ease;
+      }
+
+      .assignment-review-table tbody .assignment-review-row:hover {
+        background: var(--admin-tint);
+      }
+
+      .assignment-review-name-btn {
+        border: none;
+        background: none;
+        padding: 0;
+        color: var(--admin-primary);
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+        text-decoration: none;
+      }
+
+      .assignment-review-name-btn:hover,
+      .assignment-review-name-btn:focus-visible {
+        text-decoration: underline;
+        outline: none;
+      }
+
+      /* Centered modal for reviewing/marking one submission — same backdrop-blur +
+         scale-in-panel pattern as the (currently unused elsewhere) .kpi-overlay family,
+         under feature-specific names. */
+      .assignment-review-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 80;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 1.5rem;
+      }
+
+      .assignment-review-overlay-backdrop {
+        position: absolute;
+        inset: 0;
+        border: none;
+        cursor: pointer;
+        background: rgba(15, 23, 42, 0.5);
+        backdrop-filter: blur(3px);
+      }
+
+      .assignment-review-overlay-panel {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        gap: 1rem;
+        width: min(760px, 94vw);
+        max-height: min(900px, 92vh);
+        overflow: auto;
+        padding: 1.4rem;
+        border-radius: 20px;
+        background: #ffffff;
+        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+        animation: assignment-review-panel-enter 0.22s ease-out;
+        box-sizing: border-box;
+      }
+
+      .assignment-review-overlay-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+        flex-wrap: wrap;
+      }
+
+      @keyframes assignment-review-panel-enter {
+        from {
+          opacity: 0;
+          transform: translateY(12px) scale(0.98);
+        }
+
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
         }
       }
 
@@ -18074,6 +18106,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly selectedCreateSection = signal<CreateCourseSection>('basics');
   readonly assignmentSubmissionStatusFilter = signal<AssignmentSubmissionFilter>('All');
   readonly assignmentSubmissionSearchTerm = signal('');
+  // '' means "All groups" — mirrors assignmentSubmissionStatusFilter's 'All' sentinel.
+  readonly assignmentSubmissionGroupFilter = signal('');
+  readonly assignmentReviewModalOpen = signal(false);
 
   readonly thumbnailPreview = signal<string | null>(null);
   readonly thumbnailFileName = signal<string>('');
@@ -18171,13 +18206,34 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     return this.managerData.offerings().find((offering) => offering.id === selectedId) ?? null;
   });
 
+  // Assignment submissions only store studentId (see AssignmentSubmissionRecord) — surname and
+  // group live on the matching EnrollmentStudent record, looked up here rather than duplicated
+  // onto every submission.
+  private studentForAssignmentSubmission(submission: AssignmentSubmissionRecord) {
+    return this.managerData.students().find((student) => student.id === submission.studentId);
+  }
+
+  readonly assignmentSubmissionGroupOptions = computed(() =>
+    [...new Set(
+      this.managerData.assignmentSubmissions()
+        .map((submission) => this.studentForAssignmentSubmission(submission)?.group?.trim() ?? '')
+        .filter(Boolean),
+    )].sort((left, right) => left.localeCompare(right)),
+  );
+
   readonly filteredAssignmentSubmissions = computed<AssignmentSubmissionRecord[]>(() => {
     const query = this.assignmentSubmissionSearchTerm().trim().toLowerCase();
     const status = this.assignmentSubmissionStatusFilter();
+    const group = this.assignmentSubmissionGroupFilter();
     const submissions = this.managerData.assignmentSubmissions();
 
     return submissions.filter((submission) => {
       if (status !== 'All' && submission.status !== status) {
+        return false;
+      }
+
+      const studentGroup = this.studentForAssignmentSubmission(submission)?.group?.trim() ?? '';
+      if (group && studentGroup !== group) {
         return false;
       }
 
@@ -18192,9 +18248,30 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         submission.assessmentTitle,
         submission.questionType,
         submission.status,
+        studentGroup,
       ].some((value) => value.toLowerCase().includes(query));
     });
   });
+
+  // Bundles each filtered submission with its learner's first name/surname/group for the review
+  // table — falls back to splitting the submission's own combined studentName (never leaving a
+  // cell blank) when no EnrollmentStudent record matches, e.g. a since-deleted student.
+  readonly assignmentSubmissionRows = computed(() =>
+    this.filteredAssignmentSubmissions().map((submission) => {
+      const student = this.studentForAssignmentSubmission(submission);
+      const firstSpaceIndex = submission.studentName.indexOf(' ');
+      const fallbackFirstName = firstSpaceIndex === -1 ? submission.studentName : submission.studentName.slice(0, firstSpaceIndex);
+      const fallbackSurname = firstSpaceIndex === -1 ? '' : submission.studentName.slice(firstSpaceIndex + 1);
+
+      return {
+        submission,
+        firstName: student?.name?.trim() || fallbackFirstName || '—',
+        surname: student?.surname?.trim() || fallbackSurname || '—',
+        group: student?.group?.trim() || '—',
+      };
+    }),
+  );
+
   readonly selectedAssignmentSubmission = computed<AssignmentSubmissionRecord | null>(() => {
     const selectedId = this.selectedAssignmentSubmissionId();
 
@@ -18520,11 +18597,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
     if (view !== 'submissions') {
       this.selectedAssignmentSubmissionId.set(null);
+      this.assignmentReviewModalOpen.set(false);
       this.assignmentWorkspaceReviewForm.reset({ awardedPoints: null, feedback: '' });
-    } else {
-      const firstSubmission = this.filteredAssignmentSubmissions()[0] ?? null;
-      this.selectedAssignmentSubmissionId.set(firstSubmission?.id ?? null);
-      this.assignmentWorkspaceReviewForm.reset({ awardedPoints: firstSubmission?.awardedPoints ?? null, feedback: firstSubmission?.reviewerFeedback ?? '' });
     }
     this.assignmentWorkspaceReviewError.set('');
 
@@ -18537,18 +18611,14 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   updateAssignmentSubmissionSearch(value: string) {
     this.assignmentSubmissionSearchTerm.set(value);
-    const firstSubmission = this.filteredAssignmentSubmissions()[0] ?? null;
-    this.selectedAssignmentSubmissionId.set(firstSubmission?.id ?? null);
-    this.assignmentWorkspaceReviewForm.reset({ awardedPoints: firstSubmission?.awardedPoints ?? null, feedback: firstSubmission?.reviewerFeedback ?? '' });
-    this.assignmentWorkspaceReviewError.set('');
   }
 
   setAssignmentSubmissionStatusFilter(status: AssignmentSubmissionFilter) {
     this.assignmentSubmissionStatusFilter.set(status);
-    const firstSubmission = this.filteredAssignmentSubmissions()[0] ?? null;
-    this.selectedAssignmentSubmissionId.set(firstSubmission?.id ?? null);
-    this.assignmentWorkspaceReviewForm.reset({ awardedPoints: firstSubmission?.awardedPoints ?? null, feedback: firstSubmission?.reviewerFeedback ?? '' });
-    this.assignmentWorkspaceReviewError.set('');
+  }
+
+  setAssignmentSubmissionGroupFilter(group: string) {
+    this.assignmentSubmissionGroupFilter.set(group);
   }
 
   openAssignmentSubmission(submissionId: string) {
@@ -18556,6 +18626,11 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     const activeSubmission = this.filteredAssignmentSubmissions().find((submission) => submission.id === submissionId) ?? null;
     this.assignmentWorkspaceReviewForm.reset({ awardedPoints: activeSubmission?.awardedPoints ?? null, feedback: activeSubmission?.reviewerFeedback ?? '' });
     this.assignmentWorkspaceReviewError.set('');
+    this.assignmentReviewModalOpen.set(true);
+  }
+
+  closeAssignmentReviewModal() {
+    this.assignmentReviewModalOpen.set(false);
   }
 
   canReviewAssignmentSubmission(submission: AssignmentSubmissionRecord): boolean {
