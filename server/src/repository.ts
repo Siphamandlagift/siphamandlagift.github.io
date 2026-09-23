@@ -4037,14 +4037,26 @@ export class LmsRepository {
 
   // Scoped per-record CRUD for the Settings > Approval Settings directory — see ManagerStatePatch's
   // own comment in contracts.ts for why this replaced a generic full-array-replace patch field.
-  async createApprovingManager(input: TrainingManagerInput) {
+  // The email-uniqueness check used to live in server.ts, as its own separate repository.read()
+  // before this method's independent read()+write() — two full request/response round trips
+  // apart, plenty of time for two concurrent creates for the same email to both pass the check
+  // and both persist. Checking against the SAME read this method already does, immediately before
+  // its own write(), doesn't make this atomic (no transaction), but it collapses the race window
+  // from "two full HTTP round trips" down to the width of this one method — the same discriminated
+  // { status } convention createAdministratorAccount above already uses for the equivalent check.
+  async createApprovingManager(input: TrainingManagerInput): Promise<SystemTrainingManagerRecord | { status: 'invalid-input' } | { status: 'email-taken' }> {
     const name = input.name.trim();
     const email = input.email.trim();
     if (!name || !email) {
-      return null;
+      return { status: 'invalid-input' };
     }
 
     const data = await this.read();
+    const normalizedEmail = email.toLowerCase();
+    if (data.trainingManagers.some((manager) => manager.email.trim().toLowerCase() === normalizedEmail)) {
+      return { status: 'email-taken' };
+    }
+
     const manager: SystemTrainingManagerRecord = {
       id: `training-manager-${Date.now()}`,
       name,
@@ -4058,17 +4070,23 @@ export class LmsRepository {
     return manager;
   }
 
-  async updateApprovingManager(managerId: string, input: TrainingManagerInput) {
+  // Same race-window reasoning as createApprovingManager above.
+  async updateApprovingManager(managerId: string, input: TrainingManagerInput): Promise<SystemTrainingManagerRecord | { status: 'invalid-input' } | { status: 'email-taken' } | { status: 'not-found' }> {
     const name = input.name.trim();
     const email = input.email.trim();
     if (!name || !email) {
-      return null;
+      return { status: 'invalid-input' };
     }
 
     const data = await this.read();
     const managerIndex = data.trainingManagers.findIndex((manager) => manager.id === managerId);
     if (managerIndex === -1) {
-      return null;
+      return { status: 'not-found' };
+    }
+
+    const normalizedEmail = email.toLowerCase();
+    if (data.trainingManagers.some((manager) => manager.id !== managerId && manager.email.trim().toLowerCase() === normalizedEmail)) {
+      return { status: 'email-taken' };
     }
 
     const updatedManager: SystemTrainingManagerRecord = {

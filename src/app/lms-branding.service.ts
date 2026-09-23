@@ -166,37 +166,64 @@ export class LmsBrandingService {
   }
 
   selectTheme(themeId: LmsBrandThemeId): Promise<boolean> {
-    const previousThemeId = this.selectedThemeIdSignal();
-    this.selectedThemeIdSignal.set(themeId);
-
-    return this.persistBranding().then((saved) => {
-      if (!saved) {
+    return this.queueBrandingMutation(
+      () => {
+        const previousThemeId = this.selectedThemeIdSignal();
+        this.selectedThemeIdSignal.set(themeId);
+        return previousThemeId;
+      },
+      (previousThemeId) => {
         // Roll back so the UI doesn't keep showing a theme that was never actually saved —
         // otherwise a reload (or another admin's session) would silently revert it anyway.
         this.selectedThemeIdSignal.set(previousThemeId);
         this.saveToLocalStorage({ themeId: previousThemeId, companyLogoDataUrl: this.companyLogoDataUrlSignal(), backgroundImageUrl: this.backgroundImageUrlSignal() });
-      }
-
-      return saved;
-    });
+      },
+    );
   }
 
   setCompanyLogo(logoDataUrl: string | null): Promise<boolean> {
-    const previousLogoDataUrl = this.companyLogoDataUrlSignal();
-    this.companyLogoDataUrlSignal.set(logoDataUrl);
-
-    return this.persistBranding().then((saved) => {
-      if (!saved) {
+    return this.queueBrandingMutation(
+      () => {
+        const previousLogoDataUrl = this.companyLogoDataUrlSignal();
+        this.companyLogoDataUrlSignal.set(logoDataUrl);
+        return previousLogoDataUrl;
+      },
+      (previousLogoDataUrl) => {
         this.companyLogoDataUrlSignal.set(previousLogoDataUrl);
         this.saveToLocalStorage({ themeId: this.selectedThemeIdSignal(), companyLogoDataUrl: previousLogoDataUrl, backgroundImageUrl: this.backgroundImageUrlSignal() });
-      }
-
-      return saved;
-    });
+      },
+    );
   }
 
   clearCompanyLogo(): Promise<boolean> {
     return this.setCompanyLogo(null);
+  }
+
+  // selectTheme and setCompanyLogo both PUT the FULL branding snapshot (theme + logo together —
+  // there's no per-field save endpoint), so two saves fired back to back race on more than just
+  // the network: whichever happens to persist LAST wins the shared fields regardless of send
+  // order, and if the earlier one then fails and rolls its own signal back, that rollback can
+  // land AFTER the later save already re-persisted the pre-rollback value — the UI shows "reverted
+  // to the old theme" while the server actually still has the new one. Queuing every mutate+
+  // persist+maybe-rollback as one indivisible unit (via brandingMutationQueue) fixes both: sends
+  // are strictly ordered, and each save's payload/rollback always reflects the truly-settled state
+  // left by the one before it, since the next mutate() can't run until the previous unit — rollback
+  // included — has fully finished.
+  private brandingMutationQueue: Promise<unknown> = Promise.resolve();
+
+  private queueBrandingMutation<T>(mutate: () => T, rollback: (previous: T) => void): Promise<boolean> {
+    const run = this.brandingMutationQueue.then(async () => {
+      const previous = mutate();
+      const saved = await this.persistBranding();
+      if (!saved) {
+        rollback(previous);
+      }
+      return saved;
+    });
+    // Swallowed here so a failed unit never poisons the queue for later mutations — the caller
+    // above still sees the real result via `run`, which this doesn't affect.
+    this.brandingMutationQueue = run.catch(() => undefined);
+    return run;
   }
 
   private persistBranding(): Promise<boolean> {

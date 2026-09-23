@@ -3766,20 +3766,17 @@ app.post('/api/approving-managers', requireAdministrator, async (request, respon
     const repository = request.repository!;
     const body = trainingManagerInputSchema.parse(request.body);
 
-    const existing = await repository.read();
-    const normalizedEmail = body.email.trim().toLowerCase();
-    if (normalizedEmail && existing.trainingManagers.some((manager) => manager.email.trim().toLowerCase() === normalizedEmail)) {
-      response.status(409).json({ message: 'Another approving manager already uses this email address.' });
-      return;
-    }
-
-    const manager = await repository.createApprovingManager(body);
-    if (!manager) {
+    const result = await repository.createApprovingManager(body);
+    if ('status' in result) {
+      if (result.status === 'email-taken') {
+        response.status(409).json({ message: 'Another approving manager already uses this email address.' });
+        return;
+      }
       response.status(400).json({ message: 'Name and email are required.' });
       return;
     }
 
-    response.status(201).json(manager);
+    response.status(201).json(result);
   } catch (error) {
     next(error);
   }
@@ -3791,20 +3788,21 @@ app.put('/api/approving-managers/:managerId', requireAdministrator, async (reque
     const managerId = request.params['managerId'] as string;
     const body = trainingManagerInputSchema.parse(request.body);
 
-    const existing = await repository.read();
-    const normalizedEmail = body.email.trim().toLowerCase();
-    if (normalizedEmail && existing.trainingManagers.some((manager) => manager.id !== managerId && manager.email.trim().toLowerCase() === normalizedEmail)) {
-      response.status(409).json({ message: 'Another approving manager already uses this email address.' });
+    const result = await repository.updateApprovingManager(managerId, body);
+    if ('status' in result) {
+      if (result.status === 'email-taken') {
+        response.status(409).json({ message: 'Another approving manager already uses this email address.' });
+        return;
+      }
+      if (result.status === 'not-found') {
+        response.status(404).json({ message: 'Approving manager not found.' });
+        return;
+      }
+      response.status(400).json({ message: 'Name and email are required.' });
       return;
     }
 
-    const manager = await repository.updateApprovingManager(managerId, body);
-    if (!manager) {
-      response.status(404).json({ message: 'Approving manager not found.' });
-      return;
-    }
-
-    response.json(manager);
+    response.json(result);
   } catch (error) {
     next(error);
   }

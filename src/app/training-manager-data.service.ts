@@ -698,6 +698,10 @@ export class TrainingManagerDataService {
   // "current year only" convention exactly, since submitKpiTableForApproval/decideKpiApproval only
   // ever act on the current year (a closed year is never re-opened for approval).
   private readonly approvalWorkflowSettingsSignal = signal<ApprovalWorkflowSettings>({ kpiApproversRequired: 1, trainingApproversRequired: 1 });
+  // Same reasoning and convention as studentsDirtyAt below: a bootstrap poll already in flight when
+  // an admin saves new approver counts (updateApprovalWorkflowSettings) can't reflect that save yet,
+  // so its stale response must not be allowed to overwrite it once the poll resolves.
+  private approvalWorkflowSettingsDirtyAt: number | null = null;
   private readonly kpiApprovalByStudentSignal = signal<Record<string, KpiApprovalRecord | null>>({});
 
   // Timestamp of the last local write per student id, so a periodic bootstrap poll that was
@@ -1137,6 +1141,7 @@ export class TrainingManagerDataService {
   // session, every manager-facing "Submit for Approval" check — sees the new counts immediately.
   async updateApprovalWorkflowSettings(input: ApprovalWorkflowSettings): Promise<{ success: true } | { success: false; message: string }> {
     try {
+      this.approvalWorkflowSettingsDirtyAt = Date.now();
       const settings = await firstValueFrom(this.backend.updateApprovalWorkflowSettings(input));
       this.approvalWorkflowSettingsSignal.set(settings);
       return { success: true };
@@ -1364,7 +1369,8 @@ export class TrainingManagerDataService {
         if (bootstrap.kpiYearsOpened?.length) {
           this.kpiYearsOpenedSignal.set(bootstrap.kpiYearsOpened);
         }
-        if (bootstrap.approvalWorkflowSettings) {
+        const isApprovalWorkflowSettingsStale = this.approvalWorkflowSettingsDirtyAt !== null && this.approvalWorkflowSettingsDirtyAt >= requestStartedAt;
+        if (bootstrap.approvalWorkflowSettings && !isApprovalWorkflowSettingsStale) {
           this.approvalWorkflowSettingsSignal.set(bootstrap.approvalWorkflowSettings);
         }
         if (bootstrap.kpiApprovalByStudent) {
@@ -3552,7 +3558,8 @@ export class TrainingManagerDataService {
           if (bootstrap.kpiYearsOpened?.length) {
             this.kpiYearsOpenedSignal.set(bootstrap.kpiYearsOpened);
           }
-          if (bootstrap.approvalWorkflowSettings) {
+          const isApprovalWorkflowSettingsStale = this.approvalWorkflowSettingsDirtyAt !== null && this.approvalWorkflowSettingsDirtyAt >= requestStartedAt;
+          if (bootstrap.approvalWorkflowSettings && !isApprovalWorkflowSettingsStale) {
             this.approvalWorkflowSettingsSignal.set(bootstrap.approvalWorkflowSettings);
           }
           if (bootstrap.kpiApprovalByStudent) {
