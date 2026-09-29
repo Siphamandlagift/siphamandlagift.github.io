@@ -3756,6 +3756,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                 {{ contentKind }}
                               </button>
                             }
+                            <button type="button" class="content-add-menu-item" (click)="openExistingQuizPicker()">
+                              Existing Quiz
+                            </button>
                           </div>
                         }
 
@@ -4467,6 +4470,13 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                 <strong>Add a survey unit</strong>
                                 <span>Collect learner feedback with choice, text, rating, date, and file-upload questions.</span>
                               </button>
+                              <button type="button" class="course-studio-empty-card" (click)="openExistingQuizPicker()">
+                                <span class="course-studio-upload-icon" aria-hidden="true">
+                                  <svg width="38" height="38" viewBox="0 0 24 24" fill="none"><path d="M8 7h8M8 12h8M8 17h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="4.5" y="4.5" width="15" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="m15 15 3 3M18 15l-3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                                </span>
+                                <strong>Add an existing quiz</strong>
+                                <span>Reuse a quiz already built in one of your other courses.</span>
+                              </button>
                             </div>
                           </section>
                         }
@@ -4785,6 +4795,52 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                 }
               </div>
             </section>
+          }
+
+          @if (existingQuizPickerOpen()) {
+            <div class="existing-quiz-picker-overlay">
+              <button type="button" class="existing-quiz-picker-overlay-backdrop" aria-label="Close quiz picker" (click)="closeExistingQuizPicker()"></button>
+
+              <div class="existing-quiz-picker-overlay-panel" role="dialog" aria-modal="true" aria-labelledby="existing-quiz-picker-title">
+                <div class="mentorship-review-detail-header">
+                  <div>
+                    <h3 id="existing-quiz-picker-title">Add an existing quiz</h3>
+                    <span>Pick a quiz already built in one of your other courses — it's copied in as a new unit, questions and all.</span>
+                  </div>
+                  <button type="button" class="admin-secondary-btn" (click)="closeExistingQuizPicker()">Close</button>
+                </div>
+
+                <label class="admin-search-field">
+                  <span>Search quizzes</span>
+                  <input
+                    type="search"
+                    [value]="existingQuizPickerSearchTerm()"
+                    (input)="existingQuizPickerSearchTerm.set($any($event.target).value)"
+                    placeholder="Search by quiz or course name" />
+                </label>
+
+                @if (filteredExistingQuizPickerOptions().length) {
+                  <div class="admin-approver-grid">
+                    @for (option of filteredExistingQuizPickerOptions(); track option.item.id) {
+                      <button type="button" class="existing-quiz-option-row" (click)="addExistingQuiz(option.offeringTitle, option.item)">
+                        <span class="admin-approver-info">
+                          <strong class="existing-quiz-option-title">{{ option.item.title }}</strong>
+                          <span class="admin-approver-chip-row">
+                            <span class="admin-approver-chip">{{ option.offeringTitle }}</span>
+                            <span class="admin-approver-chip">{{ option.item.questions.length }} {{ option.item.questions.length === 1 ? 'question' : 'questions' }}</span>
+                          </span>
+                        </span>
+                        <span class="admin-approver-chevron" aria-hidden="true">›</span>
+                      </button>
+                    }
+                  </div>
+                } @else {
+                  <div class="admin-empty-state">
+                    {{ existingQuizPickerOptions().length ? 'No quizzes match your search.' : 'No quizzes exist yet in any of your other courses — build one from scratch with Assessment.' }}
+                  </div>
+                }
+              </div>
+            </div>
           }
 
           @if (selectedPanel() === 'courses' && selectedCoursesView() === 'created' && selectedPublishedOffering(); as activeOffering) {
@@ -11697,6 +11753,72 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
         }
       }
 
+      /* Centered modal for picking an existing quiz to clone — same backdrop-blur +
+         scale-in-panel recipe as .assignment-review-overlay above, under feature-specific names. */
+      .existing-quiz-picker-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 80;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 1.5rem;
+      }
+
+      .existing-quiz-picker-overlay-backdrop {
+        position: absolute;
+        inset: 0;
+        border: none;
+        cursor: pointer;
+        background: rgba(15, 23, 42, 0.5);
+        backdrop-filter: blur(3px);
+      }
+
+      .existing-quiz-picker-overlay-panel {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        gap: 1rem;
+        width: min(640px, 94vw);
+        max-height: min(760px, 88vh);
+        overflow: auto;
+        padding: 1.4rem;
+        border-radius: 20px;
+        background: #ffffff;
+        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+        animation: assignment-review-panel-enter 0.22s ease-out;
+        box-sizing: border-box;
+      }
+
+      .existing-quiz-option-row {
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+        width: 100%;
+        padding: 0.85rem 1rem;
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        border-radius: 14px;
+        background: #ffffff;
+        text-align: left;
+        cursor: pointer;
+        font: inherit;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+      }
+
+      .existing-quiz-option-row:hover,
+      .existing-quiz-option-row:focus-visible {
+        border-color: var(--admin-secondary);
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+        transform: translateX(2px);
+        outline: none;
+      }
+
+      .existing-quiz-option-title {
+        color: #14213d;
+        font-size: 0.95rem;
+      }
+
       /* ── IDP Form ──────────────────────────────────────────────────── */
       .idp-program-hero {
         padding: 1.5rem 0 1rem;
@@ -18236,6 +18358,41 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly assessmentStatusByItem = signal<Record<number, { tone: 'info' | 'success'; message: string }>>({});
   readonly submittedAssessmentByItem = signal<Record<number, boolean>>({});
   readonly addItemMenuOpen = signal(false);
+  // ── Add an existing quiz (clone a Quiz assessment already built in another course) ──────
+  readonly existingQuizPickerOpen = signal(false);
+  readonly existingQuizPickerSearchTerm = signal('');
+  // Excludes the course currently being edited — its own quizzes are already right there,
+  // cloning one into itself would just be a confusing no-op duplicate.
+  readonly existingQuizPickerOptions = computed(() => {
+    const editingId = this.editingCourseId();
+    const options: { offeringTitle: string; item: TrainingOffering['contentItems'][number] }[] = [];
+
+    for (const offering of this.managerData.offerings()) {
+      if (offering.id === editingId) {
+        continue;
+      }
+
+      for (const item of offering.contentItems) {
+        if (item.kind === 'Assessment' && item.assessmentType === 'Quiz' && item.questions.length > 0) {
+          options.push({ offeringTitle: offering.title, item });
+        }
+      }
+    }
+
+    return options;
+  });
+  readonly filteredExistingQuizPickerOptions = computed(() => {
+    const query = this.existingQuizPickerSearchTerm().trim().toLowerCase();
+    const options = this.existingQuizPickerOptions();
+
+    if (!query) {
+      return options;
+    }
+
+    return options.filter(
+      (option) => option.item.title.toLowerCase().includes(query) || option.offeringTitle.toLowerCase().includes(query),
+    );
+  });
   // ── Quiz question import (bulk upload, same convention as Approving Managers/Users below) ──
   readonly quizQuestionImportFormat = signal<ReportDownloadFormat>('CSV');
   readonly quizQuestionImportIssuesByItem = signal<Record<number, BulkUploadIssue[]>>({});
@@ -19277,6 +19434,58 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
     this.updateCourseDetailValidators();
     this.focusContentItemTitle(nextIndex);
+  }
+
+  openExistingQuizPicker() {
+    this.addItemMenuOpen.set(false);
+    this.existingQuizPickerSearchTerm.set('');
+    this.existingQuizPickerOpen.set(true);
+  }
+
+  closeExistingQuizPicker() {
+    this.existingQuizPickerOpen.set(false);
+  }
+
+  // Clones a Quiz assessment already built in another course into this one — stripping the
+  // item's own id and every question's id (rather than copying them) so createContentItemGroup/
+  // createQuestionGroup mint fresh ones the normal way a brand-new item/question already does
+  // (see their own id: FormControl(...) defaults), instead of two unrelated courses' assessments
+  // ever sharing the same identity.
+  private cloneExistingQuizContentItem(item: TrainingOffering['contentItems'][number]): Partial<TrainingOffering['contentItems'][number]> {
+    return {
+      title: item.title,
+      assessmentType: item.assessmentType,
+      passMarkPercentage: item.passMarkPercentage,
+      maxAttempts: item.maxAttempts,
+      questions: item.questions.map((question) => ({
+        prompt: question.prompt,
+        questionType: question.questionType,
+        points: question.points,
+        choices: question.choices.map((choice) => ({ text: choice.text, points: choice.points, isCorrect: choice.isCorrect })),
+        matchingPairs: question.matchingPairs.map((pair) => ({ prompt: pair.prompt, answer: pair.answer })),
+        dragAndDropEnabled: question.dragAndDropEnabled,
+        attachmentFileName: question.attachmentFileName,
+        attachmentDataUrl: question.attachmentDataUrl,
+      })),
+    };
+  }
+
+  addExistingQuiz(sourceOfferingTitle: string, item: TrainingOffering['contentItems'][number]) {
+    this.selectedCreateSection.set('content');
+    this.createSectionDetailOpen.set(true);
+    this.contentItemsArray.push(this.createContentItemGroup('Assessment', this.cloneExistingQuizContentItem(item)));
+    const nextIndex = this.contentItemsArray.length - 1;
+    this.expandedContentIndex.set(nextIndex);
+    this.expandedQuestionByItem.update((current) => ({ ...current, [nextIndex]: null }));
+    this.updateCourseDetailValidators();
+    this.assessmentStatusByItem.update((current) => ({
+      ...current,
+      [nextIndex]: {
+        tone: 'success',
+        message: `Cloned "${item.title}" from "${sourceOfferingTitle}" with ${item.questions.length} ${item.questions.length === 1 ? 'question' : 'questions'}.`,
+      },
+    }));
+    this.closeExistingQuizPicker();
   }
 
   // A course made up entirely of survey units doesn't need the generic Category/Description
