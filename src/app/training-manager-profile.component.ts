@@ -1248,7 +1248,7 @@ type KpiEntryFormGroup = FormGroup<{
                         <p class="kpi-year-empty-note">No KPIs were recorded for {{ selectedKpiYear() }}.</p>
                       }
 
-                      @if (isViewingCurrentKpiYear() && kpiApprovalChainEnabled() && savedKpiEntries().length > 0 && savedKpiTotalWeight() === 100 && !selectedKpiApproval()) {
+                      @if (isViewingCurrentKpiYear() && kpiApprovalChainEnabled() && savedKpiEntries().length > 0 && savedKpiTotalWeight() === 100 && canSubmitKpiForApproval()) {
                         <div class="kpi-approval-submit-row">
                           <label class="kpi-approval-next-approver">
                             <span>Next approver</span>
@@ -1260,7 +1260,7 @@ type KpiEntryFormGroup = FormGroup<{
                             </select>
                           </label>
                           <button type="button" class="idp-program-add" [disabled]="!kpiSubmitNextApproverId() || kpiApprovalSubmitting()" (click)="submitKpiForApproval()">
-                            {{ kpiApprovalSubmitting() ? 'Submitting…' : 'Submit for Approval' }}
+                            {{ kpiApprovalSubmitting() ? 'Submitting…' : (selectedKpiApproval() ? 'Resubmit for Approval' : 'Submit for Approval') }}
                           </button>
                         </div>
                         @if (kpiApprovalError(); as error) {
@@ -7857,6 +7857,16 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     return id && this.isViewingCurrentKpiYear() ? this.managerData.kpiApprovalForStudent(id) : null;
   });
   readonly kpiApprovalChainEnabled = computed(() => this.managerData.approvalWorkflowSettings().kpiApproversRequired > 1);
+  // A KPI year has exactly one persistent approval record, whose status toggles rather than the
+  // record going back to null on rejection (unlike External Training Requests, where a new
+  // request is its own record) — so gating the submit UI on "no approval yet" alone left a
+  // rejected table stuck forever: "Edit table" reopens it (kpiTableLocked already allows this for
+  // Needs Revision), but nothing ever let it go out for approval again. Also true right after
+  // rejection, before any edit — resubmitting the table as-is is a legitimate choice too.
+  readonly canSubmitKpiForApproval = computed(() => {
+    const approval = this.selectedKpiApproval();
+    return approval === null || approval.status === 'Needs Revision';
+  });
   // Mirrors the server's ensureKpiTableEditable exactly: locked whenever an approval object exists
   // and isn't Needs Revision (i.e. Pending Approval or fully Approved) — only hides the "Edit
   // table" button here, the server is what actually enforces it.
