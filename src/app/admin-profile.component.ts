@@ -138,6 +138,19 @@ type BulkUploadIssue = {
   message: string;
 };
 
+// A row parsed from the quiz-question bulk-import file, already shaped as the questionValue
+// createQuestionGroup expects — see that method's own comment on why True or False needs the
+// separate forceFalseCorrect fixup instead of just setting choices[].isCorrect like the other
+// three types can.
+type QuizQuestionImportRow = {
+  questionType: TrainingQuestionType;
+  prompt: string;
+  points: number;
+  choices: TrainingAssessmentChoice[];
+  matchingPairs: TrainingMatchingPair[];
+  forceFalseCorrect: boolean;
+};
+
 type AdminSettingsSection = 'profile-picture' | 'company-logo' | 'theme' | 'hr-integration' | 'approval-settings';
 type ReportDownloadFormat = 'CSV' | 'XLSX';
 type AdminReportView = 'annual-training' | 'idp-report' | 'performance-report' | 'certificate-licence-report' | 'assignments-report' | 'seta-report';
@@ -3986,6 +3999,42 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   </div>
                                   <button type="button" class="assessment-add-btn" (click)="addAssessmentQuestion(activeContentItemIndex())">{{ assessmentAddButtonLabel(activeContentItemIndex()) }}</button>
                                 </div>
+
+                                @if (assessmentTypeForItem(activeContentItemIndex()) === 'Quiz') {
+                                  <p class="admin-settings-hint">
+                                    Import questions from a spreadsheet instead of adding them one by one. One row per question: Question Type (Multiple Choice / True or False / Short Answer / Matching), Prompt, Points, Option 1-6, Correct Option, and Match Pairs. Correct Option means the filled option's number (e.g. <code>2</code>) for Multiple Choice, <code>True</code>/<code>False</code> for True or False, or the exact answer text for Short Answer. Match Pairs holds <code>prompt = answer</code> pairs separated by <code>|</code>, for Matching questions only.
+                                  </p>
+
+                                  <div class="admin-bulk-upload-panel">
+                                    <div class="admin-bulk-upload-actions">
+                                      <label class="admin-settings-field admin-report-download-field admin-bulk-upload-template-field">
+                                        <span>Template format</span>
+                                        <select [value]="quizQuestionImportFormat()" (change)="quizQuestionImportFormat.set($any($event.target).value)">
+                                          <option value="CSV">Download CSV template</option>
+                                          <option value="XLSX">Download XLSX template</option>
+                                        </select>
+                                      </label>
+                                      <button type="button" class="admin-secondary-btn" (click)="downloadQuizQuestionImportTemplate()">Download template</button>
+                                      <label class="admin-upload-btn">
+                                        <span>Import questions</span>
+                                        <input type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" (change)="handleQuizQuestionImport($event, activeContentItemIndex())" />
+                                      </label>
+                                      <span class="admin-chip">CSV or XLSX</span>
+                                    </div>
+                                  </div>
+
+                                  @if (quizQuestionImportIssuesForItem(activeContentItemIndex()).length) {
+                                    <div class="admin-upload-issues" role="alert" aria-live="assertive">
+                                      <div class="admin-upload-issues-title">Import issues</div>
+                                      <div class="admin-upload-issues-copy">Fix the rows below and import the file again.</div>
+                                      <ul class="admin-upload-issues-list">
+                                        @for (issue of quizQuestionImportIssuesForItem(activeContentItemIndex()); track issue.lineNumber + issue.message) {
+                                          <li>Row {{ issue.lineNumber }}: {{ issue.message }}</li>
+                                        }
+                                      </ul>
+                                    </div>
+                                  }
+                                }
 
                                 @if (assessmentStatusMessage(activeContentItemIndex()); as assessmentStatus) {
                                   <div class="assessment-status-banner" [class.assessment-status-banner-success]="assessmentStatus.tone === 'success'" role="status" aria-live="polite">
@@ -18191,6 +18240,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly assessmentStatusByItem = signal<Record<number, { tone: 'info' | 'success'; message: string }>>({});
   readonly submittedAssessmentByItem = signal<Record<number, boolean>>({});
   readonly addItemMenuOpen = signal(false);
+  // ── Quiz question import (bulk upload, same convention as Approving Managers/Users below) ──
+  readonly quizQuestionImportFormat = signal<ReportDownloadFormat>('CSV');
+  readonly quizQuestionImportIssuesByItem = signal<Record<number, BulkUploadIssue[]>>({});
 
   readonly editingCourseId = signal<string | null>(null);
   readonly presentationPreviewByItem = signal<Map<ContentItemFormGroup, PowerPointPreviewState>>(new Map());
@@ -19505,6 +19557,274 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       ...current,
       [itemIndex]: { tone: 'info', message: `New ${this.assessmentEntryLabel(itemIndex, 1)} added with ${questionType.toLowerCase()} format.` },
     }));
+  }
+
+  // ── Quiz question import (bulk upload) ──────────────────────────────────────────
+  // Same download-template/upload-file/issues-list convention as the Approving Managers and
+  // Users bulk uploads elsewhere in this file (see e.g. handleApprovingManagerBulkUpload).
+  private getQuizQuestionImportTemplateRows() {
+    return [
+      ['Question Type', 'Prompt', 'Points', 'Option 1', 'Option 2', 'Option 3', 'Option 4', 'Option 5', 'Option 6', 'Correct Option', 'Match Pairs'],
+      ['Multiple Choice', 'Which planet is closest to the sun?', '5', 'Venus', 'Mercury', 'Earth', 'Mars', '', '', '2', ''],
+      ['True or False', 'The earth is flat.', '5', '', '', '', '', '', '', 'False', ''],
+      ['Short Answer', 'What is the capital of France?', '5', '', '', '', '', '', '', 'Paris', ''],
+      ['Matching', 'Match each animal to its sound.', '5', '', '', '', '', '', '', '', 'Cat = Meow | Dog = Bark | Cow = Moo'],
+    ];
+  }
+
+  downloadQuizQuestionImportTemplate() {
+    if (this.quizQuestionImportFormat() === 'XLSX') {
+      void this.downloadQuizQuestionImportTemplateXlsx();
+      return;
+    }
+
+    this.downloadQuizQuestionImportTemplateCsv();
+  }
+
+  downloadQuizQuestionImportTemplateCsv() {
+    const csv = this.getQuizQuestionImportTemplateRows()
+      .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+
+    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), 'LMS-Quiz-Questions-Template.csv');
+  }
+
+  async downloadQuizQuestionImportTemplateXlsx() {
+    const xlsx = await import('xlsx');
+    const workbook = xlsx.utils.book_new();
+    const worksheet = xlsx.utils.aoa_to_sheet(this.getQuizQuestionImportTemplateRows());
+
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Quiz Questions');
+    const workbookArray = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
+    this.triggerDownload(new Blob([workbookArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'LMS-Quiz-Questions-Template.xlsx');
+  }
+
+  quizQuestionImportIssuesForItem(itemIndex: number): BulkUploadIssue[] {
+    return this.quizQuestionImportIssuesByItem()[itemIndex] ?? [];
+  }
+
+  async handleQuizQuestionImport(event: Event, itemIndex: number) {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0] ?? null;
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      this.quizQuestionImportIssuesByItem.update((current) => ({ ...current, [itemIndex]: [] }));
+      const parsedUpload = await this.parseQuizQuestionImportFile(file);
+      this.quizQuestionImportIssuesByItem.update((current) => ({ ...current, [itemIndex]: parsedUpload.issues }));
+
+      if (!parsedUpload.rows.length) {
+        this.assessmentStatusByItem.update((current) => ({
+          ...current,
+          [itemIndex]: {
+            tone: 'info',
+            message: parsedUpload.issues.length
+              ? 'No valid questions were found. Review the upload issues below.'
+              : 'No valid questions were found in the uploaded file.',
+          },
+        }));
+        return;
+      }
+
+      const questions = this.assessmentQuestionsAt(itemIndex);
+      let lastNewIndex = questions.length - 1;
+
+      for (const row of parsedUpload.rows) {
+        questions.push(this.createQuestionGroup(row.questionType, row, 'Quiz'));
+        lastNewIndex = questions.length - 1;
+
+        // normalizeQuestionDetails (called by createQuestionGroup above) unconditionally rebuilds
+        // True/False choices with "True" hardcoded as correct — this is the same follow-up fixup
+        // the manual "click False" UI path uses (setTrueFalseCorrectAnswer) to flip it.
+        if (row.questionType === 'True or False' && row.forceFalseCorrect) {
+          this.setTrueFalseCorrectAnswer(itemIndex, lastNewIndex, 1);
+        }
+      }
+
+      this.expandedQuestionByItem.update((current) => ({ ...current, [itemIndex]: lastNewIndex }));
+      this.submittedAssessmentByItem.update((current) => ({ ...current, [itemIndex]: false }));
+      this.assessmentStatusByItem.update((current) => ({
+        ...current,
+        [itemIndex]: {
+          tone: parsedUpload.issues.length ? 'info' : 'success',
+          message: `${parsedUpload.rows.length} ${this.assessmentEntryLabel(itemIndex, parsedUpload.rows.length)} imported.${parsedUpload.issues.length ? ` ${parsedUpload.issues.length} row(s) need attention — see below.` : ''}`,
+        },
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Question import failed.';
+      this.assessmentStatusByItem.update((current) => ({ ...current, [itemIndex]: { tone: 'info', message } }));
+      this.quizQuestionImportIssuesByItem.update((current) => ({ ...current, [itemIndex]: [] }));
+    } finally {
+      if (input) {
+        input.value = '';
+      }
+    }
+  }
+
+  private async parseQuizQuestionImportFile(file: File): Promise<{ rows: QuizQuestionImportRow[]; issues: BulkUploadIssue[] }> {
+    const extension = file.name.split('.').pop()?.toLowerCase();
+
+    if (extension === 'xlsx') {
+      const xlsx = await import('xlsx');
+      const fileBuffer = await file.arrayBuffer();
+      const workbook = xlsx.read(fileBuffer, { type: 'array', cellDates: true });
+      const firstSheetName = workbook.SheetNames[0];
+
+      if (!firstSheetName) {
+        return { rows: [], issues: [] };
+      }
+
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rawRows = xlsx.utils.sheet_to_json<(string | number | boolean | Date)[]>(worksheet, {
+        header: 1,
+        raw: false,
+        defval: '',
+        blankrows: true,
+      });
+
+      return this.parseQuizQuestionImportRows(rawRows.map((row) => row.map((value) => String(value ?? ''))));
+    }
+
+    const csvText = await file.text();
+    const rawRows = csvText
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .map((line) => (line ? this.parseCsvLine(line) : []));
+
+    return this.parseQuizQuestionImportRows(rawRows);
+  }
+
+  private normalizeQuizQuestionCsvHeader(header: string) {
+    return header.toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  private parseQuizQuestionImportRows(rawRows: string[][]): { rows: QuizQuestionImportRow[]; issues: BulkUploadIssue[] } {
+    if (rawRows.length < 2) {
+      return { rows: [], issues: [] };
+    }
+
+    const headers = rawRows[0].map((header) => this.normalizeQuizQuestionCsvHeader(header));
+    const requiredHeaders = ['questiontype', 'prompt', 'points', 'correctoption'];
+
+    if (requiredHeaders.some((header) => !headers.includes(header))) {
+      throw new Error('The upload file is missing one or more required fields: Question Type, Prompt, Points, Correct Option.');
+    }
+
+    const rows: QuizQuestionImportRow[] = [];
+    const issues: BulkUploadIssue[] = [];
+
+    rawRows.slice(1).forEach((values, rowIndex) => {
+      const lineNumber = rowIndex + 2;
+
+      if (values.length === 0 || values.every((value) => !value?.trim())) {
+        return;
+      }
+
+      const record = new Map<string, string>();
+      headers.forEach((header, index) => {
+        record.set(header, values[index]?.trim() ?? '');
+      });
+
+      const row = this.buildQuizQuestionImportRow(record, lineNumber);
+
+      if ('message' in row) {
+        issues.push(row);
+        return;
+      }
+
+      rows.push(row);
+    });
+
+    return { rows, issues };
+  }
+
+  private buildQuizQuestionImportRow(record: Map<string, string>, lineNumber: number): QuizQuestionImportRow | BulkUploadIssue {
+    const rawType = (record.get('questiontype') ?? '').trim();
+    const questionType = this.questionTypeOptions.find((option) => option.toLowerCase() === rawType.toLowerCase());
+    if (!questionType) {
+      return { lineNumber, message: `Question Type must be one of: ${this.questionTypeOptions.join(', ')}.` };
+    }
+
+    const prompt = (record.get('prompt') ?? '').trim();
+    if (!prompt) {
+      return { lineNumber, message: 'Prompt is required.' };
+    }
+
+    const points = Number(record.get('points'));
+    if (!Number.isFinite(points) || points <= 0) {
+      return { lineNumber, message: 'Points must be a positive number.' };
+    }
+
+    const correctOption = (record.get('correctoption') ?? '').trim();
+
+    if (questionType === 'Multiple Choice') {
+      const optionTexts = [1, 2, 3, 4, 5, 6]
+        .map((optionNumber) => (record.get(`option${optionNumber}`) ?? '').trim())
+        .filter(Boolean);
+
+      if (optionTexts.length < 2) {
+        return { lineNumber, message: 'Multiple Choice needs at least 2 filled Option columns.' };
+      }
+
+      const correctIndex = Number(correctOption);
+      if (!Number.isInteger(correctIndex) || correctIndex < 1 || correctIndex > optionTexts.length) {
+        return { lineNumber, message: `Correct Option must be a number from 1 to ${optionTexts.length} (the filled options).` };
+      }
+
+      const choices: TrainingAssessmentChoice[] = optionTexts.map((text, index) => ({
+        text,
+        points: index === correctIndex - 1 ? points : 0,
+        isCorrect: index === correctIndex - 1,
+      }));
+
+      return { questionType, prompt, points, choices, matchingPairs: [], forceFalseCorrect: false };
+    }
+
+    if (questionType === 'True or False') {
+      const normalizedAnswer = correctOption.toLowerCase();
+      if (normalizedAnswer !== 'true' && normalizedAnswer !== 'false') {
+        return { lineNumber, message: 'Correct Option must be True or False for a True or False question.' };
+      }
+
+      return { questionType, prompt, points, choices: [], matchingPairs: [], forceFalseCorrect: normalizedAnswer === 'false' };
+    }
+
+    if (questionType === 'Short Answer') {
+      if (!correctOption) {
+        return { lineNumber, message: 'Correct Option must hold the correct answer text for a Short Answer question.' };
+      }
+
+      return {
+        questionType,
+        prompt,
+        points,
+        choices: [{ text: correctOption, points, isCorrect: true }],
+        matchingPairs: [],
+        forceFalseCorrect: false,
+      };
+    }
+
+    // Matching
+    const pairs = (record.get('matchpairs') ?? '')
+      .split('|')
+      .map((pair) => pair.trim())
+      .filter(Boolean)
+      .map((pair) => {
+        const equalsIndex = pair.indexOf('=');
+        return equalsIndex === -1
+          ? { prompt: '', answer: '' }
+          : { prompt: pair.slice(0, equalsIndex).trim(), answer: pair.slice(equalsIndex + 1).trim() };
+      })
+      .filter((pair) => pair.prompt && pair.answer);
+
+    if (pairs.length < 2) {
+      return { lineNumber, message: 'Match Pairs needs at least 2 valid "prompt = answer" pairs, separated by |.' };
+    }
+
+    return { questionType, prompt, points, choices: [], matchingPairs: pairs, forceFalseCorrect: false };
   }
 
   addAssessmentChoice(itemIndex: number, questionIndex: number) {
