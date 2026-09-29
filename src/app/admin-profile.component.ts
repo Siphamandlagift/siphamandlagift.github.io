@@ -4001,10 +4001,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                 </div>
 
                                 @if (assessmentTypeForItem(activeContentItemIndex()) === 'Quiz') {
-                                  <p class="admin-settings-hint">
-                                    Import questions from a spreadsheet instead of adding them one by one. One row per question: Question Type (Multiple Choice / True or False / Short Answer / Matching), Prompt, Points, Option 1-6, Correct Option, and Match Pairs. Correct Option means the filled option's number (e.g. <code>2</code>) for Multiple Choice, <code>True</code>/<code>False</code> for True or False, or the exact answer text for Short Answer. Match Pairs holds <code>prompt = answer</code> pairs separated by <code>|</code>, for Matching questions only.
-                                  </p>
-
                                   <div class="admin-bulk-upload-panel">
                                     <div class="admin-bulk-upload-actions">
                                       <label class="admin-settings-field admin-report-download-field admin-bulk-upload-template-field">
