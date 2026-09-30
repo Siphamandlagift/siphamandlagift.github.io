@@ -252,81 +252,80 @@ type StudentCertificate = {
           <span class="section-badge section-badge-cert">{{ filteredCertificates().length }} of {{ certificates().length }} issued</span>
         </div>
 
-        @if (certificates().length) {
-          <div class="certificate-toolbar">
-            <label class="certificate-search-field">
-              <span>Search</span>
-              <input type="search" [value]="certificateSearchTerm()" (input)="certificateSearchTerm.set($any($event.target).value)" placeholder="Search by name…" />
-            </label>
-            <label class="certificate-search-field">
-              <span>Expiry from</span>
-              <input type="date" [value]="certificateExpiryFrom()" (change)="certificateExpiryFrom.set($any($event.target).value)" />
-            </label>
-            <label class="certificate-search-field">
-              <span>Expiry to</span>
-              <input type="date" [value]="certificateExpiryTo()" (change)="certificateExpiryTo.set($any($event.target).value)" />
-            </label>
-            @if (certificateSearchTerm() || certificateExpiryFrom() || certificateExpiryTo()) {
-              <button type="button" class="secondary-btn" (click)="clearCertificateFilters()">Clear filters</button>
-            }
-          </div>
-        }
-
         @if (!certificates().length) {
           <article class="certificate-empty-card">
             <div class="certificate-empty-title">No certificates yet</div>
             <p>Earn badges first to generate certificate records in this folder.</p>
           </article>
-        } @else if (!filteredCertificates().length) {
-          <article class="certificate-empty-card">
-            <div class="certificate-empty-title">No certificates match your search</div>
-            <p>Try a different name or widen the expiry date range.</p>
-          </article>
         } @else {
           <div class="certificate-table-wrap">
-            <table class="certificate-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Completed</th>
-                  <th>Expires</th>
-                  <th>Status</th>
-                  <th>Renewal</th>
-                  <th>Reminder</th>
-                  <th>Alert Days</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (certificate of filteredCertificates(); track certificate.id) {
+            <div class="certificate-table-toolbar">
+              <label class="certificate-search-field">
+                <span>Search</span>
+                <input type="search" [value]="certificateSearchTerm()" (input)="certificateSearchTerm.set($any($event.target).value)" placeholder="Search by name…" />
+              </label>
+              <label class="certificate-search-field">
+                <span>Expiry from</span>
+                <input type="date" [value]="certificateExpiryFrom()" (change)="certificateExpiryFrom.set($any($event.target).value)" />
+              </label>
+              <label class="certificate-search-field">
+                <span>Expiry to</span>
+                <input type="date" [value]="certificateExpiryTo()" (change)="certificateExpiryTo.set($any($event.target).value)" />
+              </label>
+              @if (certificateSearchTerm() || certificateExpiryFrom() || certificateExpiryTo()) {
+                <button type="button" class="secondary-btn" (click)="clearCertificateFilters()">Clear filters</button>
+              }
+            </div>
+
+            @if (!filteredCertificates().length) {
+              <div class="certificate-table-empty">No certificates match your search — try a different name or widen the expiry date range.</div>
+            } @else {
+              <div class="certificate-table-scroll">
+              <table class="certificate-table">
+                <thead>
                   <tr>
-                    <td class="certificate-table-name">{{ certificate.certificationName }}</td>
-                    <td>{{ certificate.completionDate }}</td>
-                    <td>{{ certificate.expiryDate }}</td>
-                    <td>
-                      <span
-                        class="certificate-status-pill"
-                        [class.certificate-status-pill-active]="certificate.status === 'Active'"
-                        [class.certificate-status-pill-expired]="certificate.status === 'Expired'"
-                        [class.certificate-status-pill-pending]="certificate.status === 'Pending Renewal'">
-                        {{ certificate.status }}
-                      </span>
-                    </td>
-                    <td>{{ certificate.renewalRequired }}</td>
-                    <td>{{ certificate.reminderNotification }}</td>
-                    <td>{{ certificate.reminderNotification === 'Yes' ? certificate.reminderDaysBeforeExpiry : 'Not set' }}</td>
-                    <td>
-                      <div class="certificate-actions">
-                        <button type="button" class="secondary-btn" (click)="startCertificateEdit(certificate)">Edit</button>
-                        @if (certificate.fileUrl || certificate.fileDataUrl) {
-                          <a class="secondary-btn secondary-btn-link" [href]="certificate.fileUrl || certificate.fileDataUrl" [download]="certificate.fileName || 'certificate-file'">Download</a>
-                        }
-                      </div>
-                    </td>
+                    <th>Name</th>
+                    <th>Completed</th>
+                    <th>Expires</th>
+                    <th>Status</th>
+                    <th>Renewal</th>
+                    <th>Reminder</th>
+                    <th>Alert Days</th>
+                    <th>Actions</th>
                   </tr>
-                }
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  @for (certificate of filteredCertificates(); track certificate.id) {
+                    <tr>
+                      <td class="certificate-table-name">{{ certificate.certificationName }}</td>
+                      <td>{{ certificate.completionDate }}</td>
+                      <td>{{ certificate.expiryDate }}</td>
+                      <td>
+                        <span
+                          class="certificate-status-pill"
+                          [class.certificate-status-pill-active]="certificate.status === 'Active'"
+                          [class.certificate-status-pill-expired]="certificate.status === 'Expired'"
+                          [class.certificate-status-pill-pending]="certificate.status === 'Pending Renewal'">
+                          {{ certificate.status }}
+                        </span>
+                      </td>
+                      <td>{{ certificate.renewalRequired }}</td>
+                      <td>{{ certificate.reminderNotification }}</td>
+                      <td>{{ certificate.reminderNotification === 'Yes' ? certificate.reminderDaysBeforeExpiry : 'Not set' }}</td>
+                      <td>
+                        <div class="certificate-actions">
+                          <button type="button" class="secondary-btn" (click)="startCertificateEdit(certificate)">Edit</button>
+                          @if (certificate.fileUrl || certificate.fileDataUrl) {
+                            <a class="secondary-btn secondary-btn-link" [href]="certificate.fileUrl || certificate.fileDataUrl" [download]="certificate.fileName || 'certificate-file'">Download</a>
+                          }
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+              </div>
+            }
           </div>
         }
         }
@@ -702,31 +701,41 @@ type StudentCertificate = {
       z-index: 40;
     }
 
-    .certificate-toolbar {
+    .certificate-table-wrap {
+      border: 1px solid #dbe7f5;
+      border-radius: 14px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .certificate-table-toolbar {
       display: flex;
       flex-wrap: wrap;
       align-items: flex-end;
-      gap: 0.75rem;
-      margin-bottom: 0.85rem;
+      gap: 0.6rem;
+      padding: 0.65rem 0.85rem;
+      background: #f8fbff;
+      border-bottom: 1px solid #e2e8f0;
     }
 
     .certificate-search-field {
       display: grid;
-      gap: 0.35rem;
+      gap: 0.25rem;
       flex: 1 1 auto;
-      min-width: 9rem;
+      min-width: 8rem;
       color: #1f2937;
-      font-size: 0.82rem;
+      font-size: 0.74rem;
       font-weight: 600;
     }
 
     .certificate-search-field input {
       border: 1px solid #dbe7f5;
-      border-radius: 12px;
-      padding: 0.6rem 0.75rem;
+      border-radius: 10px;
+      padding: 0.45rem 0.65rem;
       background: #fff;
       color: #14213d;
       font: inherit;
+      font-size: 0.82rem;
     }
 
     .certificate-search-field input:focus {
@@ -735,10 +744,20 @@ type StudentCertificate = {
       box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
     }
 
-    .certificate-table-wrap {
+    .certificate-table-toolbar .secondary-btn {
+      padding: 0.4rem 0.7rem;
+      font-size: 0.78rem;
+    }
+
+    .certificate-table-empty {
+      padding: 1.25rem 1rem;
+      text-align: center;
+      color: #64748b;
+      font-size: 0.86rem;
+    }
+
+    .certificate-table-scroll {
       overflow-x: auto;
-      border-top: 1px solid #e2e8f0;
-      border-radius: 12px;
     }
 
     .certificate-table {
@@ -1229,7 +1248,7 @@ type StudentCertificate = {
         grid-column: auto;
       }
 
-      .certificate-toolbar {
+      .certificate-table-toolbar {
         flex-direction: column;
         align-items: stretch;
       }
