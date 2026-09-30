@@ -294,7 +294,6 @@ type StudentCertificate = {
                   <th>Renewal</th>
                   <th>Reminder</th>
                   <th>Alert Days</th>
-                  <th>File</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -316,7 +315,6 @@ type StudentCertificate = {
                     <td>{{ certificate.renewalRequired }}</td>
                     <td>{{ certificate.reminderNotification }}</td>
                     <td>{{ certificate.reminderNotification === 'Yes' ? certificate.reminderDaysBeforeExpiry : 'Not set' }}</td>
-                    <td>{{ certificate.fileName || 'No file' }}</td>
                     <td>
                       <div class="certificate-actions">
                         <button type="button" class="secondary-btn" (click)="startCertificateEdit(certificate)">Edit</button>
