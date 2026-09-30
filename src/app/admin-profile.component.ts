@@ -2163,57 +2163,251 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
                     @if (selectedReportView() === 'idp-report') {
                       <div class="admin-report-content-stack">
-                        <article class="admin-section-card">
-                          <div class="admin-section-card-header">
-                            <h2>Report preview</h2>
-                            <span>{{ idpReportRows().length }} rows</span>
+                        <div class="admin-report-table-box">
+                          <div class="admin-report-table-toolbar admin-report-table-toolbar-slim">
+                            <div class="admin-report-actions">
+                              <button type="button" class="admin-secondary-btn" (click)="clearReportColumnFilters('idp')">Clear filters</button>
+                              <label class="admin-report-filter-field admin-report-download-field">
+                                <span>Download As</span>
+                                <select [value]="selectedIdpReportDownloadFormat()" (change)="updateIdpReportDownloadFormat($event)">
+                                  <option value="CSV">CSV</option>
+                                  <option value="XLSX">XLSX</option>
+                                </select>
+                              </label>
+                              <button type="button" class="admin-primary-btn" [disabled]="!canDownloadIdpReport()" (click)="downloadIdpReport()">Download report</button>
+                            </div>
                           </div>
 
-                          <div class="admin-report-preview-meta">
-                            <span class="admin-chip">15 fields</span>
-                            <span class="admin-chip">{{ idpReportRows().length }} rows included</span>
-                          </div>
-
-                          <div class="admin-report-actions">
-                            <label class="admin-report-filter-field admin-report-download-field">
-                              <span>Download As</span>
-                              <select [value]="selectedIdpReportDownloadFormat()" (change)="updateIdpReportDownloadFormat($event)">
-                                <option value="CSV">CSV</option>
-                                <option value="XLSX">XLSX</option>
-                              </select>
-                            </label>
-                            <button type="button" class="admin-primary-btn" [disabled]="!canDownloadIdpReport()" (click)="downloadIdpReport()">Download report</button>
-                          </div>
-
-                          @if (!idpReportRows().length) {
-                            <div class="admin-empty-state">No IDP entries were found for the current LMS users.</div>
+                          @if (openReportFilterColumn()?.report === 'idp') {
+                            <button type="button" class="admin-report-th-popover-backdrop" aria-label="Close filter" (click)="closeReportFilterColumn()"></button>
                           }
-                        </article>
 
-                        @if (idpReportRows().length) {
+                          @if (!filteredIdpReportRows().length) {
+                            <div class="admin-report-table-empty">No IDP entries match the current filters.</div>
+                          } @else {
                           <div class="admin-report-table-wrap">
                             <table class="admin-report-table">
                               <thead>
                                 <tr>
-                                  <th>Name</th>
-                                  <th>Surname</th>
-                                  <th>ID Number</th>
-                                  <th>Job Title</th>
-                                  <th>OFO Code</th>
-                                  <th>Race</th>
-                                  <th>Gender</th>
-                                  <th>Municipality</th>
-                                  <th>Manager</th>
-                                  <th>Development Need</th>
-                                  <th>Planned Action</th>
-                                  <th>Support Required</th>
-                                  <th>Date Captured</th>
-                                  <th>Target Date</th>
-                                  <th>Status</th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'name')">
+                                    <div class="admin-report-th-content">
+                                      <span>Name</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'name')" (click)="toggleReportFilterColumn('idp', 'name')" aria-label="Filter by name">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('idp', 'name')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('idp', 'name')" (input)="updateReportColumnFilter('idp', 'name', $event)" placeholder="Search name" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'surname')">
+                                    <div class="admin-report-th-content">
+                                      <span>Surname</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'surname')" (click)="toggleReportFilterColumn('idp', 'surname')" aria-label="Filter by surname">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('idp', 'surname')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('idp', 'surname')" (input)="updateReportColumnFilter('idp', 'surname', $event)" placeholder="Search surname" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'idNumber')">
+                                    <div class="admin-report-th-content">
+                                      <span>ID Number</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'idNumber')" (click)="toggleReportFilterColumn('idp', 'idNumber')" aria-label="Filter by ID number">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('idp', 'idNumber')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('idp', 'idNumber')" (input)="updateReportColumnFilter('idp', 'idNumber', $event)" placeholder="Search ID number" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'jobTitle')">
+                                    <div class="admin-report-th-content">
+                                      <span>Job Title</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'jobTitle')" (click)="toggleReportFilterColumn('idp', 'jobTitle')" aria-label="Filter by job title">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('idp', 'jobTitle')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('idp', 'jobTitle')" (input)="updateReportColumnFilter('idp', 'jobTitle', $event)" placeholder="Search job title" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'ofoCode')">
+                                    <div class="admin-report-th-content">
+                                      <span>OFO Code</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'ofoCode')" (click)="toggleReportFilterColumn('idp', 'ofoCode')" aria-label="Filter by OFO code">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('idp', 'ofoCode')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('idp', 'ofoCode')" (input)="updateReportColumnFilter('idp', 'ofoCode', $event)" placeholder="Search OFO code" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'race')">
+                                    <div class="admin-report-th-content">
+                                      <span>Race</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'race')" (click)="toggleReportFilterColumn('idp', 'race')" aria-label="Filter by race">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('idp', 'race')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('idp', 'race')" (change)="updateReportColumnFilter('idp', 'race', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(idpReportRows(), 'race'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'gender')">
+                                    <div class="admin-report-th-content">
+                                      <span>Gender</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'gender')" (click)="toggleReportFilterColumn('idp', 'gender')" aria-label="Filter by gender">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('idp', 'gender')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('idp', 'gender')" (change)="updateReportColumnFilter('idp', 'gender', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(idpReportRows(), 'gender'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'municipality')">
+                                    <div class="admin-report-th-content">
+                                      <span>Municipality</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'municipality')" (click)="toggleReportFilterColumn('idp', 'municipality')" aria-label="Filter by municipality">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('idp', 'municipality')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('idp', 'municipality')" (change)="updateReportColumnFilter('idp', 'municipality', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(idpReportRows(), 'municipality'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'manager')">
+                                    <div class="admin-report-th-content">
+                                      <span>Manager</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'manager')" (click)="toggleReportFilterColumn('idp', 'manager')" aria-label="Filter by manager">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('idp', 'manager')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('idp', 'manager')" (input)="updateReportColumnFilter('idp', 'manager', $event)" placeholder="Search manager" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'developmentNeed')">
+                                    <div class="admin-report-th-content">
+                                      <span>Development Need</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'developmentNeed')" (click)="toggleReportFilterColumn('idp', 'developmentNeed')" aria-label="Filter by development need">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('idp', 'developmentNeed')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('idp', 'developmentNeed')" (input)="updateReportColumnFilter('idp', 'developmentNeed', $event)" placeholder="Search development need" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'plannedAction')">
+                                    <div class="admin-report-th-content">
+                                      <span>Planned Action</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'plannedAction')" (click)="toggleReportFilterColumn('idp', 'plannedAction')" aria-label="Filter by planned action">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('idp', 'plannedAction')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('idp', 'plannedAction')" (input)="updateReportColumnFilter('idp', 'plannedAction', $event)" placeholder="Search planned action" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'supportRequired')">
+                                    <div class="admin-report-th-content">
+                                      <span>Support Required</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'supportRequired')" (click)="toggleReportFilterColumn('idp', 'supportRequired')" aria-label="Filter by support required">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('idp', 'supportRequired')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('idp', 'supportRequired')" (input)="updateReportColumnFilter('idp', 'supportRequired', $event)" placeholder="Search support required" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'dateCaptured')">
+                                    <div class="admin-report-th-content">
+                                      <span>Date Captured</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'dateCaptured')" (click)="toggleReportFilterColumn('idp', 'dateCaptured')" aria-label="Filter by date captured">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('idp', 'dateCaptured')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('idp', 'dateCaptured')" (input)="updateReportColumnFilter('idp', 'dateCaptured', $event)" placeholder="Search date captured" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'targetDate')">
+                                    <div class="admin-report-th-content">
+                                      <span>Target Date</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'targetDate')" (click)="toggleReportFilterColumn('idp', 'targetDate')" aria-label="Filter by target date">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('idp', 'targetDate')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('idp', 'targetDate')" (input)="updateReportColumnFilter('idp', 'targetDate', $event)" placeholder="Search target date" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'status')">
+                                    <div class="admin-report-th-content">
+                                      <span>Status</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'status')" (click)="toggleReportFilterColumn('idp', 'status')" aria-label="Filter by status">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('idp', 'status')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('idp', 'status')" (change)="updateReportColumnFilter('idp', 'status', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(idpReportRows(), 'status'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
                                 </tr>
                               </thead>
                               <tbody>
-                                @for (row of idpReportRows(); track row.id) {
+                                @for (row of filteredIdpReportRows(); track row.id) {
                                   <tr>
                                     <td>{{ row.name }}</td>
                                     <td>{{ row.surname }}</td>
@@ -2235,58 +2429,178 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                               </tbody>
                             </table>
                           </div>
-                        }
+                          }
+                        </div>
                       </div>
                     }
 
                     @if (selectedReportView() === 'performance-report') {
                       <div class="admin-report-content-stack">
-                        <article class="admin-section-card">
-                          <div class="admin-section-card-header">
-                            <h2>Report preview</h2>
-                            <span>{{ performanceReportRows().length }} rows</span>
+                        <div class="admin-report-table-box">
+                          <div class="admin-report-table-toolbar admin-report-table-toolbar-slim">
+                            <div class="admin-report-actions">
+                              <button type="button" class="admin-secondary-btn" (click)="clearReportColumnFilters('performance')">Clear filters</button>
+                              <label class="admin-report-filter-field admin-report-download-field">
+                                <span>Download As</span>
+                                <select [value]="selectedPerformanceReportDownloadFormat()" (change)="updatePerformanceReportDownloadFormat($event)">
+                                  <option value="CSV">CSV</option>
+                                  <option value="XLSX">XLSX</option>
+                                </select>
+                              </label>
+                              <button type="button" class="admin-primary-btn" [disabled]="!canDownloadPerformanceReport()" (click)="downloadPerformanceReport()">Download report</button>
+                            </div>
                           </div>
 
-                          <div class="admin-report-preview-meta">
-                            <span class="admin-chip">10 fields</span>
-                            <span class="admin-chip">{{ performanceReportRows().length }} rows included</span>
-                          </div>
-
-                          <div class="admin-report-actions">
-                            <label class="admin-report-filter-field admin-report-download-field">
-                              <span>Download As</span>
-                              <select [value]="selectedPerformanceReportDownloadFormat()" (change)="updatePerformanceReportDownloadFormat($event)">
-                                <option value="CSV">CSV</option>
-                                <option value="XLSX">XLSX</option>
-                              </select>
-                            </label>
-                            <button type="button" class="admin-primary-btn" [disabled]="!canDownloadPerformanceReport()" (click)="downloadPerformanceReport()">Download report</button>
-                          </div>
-
-                          @if (!performanceReportRows().length) {
-                            <div class="admin-empty-state">No LMS users were found to include in this report.</div>
+                          @if (openReportFilterColumn()?.report === 'performance') {
+                            <button type="button" class="admin-report-th-popover-backdrop" aria-label="Close filter" (click)="closeReportFilterColumn()"></button>
                           }
-                        </article>
 
-                        @if (performanceReportRows().length) {
+                          @if (!filteredPerformanceReportRows().length) {
+                            <div class="admin-report-table-empty">No performance records match the current filters.</div>
+                          } @else {
                           <div class="admin-report-table-wrap">
                             <table class="admin-report-table">
                               <thead>
                                 <tr>
-                                  <th>Name</th>
-                                  <th>Surname</th>
-                                  <th>ID Number</th>
-                                  <th>Job Title</th>
-                                  <th>Department</th>
-                                  <th>Manager</th>
-                                  <th>KPIs</th>
-                                  <th>Total Weight</th>
-                                  <th>Overall Rating</th>
-                                  <th>Last Review</th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('performance', 'name')">
+                                    <div class="admin-report-th-content">
+                                      <span>Name</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'name')" (click)="toggleReportFilterColumn('performance', 'name')" aria-label="Filter by name">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('performance', 'name')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('performance', 'name')" (input)="updateReportColumnFilter('performance', 'name', $event)" placeholder="Search name" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('performance', 'surname')">
+                                    <div class="admin-report-th-content">
+                                      <span>Surname</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'surname')" (click)="toggleReportFilterColumn('performance', 'surname')" aria-label="Filter by surname">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('performance', 'surname')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('performance', 'surname')" (input)="updateReportColumnFilter('performance', 'surname', $event)" placeholder="Search surname" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('performance', 'idNumber')">
+                                    <div class="admin-report-th-content">
+                                      <span>ID Number</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'idNumber')" (click)="toggleReportFilterColumn('performance', 'idNumber')" aria-label="Filter by ID number">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('performance', 'idNumber')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('performance', 'idNumber')" (input)="updateReportColumnFilter('performance', 'idNumber', $event)" placeholder="Search ID number" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('performance', 'jobTitle')">
+                                    <div class="admin-report-th-content">
+                                      <span>Job Title</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'jobTitle')" (click)="toggleReportFilterColumn('performance', 'jobTitle')" aria-label="Filter by job title">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('performance', 'jobTitle')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('performance', 'jobTitle')" (input)="updateReportColumnFilter('performance', 'jobTitle', $event)" placeholder="Search job title" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('performance', 'department')">
+                                    <div class="admin-report-th-content">
+                                      <span>Department</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'department')" (click)="toggleReportFilterColumn('performance', 'department')" aria-label="Filter by department">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('performance', 'department')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('performance', 'department')" (change)="updateReportColumnFilter('performance', 'department', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(performanceReportRows(), 'department'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('performance', 'manager')">
+                                    <div class="admin-report-th-content">
+                                      <span>Manager</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'manager')" (click)="toggleReportFilterColumn('performance', 'manager')" aria-label="Filter by manager">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('performance', 'manager')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('performance', 'manager')" (input)="updateReportColumnFilter('performance', 'manager', $event)" placeholder="Search manager" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('performance', 'kpiCount')">
+                                    <div class="admin-report-th-content">
+                                      <span>KPIs</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'kpiCount')" (click)="toggleReportFilterColumn('performance', 'kpiCount')" aria-label="Filter by KPI count">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('performance', 'kpiCount')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('performance', 'kpiCount')" (input)="updateReportColumnFilter('performance', 'kpiCount', $event)" placeholder="Search KPI count" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('performance', 'totalWeight')">
+                                    <div class="admin-report-th-content">
+                                      <span>Total Weight</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'totalWeight')" (click)="toggleReportFilterColumn('performance', 'totalWeight')" aria-label="Filter by total weight">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('performance', 'totalWeight')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('performance', 'totalWeight')" (input)="updateReportColumnFilter('performance', 'totalWeight', $event)" placeholder="Search total weight" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('performance', 'overallRatingLabel')">
+                                    <div class="admin-report-th-content">
+                                      <span>Overall Rating</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'overallRatingLabel')" (click)="toggleReportFilterColumn('performance', 'overallRatingLabel')" aria-label="Filter by overall rating">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('performance', 'overallRatingLabel')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('performance', 'overallRatingLabel')" (input)="updateReportColumnFilter('performance', 'overallRatingLabel', $event)" placeholder="Search overall rating" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('performance', 'lastReviewDate')">
+                                    <div class="admin-report-th-content">
+                                      <span>Last Review</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'lastReviewDate')" (click)="toggleReportFilterColumn('performance', 'lastReviewDate')" aria-label="Filter by last review date">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('performance', 'lastReviewDate')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('performance', 'lastReviewDate')" (input)="updateReportColumnFilter('performance', 'lastReviewDate', $event)" placeholder="Search last review" />
+                                      </div>
+                                    }
+                                  </th>
                                 </tr>
                               </thead>
                               <tbody>
-                                @for (row of performanceReportRows(); track row.id) {
+                                @for (row of filteredPerformanceReportRows(); track row.id) {
                                   <tr>
                                     <td>{{ row.name }}</td>
                                     <td>{{ row.surname }}</td>
@@ -2303,56 +2617,162 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                               </tbody>
                             </table>
                           </div>
-                        }
+                          }
+                        </div>
                       </div>
                     }
 
                     @if (selectedReportView() === 'certificate-licence-report') {
                       <div class="admin-report-content-stack">
-                        <article class="admin-section-card">
-                          <div class="admin-section-card-header">
-                            <h2>Report preview</h2>
-                            <span>{{ certificateLicenceReportRows().length }} rows</span>
+                        <div class="admin-report-table-box">
+                          <div class="admin-report-table-toolbar admin-report-table-toolbar-slim">
+                            <div class="admin-report-actions">
+                              <button type="button" class="admin-secondary-btn" (click)="clearReportColumnFilters('certificate')">Clear filters</button>
+                              <label class="admin-report-filter-field admin-report-download-field">
+                                <span>Download As</span>
+                                <select [value]="selectedCertificateReportDownloadFormat()" (change)="updateCertificateReportDownloadFormat($event)">
+                                  <option value="CSV">CSV</option>
+                                  <option value="XLSX">XLSX</option>
+                                </select>
+                              </label>
+                              <button type="button" class="admin-primary-btn" [disabled]="!canDownloadCertificateLicenceReport()" (click)="downloadCertificateLicenceReport()">Download report</button>
+                            </div>
                           </div>
 
-                          <div class="admin-report-preview-meta">
-                            <span class="admin-chip">8 fields</span>
-                            <span class="admin-chip">{{ certificateLicenceReportRows().length }} rows included</span>
-                          </div>
-
-                          <div class="admin-report-actions">
-                            <label class="admin-report-filter-field admin-report-download-field">
-                              <span>Download As</span>
-                              <select [value]="selectedCertificateReportDownloadFormat()" (change)="updateCertificateReportDownloadFormat($event)">
-                                <option value="CSV">CSV</option>
-                                <option value="XLSX">XLSX</option>
-                              </select>
-                            </label>
-                            <button type="button" class="admin-primary-btn" [disabled]="!canDownloadCertificateLicenceReport()" (click)="downloadCertificateLicenceReport()">Download report</button>
-                          </div>
-
-                          @if (!certificateLicenceReportRows().length) {
-                            <div class="admin-empty-state">No certificate or licence records were found for current learners.</div>
+                          @if (openReportFilterColumn()?.report === 'certificate') {
+                            <button type="button" class="admin-report-th-popover-backdrop" aria-label="Close filter" (click)="closeReportFilterColumn()"></button>
                           }
-                        </article>
 
-                        @if (certificateLicenceReportRows().length) {
+                          @if (!filteredCertificateLicenceReportRows().length) {
+                            <div class="admin-report-table-empty">No certificate or licence records match the current filters.</div>
+                          } @else {
                           <div class="admin-report-table-wrap">
                             <table class="admin-report-table">
                               <thead>
                                 <tr>
-                                  <th>Full Name</th>
-                                  <th>Surname</th>
-                                  <th>ID Number</th>
-                                  <th>Department</th>
-                                  <th>Certificate Name</th>
-                                  <th>Expiry Date</th>
-                                  <th>Renewal Required</th>
-                                  <th>Status</th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('certificate', 'name')">
+                                    <div class="admin-report-th-content">
+                                      <span>Full Name</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'name')" (click)="toggleReportFilterColumn('certificate', 'name')" aria-label="Filter by full name">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('certificate', 'name')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('certificate', 'name')" (input)="updateReportColumnFilter('certificate', 'name', $event)" placeholder="Search full name" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('certificate', 'surname')">
+                                    <div class="admin-report-th-content">
+                                      <span>Surname</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'surname')" (click)="toggleReportFilterColumn('certificate', 'surname')" aria-label="Filter by surname">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('certificate', 'surname')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('certificate', 'surname')" (input)="updateReportColumnFilter('certificate', 'surname', $event)" placeholder="Search surname" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('certificate', 'idNumber')">
+                                    <div class="admin-report-th-content">
+                                      <span>ID Number</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'idNumber')" (click)="toggleReportFilterColumn('certificate', 'idNumber')" aria-label="Filter by ID number">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('certificate', 'idNumber')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('certificate', 'idNumber')" (input)="updateReportColumnFilter('certificate', 'idNumber', $event)" placeholder="Search ID number" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('certificate', 'department')">
+                                    <div class="admin-report-th-content">
+                                      <span>Department</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'department')" (click)="toggleReportFilterColumn('certificate', 'department')" aria-label="Filter by department">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('certificate', 'department')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('certificate', 'department')" (change)="updateReportColumnFilter('certificate', 'department', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(certificateLicenceReportRows(), 'department'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('certificate', 'certificateName')">
+                                    <div class="admin-report-th-content">
+                                      <span>Certificate Name</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'certificateName')" (click)="toggleReportFilterColumn('certificate', 'certificateName')" aria-label="Filter by certificate name">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('certificate', 'certificateName')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('certificate', 'certificateName')" (input)="updateReportColumnFilter('certificate', 'certificateName', $event)" placeholder="Search certificate name" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('certificate', 'expiryDate')">
+                                    <div class="admin-report-th-content">
+                                      <span>Expiry Date</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'expiryDate')" (click)="toggleReportFilterColumn('certificate', 'expiryDate')" aria-label="Filter by expiry date">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('certificate', 'expiryDate')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('certificate', 'expiryDate')" (input)="updateReportColumnFilter('certificate', 'expiryDate', $event)" placeholder="Search expiry date" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('certificate', 'renewalRequired')">
+                                    <div class="admin-report-th-content">
+                                      <span>Renewal Required</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'renewalRequired')" (click)="toggleReportFilterColumn('certificate', 'renewalRequired')" aria-label="Filter by renewal required">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('certificate', 'renewalRequired')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('certificate', 'renewalRequired')" (change)="updateReportColumnFilter('certificate', 'renewalRequired', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(certificateLicenceReportRows(), 'renewalRequired'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('certificate', 'status')">
+                                    <div class="admin-report-th-content">
+                                      <span>Status</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'status')" (click)="toggleReportFilterColumn('certificate', 'status')" aria-label="Filter by status">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('certificate', 'status')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('certificate', 'status')" (change)="updateReportColumnFilter('certificate', 'status', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(certificateLicenceReportRows(), 'status'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
                                 </tr>
                               </thead>
                               <tbody>
-                                @for (row of certificateLicenceReportRows(); track row.id) {
+                                @for (row of filteredCertificateLicenceReportRows(); track row.id) {
                                   <tr>
                                     <td>{{ row.name }}</td>
                                     <td>{{ row.surname }}</td>
@@ -2367,67 +2787,179 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                               </tbody>
                             </table>
                           </div>
-                        }
+                          }
+                        </div>
                       </div>
                     }
 
                     @if (selectedReportView() === 'assignments-report') {
                       <div class="admin-report-content-stack">
-                        <article class="admin-section-card">
-                          <div class="admin-section-card-header">
-                            <h2>Report filters</h2>
-                            <span>{{ filteredAssignmentReportRows().length }} of {{ assignmentReportRows().length }} rows</span>
+                        <div class="admin-report-table-box">
+                          <div class="admin-report-table-toolbar admin-report-table-toolbar-slim">
+                            <div class="admin-report-actions">
+                              <button type="button" class="admin-secondary-btn" (click)="clearAssignmentReportFilters()">Clear filters</button>
+                              <label class="admin-report-filter-field admin-report-download-field">
+                                <span>Download As</span>
+                                <select [value]="selectedAssignmentReportDownloadFormat()" (change)="updateAssignmentReportDownloadFormat($event)">
+                                  <option value="CSV">CSV</option>
+                                  <option value="XLSX">XLSX</option>
+                                </select>
+                              </label>
+                              <button type="button" class="admin-primary-btn" [disabled]="!canDownloadAssignmentReport()" (click)="downloadAssignmentReport()">Download report</button>
+                            </div>
                           </div>
 
-                          <div class="admin-report-filter-grid">
-                            <label class="admin-report-filter-field">
-                              <span>Search</span>
-                              <input type="text" [value]="assignmentReportSearchTerm()" (input)="updateAssignmentReportSearch($event)" placeholder="Student, course, marker" />
-                            </label>
-
-                            <label class="admin-report-filter-field">
-                              <span>Status</span>
-                              <select [value]="selectedAssignmentReportStatus()" (change)="updateAssignmentReportStatus($event)">
-                                <option value="All">All statuses</option>
-                                <option value="Pending Review">Pending Review</option>
-                                <option value="Approved">Approved</option>
-                                <option value="Needs Revision">Needs Revision</option>
-                              </select>
-                            </label>
-                          </div>
-
-                          <div class="admin-report-actions">
-                            <button type="button" class="admin-secondary-btn" (click)="clearAssignmentReportFilters()">Clear filters</button>
-                            <label class="admin-report-filter-field admin-report-download-field">
-                              <span>Download As</span>
-                              <select [value]="selectedAssignmentReportDownloadFormat()" (change)="updateAssignmentReportDownloadFormat($event)">
-                                <option value="CSV">CSV</option>
-                                <option value="XLSX">XLSX</option>
-                              </select>
-                            </label>
-                            <button type="button" class="admin-primary-btn" [disabled]="!canDownloadAssignmentReport()" (click)="downloadAssignmentReport()">Download report</button>
-                          </div>
+                          @if (openReportFilterColumn()?.report === 'assignment') {
+                            <button type="button" class="admin-report-th-popover-backdrop" aria-label="Close filter" (click)="closeReportFilterColumn()"></button>
+                          }
 
                           @if (!filteredAssignmentReportRows().length) {
-                            <div class="admin-empty-state">No assignment submissions match the current filters.</div>
-                          }
-                        </article>
-
-                        @if (filteredAssignmentReportRows().length) {
+                            <div class="admin-report-table-empty">No assignment submissions match the current filters.</div>
+                          } @else {
                           <div class="admin-report-table-wrap">
                             <table class="admin-report-table">
                               <thead>
                                 <tr>
-                                  <th>Full Name</th>
-                                  <th>Surname</th>
-                                  <th>Email</th>
-                                  <th>Department</th>
-                                  <th>Course</th>
-                                  <th>Assessment</th>
-                                  <th>Date of Submission</th>
-                                  <th>Marker</th>
-                                  <th>Status</th>
-                                  <th>Mark</th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('assignment', 'name')">
+                                    <div class="admin-report-th-content">
+                                      <span>Full Name</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!assignmentReportSearchTerm()" (click)="toggleReportFilterColumn('assignment', 'name')" aria-label="Search by student, course, or marker">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('assignment', 'name')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="assignmentReportSearchTerm()" (input)="updateAssignmentReportSearch($event)" placeholder="Student, course, marker" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('assignment', 'surname')">
+                                    <div class="admin-report-th-content">
+                                      <span>Surname</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'surname')" (click)="toggleReportFilterColumn('assignment', 'surname')" aria-label="Filter by surname">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('assignment', 'surname')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('assignment', 'surname')" (input)="updateReportColumnFilter('assignment', 'surname', $event)" placeholder="Search surname" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('assignment', 'email')">
+                                    <div class="admin-report-th-content">
+                                      <span>Email</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'email')" (click)="toggleReportFilterColumn('assignment', 'email')" aria-label="Filter by email">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('assignment', 'email')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('assignment', 'email')" (input)="updateReportColumnFilter('assignment', 'email', $event)" placeholder="Search email" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('assignment', 'department')">
+                                    <div class="admin-report-th-content">
+                                      <span>Department</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'department')" (click)="toggleReportFilterColumn('assignment', 'department')" aria-label="Filter by department">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('assignment', 'department')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('assignment', 'department')" (change)="updateReportColumnFilter('assignment', 'department', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(assignmentReportRows(), 'department'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('assignment', 'courseName')">
+                                    <div class="admin-report-th-content">
+                                      <span>Course</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'courseName')" (click)="toggleReportFilterColumn('assignment', 'courseName')" aria-label="Filter by course">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('assignment', 'courseName')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('assignment', 'courseName')" (input)="updateReportColumnFilter('assignment', 'courseName', $event)" placeholder="Search course" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('assignment', 'assessmentTitle')">
+                                    <div class="admin-report-th-content">
+                                      <span>Assessment</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'assessmentTitle')" (click)="toggleReportFilterColumn('assignment', 'assessmentTitle')" aria-label="Filter by assessment">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('assignment', 'assessmentTitle')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('assignment', 'assessmentTitle')" (input)="updateReportColumnFilter('assignment', 'assessmentTitle', $event)" placeholder="Search assessment" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('assignment', 'submittedAt')">
+                                    <div class="admin-report-th-content">
+                                      <span>Date of Submission</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'submittedAt')" (click)="toggleReportFilterColumn('assignment', 'submittedAt')" aria-label="Filter by date of submission">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('assignment', 'submittedAt')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('assignment', 'submittedAt')" (input)="updateReportColumnFilter('assignment', 'submittedAt', $event)" placeholder="Search date" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('assignment', 'marker')">
+                                    <div class="admin-report-th-content">
+                                      <span>Marker</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'marker')" (click)="toggleReportFilterColumn('assignment', 'marker')" aria-label="Filter by marker">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('assignment', 'marker')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('assignment', 'marker')" (input)="updateReportColumnFilter('assignment', 'marker', $event)" placeholder="Search marker" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('assignment', 'status')">
+                                    <div class="admin-report-th-content">
+                                      <span>Status</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="selectedAssignmentReportStatus() !== 'All'" (click)="toggleReportFilterColumn('assignment', 'status')" aria-label="Filter by status">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('assignment', 'status')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="selectedAssignmentReportStatus()" (change)="updateAssignmentReportStatus($event)">
+                                          <option value="All">All statuses</option>
+                                          <option value="Pending Review">Pending Review</option>
+                                          <option value="Approved">Approved</option>
+                                          <option value="Needs Revision">Needs Revision</option>
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('assignment', 'mark')">
+                                    <div class="admin-report-th-content">
+                                      <span>Mark</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'mark')" (click)="toggleReportFilterColumn('assignment', 'mark')" aria-label="Filter by mark">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('assignment', 'mark')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('assignment', 'mark')" (input)="updateReportColumnFilter('assignment', 'mark', $event)" placeholder="Search mark" />
+                                      </div>
+                                    }
+                                  </th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -2448,7 +2980,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                               </tbody>
                             </table>
                           </div>
-                        }
+                          }
+                        </div>
                       </div>
                     }
 
@@ -2551,6 +3084,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
                           <div class="admin-report-actions">
                             <button type="button" class="admin-secondary-btn" (click)="selectedAtrSubReport.set(null)">Back to ATR</button>
+                            <button type="button" class="admin-secondary-btn" (click)="clearAtrSubReportColumnFilters()">Clear filters</button>
                             <label class="admin-report-filter-field">
                               <span>Date From</span>
                               <input type="date" [value]="selectedAtrReportDateFrom()" (input)="updateAtrReportDateFrom($event)" />
@@ -2580,26 +3114,450 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           <p class="admin-report-note admin-report-note-compact">Dates filter by training approval date (reviewed, falling back to submitted).</p>
                         </article>
 
+                        @if (openReportFilterColumn()?.report?.startsWith('atr-')) {
+                          <button type="button" class="admin-report-th-popover-backdrop" aria-label="Close filter" (click)="closeReportFilterColumn()"></button>
+                        }
+
                         @if (selectedAtrSubReport() === 'beneficiaries-completed') {
-                          @if (beneficiariesCompletedTrainingRows().length) {
+                          @if (filteredBeneficiariesCompletedTrainingRows().length) {
                             <div class="admin-report-table-wrap">
                               <table class="admin-report-table">
                                 <thead>
                                   <tr>
-                                    <th>OFO Occupation</th><th>Municipality</th><th>NQF Aligned Training</th><th>NQF Level</th>
-                                    <th>Programme Needs Addressed</th><th>Funding Type</th><th>DG Contract Number</th>
-                                    <th>Socio Economic Status</th><th>Type Of Learning Programme</th><th>Name Of Learning Programme</th>
-                                    <th>Type Of Educational Institution</th><th>Total Actual Cost</th>
-                                    <th>Entry Level</th><th>Intermediate Level</th><th>Advanced Level</th>
-                                    <th>African Male</th><th>African Female</th><th>African Disabled</th>
-                                    <th>Coloured Male</th><th>Coloured Female</th><th>Coloured Disabled</th>
-                                    <th>Indian/Asian Male</th><th>Indian/Asian Female</th><th>Indian/Asian Disabled</th>
-                                    <th>White Male</th><th>White Female</th><th>White Disabled</th>
-                                    <th>Age &lt; 35</th><th>Age 35-55</th><th>Age &gt; 55</th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'ofoOccupation')">
+                                    <div class="admin-report-th-content">
+                                      <span>OFO Occupation</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'ofoOccupation')" (click)="toggleReportFilterColumn('atr-completed', 'ofoOccupation')" aria-label="Filter by ofo occupation">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'ofoOccupation')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('atr-completed', 'ofoOccupation')" (change)="updateReportColumnFilter('atr-completed', 'ofoOccupation', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(beneficiariesCompletedTrainingRows(), 'ofoOccupation'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'municipality')">
+                                    <div class="admin-report-th-content">
+                                      <span>Municipality</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'municipality')" (click)="toggleReportFilterColumn('atr-completed', 'municipality')" aria-label="Filter by municipality">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'municipality')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('atr-completed', 'municipality')" (change)="updateReportColumnFilter('atr-completed', 'municipality', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(beneficiariesCompletedTrainingRows(), 'municipality'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'nqfAlignedTraining')">
+                                    <div class="admin-report-th-content">
+                                      <span>NQF Aligned Training</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'nqfAlignedTraining')" (click)="toggleReportFilterColumn('atr-completed', 'nqfAlignedTraining')" aria-label="Filter by nqf aligned training">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'nqfAlignedTraining')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('atr-completed', 'nqfAlignedTraining')" (change)="updateReportColumnFilter('atr-completed', 'nqfAlignedTraining', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(beneficiariesCompletedTrainingRows(), 'nqfAlignedTraining'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'nqfLevel')">
+                                    <div class="admin-report-th-content">
+                                      <span>NQF Level</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'nqfLevel')" (click)="toggleReportFilterColumn('atr-completed', 'nqfLevel')" aria-label="Filter by nqf level">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'nqfLevel')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('atr-completed', 'nqfLevel')" (change)="updateReportColumnFilter('atr-completed', 'nqfLevel', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(beneficiariesCompletedTrainingRows(), 'nqfLevel'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'programmeNeedsAddressed')">
+                                    <div class="admin-report-th-content">
+                                      <span>Programme Needs Addressed</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'programmeNeedsAddressed')" (click)="toggleReportFilterColumn('atr-completed', 'programmeNeedsAddressed')" aria-label="Filter by programme needs addressed">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'programmeNeedsAddressed')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'programmeNeedsAddressed')" (input)="updateReportColumnFilter('atr-completed', 'programmeNeedsAddressed', $event)" placeholder="Search programme needs addressed" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'fundingType')">
+                                    <div class="admin-report-th-content">
+                                      <span>Funding Type</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'fundingType')" (click)="toggleReportFilterColumn('atr-completed', 'fundingType')" aria-label="Filter by funding type">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'fundingType')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('atr-completed', 'fundingType')" (change)="updateReportColumnFilter('atr-completed', 'fundingType', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(beneficiariesCompletedTrainingRows(), 'fundingType'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'dgContractNumber')">
+                                    <div class="admin-report-th-content">
+                                      <span>DG Contract Number</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'dgContractNumber')" (click)="toggleReportFilterColumn('atr-completed', 'dgContractNumber')" aria-label="Filter by dg contract number">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'dgContractNumber')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'dgContractNumber')" (input)="updateReportColumnFilter('atr-completed', 'dgContractNumber', $event)" placeholder="Search dg contract number" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'socioEconomicStatus')">
+                                    <div class="admin-report-th-content">
+                                      <span>Socio Economic Status</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'socioEconomicStatus')" (click)="toggleReportFilterColumn('atr-completed', 'socioEconomicStatus')" aria-label="Filter by socio economic status">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'socioEconomicStatus')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('atr-completed', 'socioEconomicStatus')" (change)="updateReportColumnFilter('atr-completed', 'socioEconomicStatus', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(beneficiariesCompletedTrainingRows(), 'socioEconomicStatus'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'typeOfLearningProgramme')">
+                                    <div class="admin-report-th-content">
+                                      <span>Type Of Learning Programme</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'typeOfLearningProgramme')" (click)="toggleReportFilterColumn('atr-completed', 'typeOfLearningProgramme')" aria-label="Filter by type of learning programme">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'typeOfLearningProgramme')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('atr-completed', 'typeOfLearningProgramme')" (change)="updateReportColumnFilter('atr-completed', 'typeOfLearningProgramme', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(beneficiariesCompletedTrainingRows(), 'typeOfLearningProgramme'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'nameOfLearningProgramme')">
+                                    <div class="admin-report-th-content">
+                                      <span>Name Of Learning Programme</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'nameOfLearningProgramme')" (click)="toggleReportFilterColumn('atr-completed', 'nameOfLearningProgramme')" aria-label="Filter by name of learning programme">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'nameOfLearningProgramme')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'nameOfLearningProgramme')" (input)="updateReportColumnFilter('atr-completed', 'nameOfLearningProgramme', $event)" placeholder="Search name of learning programme" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'typeOfEducationalInstitution')">
+                                    <div class="admin-report-th-content">
+                                      <span>Type Of Educational Institution</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'typeOfEducationalInstitution')" (click)="toggleReportFilterColumn('atr-completed', 'typeOfEducationalInstitution')" aria-label="Filter by type of educational institution">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'typeOfEducationalInstitution')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('atr-completed', 'typeOfEducationalInstitution')" (change)="updateReportColumnFilter('atr-completed', 'typeOfEducationalInstitution', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(beneficiariesCompletedTrainingRows(), 'typeOfEducationalInstitution'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'totalActualCost')">
+                                    <div class="admin-report-th-content">
+                                      <span>Total Actual Cost</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'totalActualCost')" (click)="toggleReportFilterColumn('atr-completed', 'totalActualCost')" aria-label="Filter by total actual cost">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'totalActualCost')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'totalActualCost')" (input)="updateReportColumnFilter('atr-completed', 'totalActualCost', $event)" placeholder="Search total actual cost" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'entryLevel')">
+                                    <div class="admin-report-th-content">
+                                      <span>Entry Level</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'entryLevel')" (click)="toggleReportFilterColumn('atr-completed', 'entryLevel')" aria-label="Filter by entry level">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'entryLevel')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'entryLevel')" (input)="updateReportColumnFilter('atr-completed', 'entryLevel', $event)" placeholder="Search entry level" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'intermediateLevel')">
+                                    <div class="admin-report-th-content">
+                                      <span>Intermediate Level</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'intermediateLevel')" (click)="toggleReportFilterColumn('atr-completed', 'intermediateLevel')" aria-label="Filter by intermediate level">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'intermediateLevel')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'intermediateLevel')" (input)="updateReportColumnFilter('atr-completed', 'intermediateLevel', $event)" placeholder="Search intermediate level" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'advancedLevel')">
+                                    <div class="admin-report-th-content">
+                                      <span>Advanced Level</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'advancedLevel')" (click)="toggleReportFilterColumn('atr-completed', 'advancedLevel')" aria-label="Filter by advanced level">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'advancedLevel')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'advancedLevel')" (input)="updateReportColumnFilter('atr-completed', 'advancedLevel', $event)" placeholder="Search advanced level" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'africanMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>African Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'africanMale')" (click)="toggleReportFilterColumn('atr-completed', 'africanMale')" aria-label="Filter by african male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'africanMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'africanMale')" (input)="updateReportColumnFilter('atr-completed', 'africanMale', $event)" placeholder="Search african male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'africanFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>African Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'africanFemale')" (click)="toggleReportFilterColumn('atr-completed', 'africanFemale')" aria-label="Filter by african female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'africanFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'africanFemale')" (input)="updateReportColumnFilter('atr-completed', 'africanFemale', $event)" placeholder="Search african female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'africanDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>African Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'africanDisabled')" (click)="toggleReportFilterColumn('atr-completed', 'africanDisabled')" aria-label="Filter by african disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'africanDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'africanDisabled')" (input)="updateReportColumnFilter('atr-completed', 'africanDisabled', $event)" placeholder="Search african disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'colouredMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Coloured Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'colouredMale')" (click)="toggleReportFilterColumn('atr-completed', 'colouredMale')" aria-label="Filter by coloured male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'colouredMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'colouredMale')" (input)="updateReportColumnFilter('atr-completed', 'colouredMale', $event)" placeholder="Search coloured male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'colouredFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Coloured Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'colouredFemale')" (click)="toggleReportFilterColumn('atr-completed', 'colouredFemale')" aria-label="Filter by coloured female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'colouredFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'colouredFemale')" (input)="updateReportColumnFilter('atr-completed', 'colouredFemale', $event)" placeholder="Search coloured female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'colouredDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>Coloured Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'colouredDisabled')" (click)="toggleReportFilterColumn('atr-completed', 'colouredDisabled')" aria-label="Filter by coloured disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'colouredDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'colouredDisabled')" (input)="updateReportColumnFilter('atr-completed', 'colouredDisabled', $event)" placeholder="Search coloured disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'indianMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Indian/Asian Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'indianMale')" (click)="toggleReportFilterColumn('atr-completed', 'indianMale')" aria-label="Filter by indian/asian male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'indianMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'indianMale')" (input)="updateReportColumnFilter('atr-completed', 'indianMale', $event)" placeholder="Search indian/asian male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'indianFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Indian/Asian Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'indianFemale')" (click)="toggleReportFilterColumn('atr-completed', 'indianFemale')" aria-label="Filter by indian/asian female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'indianFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'indianFemale')" (input)="updateReportColumnFilter('atr-completed', 'indianFemale', $event)" placeholder="Search indian/asian female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'indianDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>Indian/Asian Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'indianDisabled')" (click)="toggleReportFilterColumn('atr-completed', 'indianDisabled')" aria-label="Filter by indian/asian disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'indianDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'indianDisabled')" (input)="updateReportColumnFilter('atr-completed', 'indianDisabled', $event)" placeholder="Search indian/asian disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'whiteMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>White Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'whiteMale')" (click)="toggleReportFilterColumn('atr-completed', 'whiteMale')" aria-label="Filter by white male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'whiteMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'whiteMale')" (input)="updateReportColumnFilter('atr-completed', 'whiteMale', $event)" placeholder="Search white male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'whiteFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>White Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'whiteFemale')" (click)="toggleReportFilterColumn('atr-completed', 'whiteFemale')" aria-label="Filter by white female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'whiteFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'whiteFemale')" (input)="updateReportColumnFilter('atr-completed', 'whiteFemale', $event)" placeholder="Search white female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'whiteDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>White Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'whiteDisabled')" (click)="toggleReportFilterColumn('atr-completed', 'whiteDisabled')" aria-label="Filter by white disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'whiteDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'whiteDisabled')" (input)="updateReportColumnFilter('atr-completed', 'whiteDisabled', $event)" placeholder="Search white disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'age1')">
+                                    <div class="admin-report-th-content">
+                                      <span>Age < 35</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'age1')" (click)="toggleReportFilterColumn('atr-completed', 'age1')" aria-label="Filter by age < 35">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'age1')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'age1')" (input)="updateReportColumnFilter('atr-completed', 'age1', $event)" placeholder="Search age < 35" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'age2')">
+                                    <div class="admin-report-th-content">
+                                      <span>Age 35-55</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'age2')" (click)="toggleReportFilterColumn('atr-completed', 'age2')" aria-label="Filter by age 35-55">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'age2')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'age2')" (input)="updateReportColumnFilter('atr-completed', 'age2', $event)" placeholder="Search age 35-55" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'age3')">
+                                    <div class="admin-report-th-content">
+                                      <span>Age > 55</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'age3')" (click)="toggleReportFilterColumn('atr-completed', 'age3')" aria-label="Filter by age > 55">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-completed', 'age3')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-completed', 'age3')" (input)="updateReportColumnFilter('atr-completed', 'age3', $event)" placeholder="Search age > 55" />
+                                      </div>
+                                    }
+                                  </th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  @for (row of beneficiariesCompletedTrainingRows(); track row.id) {
+                                  @for (row of filteredBeneficiariesCompletedTrainingRows(); track row.id) {
                                     <tr>
                                       <td>{{ row.ofoOccupation }}</td><td>{{ row.municipality }}</td><td>{{ row.nqfAlignedTraining }}</td><td>{{ row.nqfLevel }}</td>
                                       <td>{{ row.programmeNeedsAddressed }}</td><td>{{ row.fundingType }}</td><td>{{ row.dgContractNumber }}</td>
@@ -2622,21 +3580,246 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         }
 
                         @if (selectedAtrSubReport() === 'number-beneficiaries') {
-                          @if (numberBeneficiariesRows().length) {
+                          @if (filteredNumberBeneficiariesRows().length) {
                             <div class="admin-report-table-wrap">
                               <table class="admin-report-table">
                                 <thead>
                                   <tr>
-                                    <th>OFO Occupation</th><th>Municipality</th>
-                                    <th>African Male</th><th>African Female</th><th>African Disabled</th>
-                                    <th>Coloured Male</th><th>Coloured Female</th><th>Coloured Disabled</th>
-                                    <th>Indian/Asian Male</th><th>Indian/Asian Female</th><th>Indian/Asian Disabled</th>
-                                    <th>White Male</th><th>White Female</th><th>White Disabled</th>
-                                    <th>Age &lt; 35</th><th>Age 35-55</th><th>Age &gt; 55</th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'ofoOccupation')">
+                                    <div class="admin-report-th-content">
+                                      <span>OFO Occupation</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'ofoOccupation')" (click)="toggleReportFilterColumn('atr-number', 'ofoOccupation')" aria-label="Filter by ofo occupation">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-number', 'ofoOccupation')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('atr-number', 'ofoOccupation')" (change)="updateReportColumnFilter('atr-number', 'ofoOccupation', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(numberBeneficiariesRows(), 'ofoOccupation'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'municipality')">
+                                    <div class="admin-report-th-content">
+                                      <span>Municipality</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'municipality')" (click)="toggleReportFilterColumn('atr-number', 'municipality')" aria-label="Filter by municipality">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-number', 'municipality')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('atr-number', 'municipality')" (change)="updateReportColumnFilter('atr-number', 'municipality', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(numberBeneficiariesRows(), 'municipality'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'africanMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>African Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'africanMale')" (click)="toggleReportFilterColumn('atr-number', 'africanMale')" aria-label="Filter by african male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-number', 'africanMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-number', 'africanMale')" (input)="updateReportColumnFilter('atr-number', 'africanMale', $event)" placeholder="Search african male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'africanFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>African Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'africanFemale')" (click)="toggleReportFilterColumn('atr-number', 'africanFemale')" aria-label="Filter by african female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-number', 'africanFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-number', 'africanFemale')" (input)="updateReportColumnFilter('atr-number', 'africanFemale', $event)" placeholder="Search african female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'africanDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>African Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'africanDisabled')" (click)="toggleReportFilterColumn('atr-number', 'africanDisabled')" aria-label="Filter by african disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-number', 'africanDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-number', 'africanDisabled')" (input)="updateReportColumnFilter('atr-number', 'africanDisabled', $event)" placeholder="Search african disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'colouredMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Coloured Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'colouredMale')" (click)="toggleReportFilterColumn('atr-number', 'colouredMale')" aria-label="Filter by coloured male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-number', 'colouredMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-number', 'colouredMale')" (input)="updateReportColumnFilter('atr-number', 'colouredMale', $event)" placeholder="Search coloured male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'colouredFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Coloured Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'colouredFemale')" (click)="toggleReportFilterColumn('atr-number', 'colouredFemale')" aria-label="Filter by coloured female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-number', 'colouredFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-number', 'colouredFemale')" (input)="updateReportColumnFilter('atr-number', 'colouredFemale', $event)" placeholder="Search coloured female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'colouredDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>Coloured Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'colouredDisabled')" (click)="toggleReportFilterColumn('atr-number', 'colouredDisabled')" aria-label="Filter by coloured disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-number', 'colouredDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-number', 'colouredDisabled')" (input)="updateReportColumnFilter('atr-number', 'colouredDisabled', $event)" placeholder="Search coloured disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'indianMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Indian/Asian Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'indianMale')" (click)="toggleReportFilterColumn('atr-number', 'indianMale')" aria-label="Filter by indian/asian male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-number', 'indianMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-number', 'indianMale')" (input)="updateReportColumnFilter('atr-number', 'indianMale', $event)" placeholder="Search indian/asian male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'indianFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Indian/Asian Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'indianFemale')" (click)="toggleReportFilterColumn('atr-number', 'indianFemale')" aria-label="Filter by indian/asian female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-number', 'indianFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-number', 'indianFemale')" (input)="updateReportColumnFilter('atr-number', 'indianFemale', $event)" placeholder="Search indian/asian female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'indianDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>Indian/Asian Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'indianDisabled')" (click)="toggleReportFilterColumn('atr-number', 'indianDisabled')" aria-label="Filter by indian/asian disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-number', 'indianDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-number', 'indianDisabled')" (input)="updateReportColumnFilter('atr-number', 'indianDisabled', $event)" placeholder="Search indian/asian disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'whiteMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>White Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'whiteMale')" (click)="toggleReportFilterColumn('atr-number', 'whiteMale')" aria-label="Filter by white male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-number', 'whiteMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-number', 'whiteMale')" (input)="updateReportColumnFilter('atr-number', 'whiteMale', $event)" placeholder="Search white male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'whiteFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>White Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'whiteFemale')" (click)="toggleReportFilterColumn('atr-number', 'whiteFemale')" aria-label="Filter by white female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-number', 'whiteFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-number', 'whiteFemale')" (input)="updateReportColumnFilter('atr-number', 'whiteFemale', $event)" placeholder="Search white female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'whiteDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>White Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'whiteDisabled')" (click)="toggleReportFilterColumn('atr-number', 'whiteDisabled')" aria-label="Filter by white disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-number', 'whiteDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-number', 'whiteDisabled')" (input)="updateReportColumnFilter('atr-number', 'whiteDisabled', $event)" placeholder="Search white disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'age1')">
+                                    <div class="admin-report-th-content">
+                                      <span>Age < 35</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'age1')" (click)="toggleReportFilterColumn('atr-number', 'age1')" aria-label="Filter by age < 35">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-number', 'age1')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-number', 'age1')" (input)="updateReportColumnFilter('atr-number', 'age1', $event)" placeholder="Search age < 35" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'age2')">
+                                    <div class="admin-report-th-content">
+                                      <span>Age 35-55</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'age2')" (click)="toggleReportFilterColumn('atr-number', 'age2')" aria-label="Filter by age 35-55">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-number', 'age2')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-number', 'age2')" (input)="updateReportColumnFilter('atr-number', 'age2', $event)" placeholder="Search age 35-55" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'age3')">
+                                    <div class="admin-report-th-content">
+                                      <span>Age > 55</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'age3')" (click)="toggleReportFilterColumn('atr-number', 'age3')" aria-label="Filter by age > 55">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-number', 'age3')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-number', 'age3')" (input)="updateReportColumnFilter('atr-number', 'age3', $event)" placeholder="Search age > 55" />
+                                      </div>
+                                    }
+                                  </th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  @for (row of numberBeneficiariesRows(); track row.id) {
+                                  @for (row of filteredNumberBeneficiariesRows(); track row.id) {
                                     <tr>
                                       <td>{{ row.ofoOccupation }}</td><td>{{ row.municipality }}</td>
                                       <td>{{ row.africanMale }}</td><td>{{ row.africanFemale }}</td><td>{{ row.africanDisabled }}</td>
@@ -2655,25 +3838,484 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         }
 
                         @if (selectedAtrSubReport() === 'pivotal-actual') {
-                          @if (pivotalActualTrainingRows().length) {
+                          @if (filteredPivotalActualTrainingRows().length) {
                             <div class="admin-report-table-wrap">
                               <table class="admin-report-table">
                                 <thead>
                                   <tr>
-                                    <th>OFO Occupation</th><th>Municipality</th><th>Programme Needs Addressed</th><th>Funding Type</th>
-                                    <th>DG Contract Number</th><th>ID Number</th><th>First Name</th><th>Surname</th>
-                                    <th>Socio Economic Status</th><th>Type Of Learning Programme</th><th>Name Of Learning Programme</th>
-                                    <th>Pivotal Programmes</th><th>Type Of Educational Institution</th><th>NQF Level</th><th>Cost</th>
-                                    <th>Entry Level</th><th>Intermediate Level</th><th>Advanced Level</th>
-                                    <th>African Male</th><th>African Female</th><th>African Disabled</th>
-                                    <th>Coloured Male</th><th>Coloured Female</th><th>Coloured Disabled</th>
-                                    <th>Indian/Asian Male</th><th>Indian/Asian Female</th><th>Indian/Asian Disabled</th>
-                                    <th>White Male</th><th>White Female</th><th>White Disabled</th>
-                                    <th>Age &lt; 35</th><th>Age 35-55</th><th>Age &gt; 55</th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'ofoOccupation')">
+                                    <div class="admin-report-th-content">
+                                      <span>OFO Occupation</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'ofoOccupation')" (click)="toggleReportFilterColumn('atr-pivotal', 'ofoOccupation')" aria-label="Filter by ofo occupation">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'ofoOccupation')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('atr-pivotal', 'ofoOccupation')" (change)="updateReportColumnFilter('atr-pivotal', 'ofoOccupation', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(pivotalActualTrainingRows(), 'ofoOccupation'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'municipality')">
+                                    <div class="admin-report-th-content">
+                                      <span>Municipality</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'municipality')" (click)="toggleReportFilterColumn('atr-pivotal', 'municipality')" aria-label="Filter by municipality">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'municipality')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('atr-pivotal', 'municipality')" (change)="updateReportColumnFilter('atr-pivotal', 'municipality', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(pivotalActualTrainingRows(), 'municipality'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'programmeNeedsAddressed')">
+                                    <div class="admin-report-th-content">
+                                      <span>Programme Needs Addressed</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'programmeNeedsAddressed')" (click)="toggleReportFilterColumn('atr-pivotal', 'programmeNeedsAddressed')" aria-label="Filter by programme needs addressed">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'programmeNeedsAddressed')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'programmeNeedsAddressed')" (input)="updateReportColumnFilter('atr-pivotal', 'programmeNeedsAddressed', $event)" placeholder="Search programme needs addressed" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'fundingType')">
+                                    <div class="admin-report-th-content">
+                                      <span>Funding Type</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'fundingType')" (click)="toggleReportFilterColumn('atr-pivotal', 'fundingType')" aria-label="Filter by funding type">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'fundingType')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('atr-pivotal', 'fundingType')" (change)="updateReportColumnFilter('atr-pivotal', 'fundingType', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(pivotalActualTrainingRows(), 'fundingType'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'dgContractNumber')">
+                                    <div class="admin-report-th-content">
+                                      <span>DG Contract Number</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'dgContractNumber')" (click)="toggleReportFilterColumn('atr-pivotal', 'dgContractNumber')" aria-label="Filter by dg contract number">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'dgContractNumber')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'dgContractNumber')" (input)="updateReportColumnFilter('atr-pivotal', 'dgContractNumber', $event)" placeholder="Search dg contract number" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'idNumber')">
+                                    <div class="admin-report-th-content">
+                                      <span>ID Number</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'idNumber')" (click)="toggleReportFilterColumn('atr-pivotal', 'idNumber')" aria-label="Filter by id number">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'idNumber')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'idNumber')" (input)="updateReportColumnFilter('atr-pivotal', 'idNumber', $event)" placeholder="Search id number" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'firstName')">
+                                    <div class="admin-report-th-content">
+                                      <span>First Name</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'firstName')" (click)="toggleReportFilterColumn('atr-pivotal', 'firstName')" aria-label="Filter by first name">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'firstName')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'firstName')" (input)="updateReportColumnFilter('atr-pivotal', 'firstName', $event)" placeholder="Search first name" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'surname')">
+                                    <div class="admin-report-th-content">
+                                      <span>Surname</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'surname')" (click)="toggleReportFilterColumn('atr-pivotal', 'surname')" aria-label="Filter by surname">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'surname')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'surname')" (input)="updateReportColumnFilter('atr-pivotal', 'surname', $event)" placeholder="Search surname" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'socioEconomicStatus')">
+                                    <div class="admin-report-th-content">
+                                      <span>Socio Economic Status</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'socioEconomicStatus')" (click)="toggleReportFilterColumn('atr-pivotal', 'socioEconomicStatus')" aria-label="Filter by socio economic status">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'socioEconomicStatus')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('atr-pivotal', 'socioEconomicStatus')" (change)="updateReportColumnFilter('atr-pivotal', 'socioEconomicStatus', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(pivotalActualTrainingRows(), 'socioEconomicStatus'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'typeOfLearningProgramme')">
+                                    <div class="admin-report-th-content">
+                                      <span>Type Of Learning Programme</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'typeOfLearningProgramme')" (click)="toggleReportFilterColumn('atr-pivotal', 'typeOfLearningProgramme')" aria-label="Filter by type of learning programme">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'typeOfLearningProgramme')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('atr-pivotal', 'typeOfLearningProgramme')" (change)="updateReportColumnFilter('atr-pivotal', 'typeOfLearningProgramme', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(pivotalActualTrainingRows(), 'typeOfLearningProgramme'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'nameOfLearningProgramme')">
+                                    <div class="admin-report-th-content">
+                                      <span>Name Of Learning Programme</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'nameOfLearningProgramme')" (click)="toggleReportFilterColumn('atr-pivotal', 'nameOfLearningProgramme')" aria-label="Filter by name of learning programme">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'nameOfLearningProgramme')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'nameOfLearningProgramme')" (input)="updateReportColumnFilter('atr-pivotal', 'nameOfLearningProgramme', $event)" placeholder="Search name of learning programme" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'pivotalOfoOccupation')">
+                                    <div class="admin-report-th-content">
+                                      <span>Pivotal Programmes</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'pivotalOfoOccupation')" (click)="toggleReportFilterColumn('atr-pivotal', 'pivotalOfoOccupation')" aria-label="Filter by pivotal programmes">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'pivotalOfoOccupation')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('atr-pivotal', 'pivotalOfoOccupation')" (change)="updateReportColumnFilter('atr-pivotal', 'pivotalOfoOccupation', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(pivotalActualTrainingRows(), 'pivotalOfoOccupation'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'typeOfEducationalInstitution')">
+                                    <div class="admin-report-th-content">
+                                      <span>Type Of Educational Institution</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'typeOfEducationalInstitution')" (click)="toggleReportFilterColumn('atr-pivotal', 'typeOfEducationalInstitution')" aria-label="Filter by type of educational institution">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'typeOfEducationalInstitution')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('atr-pivotal', 'typeOfEducationalInstitution')" (change)="updateReportColumnFilter('atr-pivotal', 'typeOfEducationalInstitution', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(pivotalActualTrainingRows(), 'typeOfEducationalInstitution'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'nqfLevel')">
+                                    <div class="admin-report-th-content">
+                                      <span>NQF Level</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'nqfLevel')" (click)="toggleReportFilterColumn('atr-pivotal', 'nqfLevel')" aria-label="Filter by nqf level">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'nqfLevel')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('atr-pivotal', 'nqfLevel')" (change)="updateReportColumnFilter('atr-pivotal', 'nqfLevel', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(pivotalActualTrainingRows(), 'nqfLevel'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'cost')">
+                                    <div class="admin-report-th-content">
+                                      <span>Cost</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'cost')" (click)="toggleReportFilterColumn('atr-pivotal', 'cost')" aria-label="Filter by cost">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'cost')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'cost')" (input)="updateReportColumnFilter('atr-pivotal', 'cost', $event)" placeholder="Search cost" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'entryLevel')">
+                                    <div class="admin-report-th-content">
+                                      <span>Entry Level</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'entryLevel')" (click)="toggleReportFilterColumn('atr-pivotal', 'entryLevel')" aria-label="Filter by entry level">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'entryLevel')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'entryLevel')" (input)="updateReportColumnFilter('atr-pivotal', 'entryLevel', $event)" placeholder="Search entry level" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'intermediateLevel')">
+                                    <div class="admin-report-th-content">
+                                      <span>Intermediate Level</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'intermediateLevel')" (click)="toggleReportFilterColumn('atr-pivotal', 'intermediateLevel')" aria-label="Filter by intermediate level">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'intermediateLevel')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'intermediateLevel')" (input)="updateReportColumnFilter('atr-pivotal', 'intermediateLevel', $event)" placeholder="Search intermediate level" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'advancedLevel')">
+                                    <div class="admin-report-th-content">
+                                      <span>Advanced Level</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'advancedLevel')" (click)="toggleReportFilterColumn('atr-pivotal', 'advancedLevel')" aria-label="Filter by advanced level">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'advancedLevel')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'advancedLevel')" (input)="updateReportColumnFilter('atr-pivotal', 'advancedLevel', $event)" placeholder="Search advanced level" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'africanMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>African Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'africanMale')" (click)="toggleReportFilterColumn('atr-pivotal', 'africanMale')" aria-label="Filter by african male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'africanMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'africanMale')" (input)="updateReportColumnFilter('atr-pivotal', 'africanMale', $event)" placeholder="Search african male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'africanFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>African Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'africanFemale')" (click)="toggleReportFilterColumn('atr-pivotal', 'africanFemale')" aria-label="Filter by african female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'africanFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'africanFemale')" (input)="updateReportColumnFilter('atr-pivotal', 'africanFemale', $event)" placeholder="Search african female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'africanDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>African Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'africanDisabled')" (click)="toggleReportFilterColumn('atr-pivotal', 'africanDisabled')" aria-label="Filter by african disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'africanDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'africanDisabled')" (input)="updateReportColumnFilter('atr-pivotal', 'africanDisabled', $event)" placeholder="Search african disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'colouredMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Coloured Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'colouredMale')" (click)="toggleReportFilterColumn('atr-pivotal', 'colouredMale')" aria-label="Filter by coloured male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'colouredMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'colouredMale')" (input)="updateReportColumnFilter('atr-pivotal', 'colouredMale', $event)" placeholder="Search coloured male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'colouredFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Coloured Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'colouredFemale')" (click)="toggleReportFilterColumn('atr-pivotal', 'colouredFemale')" aria-label="Filter by coloured female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'colouredFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'colouredFemale')" (input)="updateReportColumnFilter('atr-pivotal', 'colouredFemale', $event)" placeholder="Search coloured female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'colouredDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>Coloured Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'colouredDisabled')" (click)="toggleReportFilterColumn('atr-pivotal', 'colouredDisabled')" aria-label="Filter by coloured disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'colouredDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'colouredDisabled')" (input)="updateReportColumnFilter('atr-pivotal', 'colouredDisabled', $event)" placeholder="Search coloured disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'indianMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Indian/Asian Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'indianMale')" (click)="toggleReportFilterColumn('atr-pivotal', 'indianMale')" aria-label="Filter by indian/asian male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'indianMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'indianMale')" (input)="updateReportColumnFilter('atr-pivotal', 'indianMale', $event)" placeholder="Search indian/asian male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'indianFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Indian/Asian Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'indianFemale')" (click)="toggleReportFilterColumn('atr-pivotal', 'indianFemale')" aria-label="Filter by indian/asian female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'indianFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'indianFemale')" (input)="updateReportColumnFilter('atr-pivotal', 'indianFemale', $event)" placeholder="Search indian/asian female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'indianDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>Indian/Asian Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'indianDisabled')" (click)="toggleReportFilterColumn('atr-pivotal', 'indianDisabled')" aria-label="Filter by indian/asian disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'indianDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'indianDisabled')" (input)="updateReportColumnFilter('atr-pivotal', 'indianDisabled', $event)" placeholder="Search indian/asian disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'whiteMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>White Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'whiteMale')" (click)="toggleReportFilterColumn('atr-pivotal', 'whiteMale')" aria-label="Filter by white male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'whiteMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'whiteMale')" (input)="updateReportColumnFilter('atr-pivotal', 'whiteMale', $event)" placeholder="Search white male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'whiteFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>White Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'whiteFemale')" (click)="toggleReportFilterColumn('atr-pivotal', 'whiteFemale')" aria-label="Filter by white female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'whiteFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'whiteFemale')" (input)="updateReportColumnFilter('atr-pivotal', 'whiteFemale', $event)" placeholder="Search white female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'whiteDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>White Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'whiteDisabled')" (click)="toggleReportFilterColumn('atr-pivotal', 'whiteDisabled')" aria-label="Filter by white disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'whiteDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'whiteDisabled')" (input)="updateReportColumnFilter('atr-pivotal', 'whiteDisabled', $event)" placeholder="Search white disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'age1')">
+                                    <div class="admin-report-th-content">
+                                      <span>Age < 35</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'age1')" (click)="toggleReportFilterColumn('atr-pivotal', 'age1')" aria-label="Filter by age < 35">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'age1')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'age1')" (input)="updateReportColumnFilter('atr-pivotal', 'age1', $event)" placeholder="Search age < 35" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'age2')">
+                                    <div class="admin-report-th-content">
+                                      <span>Age 35-55</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'age2')" (click)="toggleReportFilterColumn('atr-pivotal', 'age2')" aria-label="Filter by age 35-55">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'age2')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'age2')" (input)="updateReportColumnFilter('atr-pivotal', 'age2', $event)" placeholder="Search age 35-55" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'age3')">
+                                    <div class="admin-report-th-content">
+                                      <span>Age > 55</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'age3')" (click)="toggleReportFilterColumn('atr-pivotal', 'age3')" aria-label="Filter by age > 55">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('atr-pivotal', 'age3')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'age3')" (input)="updateReportColumnFilter('atr-pivotal', 'age3', $event)" placeholder="Search age > 55" />
+                                      </div>
+                                    }
+                                  </th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  @for (row of pivotalActualTrainingRows(); track row.id) {
+                                  @for (row of filteredPivotalActualTrainingRows(); track row.id) {
                                     <tr>
                                       <td>{{ row.ofoOccupation }}</td><td>{{ row.municipality }}</td><td>{{ row.programmeNeedsAddressed }}</td><td>{{ row.fundingType }}</td>
                                       <td>{{ row.dgContractNumber }}</td><td>{{ row.idNumber }}</td><td>{{ row.firstName }}</td><td>{{ row.surname }}</td>
@@ -2765,6 +4407,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
                           <div class="admin-report-actions">
                             <button type="button" class="admin-secondary-btn" (click)="selectedWspSubReport.set(null)">Back to WSP</button>
+                            <button type="button" class="admin-secondary-btn" (click)="clearWspSubReportColumnFilters()">Clear filters</button>
                             @if (selectedWspSubReport() !== 'employment-summary') {
                               <label class="admin-report-filter-field">
                                 <span>Date From</span>
@@ -2800,26 +4443,450 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           }
                         </article>
 
+                        @if (openReportFilterColumn()?.report?.startsWith('wsp-')) {
+                          <button type="button" class="admin-report-th-popover-backdrop" aria-label="Close filter" (click)="closeReportFilterColumn()"></button>
+                        }
+
                         @if (selectedWspSubReport() === 'beneficiaries-planned') {
-                          @if (wspBeneficiariesPlannedRows().length) {
+                          @if (filteredWspBeneficiariesPlannedRows().length) {
                             <div class="admin-report-table-wrap">
                               <table class="admin-report-table">
                                 <thead>
                                   <tr>
-                                    <th>OFO Occupation</th><th>Municipality</th><th>NQF Aligned Training</th><th>NQF Level</th>
-                                    <th>Programme Needs Addressed</th><th>Funding Type</th><th>DG Contract Number</th>
-                                    <th>Socio Economic Status</th><th>Type Of Learning Programme</th><th>Name Of Learning Programme</th>
-                                    <th>Type Of Educational Institution</th><th>Total Estimated Cost</th>
-                                    <th>Entry Level</th><th>Intermediate Level</th><th>Advanced Level</th>
-                                    <th>African Male</th><th>African Female</th><th>African Disabled</th>
-                                    <th>Coloured Male</th><th>Coloured Female</th><th>Coloured Disabled</th>
-                                    <th>Indian/Asian Male</th><th>Indian/Asian Female</th><th>Indian/Asian Disabled</th>
-                                    <th>White Male</th><th>White Female</th><th>White Disabled</th>
-                                    <th>Age &lt; 35</th><th>Age 35-55</th><th>Age &gt; 55</th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'ofoOccupation')">
+                                    <div class="admin-report-th-content">
+                                      <span>OFO Occupation</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'ofoOccupation')" (click)="toggleReportFilterColumn('wsp-planned', 'ofoOccupation')" aria-label="Filter by ofo occupation">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'ofoOccupation')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('wsp-planned', 'ofoOccupation')" (change)="updateReportColumnFilter('wsp-planned', 'ofoOccupation', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(wspBeneficiariesPlannedRows(), 'ofoOccupation'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'municipality')">
+                                    <div class="admin-report-th-content">
+                                      <span>Municipality</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'municipality')" (click)="toggleReportFilterColumn('wsp-planned', 'municipality')" aria-label="Filter by municipality">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'municipality')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('wsp-planned', 'municipality')" (change)="updateReportColumnFilter('wsp-planned', 'municipality', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(wspBeneficiariesPlannedRows(), 'municipality'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'nqfAlignedTraining')">
+                                    <div class="admin-report-th-content">
+                                      <span>NQF Aligned Training</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'nqfAlignedTraining')" (click)="toggleReportFilterColumn('wsp-planned', 'nqfAlignedTraining')" aria-label="Filter by nqf aligned training">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'nqfAlignedTraining')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('wsp-planned', 'nqfAlignedTraining')" (change)="updateReportColumnFilter('wsp-planned', 'nqfAlignedTraining', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(wspBeneficiariesPlannedRows(), 'nqfAlignedTraining'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'nqfLevel')">
+                                    <div class="admin-report-th-content">
+                                      <span>NQF Level</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'nqfLevel')" (click)="toggleReportFilterColumn('wsp-planned', 'nqfLevel')" aria-label="Filter by nqf level">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'nqfLevel')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('wsp-planned', 'nqfLevel')" (change)="updateReportColumnFilter('wsp-planned', 'nqfLevel', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(wspBeneficiariesPlannedRows(), 'nqfLevel'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'programmeNeedsAddressed')">
+                                    <div class="admin-report-th-content">
+                                      <span>Programme Needs Addressed</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'programmeNeedsAddressed')" (click)="toggleReportFilterColumn('wsp-planned', 'programmeNeedsAddressed')" aria-label="Filter by programme needs addressed">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'programmeNeedsAddressed')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'programmeNeedsAddressed')" (input)="updateReportColumnFilter('wsp-planned', 'programmeNeedsAddressed', $event)" placeholder="Search programme needs addressed" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'fundingType')">
+                                    <div class="admin-report-th-content">
+                                      <span>Funding Type</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'fundingType')" (click)="toggleReportFilterColumn('wsp-planned', 'fundingType')" aria-label="Filter by funding type">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'fundingType')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('wsp-planned', 'fundingType')" (change)="updateReportColumnFilter('wsp-planned', 'fundingType', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(wspBeneficiariesPlannedRows(), 'fundingType'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'dgContractNumber')">
+                                    <div class="admin-report-th-content">
+                                      <span>DG Contract Number</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'dgContractNumber')" (click)="toggleReportFilterColumn('wsp-planned', 'dgContractNumber')" aria-label="Filter by dg contract number">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'dgContractNumber')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'dgContractNumber')" (input)="updateReportColumnFilter('wsp-planned', 'dgContractNumber', $event)" placeholder="Search dg contract number" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'socioEconomicStatus')">
+                                    <div class="admin-report-th-content">
+                                      <span>Socio Economic Status</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'socioEconomicStatus')" (click)="toggleReportFilterColumn('wsp-planned', 'socioEconomicStatus')" aria-label="Filter by socio economic status">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'socioEconomicStatus')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('wsp-planned', 'socioEconomicStatus')" (change)="updateReportColumnFilter('wsp-planned', 'socioEconomicStatus', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(wspBeneficiariesPlannedRows(), 'socioEconomicStatus'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'typeOfLearningProgramme')">
+                                    <div class="admin-report-th-content">
+                                      <span>Type Of Learning Programme</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'typeOfLearningProgramme')" (click)="toggleReportFilterColumn('wsp-planned', 'typeOfLearningProgramme')" aria-label="Filter by type of learning programme">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'typeOfLearningProgramme')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('wsp-planned', 'typeOfLearningProgramme')" (change)="updateReportColumnFilter('wsp-planned', 'typeOfLearningProgramme', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(wspBeneficiariesPlannedRows(), 'typeOfLearningProgramme'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'nameOfLearningProgramme')">
+                                    <div class="admin-report-th-content">
+                                      <span>Name Of Learning Programme</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'nameOfLearningProgramme')" (click)="toggleReportFilterColumn('wsp-planned', 'nameOfLearningProgramme')" aria-label="Filter by name of learning programme">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'nameOfLearningProgramme')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'nameOfLearningProgramme')" (input)="updateReportColumnFilter('wsp-planned', 'nameOfLearningProgramme', $event)" placeholder="Search name of learning programme" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'typeOfEducationalInstitution')">
+                                    <div class="admin-report-th-content">
+                                      <span>Type Of Educational Institution</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'typeOfEducationalInstitution')" (click)="toggleReportFilterColumn('wsp-planned', 'typeOfEducationalInstitution')" aria-label="Filter by type of educational institution">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'typeOfEducationalInstitution')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('wsp-planned', 'typeOfEducationalInstitution')" (change)="updateReportColumnFilter('wsp-planned', 'typeOfEducationalInstitution', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(wspBeneficiariesPlannedRows(), 'typeOfEducationalInstitution'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'totalEstimatedCost')">
+                                    <div class="admin-report-th-content">
+                                      <span>Total Estimated Cost</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'totalEstimatedCost')" (click)="toggleReportFilterColumn('wsp-planned', 'totalEstimatedCost')" aria-label="Filter by total estimated cost">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'totalEstimatedCost')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'totalEstimatedCost')" (input)="updateReportColumnFilter('wsp-planned', 'totalEstimatedCost', $event)" placeholder="Search total estimated cost" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'entryLevel')">
+                                    <div class="admin-report-th-content">
+                                      <span>Entry Level</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'entryLevel')" (click)="toggleReportFilterColumn('wsp-planned', 'entryLevel')" aria-label="Filter by entry level">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'entryLevel')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'entryLevel')" (input)="updateReportColumnFilter('wsp-planned', 'entryLevel', $event)" placeholder="Search entry level" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'intermediateLevel')">
+                                    <div class="admin-report-th-content">
+                                      <span>Intermediate Level</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'intermediateLevel')" (click)="toggleReportFilterColumn('wsp-planned', 'intermediateLevel')" aria-label="Filter by intermediate level">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'intermediateLevel')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'intermediateLevel')" (input)="updateReportColumnFilter('wsp-planned', 'intermediateLevel', $event)" placeholder="Search intermediate level" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'advancedLevel')">
+                                    <div class="admin-report-th-content">
+                                      <span>Advanced Level</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'advancedLevel')" (click)="toggleReportFilterColumn('wsp-planned', 'advancedLevel')" aria-label="Filter by advanced level">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'advancedLevel')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'advancedLevel')" (input)="updateReportColumnFilter('wsp-planned', 'advancedLevel', $event)" placeholder="Search advanced level" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'africanMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>African Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'africanMale')" (click)="toggleReportFilterColumn('wsp-planned', 'africanMale')" aria-label="Filter by african male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'africanMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'africanMale')" (input)="updateReportColumnFilter('wsp-planned', 'africanMale', $event)" placeholder="Search african male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'africanFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>African Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'africanFemale')" (click)="toggleReportFilterColumn('wsp-planned', 'africanFemale')" aria-label="Filter by african female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'africanFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'africanFemale')" (input)="updateReportColumnFilter('wsp-planned', 'africanFemale', $event)" placeholder="Search african female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'africanDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>African Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'africanDisabled')" (click)="toggleReportFilterColumn('wsp-planned', 'africanDisabled')" aria-label="Filter by african disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'africanDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'africanDisabled')" (input)="updateReportColumnFilter('wsp-planned', 'africanDisabled', $event)" placeholder="Search african disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'colouredMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Coloured Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'colouredMale')" (click)="toggleReportFilterColumn('wsp-planned', 'colouredMale')" aria-label="Filter by coloured male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'colouredMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'colouredMale')" (input)="updateReportColumnFilter('wsp-planned', 'colouredMale', $event)" placeholder="Search coloured male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'colouredFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Coloured Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'colouredFemale')" (click)="toggleReportFilterColumn('wsp-planned', 'colouredFemale')" aria-label="Filter by coloured female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'colouredFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'colouredFemale')" (input)="updateReportColumnFilter('wsp-planned', 'colouredFemale', $event)" placeholder="Search coloured female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'colouredDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>Coloured Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'colouredDisabled')" (click)="toggleReportFilterColumn('wsp-planned', 'colouredDisabled')" aria-label="Filter by coloured disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'colouredDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'colouredDisabled')" (input)="updateReportColumnFilter('wsp-planned', 'colouredDisabled', $event)" placeholder="Search coloured disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'indianMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Indian/Asian Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'indianMale')" (click)="toggleReportFilterColumn('wsp-planned', 'indianMale')" aria-label="Filter by indian/asian male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'indianMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'indianMale')" (input)="updateReportColumnFilter('wsp-planned', 'indianMale', $event)" placeholder="Search indian/asian male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'indianFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Indian/Asian Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'indianFemale')" (click)="toggleReportFilterColumn('wsp-planned', 'indianFemale')" aria-label="Filter by indian/asian female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'indianFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'indianFemale')" (input)="updateReportColumnFilter('wsp-planned', 'indianFemale', $event)" placeholder="Search indian/asian female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'indianDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>Indian/Asian Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'indianDisabled')" (click)="toggleReportFilterColumn('wsp-planned', 'indianDisabled')" aria-label="Filter by indian/asian disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'indianDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'indianDisabled')" (input)="updateReportColumnFilter('wsp-planned', 'indianDisabled', $event)" placeholder="Search indian/asian disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'whiteMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>White Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'whiteMale')" (click)="toggleReportFilterColumn('wsp-planned', 'whiteMale')" aria-label="Filter by white male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'whiteMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'whiteMale')" (input)="updateReportColumnFilter('wsp-planned', 'whiteMale', $event)" placeholder="Search white male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'whiteFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>White Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'whiteFemale')" (click)="toggleReportFilterColumn('wsp-planned', 'whiteFemale')" aria-label="Filter by white female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'whiteFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'whiteFemale')" (input)="updateReportColumnFilter('wsp-planned', 'whiteFemale', $event)" placeholder="Search white female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'whiteDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>White Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'whiteDisabled')" (click)="toggleReportFilterColumn('wsp-planned', 'whiteDisabled')" aria-label="Filter by white disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'whiteDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'whiteDisabled')" (input)="updateReportColumnFilter('wsp-planned', 'whiteDisabled', $event)" placeholder="Search white disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'age1')">
+                                    <div class="admin-report-th-content">
+                                      <span>Age < 35</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'age1')" (click)="toggleReportFilterColumn('wsp-planned', 'age1')" aria-label="Filter by age < 35">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'age1')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'age1')" (input)="updateReportColumnFilter('wsp-planned', 'age1', $event)" placeholder="Search age < 35" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'age2')">
+                                    <div class="admin-report-th-content">
+                                      <span>Age 35-55</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'age2')" (click)="toggleReportFilterColumn('wsp-planned', 'age2')" aria-label="Filter by age 35-55">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'age2')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'age2')" (input)="updateReportColumnFilter('wsp-planned', 'age2', $event)" placeholder="Search age 35-55" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'age3')">
+                                    <div class="admin-report-th-content">
+                                      <span>Age > 55</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'age3')" (click)="toggleReportFilterColumn('wsp-planned', 'age3')" aria-label="Filter by age > 55">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-planned', 'age3')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'age3')" (input)="updateReportColumnFilter('wsp-planned', 'age3', $event)" placeholder="Search age > 55" />
+                                      </div>
+                                    }
+                                  </th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  @for (row of wspBeneficiariesPlannedRows(); track row.id) {
+                                  @for (row of filteredWspBeneficiariesPlannedRows(); track row.id) {
                                     <tr>
                                       <td>{{ row.ofoOccupation }}</td><td>{{ row.municipality }}</td><td>{{ row.nqfAlignedTraining }}</td><td>{{ row.nqfLevel }}</td>
                                       <td>{{ row.programmeNeedsAddressed }}</td><td>{{ row.fundingType }}</td><td>{{ row.dgContractNumber }}</td>
@@ -2842,21 +4909,246 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         }
 
                         @if (selectedWspSubReport() === 'employment-summary') {
-                          @if (wspEmploymentSummaryRows().length) {
+                          @if (filteredWspEmploymentSummaryRows().length) {
                             <div class="admin-report-table-wrap">
                               <table class="admin-report-table">
                                 <thead>
                                   <tr>
-                                    <th>OFO Occupation</th><th>Municipality</th>
-                                    <th>African Male</th><th>African Female</th><th>African Disabled</th>
-                                    <th>Coloured Male</th><th>Coloured Female</th><th>Coloured Disabled</th>
-                                    <th>Indian/Asian Male</th><th>Indian/Asian Female</th><th>Indian/Asian Disabled</th>
-                                    <th>White Male</th><th>White Female</th><th>White Disabled</th>
-                                    <th>Age &lt; 35</th><th>Age 35-55</th><th>Age &gt; 55</th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'ofoOccupation')">
+                                    <div class="admin-report-th-content">
+                                      <span>OFO Occupation</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'ofoOccupation')" (click)="toggleReportFilterColumn('wsp-employment', 'ofoOccupation')" aria-label="Filter by ofo occupation">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-employment', 'ofoOccupation')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('wsp-employment', 'ofoOccupation')" (change)="updateReportColumnFilter('wsp-employment', 'ofoOccupation', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(wspEmploymentSummaryRows(), 'ofoOccupation'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'municipality')">
+                                    <div class="admin-report-th-content">
+                                      <span>Municipality</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'municipality')" (click)="toggleReportFilterColumn('wsp-employment', 'municipality')" aria-label="Filter by municipality">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-employment', 'municipality')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('wsp-employment', 'municipality')" (change)="updateReportColumnFilter('wsp-employment', 'municipality', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(wspEmploymentSummaryRows(), 'municipality'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'africanMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>African Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'africanMale')" (click)="toggleReportFilterColumn('wsp-employment', 'africanMale')" aria-label="Filter by african male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-employment', 'africanMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'africanMale')" (input)="updateReportColumnFilter('wsp-employment', 'africanMale', $event)" placeholder="Search african male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'africanFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>African Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'africanFemale')" (click)="toggleReportFilterColumn('wsp-employment', 'africanFemale')" aria-label="Filter by african female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-employment', 'africanFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'africanFemale')" (input)="updateReportColumnFilter('wsp-employment', 'africanFemale', $event)" placeholder="Search african female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'africanDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>African Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'africanDisabled')" (click)="toggleReportFilterColumn('wsp-employment', 'africanDisabled')" aria-label="Filter by african disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-employment', 'africanDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'africanDisabled')" (input)="updateReportColumnFilter('wsp-employment', 'africanDisabled', $event)" placeholder="Search african disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'colouredMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Coloured Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'colouredMale')" (click)="toggleReportFilterColumn('wsp-employment', 'colouredMale')" aria-label="Filter by coloured male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-employment', 'colouredMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'colouredMale')" (input)="updateReportColumnFilter('wsp-employment', 'colouredMale', $event)" placeholder="Search coloured male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'colouredFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Coloured Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'colouredFemale')" (click)="toggleReportFilterColumn('wsp-employment', 'colouredFemale')" aria-label="Filter by coloured female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-employment', 'colouredFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'colouredFemale')" (input)="updateReportColumnFilter('wsp-employment', 'colouredFemale', $event)" placeholder="Search coloured female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'colouredDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>Coloured Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'colouredDisabled')" (click)="toggleReportFilterColumn('wsp-employment', 'colouredDisabled')" aria-label="Filter by coloured disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-employment', 'colouredDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'colouredDisabled')" (input)="updateReportColumnFilter('wsp-employment', 'colouredDisabled', $event)" placeholder="Search coloured disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'indianMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Indian/Asian Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'indianMale')" (click)="toggleReportFilterColumn('wsp-employment', 'indianMale')" aria-label="Filter by indian/asian male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-employment', 'indianMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'indianMale')" (input)="updateReportColumnFilter('wsp-employment', 'indianMale', $event)" placeholder="Search indian/asian male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'indianFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Indian/Asian Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'indianFemale')" (click)="toggleReportFilterColumn('wsp-employment', 'indianFemale')" aria-label="Filter by indian/asian female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-employment', 'indianFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'indianFemale')" (input)="updateReportColumnFilter('wsp-employment', 'indianFemale', $event)" placeholder="Search indian/asian female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'indianDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>Indian/Asian Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'indianDisabled')" (click)="toggleReportFilterColumn('wsp-employment', 'indianDisabled')" aria-label="Filter by indian/asian disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-employment', 'indianDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'indianDisabled')" (input)="updateReportColumnFilter('wsp-employment', 'indianDisabled', $event)" placeholder="Search indian/asian disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'whiteMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>White Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'whiteMale')" (click)="toggleReportFilterColumn('wsp-employment', 'whiteMale')" aria-label="Filter by white male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-employment', 'whiteMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'whiteMale')" (input)="updateReportColumnFilter('wsp-employment', 'whiteMale', $event)" placeholder="Search white male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'whiteFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>White Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'whiteFemale')" (click)="toggleReportFilterColumn('wsp-employment', 'whiteFemale')" aria-label="Filter by white female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-employment', 'whiteFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'whiteFemale')" (input)="updateReportColumnFilter('wsp-employment', 'whiteFemale', $event)" placeholder="Search white female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'whiteDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>White Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'whiteDisabled')" (click)="toggleReportFilterColumn('wsp-employment', 'whiteDisabled')" aria-label="Filter by white disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-employment', 'whiteDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'whiteDisabled')" (input)="updateReportColumnFilter('wsp-employment', 'whiteDisabled', $event)" placeholder="Search white disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'age1')">
+                                    <div class="admin-report-th-content">
+                                      <span>Age < 35</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'age1')" (click)="toggleReportFilterColumn('wsp-employment', 'age1')" aria-label="Filter by age < 35">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-employment', 'age1')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'age1')" (input)="updateReportColumnFilter('wsp-employment', 'age1', $event)" placeholder="Search age < 35" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'age2')">
+                                    <div class="admin-report-th-content">
+                                      <span>Age 35-55</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'age2')" (click)="toggleReportFilterColumn('wsp-employment', 'age2')" aria-label="Filter by age 35-55">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-employment', 'age2')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'age2')" (input)="updateReportColumnFilter('wsp-employment', 'age2', $event)" placeholder="Search age 35-55" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'age3')">
+                                    <div class="admin-report-th-content">
+                                      <span>Age > 55</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'age3')" (click)="toggleReportFilterColumn('wsp-employment', 'age3')" aria-label="Filter by age > 55">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-employment', 'age3')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'age3')" (input)="updateReportColumnFilter('wsp-employment', 'age3', $event)" placeholder="Search age > 55" />
+                                      </div>
+                                    }
+                                  </th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  @for (row of wspEmploymentSummaryRows(); track row.id) {
+                                  @for (row of filteredWspEmploymentSummaryRows(); track row.id) {
                                     <tr>
                                       <td>{{ row.ofoOccupation }}</td><td>{{ row.municipality }}</td>
                                       <td>{{ row.africanMale }}</td><td>{{ row.africanFemale }}</td><td>{{ row.africanDisabled }}</td>
@@ -2875,25 +5167,484 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         }
 
                         @if (selectedWspSubReport() === 'pivotal-planned') {
-                          @if (wspPivotalPlannedRows().length) {
+                          @if (filteredWspPivotalPlannedRows().length) {
                             <div class="admin-report-table-wrap">
                               <table class="admin-report-table">
                                 <thead>
                                   <tr>
-                                    <th>OFO Occupation</th><th>Municipality</th><th>Programme Needs Addressed</th><th>Funding Type</th>
-                                    <th>DG Contract Number</th><th>ID Number</th><th>First Name</th><th>Surname</th>
-                                    <th>Socio Economic Status</th><th>Type Of Learning Programme</th><th>Name Of Learning Programme</th>
-                                    <th>Pivotal Programmes</th><th>Type Of Educational Institution</th><th>NQF Level</th><th>Cost</th>
-                                    <th>Entry Level</th><th>Intermediate Level</th><th>Advanced Level</th>
-                                    <th>African Male</th><th>African Female</th><th>African Disabled</th>
-                                    <th>Coloured Male</th><th>Coloured Female</th><th>Coloured Disabled</th>
-                                    <th>Indian/Asian Male</th><th>Indian/Asian Female</th><th>Indian/Asian Disabled</th>
-                                    <th>White Male</th><th>White Female</th><th>White Disabled</th>
-                                    <th>Age &lt; 35</th><th>Age 35-55</th><th>Age &gt; 55</th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'ofoOccupation')">
+                                    <div class="admin-report-th-content">
+                                      <span>OFO Occupation</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'ofoOccupation')" (click)="toggleReportFilterColumn('wsp-pivotal', 'ofoOccupation')" aria-label="Filter by ofo occupation">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'ofoOccupation')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('wsp-pivotal', 'ofoOccupation')" (change)="updateReportColumnFilter('wsp-pivotal', 'ofoOccupation', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(wspPivotalPlannedRows(), 'ofoOccupation'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'municipality')">
+                                    <div class="admin-report-th-content">
+                                      <span>Municipality</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'municipality')" (click)="toggleReportFilterColumn('wsp-pivotal', 'municipality')" aria-label="Filter by municipality">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'municipality')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('wsp-pivotal', 'municipality')" (change)="updateReportColumnFilter('wsp-pivotal', 'municipality', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(wspPivotalPlannedRows(), 'municipality'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'programmeNeedsAddressed')">
+                                    <div class="admin-report-th-content">
+                                      <span>Programme Needs Addressed</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'programmeNeedsAddressed')" (click)="toggleReportFilterColumn('wsp-pivotal', 'programmeNeedsAddressed')" aria-label="Filter by programme needs addressed">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'programmeNeedsAddressed')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'programmeNeedsAddressed')" (input)="updateReportColumnFilter('wsp-pivotal', 'programmeNeedsAddressed', $event)" placeholder="Search programme needs addressed" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'fundingType')">
+                                    <div class="admin-report-th-content">
+                                      <span>Funding Type</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'fundingType')" (click)="toggleReportFilterColumn('wsp-pivotal', 'fundingType')" aria-label="Filter by funding type">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'fundingType')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('wsp-pivotal', 'fundingType')" (change)="updateReportColumnFilter('wsp-pivotal', 'fundingType', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(wspPivotalPlannedRows(), 'fundingType'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'dgContractNumber')">
+                                    <div class="admin-report-th-content">
+                                      <span>DG Contract Number</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'dgContractNumber')" (click)="toggleReportFilterColumn('wsp-pivotal', 'dgContractNumber')" aria-label="Filter by dg contract number">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'dgContractNumber')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'dgContractNumber')" (input)="updateReportColumnFilter('wsp-pivotal', 'dgContractNumber', $event)" placeholder="Search dg contract number" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'idNumber')">
+                                    <div class="admin-report-th-content">
+                                      <span>ID Number</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'idNumber')" (click)="toggleReportFilterColumn('wsp-pivotal', 'idNumber')" aria-label="Filter by id number">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'idNumber')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'idNumber')" (input)="updateReportColumnFilter('wsp-pivotal', 'idNumber', $event)" placeholder="Search id number" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'firstName')">
+                                    <div class="admin-report-th-content">
+                                      <span>First Name</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'firstName')" (click)="toggleReportFilterColumn('wsp-pivotal', 'firstName')" aria-label="Filter by first name">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'firstName')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'firstName')" (input)="updateReportColumnFilter('wsp-pivotal', 'firstName', $event)" placeholder="Search first name" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'surname')">
+                                    <div class="admin-report-th-content">
+                                      <span>Surname</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'surname')" (click)="toggleReportFilterColumn('wsp-pivotal', 'surname')" aria-label="Filter by surname">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'surname')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'surname')" (input)="updateReportColumnFilter('wsp-pivotal', 'surname', $event)" placeholder="Search surname" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'socioEconomicStatus')">
+                                    <div class="admin-report-th-content">
+                                      <span>Socio Economic Status</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'socioEconomicStatus')" (click)="toggleReportFilterColumn('wsp-pivotal', 'socioEconomicStatus')" aria-label="Filter by socio economic status">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'socioEconomicStatus')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('wsp-pivotal', 'socioEconomicStatus')" (change)="updateReportColumnFilter('wsp-pivotal', 'socioEconomicStatus', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(wspPivotalPlannedRows(), 'socioEconomicStatus'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'typeOfLearningProgramme')">
+                                    <div class="admin-report-th-content">
+                                      <span>Type Of Learning Programme</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'typeOfLearningProgramme')" (click)="toggleReportFilterColumn('wsp-pivotal', 'typeOfLearningProgramme')" aria-label="Filter by type of learning programme">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'typeOfLearningProgramme')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('wsp-pivotal', 'typeOfLearningProgramme')" (change)="updateReportColumnFilter('wsp-pivotal', 'typeOfLearningProgramme', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(wspPivotalPlannedRows(), 'typeOfLearningProgramme'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'nameOfLearningProgramme')">
+                                    <div class="admin-report-th-content">
+                                      <span>Name Of Learning Programme</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'nameOfLearningProgramme')" (click)="toggleReportFilterColumn('wsp-pivotal', 'nameOfLearningProgramme')" aria-label="Filter by name of learning programme">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'nameOfLearningProgramme')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'nameOfLearningProgramme')" (input)="updateReportColumnFilter('wsp-pivotal', 'nameOfLearningProgramme', $event)" placeholder="Search name of learning programme" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'pivotalOfoOccupation')">
+                                    <div class="admin-report-th-content">
+                                      <span>Pivotal Programmes</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'pivotalOfoOccupation')" (click)="toggleReportFilterColumn('wsp-pivotal', 'pivotalOfoOccupation')" aria-label="Filter by pivotal programmes">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'pivotalOfoOccupation')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('wsp-pivotal', 'pivotalOfoOccupation')" (change)="updateReportColumnFilter('wsp-pivotal', 'pivotalOfoOccupation', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(wspPivotalPlannedRows(), 'pivotalOfoOccupation'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'typeOfEducationalInstitution')">
+                                    <div class="admin-report-th-content">
+                                      <span>Type Of Educational Institution</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'typeOfEducationalInstitution')" (click)="toggleReportFilterColumn('wsp-pivotal', 'typeOfEducationalInstitution')" aria-label="Filter by type of educational institution">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'typeOfEducationalInstitution')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('wsp-pivotal', 'typeOfEducationalInstitution')" (change)="updateReportColumnFilter('wsp-pivotal', 'typeOfEducationalInstitution', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(wspPivotalPlannedRows(), 'typeOfEducationalInstitution'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'nqfLevel')">
+                                    <div class="admin-report-th-content">
+                                      <span>NQF Level</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'nqfLevel')" (click)="toggleReportFilterColumn('wsp-pivotal', 'nqfLevel')" aria-label="Filter by nqf level">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'nqfLevel')) {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="reportColumnFilterValue('wsp-pivotal', 'nqfLevel')" (change)="updateReportColumnFilter('wsp-pivotal', 'nqfLevel', $event)">
+                                          <option value="">All</option>
+                                          @for (option of reportColumnOptions(wspPivotalPlannedRows(), 'nqfLevel'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'cost')">
+                                    <div class="admin-report-th-content">
+                                      <span>Cost</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'cost')" (click)="toggleReportFilterColumn('wsp-pivotal', 'cost')" aria-label="Filter by cost">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'cost')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'cost')" (input)="updateReportColumnFilter('wsp-pivotal', 'cost', $event)" placeholder="Search cost" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'entryLevel')">
+                                    <div class="admin-report-th-content">
+                                      <span>Entry Level</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'entryLevel')" (click)="toggleReportFilterColumn('wsp-pivotal', 'entryLevel')" aria-label="Filter by entry level">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'entryLevel')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'entryLevel')" (input)="updateReportColumnFilter('wsp-pivotal', 'entryLevel', $event)" placeholder="Search entry level" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'intermediateLevel')">
+                                    <div class="admin-report-th-content">
+                                      <span>Intermediate Level</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'intermediateLevel')" (click)="toggleReportFilterColumn('wsp-pivotal', 'intermediateLevel')" aria-label="Filter by intermediate level">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'intermediateLevel')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'intermediateLevel')" (input)="updateReportColumnFilter('wsp-pivotal', 'intermediateLevel', $event)" placeholder="Search intermediate level" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'advancedLevel')">
+                                    <div class="admin-report-th-content">
+                                      <span>Advanced Level</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'advancedLevel')" (click)="toggleReportFilterColumn('wsp-pivotal', 'advancedLevel')" aria-label="Filter by advanced level">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'advancedLevel')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'advancedLevel')" (input)="updateReportColumnFilter('wsp-pivotal', 'advancedLevel', $event)" placeholder="Search advanced level" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'africanMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>African Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'africanMale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'africanMale')" aria-label="Filter by african male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'africanMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'africanMale')" (input)="updateReportColumnFilter('wsp-pivotal', 'africanMale', $event)" placeholder="Search african male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'africanFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>African Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'africanFemale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'africanFemale')" aria-label="Filter by african female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'africanFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'africanFemale')" (input)="updateReportColumnFilter('wsp-pivotal', 'africanFemale', $event)" placeholder="Search african female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'africanDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>African Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'africanDisabled')" (click)="toggleReportFilterColumn('wsp-pivotal', 'africanDisabled')" aria-label="Filter by african disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'africanDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'africanDisabled')" (input)="updateReportColumnFilter('wsp-pivotal', 'africanDisabled', $event)" placeholder="Search african disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'colouredMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Coloured Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'colouredMale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'colouredMale')" aria-label="Filter by coloured male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'colouredMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'colouredMale')" (input)="updateReportColumnFilter('wsp-pivotal', 'colouredMale', $event)" placeholder="Search coloured male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'colouredFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Coloured Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'colouredFemale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'colouredFemale')" aria-label="Filter by coloured female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'colouredFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'colouredFemale')" (input)="updateReportColumnFilter('wsp-pivotal', 'colouredFemale', $event)" placeholder="Search coloured female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'colouredDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>Coloured Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'colouredDisabled')" (click)="toggleReportFilterColumn('wsp-pivotal', 'colouredDisabled')" aria-label="Filter by coloured disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'colouredDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'colouredDisabled')" (input)="updateReportColumnFilter('wsp-pivotal', 'colouredDisabled', $event)" placeholder="Search coloured disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'indianMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Indian/Asian Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'indianMale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'indianMale')" aria-label="Filter by indian/asian male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'indianMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'indianMale')" (input)="updateReportColumnFilter('wsp-pivotal', 'indianMale', $event)" placeholder="Search indian/asian male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'indianFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>Indian/Asian Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'indianFemale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'indianFemale')" aria-label="Filter by indian/asian female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'indianFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'indianFemale')" (input)="updateReportColumnFilter('wsp-pivotal', 'indianFemale', $event)" placeholder="Search indian/asian female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'indianDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>Indian/Asian Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'indianDisabled')" (click)="toggleReportFilterColumn('wsp-pivotal', 'indianDisabled')" aria-label="Filter by indian/asian disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'indianDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'indianDisabled')" (input)="updateReportColumnFilter('wsp-pivotal', 'indianDisabled', $event)" placeholder="Search indian/asian disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'whiteMale')">
+                                    <div class="admin-report-th-content">
+                                      <span>White Male</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'whiteMale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'whiteMale')" aria-label="Filter by white male">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'whiteMale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'whiteMale')" (input)="updateReportColumnFilter('wsp-pivotal', 'whiteMale', $event)" placeholder="Search white male" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'whiteFemale')">
+                                    <div class="admin-report-th-content">
+                                      <span>White Female</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'whiteFemale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'whiteFemale')" aria-label="Filter by white female">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'whiteFemale')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'whiteFemale')" (input)="updateReportColumnFilter('wsp-pivotal', 'whiteFemale', $event)" placeholder="Search white female" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'whiteDisabled')">
+                                    <div class="admin-report-th-content">
+                                      <span>White Disabled</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'whiteDisabled')" (click)="toggleReportFilterColumn('wsp-pivotal', 'whiteDisabled')" aria-label="Filter by white disabled">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'whiteDisabled')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'whiteDisabled')" (input)="updateReportColumnFilter('wsp-pivotal', 'whiteDisabled', $event)" placeholder="Search white disabled" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'age1')">
+                                    <div class="admin-report-th-content">
+                                      <span>Age < 35</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'age1')" (click)="toggleReportFilterColumn('wsp-pivotal', 'age1')" aria-label="Filter by age < 35">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'age1')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'age1')" (input)="updateReportColumnFilter('wsp-pivotal', 'age1', $event)" placeholder="Search age < 35" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'age2')">
+                                    <div class="admin-report-th-content">
+                                      <span>Age 35-55</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'age2')" (click)="toggleReportFilterColumn('wsp-pivotal', 'age2')" aria-label="Filter by age 35-55">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'age2')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'age2')" (input)="updateReportColumnFilter('wsp-pivotal', 'age2', $event)" placeholder="Search age 35-55" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'age3')">
+                                    <div class="admin-report-th-content">
+                                      <span>Age > 55</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'age3')" (click)="toggleReportFilterColumn('wsp-pivotal', 'age3')" aria-label="Filter by age > 55">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (isReportFilterColumnOpen('wsp-pivotal', 'age3')) {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'age3')" (input)="updateReportColumnFilter('wsp-pivotal', 'age3', $event)" placeholder="Search age > 55" />
+                                      </div>
+                                    }
+                                  </th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  @for (row of wspPivotalPlannedRows(); track row.id) {
+                                  @for (row of filteredWspPivotalPlannedRows(); track row.id) {
                                     <tr>
                                       <td>{{ row.ofoOccupation }}</td><td>{{ row.municipality }}</td><td>{{ row.programmeNeedsAddressed }}</td><td>{{ row.fundingType }}</td>
                                       <td>{{ row.dgContractNumber }}</td><td>{{ row.idNumber }}</td><td>{{ row.firstName }}</td><td>{{ row.surname }}</td>
@@ -14378,7 +17129,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     const searchQuery = this.assignmentReportSearchTerm().trim().toLowerCase();
     const status = this.selectedAssignmentReportStatus();
 
-    return this.assignmentReportRows().filter((row) => {
+    const preFiltered = this.assignmentReportRows().filter((row) => {
       if (status !== 'All' && row.status !== status) {
         return false;
       }
@@ -14394,6 +17145,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
       return true;
     });
+
+    return this.applyReportColumnFilters(preFiltered, 'assignment', this.assignmentReportTextFilterColumns, this.assignmentReportDropdownFilterColumns);
   });
   readonly canDownloadAssignmentReport = computed(() => this.filteredAssignmentReportRows().length > 0);
   readonly annualReportDepartments = computed(() =>
@@ -14497,8 +17250,370 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     });
   });
   readonly canDownloadAnnualReport = computed(() => this.filteredAnnualTrainingReportRows().length > 0);
-  readonly canDownloadIdpReport = computed(() => this.idpReportRows().length > 0);
-  readonly canDownloadPerformanceReport = computed(() => this.performanceReportRows().length > 0);
+
+  // ── Generic per-column header filters, shared by every report below except the Training Report
+  // (which keeps its own bespoke annualReportColumnFilters, built and battle-tested first). Filter
+  // values are namespaced by an arbitrary report id so unrelated reports never collide, and only
+  // one popover across every report can be open at once, which is why a single id pair is enough.
+  private readonly reportColumnFilters = signal<Record<string, Record<string, string>>>({});
+  readonly openReportFilterColumn = signal<{ report: string; column: string } | null>(null);
+
+  reportColumnFilterValue(report: string, column: string): string {
+    return this.reportColumnFilters()[report]?.[column] ?? '';
+  }
+
+  updateReportColumnFilter(report: string, column: string, event: Event) {
+    const target = event.target as HTMLInputElement | HTMLSelectElement | null;
+    this.reportColumnFilters.update((current) => ({
+      ...current,
+      [report]: { ...current[report], [column]: target?.value ?? '' },
+    }));
+  }
+
+  isReportFilterColumnOpen(report: string, column: string): boolean {
+    const open = this.openReportFilterColumn();
+    return !!open && open.report === report && open.column === column;
+  }
+
+  toggleReportFilterColumn(report: string, column: string) {
+    this.openReportFilterColumn.update((current) =>
+      current && current.report === report && current.column === column ? null : { report, column },
+    );
+  }
+
+  closeReportFilterColumn() {
+    this.openReportFilterColumn.set(null);
+  }
+
+  clearReportColumnFilters(report: string) {
+    this.reportColumnFilters.update((current) => ({ ...current, [report]: {} }));
+  }
+
+  reportColumnOptions<T>(rows: readonly T[], field: keyof T): string[] {
+    const values = new Set<string>();
+    for (const row of rows) {
+      const value = row[field];
+      if (value === undefined || value === null || value === '') {
+        continue;
+      }
+      values.add(String(value));
+    }
+    return Array.from(values).sort((left, right) => left.localeCompare(right));
+  }
+
+  private applyReportColumnFilters<T extends Record<string, unknown>>(
+    rows: readonly T[],
+    report: string,
+    textColumns: ReadonlyArray<{ key: string; field: keyof T }>,
+    dropdownColumns: ReadonlyArray<{ key: string; field: keyof T }>,
+  ): T[] {
+    const filters = this.reportColumnFilters()[report] ?? {};
+
+    return rows.filter((row) => {
+      for (const { key, field } of textColumns) {
+        const filterValue = filters[key]?.trim().toLowerCase();
+        if (filterValue && !String(row[field] ?? '').toLowerCase().includes(filterValue)) {
+          return false;
+        }
+      }
+
+      for (const { key, field } of dropdownColumns) {
+        const filterValue = filters[key];
+        if (filterValue && String(row[field] ?? '') !== filterValue) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }
+
+  private readonly idpReportTextFilterColumns: ReadonlyArray<{ key: string; field: keyof IdpReportRow }> = [
+    { key: 'name', field: 'name' },
+    { key: 'surname', field: 'surname' },
+    { key: 'idNumber', field: 'idNumber' },
+    { key: 'jobTitle', field: 'jobTitle' },
+    { key: 'ofoCode', field: 'ofoCode' },
+    { key: 'manager', field: 'manager' },
+    { key: 'developmentNeed', field: 'developmentNeed' },
+    { key: 'plannedAction', field: 'plannedAction' },
+    { key: 'supportRequired', field: 'supportRequired' },
+    { key: 'dateCaptured', field: 'dateCaptured' },
+    { key: 'targetDate', field: 'targetDate' },
+  ];
+  private readonly idpReportDropdownFilterColumns: ReadonlyArray<{ key: string; field: keyof IdpReportRow }> = [
+    { key: 'race', field: 'race' },
+    { key: 'gender', field: 'gender' },
+    { key: 'municipality', field: 'municipality' },
+    { key: 'status', field: 'status' },
+  ];
+  readonly filteredIdpReportRows = computed(() =>
+    this.applyReportColumnFilters(this.idpReportRows(), 'idp', this.idpReportTextFilterColumns, this.idpReportDropdownFilterColumns),
+  );
+  readonly canDownloadIdpReport = computed(() => this.filteredIdpReportRows().length > 0);
+
+  private readonly performanceReportTextFilterColumns: ReadonlyArray<{ key: string; field: keyof PerformanceReportRow }> = [
+    { key: 'name', field: 'name' },
+    { key: 'surname', field: 'surname' },
+    { key: 'idNumber', field: 'idNumber' },
+    { key: 'jobTitle', field: 'jobTitle' },
+    { key: 'manager', field: 'manager' },
+    { key: 'kpiCount', field: 'kpiCount' },
+    { key: 'totalWeight', field: 'totalWeight' },
+    { key: 'overallRatingLabel', field: 'overallRatingLabel' },
+    { key: 'lastReviewDate', field: 'lastReviewDate' },
+  ];
+  private readonly performanceReportDropdownFilterColumns: ReadonlyArray<{ key: string; field: keyof PerformanceReportRow }> = [
+    { key: 'department', field: 'department' },
+  ];
+  readonly filteredPerformanceReportRows = computed(() =>
+    this.applyReportColumnFilters(this.performanceReportRows(), 'performance', this.performanceReportTextFilterColumns, this.performanceReportDropdownFilterColumns),
+  );
+  readonly canDownloadPerformanceReport = computed(() => this.filteredPerformanceReportRows().length > 0);
+
+  private readonly certificateReportTextFilterColumns: ReadonlyArray<{ key: string; field: keyof CertificateLicenceReportRow }> = [
+    { key: 'name', field: 'name' },
+    { key: 'surname', field: 'surname' },
+    { key: 'idNumber', field: 'idNumber' },
+    { key: 'certificateName', field: 'certificateName' },
+    { key: 'expiryDate', field: 'expiryDate' },
+  ];
+  private readonly certificateReportDropdownFilterColumns: ReadonlyArray<{ key: string; field: keyof CertificateLicenceReportRow }> = [
+    { key: 'department', field: 'department' },
+    { key: 'renewalRequired', field: 'renewalRequired' },
+    { key: 'status', field: 'status' },
+  ];
+  readonly filteredCertificateLicenceReportRows = computed(() =>
+    this.applyReportColumnFilters(this.certificateLicenceReportRows(), 'certificate', this.certificateReportTextFilterColumns, this.certificateReportDropdownFilterColumns),
+  );
+  readonly canDownloadCertificateLicenceReport = computed(() => this.filteredCertificateLicenceReportRows().length > 0);
+
+  private readonly assignmentReportTextFilterColumns: ReadonlyArray<{ key: string; field: keyof AssignmentReportRow }> = [
+    { key: 'surname', field: 'surname' },
+    { key: 'email', field: 'email' },
+    { key: 'courseName', field: 'courseName' },
+    { key: 'assessmentTitle', field: 'assessmentTitle' },
+    { key: 'submittedAt', field: 'submittedAt' },
+    { key: 'marker', field: 'marker' },
+    { key: 'mark', field: 'mark' },
+  ];
+  private readonly assignmentReportDropdownFilterColumns: ReadonlyArray<{ key: string; field: keyof AssignmentReportRow }> = [
+    { key: 'department', field: 'department' },
+  ];
+
+  private readonly setaCompletedTextFilterColumns: ReadonlyArray<{ key: string; field: keyof BeneficiariesCompletedTrainingRow }> = [
+    { key: 'programmeNeedsAddressed', field: 'programmeNeedsAddressed' },
+    { key: 'dgContractNumber', field: 'dgContractNumber' },
+    { key: 'nameOfLearningProgramme', field: 'nameOfLearningProgramme' },
+    { key: 'totalActualCost', field: 'totalActualCost' },
+    { key: 'entryLevel', field: 'entryLevel' },
+    { key: 'intermediateLevel', field: 'intermediateLevel' },
+    { key: 'advancedLevel', field: 'advancedLevel' },
+    { key: 'africanMale', field: 'africanMale' },
+    { key: 'africanFemale', field: 'africanFemale' },
+    { key: 'africanDisabled', field: 'africanDisabled' },
+    { key: 'colouredMale', field: 'colouredMale' },
+    { key: 'colouredFemale', field: 'colouredFemale' },
+    { key: 'colouredDisabled', field: 'colouredDisabled' },
+    { key: 'indianMale', field: 'indianMale' },
+    { key: 'indianFemale', field: 'indianFemale' },
+    { key: 'indianDisabled', field: 'indianDisabled' },
+    { key: 'whiteMale', field: 'whiteMale' },
+    { key: 'whiteFemale', field: 'whiteFemale' },
+    { key: 'whiteDisabled', field: 'whiteDisabled' },
+    { key: 'age1', field: 'age1' },
+    { key: 'age2', field: 'age2' },
+    { key: 'age3', field: 'age3' },
+  ];
+  private readonly setaCompletedDropdownFilterColumns: ReadonlyArray<{ key: string; field: keyof BeneficiariesCompletedTrainingRow }> = [
+    { key: 'ofoOccupation', field: 'ofoOccupation' },
+    { key: 'municipality', field: 'municipality' },
+    { key: 'nqfAlignedTraining', field: 'nqfAlignedTraining' },
+    { key: 'nqfLevel', field: 'nqfLevel' },
+    { key: 'fundingType', field: 'fundingType' },
+    { key: 'socioEconomicStatus', field: 'socioEconomicStatus' },
+    { key: 'typeOfLearningProgramme', field: 'typeOfLearningProgramme' },
+    { key: 'typeOfEducationalInstitution', field: 'typeOfEducationalInstitution' },
+  ];
+  readonly filteredBeneficiariesCompletedTrainingRows = computed(() =>
+    this.applyReportColumnFilters(this.beneficiariesCompletedTrainingRows(), 'atr-completed', this.setaCompletedTextFilterColumns, this.setaCompletedDropdownFilterColumns),
+  );
+  readonly canDownloadBeneficiariesCompletedTrainingReport = computed(() => this.filteredBeneficiariesCompletedTrainingRows().length > 0);
+
+  private readonly setaNumberBeneficiariesTextFilterColumns: ReadonlyArray<{ key: string; field: keyof NumberBeneficiariesRow }> = [
+    { key: 'africanMale', field: 'africanMale' },
+    { key: 'africanFemale', field: 'africanFemale' },
+    { key: 'africanDisabled', field: 'africanDisabled' },
+    { key: 'colouredMale', field: 'colouredMale' },
+    { key: 'colouredFemale', field: 'colouredFemale' },
+    { key: 'colouredDisabled', field: 'colouredDisabled' },
+    { key: 'indianMale', field: 'indianMale' },
+    { key: 'indianFemale', field: 'indianFemale' },
+    { key: 'indianDisabled', field: 'indianDisabled' },
+    { key: 'whiteMale', field: 'whiteMale' },
+    { key: 'whiteFemale', field: 'whiteFemale' },
+    { key: 'whiteDisabled', field: 'whiteDisabled' },
+    { key: 'age1', field: 'age1' },
+    { key: 'age2', field: 'age2' },
+    { key: 'age3', field: 'age3' },
+  ];
+  private readonly setaNumberBeneficiariesDropdownFilterColumns: ReadonlyArray<{ key: string; field: keyof NumberBeneficiariesRow }> = [
+    { key: 'ofoOccupation', field: 'ofoOccupation' },
+    { key: 'municipality', field: 'municipality' },
+  ];
+  readonly filteredNumberBeneficiariesRows = computed(() =>
+    this.applyReportColumnFilters(this.numberBeneficiariesRows(), 'atr-number', this.setaNumberBeneficiariesTextFilterColumns, this.setaNumberBeneficiariesDropdownFilterColumns),
+  );
+  readonly canDownloadNumberBeneficiariesReport = computed(() => this.filteredNumberBeneficiariesRows().length > 0);
+
+  private readonly setaPivotalActualTextFilterColumns: ReadonlyArray<{ key: string; field: keyof PivotalActualTrainingRow }> = [
+    { key: 'programmeNeedsAddressed', field: 'programmeNeedsAddressed' },
+    { key: 'dgContractNumber', field: 'dgContractNumber' },
+    { key: 'idNumber', field: 'idNumber' },
+    { key: 'firstName', field: 'firstName' },
+    { key: 'surname', field: 'surname' },
+    { key: 'nameOfLearningProgramme', field: 'nameOfLearningProgramme' },
+    { key: 'cost', field: 'cost' },
+    { key: 'entryLevel', field: 'entryLevel' },
+    { key: 'intermediateLevel', field: 'intermediateLevel' },
+    { key: 'advancedLevel', field: 'advancedLevel' },
+    { key: 'africanMale', field: 'africanMale' },
+    { key: 'africanFemale', field: 'africanFemale' },
+    { key: 'africanDisabled', field: 'africanDisabled' },
+    { key: 'colouredMale', field: 'colouredMale' },
+    { key: 'colouredFemale', field: 'colouredFemale' },
+    { key: 'colouredDisabled', field: 'colouredDisabled' },
+    { key: 'indianMale', field: 'indianMale' },
+    { key: 'indianFemale', field: 'indianFemale' },
+    { key: 'indianDisabled', field: 'indianDisabled' },
+    { key: 'whiteMale', field: 'whiteMale' },
+    { key: 'whiteFemale', field: 'whiteFemale' },
+    { key: 'whiteDisabled', field: 'whiteDisabled' },
+    { key: 'age1', field: 'age1' },
+    { key: 'age2', field: 'age2' },
+    { key: 'age3', field: 'age3' },
+  ];
+  private readonly setaPivotalActualDropdownFilterColumns: ReadonlyArray<{ key: string; field: keyof PivotalActualTrainingRow }> = [
+    { key: 'ofoOccupation', field: 'ofoOccupation' },
+    { key: 'municipality', field: 'municipality' },
+    { key: 'fundingType', field: 'fundingType' },
+    { key: 'socioEconomicStatus', field: 'socioEconomicStatus' },
+    { key: 'typeOfLearningProgramme', field: 'typeOfLearningProgramme' },
+    { key: 'typeOfEducationalInstitution', field: 'typeOfEducationalInstitution' },
+    { key: 'nqfLevel', field: 'nqfLevel' },
+    { key: 'pivotalOfoOccupation', field: 'pivotalOfoOccupation' },
+  ];
+  readonly filteredPivotalActualTrainingRows = computed(() =>
+    this.applyReportColumnFilters(this.pivotalActualTrainingRows(), 'atr-pivotal', this.setaPivotalActualTextFilterColumns, this.setaPivotalActualDropdownFilterColumns),
+  );
+  readonly canDownloadPivotalActualTrainingReport = computed(() => this.filteredPivotalActualTrainingRows().length > 0);
+
+  private readonly wspBeneficiariesPlannedTextFilterColumns: ReadonlyArray<{ key: string; field: keyof WspBeneficiariesPlannedRow }> = [
+    { key: 'programmeNeedsAddressed', field: 'programmeNeedsAddressed' },
+    { key: 'dgContractNumber', field: 'dgContractNumber' },
+    { key: 'nameOfLearningProgramme', field: 'nameOfLearningProgramme' },
+    { key: 'totalEstimatedCost', field: 'totalEstimatedCost' },
+    { key: 'entryLevel', field: 'entryLevel' },
+    { key: 'intermediateLevel', field: 'intermediateLevel' },
+    { key: 'advancedLevel', field: 'advancedLevel' },
+    { key: 'africanMale', field: 'africanMale' },
+    { key: 'africanFemale', field: 'africanFemale' },
+    { key: 'africanDisabled', field: 'africanDisabled' },
+    { key: 'colouredMale', field: 'colouredMale' },
+    { key: 'colouredFemale', field: 'colouredFemale' },
+    { key: 'colouredDisabled', field: 'colouredDisabled' },
+    { key: 'indianMale', field: 'indianMale' },
+    { key: 'indianFemale', field: 'indianFemale' },
+    { key: 'indianDisabled', field: 'indianDisabled' },
+    { key: 'whiteMale', field: 'whiteMale' },
+    { key: 'whiteFemale', field: 'whiteFemale' },
+    { key: 'whiteDisabled', field: 'whiteDisabled' },
+    { key: 'age1', field: 'age1' },
+    { key: 'age2', field: 'age2' },
+    { key: 'age3', field: 'age3' },
+  ];
+  private readonly wspBeneficiariesPlannedDropdownFilterColumns: ReadonlyArray<{ key: string; field: keyof WspBeneficiariesPlannedRow }> = [
+    { key: 'ofoOccupation', field: 'ofoOccupation' },
+    { key: 'municipality', field: 'municipality' },
+    { key: 'nqfAlignedTraining', field: 'nqfAlignedTraining' },
+    { key: 'nqfLevel', field: 'nqfLevel' },
+    { key: 'fundingType', field: 'fundingType' },
+    { key: 'socioEconomicStatus', field: 'socioEconomicStatus' },
+    { key: 'typeOfLearningProgramme', field: 'typeOfLearningProgramme' },
+    { key: 'typeOfEducationalInstitution', field: 'typeOfEducationalInstitution' },
+  ];
+  readonly filteredWspBeneficiariesPlannedRows = computed(() =>
+    this.applyReportColumnFilters(this.wspBeneficiariesPlannedRows(), 'wsp-planned', this.wspBeneficiariesPlannedTextFilterColumns, this.wspBeneficiariesPlannedDropdownFilterColumns),
+  );
+  readonly canDownloadWspBeneficiariesPlannedReport = computed(() => this.filteredWspBeneficiariesPlannedRows().length > 0);
+
+  private readonly wspEmploymentSummaryTextFilterColumns: ReadonlyArray<{ key: string; field: keyof WspEmploymentSummaryRow }> = [
+    { key: 'africanMale', field: 'africanMale' },
+    { key: 'africanFemale', field: 'africanFemale' },
+    { key: 'africanDisabled', field: 'africanDisabled' },
+    { key: 'colouredMale', field: 'colouredMale' },
+    { key: 'colouredFemale', field: 'colouredFemale' },
+    { key: 'colouredDisabled', field: 'colouredDisabled' },
+    { key: 'indianMale', field: 'indianMale' },
+    { key: 'indianFemale', field: 'indianFemale' },
+    { key: 'indianDisabled', field: 'indianDisabled' },
+    { key: 'whiteMale', field: 'whiteMale' },
+    { key: 'whiteFemale', field: 'whiteFemale' },
+    { key: 'whiteDisabled', field: 'whiteDisabled' },
+    { key: 'age1', field: 'age1' },
+    { key: 'age2', field: 'age2' },
+    { key: 'age3', field: 'age3' },
+  ];
+  private readonly wspEmploymentSummaryDropdownFilterColumns: ReadonlyArray<{ key: string; field: keyof WspEmploymentSummaryRow }> = [
+    { key: 'ofoOccupation', field: 'ofoOccupation' },
+    { key: 'municipality', field: 'municipality' },
+  ];
+  readonly filteredWspEmploymentSummaryRows = computed(() =>
+    this.applyReportColumnFilters(this.wspEmploymentSummaryRows(), 'wsp-employment', this.wspEmploymentSummaryTextFilterColumns, this.wspEmploymentSummaryDropdownFilterColumns),
+  );
+  readonly canDownloadWspEmploymentSummaryReport = computed(() => this.filteredWspEmploymentSummaryRows().length > 0);
+
+  private readonly wspPivotalPlannedTextFilterColumns: ReadonlyArray<{ key: string; field: keyof WspPivotalPlannedRow }> = [
+    { key: 'programmeNeedsAddressed', field: 'programmeNeedsAddressed' },
+    { key: 'dgContractNumber', field: 'dgContractNumber' },
+    { key: 'idNumber', field: 'idNumber' },
+    { key: 'firstName', field: 'firstName' },
+    { key: 'surname', field: 'surname' },
+    { key: 'nameOfLearningProgramme', field: 'nameOfLearningProgramme' },
+    { key: 'cost', field: 'cost' },
+    { key: 'entryLevel', field: 'entryLevel' },
+    { key: 'intermediateLevel', field: 'intermediateLevel' },
+    { key: 'advancedLevel', field: 'advancedLevel' },
+    { key: 'africanMale', field: 'africanMale' },
+    { key: 'africanFemale', field: 'africanFemale' },
+    { key: 'africanDisabled', field: 'africanDisabled' },
+    { key: 'colouredMale', field: 'colouredMale' },
+    { key: 'colouredFemale', field: 'colouredFemale' },
+    { key: 'colouredDisabled', field: 'colouredDisabled' },
+    { key: 'indianMale', field: 'indianMale' },
+    { key: 'indianFemale', field: 'indianFemale' },
+    { key: 'indianDisabled', field: 'indianDisabled' },
+    { key: 'whiteMale', field: 'whiteMale' },
+    { key: 'whiteFemale', field: 'whiteFemale' },
+    { key: 'whiteDisabled', field: 'whiteDisabled' },
+    { key: 'age1', field: 'age1' },
+    { key: 'age2', field: 'age2' },
+    { key: 'age3', field: 'age3' },
+  ];
+  private readonly wspPivotalPlannedDropdownFilterColumns: ReadonlyArray<{ key: string; field: keyof WspPivotalPlannedRow }> = [
+    { key: 'ofoOccupation', field: 'ofoOccupation' },
+    { key: 'municipality', field: 'municipality' },
+    { key: 'fundingType', field: 'fundingType' },
+    { key: 'socioEconomicStatus', field: 'socioEconomicStatus' },
+    { key: 'typeOfLearningProgramme', field: 'typeOfLearningProgramme' },
+    { key: 'typeOfEducationalInstitution', field: 'typeOfEducationalInstitution' },
+    { key: 'nqfLevel', field: 'nqfLevel' },
+    { key: 'pivotalOfoOccupation', field: 'pivotalOfoOccupation' },
+  ];
+  readonly filteredWspPivotalPlannedRows = computed(() =>
+    this.applyReportColumnFilters(this.wspPivotalPlannedRows(), 'wsp-pivotal', this.wspPivotalPlannedTextFilterColumns, this.wspPivotalPlannedDropdownFilterColumns),
+  );
+  readonly canDownloadWspPivotalPlannedReport = computed(() => this.filteredWspPivotalPlannedRows().length > 0);
 
   // ── Dashboard performance gauge ─────────────────────────────────────────
   // Scored employees only — someone with no KPIs set up yet has no rating to
@@ -14587,7 +17702,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     onCleanup(() => clearTimeout(timer));
   });
 
-  readonly canDownloadCertificateLicenceReport = computed(() => this.certificateLicenceReportRows().length > 0);
   // The 3 ATR sub-reports below share one base dataset — approved external training requests
   // matched to their beneficiary's student record. Built directly (rather than as a flat
   // per-request list) since each needs the raw student record for demographic bucketing
@@ -14665,7 +17779,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       };
     }).sort((left, right) => left.ofoOccupation.localeCompare(right.ofoOccupation) || left.municipality.localeCompare(right.municipality));
   });
-  readonly canDownloadBeneficiariesCompletedTrainingReport = computed(() => this.beneficiariesCompletedTrainingRows().length > 0);
 
   readonly numberBeneficiariesRows = computed<NumberBeneficiariesRow[]>(() => {
     const groups = new Map<string, { demographics: BeneficiaryDemographicCounts[]; countedBeneficiaryKeys: Set<string> }>();
@@ -14701,7 +17814,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       };
     }).sort((left, right) => left.ofoOccupation.localeCompare(right.ofoOccupation) || left.municipality.localeCompare(right.municipality));
   });
-  readonly canDownloadNumberBeneficiariesReport = computed(() => this.numberBeneficiariesRows().length > 0);
 
   // Pivotal programmes are a specific SETA grant category (Apprenticeships, Bursaries,
   // Internships, Learnerships, etc.) — this LMS doesn't capture that distinction, so every
@@ -14737,7 +17849,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       };
     }).sort((left, right) => left.surname.localeCompare(right.surname) || left.firstName.localeCompare(right.firstName));
   });
-  readonly canDownloadPivotalActualTrainingReport = computed(() => this.pivotalActualTrainingRows().length > 0);
 
   // "Planned training" for WSP purposes comes from two places per student: internal LMS course
   // assignments not yet completed, and IDP entries (Development Need field, used as the training
@@ -14851,7 +17962,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       };
     }).sort((left, right) => left.ofoOccupation.localeCompare(right.ofoOccupation) || left.municipality.localeCompare(right.municipality));
   });
-  readonly canDownloadWspBeneficiariesPlannedReport = computed(() => this.wspBeneficiariesPlannedRows().length > 0);
 
   // Unlike the other WSP/ATR reports, Employment Summary profiles the whole workforce (every
   // user in the LMS), not just those with planned training — that's the standard meaning of
@@ -14878,7 +17988,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       return { id: groupKey, ofoOccupation, municipality, ...this.sumBeneficiaryDemographics(demographics) };
     }).sort((left, right) => left.ofoOccupation.localeCompare(right.ofoOccupation) || left.municipality.localeCompare(right.municipality));
   });
-  readonly canDownloadWspEmploymentSummaryReport = computed(() => this.wspEmploymentSummaryRows().length > 0);
 
   readonly wspPivotalPlannedRows = computed<WspPivotalPlannedRow[]>(() => {
     return this.plannedTrainingEvents().map((event, index) => {
@@ -14908,7 +18017,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       };
     }).sort((left, right) => left.surname.localeCompare(right.surname) || left.firstName.localeCompare(right.firstName));
   });
-  readonly canDownloadWspPivotalPlannedReport = computed(() => this.wspPivotalPlannedRows().length > 0);
 
   readonly singleUserForm = this.createUserForm();
   readonly userEditForm = this.createUserForm();
@@ -15521,6 +18629,33 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   clearAssignmentReportFilters() {
     this.assignmentReportSearchTerm.set('');
     this.selectedAssignmentReportStatus.set('All');
+    this.clearReportColumnFilters('assignment');
+  }
+
+  private static readonly atrSubReportKeys: Record<AtrSubReport, string> = {
+    'beneficiaries-completed': 'atr-completed',
+    'number-beneficiaries': 'atr-number',
+    'pivotal-actual': 'atr-pivotal',
+  };
+
+  private static readonly wspSubReportKeys: Record<WspSubReport, string> = {
+    'beneficiaries-planned': 'wsp-planned',
+    'employment-summary': 'wsp-employment',
+    'pivotal-planned': 'wsp-pivotal',
+  };
+
+  clearAtrSubReportColumnFilters() {
+    const sub = this.selectedAtrSubReport();
+    if (sub) {
+      this.clearReportColumnFilters(AdminProfileComponent.atrSubReportKeys[sub]);
+    }
+  }
+
+  clearWspSubReportColumnFilters() {
+    const sub = this.selectedWspSubReport();
+    if (sub) {
+      this.clearReportColumnFilters(AdminProfileComponent.wspSubReportKeys[sub]);
+    }
   }
 
   updateAnnualReportSearch(event: Event) {
@@ -17023,7 +20158,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       'Target Date',
       'Status',
     ];
-    const reportRows = this.idpReportRows();
+    const reportRows = this.filteredIdpReportRows();
 
     return {
       columns,
@@ -17084,7 +20219,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       'Overall Rating',
       'Last Review Date',
     ];
-    const reportRows = this.performanceReportRows();
+    const reportRows = this.filteredPerformanceReportRows();
 
     return {
       columns,
@@ -17115,7 +20250,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       'Renewal Required',
       'Status',
     ];
-    const reportRows = this.certificateLicenceReportRows();
+    const reportRows = this.filteredCertificateLicenceReportRows();
 
     return {
       columns,
@@ -17570,7 +20705,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       'Name Of Learning Programme', 'Type Of Educational Institution', 'Total Actual Cost',
       'Entry Level', 'Intermediate Level', 'Advanced Level', ...this.setaDemographicColumns,
     ];
-    const reportRows = this.beneficiariesCompletedTrainingRows();
+    const reportRows = this.filteredBeneficiariesCompletedTrainingRows();
 
     return {
       machineKeys,
@@ -17588,7 +20723,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   private buildNumberBeneficiariesExportRows() {
     const machineKeys = ['OFOOccupation', 'Municipality', ...this.setaDemographicMachineKeys];
     const columns = ['OFO Occupation', 'Municipality', ...this.setaDemographicColumns];
-    const reportRows = this.numberBeneficiariesRows();
+    const reportRows = this.filteredNumberBeneficiariesRows();
 
     return {
       machineKeys,
@@ -17613,7 +20748,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       'Name Of Learning Programme', 'Pivotal Programmes', 'Type Of Educational Institution', 'NQF Level',
       'Cost', 'Entry Level', 'Intermediate Level', 'Advanced Level', ...this.setaDemographicColumns,
     ];
-    const reportRows = this.pivotalActualTrainingRows();
+    const reportRows = this.filteredPivotalActualTrainingRows();
 
     return {
       machineKeys,
@@ -17641,7 +20776,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       'Name Of Learning Programme', 'Type Of Educational Institution', 'Total Estimated Cost',
       'Entry Level', 'Intermediate Level', 'Advanced Level', ...this.setaDemographicColumns,
     ];
-    const reportRows = this.wspBeneficiariesPlannedRows();
+    const reportRows = this.filteredWspBeneficiariesPlannedRows();
 
     return {
       machineKeys,
@@ -17659,7 +20794,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   private buildWspEmploymentSummaryExportRows() {
     const machineKeys = ['OFOOccupation', 'Municipality', ...this.setaDemographicMachineKeys];
     const columns = ['OFO Occupation', 'Municipality', ...this.setaDemographicColumns];
-    const reportRows = this.wspEmploymentSummaryRows();
+    const reportRows = this.filteredWspEmploymentSummaryRows();
 
     return {
       machineKeys,
@@ -17684,7 +20819,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       'Name Of Learning Programme', 'Pivotal Programmes', 'Type Of Educational Institution', 'NQF Level',
       'Cost', 'Entry Level', 'Intermediate Level', 'Advanced Level', ...this.setaDemographicColumns,
     ];
-    const reportRows = this.wspPivotalPlannedRows();
+    const reportRows = this.filteredWspPivotalPlannedRows();
 
     return {
       machineKeys,
