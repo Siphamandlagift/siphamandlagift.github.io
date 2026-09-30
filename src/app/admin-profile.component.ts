@@ -1810,62 +1810,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       <div class="admin-report-content-stack">
                         <article class="admin-section-card">
                           <div class="admin-section-card-header">
-                            <h2>Report filters</h2>
-                            <span>{{ filteredAnnualTrainingReportRows().length }} of {{ annualTrainingReportRows().length }} rows</span>
-                          </div>
-
-                          <div class="admin-report-filter-grid">
-                            <label class="admin-report-filter-field">
-                              <span>Search</span>
-                              <input type="text" [value]="annualReportSearchTerm()" (input)="updateAnnualReportSearch($event)" placeholder="Name, training item, provider" />
-                            </label>
-
-                            <label class="admin-report-filter-field">
-                              <span>Department</span>
-                              <select [value]="selectedAnnualReportDepartment()" (change)="updateAnnualReportDepartment($event)">
-                                <option value="">All departments</option>
-                                @for (department of annualReportDepartments(); track department) {
-                                  <option [value]="department">{{ department }}</option>
-                                }
-                              </select>
-                            </label>
-
-                            <label class="admin-report-filter-field">
-                              <span>Source</span>
-                              <select [value]="selectedAnnualReportSource()" (change)="updateAnnualReportSource($event)">
-                                <option value="All">All sources</option>
-                                <option value="LMS">LMS</option>
-                                <option value="External">External</option>
-                              </select>
-                            </label>
-
-                            <label class="admin-report-filter-field">
-                              <span>Date From</span>
-                              <input type="date" [value]="selectedAnnualReportDateFrom()" (input)="updateAnnualReportDateFrom($event)" />
-                            </label>
-
-                            <label class="admin-report-filter-field">
-                              <span>Date To</span>
-                              <input type="date" [value]="selectedAnnualReportDateTo()" (input)="updateAnnualReportDateTo($event)" />
-                            </label>
-
-                          </div>
-
-                          <div class="admin-report-actions">
-                            <button type="button" class="admin-secondary-btn" (click)="clearAnnualReportFilters()">Clear filters</button>
-                            <label class="admin-report-filter-field admin-report-download-field">
-                              <span>Download As</span>
-                              <select [value]="selectedAnnualReportDownloadFormat()" (change)="updateAnnualReportDownloadFormat($event)">
-                                <option value="CSV">CSV</option>
-                                <option value="XLSX">XLSX</option>
-                              </select>
-                            </label>
-                            <button type="button" class="admin-primary-btn" [disabled]="!canDownloadAnnualReport()" (click)="downloadAnnualReport()">Download report</button>
-                          </div>
-                        </article>
-
-                        <article class="admin-section-card">
-                          <div class="admin-section-card-header">
                             <h2>Bulk import training records</h2>
                             <span>Backfill approved training for existing learners</span>
                           </div>
@@ -1914,7 +1858,60 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           }
                         </article>
 
-                        @if (filteredAnnualTrainingReportRows().length) {
+                        <div class="admin-report-table-box">
+                          <div class="admin-report-table-toolbar">
+                            <div class="admin-report-filter-grid">
+                              <label class="admin-report-filter-field">
+                                <span>Search</span>
+                                <input type="text" [value]="annualReportSearchTerm()" (input)="updateAnnualReportSearch($event)" placeholder="Name, training item, provider" />
+                              </label>
+
+                              <label class="admin-report-filter-field">
+                                <span>Department</span>
+                                <select [value]="selectedAnnualReportDepartment()" (change)="updateAnnualReportDepartment($event)">
+                                  <option value="">All departments</option>
+                                  @for (department of annualReportDepartments(); track department) {
+                                    <option [value]="department">{{ department }}</option>
+                                  }
+                                </select>
+                              </label>
+
+                              <label class="admin-report-filter-field">
+                                <span>Source</span>
+                                <select [value]="selectedAnnualReportSource()" (change)="updateAnnualReportSource($event)">
+                                  <option value="All">All sources</option>
+                                  <option value="LMS">LMS</option>
+                                  <option value="External">External</option>
+                                </select>
+                              </label>
+
+                              <label class="admin-report-filter-field">
+                                <span>Date From</span>
+                                <input type="date" [value]="selectedAnnualReportDateFrom()" (input)="updateAnnualReportDateFrom($event)" />
+                              </label>
+
+                              <label class="admin-report-filter-field">
+                                <span>Date To</span>
+                                <input type="date" [value]="selectedAnnualReportDateTo()" (input)="updateAnnualReportDateTo($event)" />
+                              </label>
+                            </div>
+
+                            <div class="admin-report-actions">
+                              <button type="button" class="admin-secondary-btn" (click)="clearAnnualReportFilters()">Clear filters</button>
+                              <label class="admin-report-filter-field admin-report-download-field">
+                                <span>Download As</span>
+                                <select [value]="selectedAnnualReportDownloadFormat()" (change)="updateAnnualReportDownloadFormat($event)">
+                                  <option value="CSV">CSV</option>
+                                  <option value="XLSX">XLSX</option>
+                                </select>
+                              </label>
+                              <button type="button" class="admin-primary-btn" [disabled]="!canDownloadAnnualReport()" (click)="downloadAnnualReport()">Download report</button>
+                            </div>
+                          </div>
+
+                          @if (!filteredAnnualTrainingReportRows().length) {
+                            <div class="admin-report-table-empty">No training records match the current filters.</div>
+                          } @else {
                           <div class="admin-report-table-wrap">
                             <table class="admin-report-table">
                               <thead>
@@ -1967,9 +1964,8 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                               </tbody>
                             </table>
                           </div>
-                        } @else {
-                          <div class="admin-empty-state">No training records match the current filters.</div>
-                        }
+                          }
+                        </div>
                       </div>
                     }
 
@@ -7421,6 +7417,41 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       border-radius: 10px;
       border: 1px solid rgba(148, 163, 184, 0.18);
       background: #fbfdff;
+    }
+
+    /* One bordered box holding a report's filters + download controls as a compact top strip,
+       directly above its table, instead of a separate "Report filters" card sitting above the
+       table — see the Training Report for the first use of this. .admin-report-table-wrap is
+       reused unchanged for the scrollable table itself nested inside, so its own border/
+       background are zeroed out here to avoid a box-in-a-box look; every OTHER report that still
+       uses .admin-report-table-wrap on its own (not nested in this box) is unaffected. */
+    .admin-report-table-box {
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 10px;
+      background: #fbfdff;
+      overflow: hidden;
+    }
+
+    .admin-report-table-box .admin-report-table-wrap {
+      border: none;
+      border-radius: 0;
+      background: transparent;
+    }
+
+    .admin-report-table-toolbar {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      padding: 0.85rem;
+      background: #f8fbff;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+    }
+
+    .admin-report-table-empty {
+      padding: 1.5rem 1rem;
+      text-align: center;
+      color: #64748b;
+      font-size: 0.88rem;
     }
 
     .admin-report-table {
