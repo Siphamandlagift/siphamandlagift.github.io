@@ -1809,15 +1809,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     @if (selectedReportView() === 'annual-training') {
                       <div class="admin-report-content-stack">
                         <article class="admin-section-card">
-                          <div class="admin-section-card-header">
-                            <h2>Bulk import training records</h2>
-                            <span>Backfill approved training for existing learners</span>
-                          </div>
-
-                          <p class="admin-settings-hint">
-                            Upload a CSV or XLSX file with Learner Email, Course Name, Provider, Training Type, Start Date and End Date. Each valid row is saved and approved automatically, so it shows up here and in the SETA (ATR) reports right away — nothing needs a separate manual approval step.
-                          </p>
-
                           <div class="admin-report-actions">
                             <button type="button" class="admin-secondary-btn" (click)="downloadTrainingRecordUploadTemplate()">Download template</button>
                             <label class="admin-report-filter-field admin-report-download-field">
