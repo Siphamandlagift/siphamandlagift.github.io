@@ -22,6 +22,7 @@ type FireworkBurst = {
 };
 
 type BadgeWorkspaceSection = 'badges' | 'certificates' | null;
+type CertificateWorkspaceSection = 'form' | 'list' | null;
 
 type StudentCertificate = {
   id: string;
@@ -126,9 +127,35 @@ type StudentCertificate = {
       }
 
       @if (selectedSection() === 'certificates') {
+        @if (!selectedCertificateSection()) {
+          <div class="section-heading-row section-heading-row-inner">
+            <h3>Certificates and Licences</h3>
+            <span class="section-badge section-badge-cert">{{ certificates().length }} issued</span>
+          </div>
+
+          <div class="badge-section-list" aria-label="Certificates and licences sections">
+            <button type="button" class="badge-section-item" (click)="selectCertificateSection('form')">
+              <span class="badge-section-item-title">Add a Certificate or Licence</span>
+              <span class="badge-section-item-copy">Create a new record or update one you've already added.</span>
+            </button>
+
+            <button type="button" class="badge-section-item" (click)="selectCertificateSection('list')">
+              <span class="badge-section-item-title">All Certificates and Licences</span>
+              <span class="badge-section-item-copy">Browse, download, and manage everything you've saved.</span>
+              <span class="section-badge section-badge-cert">{{ certificates().length }} issued</span>
+            </button>
+          </div>
+        }
+
+        @if (selectedCertificateSection()) {
+          <div class="badge-section-detail">
+            <button type="button" class="section-back-btn" (click)="clearCertificateSection()">Back to Certificates and Licences</button>
+          </div>
+        }
+
+        @if (selectedCertificateSection() === 'form') {
         <div class="section-heading-row section-heading-row-inner">
-          <h3>Certificates and Licences</h3>
-          <span class="section-badge section-badge-cert">{{ certificates().length }} issued</span>
+          <h3>{{ editingCertificateId() ? 'Update Certificate or Licence' : 'Add a Certificate or Licence' }}</h3>
         </div>
 
         <form class="certificate-form" [formGroup]="certificateForm" (ngSubmit)="saveCertificate()" aria-label="Certificates and licences form">
@@ -207,7 +234,7 @@ type StudentCertificate = {
           <div class="certificate-form-actions certificate-form-span-2">
             <button type="submit">{{ editingCertificateId() ? 'Update record' : 'Save record' }}</button>
             @if (editingCertificateId()) {
-              <button type="button" class="secondary-btn" (click)="cancelCertificateEdit()">Cancel edit</button>
+              <button type="button" class="secondary-btn" (click)="cancelCertificateEditFromList()">Cancel edit</button>
             }
             @if (certificateSaveMessage()) {
               <span class="success">{{ certificateSaveMessage() }}</span>
@@ -217,6 +244,13 @@ type StudentCertificate = {
             }
           </div>
         </form>
+        }
+
+        @if (selectedCertificateSection() === 'list') {
+        <div class="section-heading-row section-heading-row-inner">
+          <h3>All Certificates and Licences</h3>
+          <span class="section-badge section-badge-cert">{{ certificates().length }} issued</span>
+        </div>
 
         @if (certificates().length) {
           <div class="certificates-grid">
@@ -247,6 +281,7 @@ type StudentCertificate = {
             <div class="certificate-empty-title">No certificates yet</div>
             <p>Earn badges first to generate certificate records in this folder.</p>
           </article>
+        }
         }
       }
     </section>
@@ -1106,6 +1141,8 @@ export class StudentBadgesComponent {
 
   private readonly selectedSectionSignal = signal<BadgeWorkspaceSection>(null);
   readonly selectedSection = computed(() => this.selectedSectionSignal());
+  private readonly selectedCertificateSectionSignal = signal<CertificateWorkspaceSection>(null);
+  readonly selectedCertificateSection = computed(() => this.selectedCertificateSectionSignal());
   private readonly selectedBadgeSignal = signal<StudentBadge | null>(null);
   readonly selectedBadge = computed(() => this.selectedBadgeSignal());
   readonly earnedBadges = computed(() => this.studentData.badges().filter((badge) => badge.earned));
@@ -1166,12 +1203,31 @@ export class StudentBadgesComponent {
   selectSection(section: Exclude<BadgeWorkspaceSection, null>) {
     this.selectedSectionSignal.set(section);
     this.selectedBadgeSignal.set(null);
+    this.selectedCertificateSectionSignal.set(null);
   }
 
   clearSection() {
     this.selectedSectionSignal.set(null);
     this.selectedBadgeSignal.set(null);
+    this.selectedCertificateSectionSignal.set(null);
     this.cancelCertificateEdit();
+  }
+
+  selectCertificateSection(section: Exclude<CertificateWorkspaceSection, null>) {
+    this.selectedCertificateSectionSignal.set(section);
+  }
+
+  clearCertificateSection() {
+    this.selectedCertificateSectionSignal.set(null);
+    this.cancelCertificateEdit();
+  }
+
+  // The "Cancel edit" button only ever renders while editingCertificateId() is set, which only
+  // ever happens via startCertificateEdit() below — reached by clicking Edit on a card in the
+  // list section — so cancelling an edit always means "go back to the list".
+  cancelCertificateEditFromList() {
+    this.cancelCertificateEdit();
+    this.selectedCertificateSectionSignal.set('list');
   }
 
   openBadge(badge: StudentBadge) {
@@ -1257,6 +1313,7 @@ export class StudentBadgesComponent {
   }
 
   startCertificateEdit(certificate: StudentCertificateLicence) {
+    this.selectedCertificateSectionSignal.set('form');
     this.editingCertificateIdSignal.set(certificate.id);
     this.certificateForm.setValue({
       certificationName: certificate.certificationName,
