@@ -503,6 +503,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '(document:keydown.escape)': 'handleOverlayEscape()',
+    '(window:scroll)': 'closeAnyReportFilterPopover()',
   },
   template: `
 
@@ -1871,19 +1872,19 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           @if (!filteredAnnualTrainingReportRows().length) {
                             <div class="admin-report-table-empty">No training records match the current filters.</div>
                           } @else {
-                          <div class="admin-report-table-wrap">
+                          <div class="admin-report-table-wrap" (scroll)="closeAnyReportFilterPopover()">
                             <table class="admin-report-table">
                               <thead>
                                 <tr>
                                   <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'name'">
                                     <div class="admin-report-th-content">
                                       <span>Name</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportSearchTerm()" (click)="toggleAnnualReportFilterColumn('name')" aria-label="Search by name, training item, or provider">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportSearchTerm()" (click)="toggleAnnualReportFilterColumn('name', $event)" aria-label="Search by name, training item, or provider">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (annualReportOpenFilterColumn() === 'name') {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="annualReportSearchTerm()" (input)="updateAnnualReportSearch($event)" placeholder="Name, training item, provider" />
                                       </div>
                                     }
@@ -1891,12 +1892,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'email'">
                                     <div class="admin-report-th-content">
                                       <span>Email</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('email')" (click)="toggleAnnualReportFilterColumn('email')" aria-label="Filter by email">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('email')" (click)="toggleAnnualReportFilterColumn('email', $event)" aria-label="Filter by email">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (annualReportOpenFilterColumn() === 'email') {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="annualReportColumnFilterValue('email')" (input)="updateAnnualReportColumnFilter('email', $event)" placeholder="Search email" />
                                       </div>
                                     }
@@ -1904,12 +1905,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'idNumber'">
                                     <div class="admin-report-th-content">
                                       <span>ID Number</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('idNumber')" (click)="toggleAnnualReportFilterColumn('idNumber')" aria-label="Filter by ID number">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('idNumber')" (click)="toggleAnnualReportFilterColumn('idNumber', $event)" aria-label="Filter by ID number">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (annualReportOpenFilterColumn() === 'idNumber') {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="annualReportColumnFilterValue('idNumber')" (input)="updateAnnualReportColumnFilter('idNumber', $event)" placeholder="Search ID number" />
                                       </div>
                                     }
@@ -1917,12 +1918,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'jobTitle'">
                                     <div class="admin-report-th-content">
                                       <span>Job Title</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('jobTitle')" (click)="toggleAnnualReportFilterColumn('jobTitle')" aria-label="Filter by job title">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('jobTitle')" (click)="toggleAnnualReportFilterColumn('jobTitle', $event)" aria-label="Filter by job title">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (annualReportOpenFilterColumn() === 'jobTitle') {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="annualReportColumnFilterValue('jobTitle')" (input)="updateAnnualReportColumnFilter('jobTitle', $event)" placeholder="Search job title" />
                                       </div>
                                     }
@@ -1930,12 +1931,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'department'">
                                     <div class="admin-report-th-content">
                                       <span>Department</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!selectedAnnualReportDepartment()" (click)="toggleAnnualReportFilterColumn('department')" aria-label="Filter by department">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!selectedAnnualReportDepartment()" (click)="toggleAnnualReportFilterColumn('department', $event)" aria-label="Filter by department">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (annualReportOpenFilterColumn() === 'department') {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="selectedAnnualReportDepartment()" (change)="updateAnnualReportDepartment($event)">
                                           <option value="">All departments</option>
                                           @for (department of annualReportDepartments(); track department) {
@@ -1948,12 +1949,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'ofoCode'">
                                     <div class="admin-report-th-content">
                                       <span>OFO Code</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('ofoCode')" (click)="toggleAnnualReportFilterColumn('ofoCode')" aria-label="Filter by OFO code">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('ofoCode')" (click)="toggleAnnualReportFilterColumn('ofoCode', $event)" aria-label="Filter by OFO code">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (annualReportOpenFilterColumn() === 'ofoCode') {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="annualReportColumnFilterValue('ofoCode')" (input)="updateAnnualReportColumnFilter('ofoCode', $event)" placeholder="Search OFO code" />
                                       </div>
                                     }
@@ -1961,12 +1962,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'race'">
                                     <div class="admin-report-th-content">
                                       <span>Race</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('race')" (click)="toggleAnnualReportFilterColumn('race')" aria-label="Filter by race">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('race')" (click)="toggleAnnualReportFilterColumn('race', $event)" aria-label="Filter by race">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (annualReportOpenFilterColumn() === 'race') {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="annualReportColumnFilterValue('race')" (change)="updateAnnualReportColumnFilter('race', $event)">
                                           <option value="">All</option>
                                           @for (option of annualReportColumnOptions('race'); track option) {
@@ -1979,12 +1980,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'gender'">
                                     <div class="admin-report-th-content">
                                       <span>Gender</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('gender')" (click)="toggleAnnualReportFilterColumn('gender')" aria-label="Filter by gender">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('gender')" (click)="toggleAnnualReportFilterColumn('gender', $event)" aria-label="Filter by gender">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (annualReportOpenFilterColumn() === 'gender') {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="annualReportColumnFilterValue('gender')" (change)="updateAnnualReportColumnFilter('gender', $event)">
                                           <option value="">All</option>
                                           @for (option of annualReportColumnOptions('gender'); track option) {
@@ -1997,12 +1998,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'municipality'">
                                     <div class="admin-report-th-content">
                                       <span>Municipality</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('municipality')" (click)="toggleAnnualReportFilterColumn('municipality')" aria-label="Filter by municipality">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('municipality')" (click)="toggleAnnualReportFilterColumn('municipality', $event)" aria-label="Filter by municipality">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (annualReportOpenFilterColumn() === 'municipality') {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="annualReportColumnFilterValue('municipality')" (change)="updateAnnualReportColumnFilter('municipality', $event)">
                                           <option value="">All</option>
                                           @for (option of annualReportColumnOptions('municipality'); track option) {
@@ -2015,12 +2016,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'trainingItem'">
                                     <div class="admin-report-th-content">
                                       <span>Training Item</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('trainingItem')" (click)="toggleAnnualReportFilterColumn('trainingItem')" aria-label="Filter by training item">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('trainingItem')" (click)="toggleAnnualReportFilterColumn('trainingItem', $event)" aria-label="Filter by training item">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (annualReportOpenFilterColumn() === 'trainingItem') {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="annualReportColumnFilterValue('trainingItem')" (input)="updateAnnualReportColumnFilter('trainingItem', $event)" placeholder="Search training item" />
                                       </div>
                                     }
@@ -2028,12 +2029,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'source'">
                                     <div class="admin-report-th-content">
                                       <span>Source</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="selectedAnnualReportSource() !== 'All'" (click)="toggleAnnualReportFilterColumn('source')" aria-label="Filter by source">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="selectedAnnualReportSource() !== 'All'" (click)="toggleAnnualReportFilterColumn('source', $event)" aria-label="Filter by source">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (annualReportOpenFilterColumn() === 'source') {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="selectedAnnualReportSource()" (change)="updateAnnualReportSource($event)">
                                           <option value="All">All sources</option>
                                           <option value="LMS">LMS</option>
@@ -2045,12 +2046,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'type'">
                                     <div class="admin-report-th-content">
                                       <span>Type</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('type')" (click)="toggleAnnualReportFilterColumn('type')" aria-label="Filter by type">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('type')" (click)="toggleAnnualReportFilterColumn('type', $event)" aria-label="Filter by type">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (annualReportOpenFilterColumn() === 'type') {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="annualReportColumnFilterValue('type')" (change)="updateAnnualReportColumnFilter('type', $event)">
                                           <option value="">All</option>
                                           @for (option of annualReportColumnOptions('trainingType'); track option) {
@@ -2063,12 +2064,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'result'">
                                     <div class="admin-report-th-content">
                                       <span>Result</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('result')" (click)="toggleAnnualReportFilterColumn('result')" aria-label="Filter by result">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('result')" (click)="toggleAnnualReportFilterColumn('result', $event)" aria-label="Filter by result">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (annualReportOpenFilterColumn() === 'result') {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="annualReportColumnFilterValue('result')" (input)="updateAnnualReportColumnFilter('result', $event)" placeholder="Search result" />
                                       </div>
                                     }
@@ -2076,12 +2077,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'provider'">
                                     <div class="admin-report-th-content">
                                       <span>Provider</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('provider')" (click)="toggleAnnualReportFilterColumn('provider')" aria-label="Filter by provider">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('provider')" (click)="toggleAnnualReportFilterColumn('provider', $event)" aria-label="Filter by provider">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (annualReportOpenFilterColumn() === 'provider') {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="annualReportColumnFilterValue('provider')" (input)="updateAnnualReportColumnFilter('provider', $event)" placeholder="Search provider" />
                                       </div>
                                     }
@@ -2089,12 +2090,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'date'">
                                     <div class="admin-report-th-content">
                                       <span>Date</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!(selectedAnnualReportDateFrom() || selectedAnnualReportDateTo())" (click)="toggleAnnualReportFilterColumn('date')" aria-label="Filter by date range">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!(selectedAnnualReportDateFrom() || selectedAnnualReportDateTo())" (click)="toggleAnnualReportFilterColumn('date', $event)" aria-label="Filter by date range">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (annualReportOpenFilterColumn() === 'date') {
-                                      <div class="admin-report-th-popover admin-report-th-popover-wide">
+                                      <div class="admin-report-th-popover admin-report-th-popover-wide" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <label>
                                           <span>From</span>
                                           <input type="date" [value]="selectedAnnualReportDateFrom()" (input)="updateAnnualReportDateFrom($event)" />
@@ -2109,12 +2110,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'status'">
                                     <div class="admin-report-th-content">
                                       <span>Status</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('status')" (click)="toggleAnnualReportFilterColumn('status')" aria-label="Filter by status">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('status')" (click)="toggleAnnualReportFilterColumn('status', $event)" aria-label="Filter by status">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (annualReportOpenFilterColumn() === 'status') {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="annualReportColumnFilterValue('status')" (change)="updateAnnualReportColumnFilter('status', $event)">
                                           <option value="">All</option>
                                           @for (option of annualReportColumnOptions('status'); track option) {
@@ -2185,19 +2186,19 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           @if (!filteredIdpReportRows().length) {
                             <div class="admin-report-table-empty">No IDP entries match the current filters.</div>
                           } @else {
-                          <div class="admin-report-table-wrap">
+                          <div class="admin-report-table-wrap" (scroll)="closeAnyReportFilterPopover()">
                             <table class="admin-report-table">
                               <thead>
                                 <tr>
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'name')">
                                     <div class="admin-report-th-content">
                                       <span>Name</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'name')" (click)="toggleReportFilterColumn('idp', 'name')" aria-label="Filter by name">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'name')" (click)="toggleReportFilterColumn('idp', 'name', $event)" aria-label="Filter by name">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('idp', 'name')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('idp', 'name')" (input)="updateReportColumnFilter('idp', 'name', $event)" placeholder="Search name" />
                                       </div>
                                     }
@@ -2205,12 +2206,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'surname')">
                                     <div class="admin-report-th-content">
                                       <span>Surname</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'surname')" (click)="toggleReportFilterColumn('idp', 'surname')" aria-label="Filter by surname">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'surname')" (click)="toggleReportFilterColumn('idp', 'surname', $event)" aria-label="Filter by surname">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('idp', 'surname')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('idp', 'surname')" (input)="updateReportColumnFilter('idp', 'surname', $event)" placeholder="Search surname" />
                                       </div>
                                     }
@@ -2218,12 +2219,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'idNumber')">
                                     <div class="admin-report-th-content">
                                       <span>ID Number</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'idNumber')" (click)="toggleReportFilterColumn('idp', 'idNumber')" aria-label="Filter by ID number">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'idNumber')" (click)="toggleReportFilterColumn('idp', 'idNumber', $event)" aria-label="Filter by ID number">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('idp', 'idNumber')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('idp', 'idNumber')" (input)="updateReportColumnFilter('idp', 'idNumber', $event)" placeholder="Search ID number" />
                                       </div>
                                     }
@@ -2231,12 +2232,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'jobTitle')">
                                     <div class="admin-report-th-content">
                                       <span>Job Title</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'jobTitle')" (click)="toggleReportFilterColumn('idp', 'jobTitle')" aria-label="Filter by job title">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'jobTitle')" (click)="toggleReportFilterColumn('idp', 'jobTitle', $event)" aria-label="Filter by job title">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('idp', 'jobTitle')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('idp', 'jobTitle')" (input)="updateReportColumnFilter('idp', 'jobTitle', $event)" placeholder="Search job title" />
                                       </div>
                                     }
@@ -2244,12 +2245,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'ofoCode')">
                                     <div class="admin-report-th-content">
                                       <span>OFO Code</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'ofoCode')" (click)="toggleReportFilterColumn('idp', 'ofoCode')" aria-label="Filter by OFO code">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'ofoCode')" (click)="toggleReportFilterColumn('idp', 'ofoCode', $event)" aria-label="Filter by OFO code">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('idp', 'ofoCode')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('idp', 'ofoCode')" (input)="updateReportColumnFilter('idp', 'ofoCode', $event)" placeholder="Search OFO code" />
                                       </div>
                                     }
@@ -2257,12 +2258,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'race')">
                                     <div class="admin-report-th-content">
                                       <span>Race</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'race')" (click)="toggleReportFilterColumn('idp', 'race')" aria-label="Filter by race">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'race')" (click)="toggleReportFilterColumn('idp', 'race', $event)" aria-label="Filter by race">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('idp', 'race')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('idp', 'race')" (change)="updateReportColumnFilter('idp', 'race', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(idpReportRows(), 'race'); track option) {
@@ -2275,12 +2276,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'gender')">
                                     <div class="admin-report-th-content">
                                       <span>Gender</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'gender')" (click)="toggleReportFilterColumn('idp', 'gender')" aria-label="Filter by gender">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'gender')" (click)="toggleReportFilterColumn('idp', 'gender', $event)" aria-label="Filter by gender">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('idp', 'gender')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('idp', 'gender')" (change)="updateReportColumnFilter('idp', 'gender', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(idpReportRows(), 'gender'); track option) {
@@ -2293,12 +2294,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'municipality')">
                                     <div class="admin-report-th-content">
                                       <span>Municipality</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'municipality')" (click)="toggleReportFilterColumn('idp', 'municipality')" aria-label="Filter by municipality">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'municipality')" (click)="toggleReportFilterColumn('idp', 'municipality', $event)" aria-label="Filter by municipality">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('idp', 'municipality')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('idp', 'municipality')" (change)="updateReportColumnFilter('idp', 'municipality', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(idpReportRows(), 'municipality'); track option) {
@@ -2311,12 +2312,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'manager')">
                                     <div class="admin-report-th-content">
                                       <span>Manager</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'manager')" (click)="toggleReportFilterColumn('idp', 'manager')" aria-label="Filter by manager">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'manager')" (click)="toggleReportFilterColumn('idp', 'manager', $event)" aria-label="Filter by manager">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('idp', 'manager')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('idp', 'manager')" (input)="updateReportColumnFilter('idp', 'manager', $event)" placeholder="Search manager" />
                                       </div>
                                     }
@@ -2324,12 +2325,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'developmentNeed')">
                                     <div class="admin-report-th-content">
                                       <span>Development Need</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'developmentNeed')" (click)="toggleReportFilterColumn('idp', 'developmentNeed')" aria-label="Filter by development need">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'developmentNeed')" (click)="toggleReportFilterColumn('idp', 'developmentNeed', $event)" aria-label="Filter by development need">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('idp', 'developmentNeed')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('idp', 'developmentNeed')" (input)="updateReportColumnFilter('idp', 'developmentNeed', $event)" placeholder="Search development need" />
                                       </div>
                                     }
@@ -2337,12 +2338,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'plannedAction')">
                                     <div class="admin-report-th-content">
                                       <span>Planned Action</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'plannedAction')" (click)="toggleReportFilterColumn('idp', 'plannedAction')" aria-label="Filter by planned action">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'plannedAction')" (click)="toggleReportFilterColumn('idp', 'plannedAction', $event)" aria-label="Filter by planned action">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('idp', 'plannedAction')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('idp', 'plannedAction')" (input)="updateReportColumnFilter('idp', 'plannedAction', $event)" placeholder="Search planned action" />
                                       </div>
                                     }
@@ -2350,12 +2351,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'supportRequired')">
                                     <div class="admin-report-th-content">
                                       <span>Support Required</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'supportRequired')" (click)="toggleReportFilterColumn('idp', 'supportRequired')" aria-label="Filter by support required">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'supportRequired')" (click)="toggleReportFilterColumn('idp', 'supportRequired', $event)" aria-label="Filter by support required">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('idp', 'supportRequired')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('idp', 'supportRequired')" (input)="updateReportColumnFilter('idp', 'supportRequired', $event)" placeholder="Search support required" />
                                       </div>
                                     }
@@ -2363,12 +2364,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'dateCaptured')">
                                     <div class="admin-report-th-content">
                                       <span>Date Captured</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'dateCaptured')" (click)="toggleReportFilterColumn('idp', 'dateCaptured')" aria-label="Filter by date captured">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'dateCaptured')" (click)="toggleReportFilterColumn('idp', 'dateCaptured', $event)" aria-label="Filter by date captured">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('idp', 'dateCaptured')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('idp', 'dateCaptured')" (input)="updateReportColumnFilter('idp', 'dateCaptured', $event)" placeholder="Search date captured" />
                                       </div>
                                     }
@@ -2376,12 +2377,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'targetDate')">
                                     <div class="admin-report-th-content">
                                       <span>Target Date</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'targetDate')" (click)="toggleReportFilterColumn('idp', 'targetDate')" aria-label="Filter by target date">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'targetDate')" (click)="toggleReportFilterColumn('idp', 'targetDate', $event)" aria-label="Filter by target date">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('idp', 'targetDate')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('idp', 'targetDate')" (input)="updateReportColumnFilter('idp', 'targetDate', $event)" placeholder="Search target date" />
                                       </div>
                                     }
@@ -2389,12 +2390,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('idp', 'status')">
                                     <div class="admin-report-th-content">
                                       <span>Status</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'status')" (click)="toggleReportFilterColumn('idp', 'status')" aria-label="Filter by status">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('idp', 'status')" (click)="toggleReportFilterColumn('idp', 'status', $event)" aria-label="Filter by status">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('idp', 'status')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('idp', 'status')" (change)="updateReportColumnFilter('idp', 'status', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(idpReportRows(), 'status'); track option) {
@@ -2458,19 +2459,19 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           @if (!filteredPerformanceReportRows().length) {
                             <div class="admin-report-table-empty">No performance records match the current filters.</div>
                           } @else {
-                          <div class="admin-report-table-wrap">
+                          <div class="admin-report-table-wrap" (scroll)="closeAnyReportFilterPopover()">
                             <table class="admin-report-table">
                               <thead>
                                 <tr>
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('performance', 'name')">
                                     <div class="admin-report-th-content">
                                       <span>Name</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'name')" (click)="toggleReportFilterColumn('performance', 'name')" aria-label="Filter by name">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'name')" (click)="toggleReportFilterColumn('performance', 'name', $event)" aria-label="Filter by name">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('performance', 'name')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('performance', 'name')" (input)="updateReportColumnFilter('performance', 'name', $event)" placeholder="Search name" />
                                       </div>
                                     }
@@ -2478,12 +2479,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('performance', 'surname')">
                                     <div class="admin-report-th-content">
                                       <span>Surname</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'surname')" (click)="toggleReportFilterColumn('performance', 'surname')" aria-label="Filter by surname">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'surname')" (click)="toggleReportFilterColumn('performance', 'surname', $event)" aria-label="Filter by surname">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('performance', 'surname')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('performance', 'surname')" (input)="updateReportColumnFilter('performance', 'surname', $event)" placeholder="Search surname" />
                                       </div>
                                     }
@@ -2491,12 +2492,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('performance', 'idNumber')">
                                     <div class="admin-report-th-content">
                                       <span>ID Number</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'idNumber')" (click)="toggleReportFilterColumn('performance', 'idNumber')" aria-label="Filter by ID number">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'idNumber')" (click)="toggleReportFilterColumn('performance', 'idNumber', $event)" aria-label="Filter by ID number">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('performance', 'idNumber')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('performance', 'idNumber')" (input)="updateReportColumnFilter('performance', 'idNumber', $event)" placeholder="Search ID number" />
                                       </div>
                                     }
@@ -2504,12 +2505,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('performance', 'jobTitle')">
                                     <div class="admin-report-th-content">
                                       <span>Job Title</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'jobTitle')" (click)="toggleReportFilterColumn('performance', 'jobTitle')" aria-label="Filter by job title">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'jobTitle')" (click)="toggleReportFilterColumn('performance', 'jobTitle', $event)" aria-label="Filter by job title">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('performance', 'jobTitle')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('performance', 'jobTitle')" (input)="updateReportColumnFilter('performance', 'jobTitle', $event)" placeholder="Search job title" />
                                       </div>
                                     }
@@ -2517,12 +2518,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('performance', 'department')">
                                     <div class="admin-report-th-content">
                                       <span>Department</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'department')" (click)="toggleReportFilterColumn('performance', 'department')" aria-label="Filter by department">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'department')" (click)="toggleReportFilterColumn('performance', 'department', $event)" aria-label="Filter by department">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('performance', 'department')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('performance', 'department')" (change)="updateReportColumnFilter('performance', 'department', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(performanceReportRows(), 'department'); track option) {
@@ -2535,12 +2536,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('performance', 'manager')">
                                     <div class="admin-report-th-content">
                                       <span>Manager</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'manager')" (click)="toggleReportFilterColumn('performance', 'manager')" aria-label="Filter by manager">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'manager')" (click)="toggleReportFilterColumn('performance', 'manager', $event)" aria-label="Filter by manager">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('performance', 'manager')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('performance', 'manager')" (input)="updateReportColumnFilter('performance', 'manager', $event)" placeholder="Search manager" />
                                       </div>
                                     }
@@ -2548,12 +2549,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('performance', 'kpiCount')">
                                     <div class="admin-report-th-content">
                                       <span>KPIs</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'kpiCount')" (click)="toggleReportFilterColumn('performance', 'kpiCount')" aria-label="Filter by KPI count">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'kpiCount')" (click)="toggleReportFilterColumn('performance', 'kpiCount', $event)" aria-label="Filter by KPI count">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('performance', 'kpiCount')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('performance', 'kpiCount')" (input)="updateReportColumnFilter('performance', 'kpiCount', $event)" placeholder="Search KPI count" />
                                       </div>
                                     }
@@ -2561,12 +2562,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('performance', 'totalWeight')">
                                     <div class="admin-report-th-content">
                                       <span>Total Weight</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'totalWeight')" (click)="toggleReportFilterColumn('performance', 'totalWeight')" aria-label="Filter by total weight">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'totalWeight')" (click)="toggleReportFilterColumn('performance', 'totalWeight', $event)" aria-label="Filter by total weight">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('performance', 'totalWeight')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('performance', 'totalWeight')" (input)="updateReportColumnFilter('performance', 'totalWeight', $event)" placeholder="Search total weight" />
                                       </div>
                                     }
@@ -2574,12 +2575,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('performance', 'overallRatingLabel')">
                                     <div class="admin-report-th-content">
                                       <span>Overall Rating</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'overallRatingLabel')" (click)="toggleReportFilterColumn('performance', 'overallRatingLabel')" aria-label="Filter by overall rating">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'overallRatingLabel')" (click)="toggleReportFilterColumn('performance', 'overallRatingLabel', $event)" aria-label="Filter by overall rating">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('performance', 'overallRatingLabel')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('performance', 'overallRatingLabel')" (input)="updateReportColumnFilter('performance', 'overallRatingLabel', $event)" placeholder="Search overall rating" />
                                       </div>
                                     }
@@ -2587,12 +2588,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('performance', 'lastReviewDate')">
                                     <div class="admin-report-th-content">
                                       <span>Last Review</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'lastReviewDate')" (click)="toggleReportFilterColumn('performance', 'lastReviewDate')" aria-label="Filter by last review date">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('performance', 'lastReviewDate')" (click)="toggleReportFilterColumn('performance', 'lastReviewDate', $event)" aria-label="Filter by last review date">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('performance', 'lastReviewDate')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('performance', 'lastReviewDate')" (input)="updateReportColumnFilter('performance', 'lastReviewDate', $event)" placeholder="Search last review" />
                                       </div>
                                     }
@@ -2646,19 +2647,19 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           @if (!filteredCertificateLicenceReportRows().length) {
                             <div class="admin-report-table-empty">No certificate or licence records match the current filters.</div>
                           } @else {
-                          <div class="admin-report-table-wrap">
+                          <div class="admin-report-table-wrap" (scroll)="closeAnyReportFilterPopover()">
                             <table class="admin-report-table">
                               <thead>
                                 <tr>
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('certificate', 'name')">
                                     <div class="admin-report-th-content">
                                       <span>Full Name</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'name')" (click)="toggleReportFilterColumn('certificate', 'name')" aria-label="Filter by full name">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'name')" (click)="toggleReportFilterColumn('certificate', 'name', $event)" aria-label="Filter by full name">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('certificate', 'name')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('certificate', 'name')" (input)="updateReportColumnFilter('certificate', 'name', $event)" placeholder="Search full name" />
                                       </div>
                                     }
@@ -2666,12 +2667,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('certificate', 'surname')">
                                     <div class="admin-report-th-content">
                                       <span>Surname</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'surname')" (click)="toggleReportFilterColumn('certificate', 'surname')" aria-label="Filter by surname">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'surname')" (click)="toggleReportFilterColumn('certificate', 'surname', $event)" aria-label="Filter by surname">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('certificate', 'surname')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('certificate', 'surname')" (input)="updateReportColumnFilter('certificate', 'surname', $event)" placeholder="Search surname" />
                                       </div>
                                     }
@@ -2679,12 +2680,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('certificate', 'idNumber')">
                                     <div class="admin-report-th-content">
                                       <span>ID Number</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'idNumber')" (click)="toggleReportFilterColumn('certificate', 'idNumber')" aria-label="Filter by ID number">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'idNumber')" (click)="toggleReportFilterColumn('certificate', 'idNumber', $event)" aria-label="Filter by ID number">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('certificate', 'idNumber')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('certificate', 'idNumber')" (input)="updateReportColumnFilter('certificate', 'idNumber', $event)" placeholder="Search ID number" />
                                       </div>
                                     }
@@ -2692,12 +2693,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('certificate', 'department')">
                                     <div class="admin-report-th-content">
                                       <span>Department</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'department')" (click)="toggleReportFilterColumn('certificate', 'department')" aria-label="Filter by department">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'department')" (click)="toggleReportFilterColumn('certificate', 'department', $event)" aria-label="Filter by department">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('certificate', 'department')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('certificate', 'department')" (change)="updateReportColumnFilter('certificate', 'department', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(certificateLicenceReportRows(), 'department'); track option) {
@@ -2710,12 +2711,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('certificate', 'certificateName')">
                                     <div class="admin-report-th-content">
                                       <span>Certificate Name</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'certificateName')" (click)="toggleReportFilterColumn('certificate', 'certificateName')" aria-label="Filter by certificate name">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'certificateName')" (click)="toggleReportFilterColumn('certificate', 'certificateName', $event)" aria-label="Filter by certificate name">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('certificate', 'certificateName')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('certificate', 'certificateName')" (input)="updateReportColumnFilter('certificate', 'certificateName', $event)" placeholder="Search certificate name" />
                                       </div>
                                     }
@@ -2723,12 +2724,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('certificate', 'expiryDate')">
                                     <div class="admin-report-th-content">
                                       <span>Expiry Date</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'expiryDate')" (click)="toggleReportFilterColumn('certificate', 'expiryDate')" aria-label="Filter by expiry date">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'expiryDate')" (click)="toggleReportFilterColumn('certificate', 'expiryDate', $event)" aria-label="Filter by expiry date">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('certificate', 'expiryDate')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('certificate', 'expiryDate')" (input)="updateReportColumnFilter('certificate', 'expiryDate', $event)" placeholder="Search expiry date" />
                                       </div>
                                     }
@@ -2736,12 +2737,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('certificate', 'renewalRequired')">
                                     <div class="admin-report-th-content">
                                       <span>Renewal Required</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'renewalRequired')" (click)="toggleReportFilterColumn('certificate', 'renewalRequired')" aria-label="Filter by renewal required">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'renewalRequired')" (click)="toggleReportFilterColumn('certificate', 'renewalRequired', $event)" aria-label="Filter by renewal required">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('certificate', 'renewalRequired')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('certificate', 'renewalRequired')" (change)="updateReportColumnFilter('certificate', 'renewalRequired', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(certificateLicenceReportRows(), 'renewalRequired'); track option) {
@@ -2754,12 +2755,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('certificate', 'status')">
                                     <div class="admin-report-th-content">
                                       <span>Status</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'status')" (click)="toggleReportFilterColumn('certificate', 'status')" aria-label="Filter by status">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('certificate', 'status')" (click)="toggleReportFilterColumn('certificate', 'status', $event)" aria-label="Filter by status">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('certificate', 'status')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('certificate', 'status')" (change)="updateReportColumnFilter('certificate', 'status', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(certificateLicenceReportRows(), 'status'); track option) {
@@ -2816,19 +2817,19 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           @if (!filteredAssignmentReportRows().length) {
                             <div class="admin-report-table-empty">No assignment submissions match the current filters.</div>
                           } @else {
-                          <div class="admin-report-table-wrap">
+                          <div class="admin-report-table-wrap" (scroll)="closeAnyReportFilterPopover()">
                             <table class="admin-report-table">
                               <thead>
                                 <tr>
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('assignment', 'name')">
                                     <div class="admin-report-th-content">
                                       <span>Full Name</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!assignmentReportSearchTerm()" (click)="toggleReportFilterColumn('assignment', 'name')" aria-label="Search by student, course, or marker">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!assignmentReportSearchTerm()" (click)="toggleReportFilterColumn('assignment', 'name', $event)" aria-label="Search by student, course, or marker">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('assignment', 'name')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="assignmentReportSearchTerm()" (input)="updateAssignmentReportSearch($event)" placeholder="Student, course, marker" />
                                       </div>
                                     }
@@ -2836,12 +2837,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('assignment', 'surname')">
                                     <div class="admin-report-th-content">
                                       <span>Surname</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'surname')" (click)="toggleReportFilterColumn('assignment', 'surname')" aria-label="Filter by surname">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'surname')" (click)="toggleReportFilterColumn('assignment', 'surname', $event)" aria-label="Filter by surname">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('assignment', 'surname')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('assignment', 'surname')" (input)="updateReportColumnFilter('assignment', 'surname', $event)" placeholder="Search surname" />
                                       </div>
                                     }
@@ -2849,12 +2850,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('assignment', 'email')">
                                     <div class="admin-report-th-content">
                                       <span>Email</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'email')" (click)="toggleReportFilterColumn('assignment', 'email')" aria-label="Filter by email">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'email')" (click)="toggleReportFilterColumn('assignment', 'email', $event)" aria-label="Filter by email">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('assignment', 'email')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('assignment', 'email')" (input)="updateReportColumnFilter('assignment', 'email', $event)" placeholder="Search email" />
                                       </div>
                                     }
@@ -2862,12 +2863,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('assignment', 'department')">
                                     <div class="admin-report-th-content">
                                       <span>Department</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'department')" (click)="toggleReportFilterColumn('assignment', 'department')" aria-label="Filter by department">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'department')" (click)="toggleReportFilterColumn('assignment', 'department', $event)" aria-label="Filter by department">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('assignment', 'department')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('assignment', 'department')" (change)="updateReportColumnFilter('assignment', 'department', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(assignmentReportRows(), 'department'); track option) {
@@ -2880,12 +2881,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('assignment', 'courseName')">
                                     <div class="admin-report-th-content">
                                       <span>Course</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'courseName')" (click)="toggleReportFilterColumn('assignment', 'courseName')" aria-label="Filter by course">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'courseName')" (click)="toggleReportFilterColumn('assignment', 'courseName', $event)" aria-label="Filter by course">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('assignment', 'courseName')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('assignment', 'courseName')" (input)="updateReportColumnFilter('assignment', 'courseName', $event)" placeholder="Search course" />
                                       </div>
                                     }
@@ -2893,12 +2894,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('assignment', 'assessmentTitle')">
                                     <div class="admin-report-th-content">
                                       <span>Assessment</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'assessmentTitle')" (click)="toggleReportFilterColumn('assignment', 'assessmentTitle')" aria-label="Filter by assessment">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'assessmentTitle')" (click)="toggleReportFilterColumn('assignment', 'assessmentTitle', $event)" aria-label="Filter by assessment">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('assignment', 'assessmentTitle')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('assignment', 'assessmentTitle')" (input)="updateReportColumnFilter('assignment', 'assessmentTitle', $event)" placeholder="Search assessment" />
                                       </div>
                                     }
@@ -2906,12 +2907,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('assignment', 'submittedAt')">
                                     <div class="admin-report-th-content">
                                       <span>Date of Submission</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'submittedAt')" (click)="toggleReportFilterColumn('assignment', 'submittedAt')" aria-label="Filter by date of submission">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'submittedAt')" (click)="toggleReportFilterColumn('assignment', 'submittedAt', $event)" aria-label="Filter by date of submission">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('assignment', 'submittedAt')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('assignment', 'submittedAt')" (input)="updateReportColumnFilter('assignment', 'submittedAt', $event)" placeholder="Search date" />
                                       </div>
                                     }
@@ -2919,12 +2920,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('assignment', 'marker')">
                                     <div class="admin-report-th-content">
                                       <span>Marker</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'marker')" (click)="toggleReportFilterColumn('assignment', 'marker')" aria-label="Filter by marker">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'marker')" (click)="toggleReportFilterColumn('assignment', 'marker', $event)" aria-label="Filter by marker">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('assignment', 'marker')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('assignment', 'marker')" (input)="updateReportColumnFilter('assignment', 'marker', $event)" placeholder="Search marker" />
                                       </div>
                                     }
@@ -2932,12 +2933,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('assignment', 'status')">
                                     <div class="admin-report-th-content">
                                       <span>Status</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="selectedAssignmentReportStatus() !== 'All'" (click)="toggleReportFilterColumn('assignment', 'status')" aria-label="Filter by status">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="selectedAssignmentReportStatus() !== 'All'" (click)="toggleReportFilterColumn('assignment', 'status', $event)" aria-label="Filter by status">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('assignment', 'status')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="selectedAssignmentReportStatus()" (change)="updateAssignmentReportStatus($event)">
                                           <option value="All">All statuses</option>
                                           <option value="Pending Review">Pending Review</option>
@@ -2950,12 +2951,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('assignment', 'mark')">
                                     <div class="admin-report-th-content">
                                       <span>Mark</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'mark')" (click)="toggleReportFilterColumn('assignment', 'mark')" aria-label="Filter by mark">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('assignment', 'mark')" (click)="toggleReportFilterColumn('assignment', 'mark', $event)" aria-label="Filter by mark">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('assignment', 'mark')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('assignment', 'mark')" (input)="updateReportColumnFilter('assignment', 'mark', $event)" placeholder="Search mark" />
                                       </div>
                                     }
@@ -3120,19 +3121,19 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
                         @if (selectedAtrSubReport() === 'beneficiaries-completed') {
                           @if (filteredBeneficiariesCompletedTrainingRows().length) {
-                            <div class="admin-report-table-wrap">
+                            <div class="admin-report-table-wrap" (scroll)="closeAnyReportFilterPopover()">
                               <table class="admin-report-table">
                                 <thead>
                                   <tr>
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'ofoOccupation')">
                                     <div class="admin-report-th-content">
                                       <span>OFO Occupation</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'ofoOccupation')" (click)="toggleReportFilterColumn('atr-completed', 'ofoOccupation')" aria-label="Filter by ofo occupation">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'ofoOccupation')" (click)="toggleReportFilterColumn('atr-completed', 'ofoOccupation', $event)" aria-label="Filter by ofo occupation">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'ofoOccupation')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('atr-completed', 'ofoOccupation')" (change)="updateReportColumnFilter('atr-completed', 'ofoOccupation', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(beneficiariesCompletedTrainingRows(), 'ofoOccupation'); track option) {
@@ -3145,12 +3146,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'municipality')">
                                     <div class="admin-report-th-content">
                                       <span>Municipality</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'municipality')" (click)="toggleReportFilterColumn('atr-completed', 'municipality')" aria-label="Filter by municipality">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'municipality')" (click)="toggleReportFilterColumn('atr-completed', 'municipality', $event)" aria-label="Filter by municipality">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'municipality')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('atr-completed', 'municipality')" (change)="updateReportColumnFilter('atr-completed', 'municipality', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(beneficiariesCompletedTrainingRows(), 'municipality'); track option) {
@@ -3163,12 +3164,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'nqfAlignedTraining')">
                                     <div class="admin-report-th-content">
                                       <span>NQF Aligned Training</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'nqfAlignedTraining')" (click)="toggleReportFilterColumn('atr-completed', 'nqfAlignedTraining')" aria-label="Filter by nqf aligned training">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'nqfAlignedTraining')" (click)="toggleReportFilterColumn('atr-completed', 'nqfAlignedTraining', $event)" aria-label="Filter by nqf aligned training">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'nqfAlignedTraining')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('atr-completed', 'nqfAlignedTraining')" (change)="updateReportColumnFilter('atr-completed', 'nqfAlignedTraining', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(beneficiariesCompletedTrainingRows(), 'nqfAlignedTraining'); track option) {
@@ -3181,12 +3182,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'nqfLevel')">
                                     <div class="admin-report-th-content">
                                       <span>NQF Level</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'nqfLevel')" (click)="toggleReportFilterColumn('atr-completed', 'nqfLevel')" aria-label="Filter by nqf level">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'nqfLevel')" (click)="toggleReportFilterColumn('atr-completed', 'nqfLevel', $event)" aria-label="Filter by nqf level">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'nqfLevel')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('atr-completed', 'nqfLevel')" (change)="updateReportColumnFilter('atr-completed', 'nqfLevel', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(beneficiariesCompletedTrainingRows(), 'nqfLevel'); track option) {
@@ -3199,12 +3200,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'programmeNeedsAddressed')">
                                     <div class="admin-report-th-content">
                                       <span>Programme Needs Addressed</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'programmeNeedsAddressed')" (click)="toggleReportFilterColumn('atr-completed', 'programmeNeedsAddressed')" aria-label="Filter by programme needs addressed">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'programmeNeedsAddressed')" (click)="toggleReportFilterColumn('atr-completed', 'programmeNeedsAddressed', $event)" aria-label="Filter by programme needs addressed">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'programmeNeedsAddressed')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'programmeNeedsAddressed')" (input)="updateReportColumnFilter('atr-completed', 'programmeNeedsAddressed', $event)" placeholder="Search programme needs addressed" />
                                       </div>
                                     }
@@ -3212,12 +3213,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'fundingType')">
                                     <div class="admin-report-th-content">
                                       <span>Funding Type</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'fundingType')" (click)="toggleReportFilterColumn('atr-completed', 'fundingType')" aria-label="Filter by funding type">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'fundingType')" (click)="toggleReportFilterColumn('atr-completed', 'fundingType', $event)" aria-label="Filter by funding type">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'fundingType')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('atr-completed', 'fundingType')" (change)="updateReportColumnFilter('atr-completed', 'fundingType', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(beneficiariesCompletedTrainingRows(), 'fundingType'); track option) {
@@ -3230,12 +3231,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'dgContractNumber')">
                                     <div class="admin-report-th-content">
                                       <span>DG Contract Number</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'dgContractNumber')" (click)="toggleReportFilterColumn('atr-completed', 'dgContractNumber')" aria-label="Filter by dg contract number">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'dgContractNumber')" (click)="toggleReportFilterColumn('atr-completed', 'dgContractNumber', $event)" aria-label="Filter by dg contract number">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'dgContractNumber')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'dgContractNumber')" (input)="updateReportColumnFilter('atr-completed', 'dgContractNumber', $event)" placeholder="Search dg contract number" />
                                       </div>
                                     }
@@ -3243,12 +3244,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'socioEconomicStatus')">
                                     <div class="admin-report-th-content">
                                       <span>Socio Economic Status</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'socioEconomicStatus')" (click)="toggleReportFilterColumn('atr-completed', 'socioEconomicStatus')" aria-label="Filter by socio economic status">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'socioEconomicStatus')" (click)="toggleReportFilterColumn('atr-completed', 'socioEconomicStatus', $event)" aria-label="Filter by socio economic status">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'socioEconomicStatus')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('atr-completed', 'socioEconomicStatus')" (change)="updateReportColumnFilter('atr-completed', 'socioEconomicStatus', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(beneficiariesCompletedTrainingRows(), 'socioEconomicStatus'); track option) {
@@ -3261,12 +3262,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'typeOfLearningProgramme')">
                                     <div class="admin-report-th-content">
                                       <span>Type Of Learning Programme</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'typeOfLearningProgramme')" (click)="toggleReportFilterColumn('atr-completed', 'typeOfLearningProgramme')" aria-label="Filter by type of learning programme">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'typeOfLearningProgramme')" (click)="toggleReportFilterColumn('atr-completed', 'typeOfLearningProgramme', $event)" aria-label="Filter by type of learning programme">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'typeOfLearningProgramme')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('atr-completed', 'typeOfLearningProgramme')" (change)="updateReportColumnFilter('atr-completed', 'typeOfLearningProgramme', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(beneficiariesCompletedTrainingRows(), 'typeOfLearningProgramme'); track option) {
@@ -3279,12 +3280,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'nameOfLearningProgramme')">
                                     <div class="admin-report-th-content">
                                       <span>Name Of Learning Programme</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'nameOfLearningProgramme')" (click)="toggleReportFilterColumn('atr-completed', 'nameOfLearningProgramme')" aria-label="Filter by name of learning programme">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'nameOfLearningProgramme')" (click)="toggleReportFilterColumn('atr-completed', 'nameOfLearningProgramme', $event)" aria-label="Filter by name of learning programme">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'nameOfLearningProgramme')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'nameOfLearningProgramme')" (input)="updateReportColumnFilter('atr-completed', 'nameOfLearningProgramme', $event)" placeholder="Search name of learning programme" />
                                       </div>
                                     }
@@ -3292,12 +3293,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'typeOfEducationalInstitution')">
                                     <div class="admin-report-th-content">
                                       <span>Type Of Educational Institution</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'typeOfEducationalInstitution')" (click)="toggleReportFilterColumn('atr-completed', 'typeOfEducationalInstitution')" aria-label="Filter by type of educational institution">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'typeOfEducationalInstitution')" (click)="toggleReportFilterColumn('atr-completed', 'typeOfEducationalInstitution', $event)" aria-label="Filter by type of educational institution">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'typeOfEducationalInstitution')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('atr-completed', 'typeOfEducationalInstitution')" (change)="updateReportColumnFilter('atr-completed', 'typeOfEducationalInstitution', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(beneficiariesCompletedTrainingRows(), 'typeOfEducationalInstitution'); track option) {
@@ -3310,12 +3311,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'totalActualCost')">
                                     <div class="admin-report-th-content">
                                       <span>Total Actual Cost</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'totalActualCost')" (click)="toggleReportFilterColumn('atr-completed', 'totalActualCost')" aria-label="Filter by total actual cost">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'totalActualCost')" (click)="toggleReportFilterColumn('atr-completed', 'totalActualCost', $event)" aria-label="Filter by total actual cost">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'totalActualCost')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'totalActualCost')" (input)="updateReportColumnFilter('atr-completed', 'totalActualCost', $event)" placeholder="Search total actual cost" />
                                       </div>
                                     }
@@ -3323,12 +3324,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'entryLevel')">
                                     <div class="admin-report-th-content">
                                       <span>Entry Level</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'entryLevel')" (click)="toggleReportFilterColumn('atr-completed', 'entryLevel')" aria-label="Filter by entry level">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'entryLevel')" (click)="toggleReportFilterColumn('atr-completed', 'entryLevel', $event)" aria-label="Filter by entry level">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'entryLevel')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'entryLevel')" (input)="updateReportColumnFilter('atr-completed', 'entryLevel', $event)" placeholder="Search entry level" />
                                       </div>
                                     }
@@ -3336,12 +3337,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'intermediateLevel')">
                                     <div class="admin-report-th-content">
                                       <span>Intermediate Level</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'intermediateLevel')" (click)="toggleReportFilterColumn('atr-completed', 'intermediateLevel')" aria-label="Filter by intermediate level">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'intermediateLevel')" (click)="toggleReportFilterColumn('atr-completed', 'intermediateLevel', $event)" aria-label="Filter by intermediate level">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'intermediateLevel')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'intermediateLevel')" (input)="updateReportColumnFilter('atr-completed', 'intermediateLevel', $event)" placeholder="Search intermediate level" />
                                       </div>
                                     }
@@ -3349,12 +3350,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'advancedLevel')">
                                     <div class="admin-report-th-content">
                                       <span>Advanced Level</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'advancedLevel')" (click)="toggleReportFilterColumn('atr-completed', 'advancedLevel')" aria-label="Filter by advanced level">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'advancedLevel')" (click)="toggleReportFilterColumn('atr-completed', 'advancedLevel', $event)" aria-label="Filter by advanced level">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'advancedLevel')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'advancedLevel')" (input)="updateReportColumnFilter('atr-completed', 'advancedLevel', $event)" placeholder="Search advanced level" />
                                       </div>
                                     }
@@ -3362,12 +3363,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'africanMale')">
                                     <div class="admin-report-th-content">
                                       <span>African Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'africanMale')" (click)="toggleReportFilterColumn('atr-completed', 'africanMale')" aria-label="Filter by african male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'africanMale')" (click)="toggleReportFilterColumn('atr-completed', 'africanMale', $event)" aria-label="Filter by african male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'africanMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'africanMale')" (input)="updateReportColumnFilter('atr-completed', 'africanMale', $event)" placeholder="Search african male" />
                                       </div>
                                     }
@@ -3375,12 +3376,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'africanFemale')">
                                     <div class="admin-report-th-content">
                                       <span>African Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'africanFemale')" (click)="toggleReportFilterColumn('atr-completed', 'africanFemale')" aria-label="Filter by african female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'africanFemale')" (click)="toggleReportFilterColumn('atr-completed', 'africanFemale', $event)" aria-label="Filter by african female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'africanFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'africanFemale')" (input)="updateReportColumnFilter('atr-completed', 'africanFemale', $event)" placeholder="Search african female" />
                                       </div>
                                     }
@@ -3388,12 +3389,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'africanDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>African Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'africanDisabled')" (click)="toggleReportFilterColumn('atr-completed', 'africanDisabled')" aria-label="Filter by african disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'africanDisabled')" (click)="toggleReportFilterColumn('atr-completed', 'africanDisabled', $event)" aria-label="Filter by african disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'africanDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'africanDisabled')" (input)="updateReportColumnFilter('atr-completed', 'africanDisabled', $event)" placeholder="Search african disabled" />
                                       </div>
                                     }
@@ -3401,12 +3402,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'colouredMale')">
                                     <div class="admin-report-th-content">
                                       <span>Coloured Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'colouredMale')" (click)="toggleReportFilterColumn('atr-completed', 'colouredMale')" aria-label="Filter by coloured male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'colouredMale')" (click)="toggleReportFilterColumn('atr-completed', 'colouredMale', $event)" aria-label="Filter by coloured male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'colouredMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'colouredMale')" (input)="updateReportColumnFilter('atr-completed', 'colouredMale', $event)" placeholder="Search coloured male" />
                                       </div>
                                     }
@@ -3414,12 +3415,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'colouredFemale')">
                                     <div class="admin-report-th-content">
                                       <span>Coloured Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'colouredFemale')" (click)="toggleReportFilterColumn('atr-completed', 'colouredFemale')" aria-label="Filter by coloured female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'colouredFemale')" (click)="toggleReportFilterColumn('atr-completed', 'colouredFemale', $event)" aria-label="Filter by coloured female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'colouredFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'colouredFemale')" (input)="updateReportColumnFilter('atr-completed', 'colouredFemale', $event)" placeholder="Search coloured female" />
                                       </div>
                                     }
@@ -3427,12 +3428,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'colouredDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>Coloured Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'colouredDisabled')" (click)="toggleReportFilterColumn('atr-completed', 'colouredDisabled')" aria-label="Filter by coloured disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'colouredDisabled')" (click)="toggleReportFilterColumn('atr-completed', 'colouredDisabled', $event)" aria-label="Filter by coloured disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'colouredDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'colouredDisabled')" (input)="updateReportColumnFilter('atr-completed', 'colouredDisabled', $event)" placeholder="Search coloured disabled" />
                                       </div>
                                     }
@@ -3440,12 +3441,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'indianMale')">
                                     <div class="admin-report-th-content">
                                       <span>Indian/Asian Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'indianMale')" (click)="toggleReportFilterColumn('atr-completed', 'indianMale')" aria-label="Filter by indian/asian male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'indianMale')" (click)="toggleReportFilterColumn('atr-completed', 'indianMale', $event)" aria-label="Filter by indian/asian male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'indianMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'indianMale')" (input)="updateReportColumnFilter('atr-completed', 'indianMale', $event)" placeholder="Search indian/asian male" />
                                       </div>
                                     }
@@ -3453,12 +3454,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'indianFemale')">
                                     <div class="admin-report-th-content">
                                       <span>Indian/Asian Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'indianFemale')" (click)="toggleReportFilterColumn('atr-completed', 'indianFemale')" aria-label="Filter by indian/asian female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'indianFemale')" (click)="toggleReportFilterColumn('atr-completed', 'indianFemale', $event)" aria-label="Filter by indian/asian female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'indianFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'indianFemale')" (input)="updateReportColumnFilter('atr-completed', 'indianFemale', $event)" placeholder="Search indian/asian female" />
                                       </div>
                                     }
@@ -3466,12 +3467,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'indianDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>Indian/Asian Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'indianDisabled')" (click)="toggleReportFilterColumn('atr-completed', 'indianDisabled')" aria-label="Filter by indian/asian disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'indianDisabled')" (click)="toggleReportFilterColumn('atr-completed', 'indianDisabled', $event)" aria-label="Filter by indian/asian disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'indianDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'indianDisabled')" (input)="updateReportColumnFilter('atr-completed', 'indianDisabled', $event)" placeholder="Search indian/asian disabled" />
                                       </div>
                                     }
@@ -3479,12 +3480,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'whiteMale')">
                                     <div class="admin-report-th-content">
                                       <span>White Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'whiteMale')" (click)="toggleReportFilterColumn('atr-completed', 'whiteMale')" aria-label="Filter by white male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'whiteMale')" (click)="toggleReportFilterColumn('atr-completed', 'whiteMale', $event)" aria-label="Filter by white male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'whiteMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'whiteMale')" (input)="updateReportColumnFilter('atr-completed', 'whiteMale', $event)" placeholder="Search white male" />
                                       </div>
                                     }
@@ -3492,12 +3493,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'whiteFemale')">
                                     <div class="admin-report-th-content">
                                       <span>White Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'whiteFemale')" (click)="toggleReportFilterColumn('atr-completed', 'whiteFemale')" aria-label="Filter by white female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'whiteFemale')" (click)="toggleReportFilterColumn('atr-completed', 'whiteFemale', $event)" aria-label="Filter by white female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'whiteFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'whiteFemale')" (input)="updateReportColumnFilter('atr-completed', 'whiteFemale', $event)" placeholder="Search white female" />
                                       </div>
                                     }
@@ -3505,12 +3506,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'whiteDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>White Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'whiteDisabled')" (click)="toggleReportFilterColumn('atr-completed', 'whiteDisabled')" aria-label="Filter by white disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'whiteDisabled')" (click)="toggleReportFilterColumn('atr-completed', 'whiteDisabled', $event)" aria-label="Filter by white disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'whiteDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'whiteDisabled')" (input)="updateReportColumnFilter('atr-completed', 'whiteDisabled', $event)" placeholder="Search white disabled" />
                                       </div>
                                     }
@@ -3518,12 +3519,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'age1')">
                                     <div class="admin-report-th-content">
                                       <span>Age < 35</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'age1')" (click)="toggleReportFilterColumn('atr-completed', 'age1')" aria-label="Filter by age < 35">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'age1')" (click)="toggleReportFilterColumn('atr-completed', 'age1', $event)" aria-label="Filter by age < 35">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'age1')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'age1')" (input)="updateReportColumnFilter('atr-completed', 'age1', $event)" placeholder="Search age < 35" />
                                       </div>
                                     }
@@ -3531,12 +3532,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'age2')">
                                     <div class="admin-report-th-content">
                                       <span>Age 35-55</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'age2')" (click)="toggleReportFilterColumn('atr-completed', 'age2')" aria-label="Filter by age 35-55">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'age2')" (click)="toggleReportFilterColumn('atr-completed', 'age2', $event)" aria-label="Filter by age 35-55">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'age2')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'age2')" (input)="updateReportColumnFilter('atr-completed', 'age2', $event)" placeholder="Search age 35-55" />
                                       </div>
                                     }
@@ -3544,12 +3545,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-completed', 'age3')">
                                     <div class="admin-report-th-content">
                                       <span>Age > 55</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'age3')" (click)="toggleReportFilterColumn('atr-completed', 'age3')" aria-label="Filter by age > 55">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-completed', 'age3')" (click)="toggleReportFilterColumn('atr-completed', 'age3', $event)" aria-label="Filter by age > 55">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-completed', 'age3')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-completed', 'age3')" (input)="updateReportColumnFilter('atr-completed', 'age3', $event)" placeholder="Search age > 55" />
                                       </div>
                                     }
@@ -3581,19 +3582,19 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
                         @if (selectedAtrSubReport() === 'number-beneficiaries') {
                           @if (filteredNumberBeneficiariesRows().length) {
-                            <div class="admin-report-table-wrap">
+                            <div class="admin-report-table-wrap" (scroll)="closeAnyReportFilterPopover()">
                               <table class="admin-report-table">
                                 <thead>
                                   <tr>
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'ofoOccupation')">
                                     <div class="admin-report-th-content">
                                       <span>OFO Occupation</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'ofoOccupation')" (click)="toggleReportFilterColumn('atr-number', 'ofoOccupation')" aria-label="Filter by ofo occupation">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'ofoOccupation')" (click)="toggleReportFilterColumn('atr-number', 'ofoOccupation', $event)" aria-label="Filter by ofo occupation">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-number', 'ofoOccupation')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('atr-number', 'ofoOccupation')" (change)="updateReportColumnFilter('atr-number', 'ofoOccupation', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(numberBeneficiariesRows(), 'ofoOccupation'); track option) {
@@ -3606,12 +3607,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'municipality')">
                                     <div class="admin-report-th-content">
                                       <span>Municipality</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'municipality')" (click)="toggleReportFilterColumn('atr-number', 'municipality')" aria-label="Filter by municipality">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'municipality')" (click)="toggleReportFilterColumn('atr-number', 'municipality', $event)" aria-label="Filter by municipality">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-number', 'municipality')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('atr-number', 'municipality')" (change)="updateReportColumnFilter('atr-number', 'municipality', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(numberBeneficiariesRows(), 'municipality'); track option) {
@@ -3624,12 +3625,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'africanMale')">
                                     <div class="admin-report-th-content">
                                       <span>African Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'africanMale')" (click)="toggleReportFilterColumn('atr-number', 'africanMale')" aria-label="Filter by african male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'africanMale')" (click)="toggleReportFilterColumn('atr-number', 'africanMale', $event)" aria-label="Filter by african male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-number', 'africanMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-number', 'africanMale')" (input)="updateReportColumnFilter('atr-number', 'africanMale', $event)" placeholder="Search african male" />
                                       </div>
                                     }
@@ -3637,12 +3638,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'africanFemale')">
                                     <div class="admin-report-th-content">
                                       <span>African Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'africanFemale')" (click)="toggleReportFilterColumn('atr-number', 'africanFemale')" aria-label="Filter by african female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'africanFemale')" (click)="toggleReportFilterColumn('atr-number', 'africanFemale', $event)" aria-label="Filter by african female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-number', 'africanFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-number', 'africanFemale')" (input)="updateReportColumnFilter('atr-number', 'africanFemale', $event)" placeholder="Search african female" />
                                       </div>
                                     }
@@ -3650,12 +3651,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'africanDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>African Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'africanDisabled')" (click)="toggleReportFilterColumn('atr-number', 'africanDisabled')" aria-label="Filter by african disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'africanDisabled')" (click)="toggleReportFilterColumn('atr-number', 'africanDisabled', $event)" aria-label="Filter by african disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-number', 'africanDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-number', 'africanDisabled')" (input)="updateReportColumnFilter('atr-number', 'africanDisabled', $event)" placeholder="Search african disabled" />
                                       </div>
                                     }
@@ -3663,12 +3664,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'colouredMale')">
                                     <div class="admin-report-th-content">
                                       <span>Coloured Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'colouredMale')" (click)="toggleReportFilterColumn('atr-number', 'colouredMale')" aria-label="Filter by coloured male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'colouredMale')" (click)="toggleReportFilterColumn('atr-number', 'colouredMale', $event)" aria-label="Filter by coloured male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-number', 'colouredMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-number', 'colouredMale')" (input)="updateReportColumnFilter('atr-number', 'colouredMale', $event)" placeholder="Search coloured male" />
                                       </div>
                                     }
@@ -3676,12 +3677,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'colouredFemale')">
                                     <div class="admin-report-th-content">
                                       <span>Coloured Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'colouredFemale')" (click)="toggleReportFilterColumn('atr-number', 'colouredFemale')" aria-label="Filter by coloured female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'colouredFemale')" (click)="toggleReportFilterColumn('atr-number', 'colouredFemale', $event)" aria-label="Filter by coloured female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-number', 'colouredFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-number', 'colouredFemale')" (input)="updateReportColumnFilter('atr-number', 'colouredFemale', $event)" placeholder="Search coloured female" />
                                       </div>
                                     }
@@ -3689,12 +3690,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'colouredDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>Coloured Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'colouredDisabled')" (click)="toggleReportFilterColumn('atr-number', 'colouredDisabled')" aria-label="Filter by coloured disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'colouredDisabled')" (click)="toggleReportFilterColumn('atr-number', 'colouredDisabled', $event)" aria-label="Filter by coloured disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-number', 'colouredDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-number', 'colouredDisabled')" (input)="updateReportColumnFilter('atr-number', 'colouredDisabled', $event)" placeholder="Search coloured disabled" />
                                       </div>
                                     }
@@ -3702,12 +3703,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'indianMale')">
                                     <div class="admin-report-th-content">
                                       <span>Indian/Asian Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'indianMale')" (click)="toggleReportFilterColumn('atr-number', 'indianMale')" aria-label="Filter by indian/asian male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'indianMale')" (click)="toggleReportFilterColumn('atr-number', 'indianMale', $event)" aria-label="Filter by indian/asian male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-number', 'indianMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-number', 'indianMale')" (input)="updateReportColumnFilter('atr-number', 'indianMale', $event)" placeholder="Search indian/asian male" />
                                       </div>
                                     }
@@ -3715,12 +3716,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'indianFemale')">
                                     <div class="admin-report-th-content">
                                       <span>Indian/Asian Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'indianFemale')" (click)="toggleReportFilterColumn('atr-number', 'indianFemale')" aria-label="Filter by indian/asian female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'indianFemale')" (click)="toggleReportFilterColumn('atr-number', 'indianFemale', $event)" aria-label="Filter by indian/asian female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-number', 'indianFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-number', 'indianFemale')" (input)="updateReportColumnFilter('atr-number', 'indianFemale', $event)" placeholder="Search indian/asian female" />
                                       </div>
                                     }
@@ -3728,12 +3729,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'indianDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>Indian/Asian Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'indianDisabled')" (click)="toggleReportFilterColumn('atr-number', 'indianDisabled')" aria-label="Filter by indian/asian disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'indianDisabled')" (click)="toggleReportFilterColumn('atr-number', 'indianDisabled', $event)" aria-label="Filter by indian/asian disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-number', 'indianDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-number', 'indianDisabled')" (input)="updateReportColumnFilter('atr-number', 'indianDisabled', $event)" placeholder="Search indian/asian disabled" />
                                       </div>
                                     }
@@ -3741,12 +3742,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'whiteMale')">
                                     <div class="admin-report-th-content">
                                       <span>White Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'whiteMale')" (click)="toggleReportFilterColumn('atr-number', 'whiteMale')" aria-label="Filter by white male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'whiteMale')" (click)="toggleReportFilterColumn('atr-number', 'whiteMale', $event)" aria-label="Filter by white male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-number', 'whiteMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-number', 'whiteMale')" (input)="updateReportColumnFilter('atr-number', 'whiteMale', $event)" placeholder="Search white male" />
                                       </div>
                                     }
@@ -3754,12 +3755,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'whiteFemale')">
                                     <div class="admin-report-th-content">
                                       <span>White Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'whiteFemale')" (click)="toggleReportFilterColumn('atr-number', 'whiteFemale')" aria-label="Filter by white female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'whiteFemale')" (click)="toggleReportFilterColumn('atr-number', 'whiteFemale', $event)" aria-label="Filter by white female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-number', 'whiteFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-number', 'whiteFemale')" (input)="updateReportColumnFilter('atr-number', 'whiteFemale', $event)" placeholder="Search white female" />
                                       </div>
                                     }
@@ -3767,12 +3768,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'whiteDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>White Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'whiteDisabled')" (click)="toggleReportFilterColumn('atr-number', 'whiteDisabled')" aria-label="Filter by white disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'whiteDisabled')" (click)="toggleReportFilterColumn('atr-number', 'whiteDisabled', $event)" aria-label="Filter by white disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-number', 'whiteDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-number', 'whiteDisabled')" (input)="updateReportColumnFilter('atr-number', 'whiteDisabled', $event)" placeholder="Search white disabled" />
                                       </div>
                                     }
@@ -3780,12 +3781,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'age1')">
                                     <div class="admin-report-th-content">
                                       <span>Age < 35</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'age1')" (click)="toggleReportFilterColumn('atr-number', 'age1')" aria-label="Filter by age < 35">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'age1')" (click)="toggleReportFilterColumn('atr-number', 'age1', $event)" aria-label="Filter by age < 35">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-number', 'age1')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-number', 'age1')" (input)="updateReportColumnFilter('atr-number', 'age1', $event)" placeholder="Search age < 35" />
                                       </div>
                                     }
@@ -3793,12 +3794,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'age2')">
                                     <div class="admin-report-th-content">
                                       <span>Age 35-55</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'age2')" (click)="toggleReportFilterColumn('atr-number', 'age2')" aria-label="Filter by age 35-55">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'age2')" (click)="toggleReportFilterColumn('atr-number', 'age2', $event)" aria-label="Filter by age 35-55">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-number', 'age2')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-number', 'age2')" (input)="updateReportColumnFilter('atr-number', 'age2', $event)" placeholder="Search age 35-55" />
                                       </div>
                                     }
@@ -3806,12 +3807,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-number', 'age3')">
                                     <div class="admin-report-th-content">
                                       <span>Age > 55</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'age3')" (click)="toggleReportFilterColumn('atr-number', 'age3')" aria-label="Filter by age > 55">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-number', 'age3')" (click)="toggleReportFilterColumn('atr-number', 'age3', $event)" aria-label="Filter by age > 55">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-number', 'age3')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-number', 'age3')" (input)="updateReportColumnFilter('atr-number', 'age3', $event)" placeholder="Search age > 55" />
                                       </div>
                                     }
@@ -3839,19 +3840,19 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
                         @if (selectedAtrSubReport() === 'pivotal-actual') {
                           @if (filteredPivotalActualTrainingRows().length) {
-                            <div class="admin-report-table-wrap">
+                            <div class="admin-report-table-wrap" (scroll)="closeAnyReportFilterPopover()">
                               <table class="admin-report-table">
                                 <thead>
                                   <tr>
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'ofoOccupation')">
                                     <div class="admin-report-th-content">
                                       <span>OFO Occupation</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'ofoOccupation')" (click)="toggleReportFilterColumn('atr-pivotal', 'ofoOccupation')" aria-label="Filter by ofo occupation">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'ofoOccupation')" (click)="toggleReportFilterColumn('atr-pivotal', 'ofoOccupation', $event)" aria-label="Filter by ofo occupation">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'ofoOccupation')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('atr-pivotal', 'ofoOccupation')" (change)="updateReportColumnFilter('atr-pivotal', 'ofoOccupation', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(pivotalActualTrainingRows(), 'ofoOccupation'); track option) {
@@ -3864,12 +3865,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'municipality')">
                                     <div class="admin-report-th-content">
                                       <span>Municipality</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'municipality')" (click)="toggleReportFilterColumn('atr-pivotal', 'municipality')" aria-label="Filter by municipality">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'municipality')" (click)="toggleReportFilterColumn('atr-pivotal', 'municipality', $event)" aria-label="Filter by municipality">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'municipality')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('atr-pivotal', 'municipality')" (change)="updateReportColumnFilter('atr-pivotal', 'municipality', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(pivotalActualTrainingRows(), 'municipality'); track option) {
@@ -3882,12 +3883,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'programmeNeedsAddressed')">
                                     <div class="admin-report-th-content">
                                       <span>Programme Needs Addressed</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'programmeNeedsAddressed')" (click)="toggleReportFilterColumn('atr-pivotal', 'programmeNeedsAddressed')" aria-label="Filter by programme needs addressed">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'programmeNeedsAddressed')" (click)="toggleReportFilterColumn('atr-pivotal', 'programmeNeedsAddressed', $event)" aria-label="Filter by programme needs addressed">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'programmeNeedsAddressed')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'programmeNeedsAddressed')" (input)="updateReportColumnFilter('atr-pivotal', 'programmeNeedsAddressed', $event)" placeholder="Search programme needs addressed" />
                                       </div>
                                     }
@@ -3895,12 +3896,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'fundingType')">
                                     <div class="admin-report-th-content">
                                       <span>Funding Type</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'fundingType')" (click)="toggleReportFilterColumn('atr-pivotal', 'fundingType')" aria-label="Filter by funding type">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'fundingType')" (click)="toggleReportFilterColumn('atr-pivotal', 'fundingType', $event)" aria-label="Filter by funding type">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'fundingType')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('atr-pivotal', 'fundingType')" (change)="updateReportColumnFilter('atr-pivotal', 'fundingType', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(pivotalActualTrainingRows(), 'fundingType'); track option) {
@@ -3913,12 +3914,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'dgContractNumber')">
                                     <div class="admin-report-th-content">
                                       <span>DG Contract Number</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'dgContractNumber')" (click)="toggleReportFilterColumn('atr-pivotal', 'dgContractNumber')" aria-label="Filter by dg contract number">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'dgContractNumber')" (click)="toggleReportFilterColumn('atr-pivotal', 'dgContractNumber', $event)" aria-label="Filter by dg contract number">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'dgContractNumber')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'dgContractNumber')" (input)="updateReportColumnFilter('atr-pivotal', 'dgContractNumber', $event)" placeholder="Search dg contract number" />
                                       </div>
                                     }
@@ -3926,12 +3927,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'idNumber')">
                                     <div class="admin-report-th-content">
                                       <span>ID Number</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'idNumber')" (click)="toggleReportFilterColumn('atr-pivotal', 'idNumber')" aria-label="Filter by id number">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'idNumber')" (click)="toggleReportFilterColumn('atr-pivotal', 'idNumber', $event)" aria-label="Filter by id number">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'idNumber')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'idNumber')" (input)="updateReportColumnFilter('atr-pivotal', 'idNumber', $event)" placeholder="Search id number" />
                                       </div>
                                     }
@@ -3939,12 +3940,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'firstName')">
                                     <div class="admin-report-th-content">
                                       <span>First Name</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'firstName')" (click)="toggleReportFilterColumn('atr-pivotal', 'firstName')" aria-label="Filter by first name">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'firstName')" (click)="toggleReportFilterColumn('atr-pivotal', 'firstName', $event)" aria-label="Filter by first name">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'firstName')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'firstName')" (input)="updateReportColumnFilter('atr-pivotal', 'firstName', $event)" placeholder="Search first name" />
                                       </div>
                                     }
@@ -3952,12 +3953,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'surname')">
                                     <div class="admin-report-th-content">
                                       <span>Surname</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'surname')" (click)="toggleReportFilterColumn('atr-pivotal', 'surname')" aria-label="Filter by surname">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'surname')" (click)="toggleReportFilterColumn('atr-pivotal', 'surname', $event)" aria-label="Filter by surname">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'surname')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'surname')" (input)="updateReportColumnFilter('atr-pivotal', 'surname', $event)" placeholder="Search surname" />
                                       </div>
                                     }
@@ -3965,12 +3966,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'socioEconomicStatus')">
                                     <div class="admin-report-th-content">
                                       <span>Socio Economic Status</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'socioEconomicStatus')" (click)="toggleReportFilterColumn('atr-pivotal', 'socioEconomicStatus')" aria-label="Filter by socio economic status">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'socioEconomicStatus')" (click)="toggleReportFilterColumn('atr-pivotal', 'socioEconomicStatus', $event)" aria-label="Filter by socio economic status">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'socioEconomicStatus')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('atr-pivotal', 'socioEconomicStatus')" (change)="updateReportColumnFilter('atr-pivotal', 'socioEconomicStatus', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(pivotalActualTrainingRows(), 'socioEconomicStatus'); track option) {
@@ -3983,12 +3984,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'typeOfLearningProgramme')">
                                     <div class="admin-report-th-content">
                                       <span>Type Of Learning Programme</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'typeOfLearningProgramme')" (click)="toggleReportFilterColumn('atr-pivotal', 'typeOfLearningProgramme')" aria-label="Filter by type of learning programme">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'typeOfLearningProgramme')" (click)="toggleReportFilterColumn('atr-pivotal', 'typeOfLearningProgramme', $event)" aria-label="Filter by type of learning programme">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'typeOfLearningProgramme')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('atr-pivotal', 'typeOfLearningProgramme')" (change)="updateReportColumnFilter('atr-pivotal', 'typeOfLearningProgramme', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(pivotalActualTrainingRows(), 'typeOfLearningProgramme'); track option) {
@@ -4001,12 +4002,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'nameOfLearningProgramme')">
                                     <div class="admin-report-th-content">
                                       <span>Name Of Learning Programme</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'nameOfLearningProgramme')" (click)="toggleReportFilterColumn('atr-pivotal', 'nameOfLearningProgramme')" aria-label="Filter by name of learning programme">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'nameOfLearningProgramme')" (click)="toggleReportFilterColumn('atr-pivotal', 'nameOfLearningProgramme', $event)" aria-label="Filter by name of learning programme">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'nameOfLearningProgramme')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'nameOfLearningProgramme')" (input)="updateReportColumnFilter('atr-pivotal', 'nameOfLearningProgramme', $event)" placeholder="Search name of learning programme" />
                                       </div>
                                     }
@@ -4014,12 +4015,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'pivotalOfoOccupation')">
                                     <div class="admin-report-th-content">
                                       <span>Pivotal Programmes</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'pivotalOfoOccupation')" (click)="toggleReportFilterColumn('atr-pivotal', 'pivotalOfoOccupation')" aria-label="Filter by pivotal programmes">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'pivotalOfoOccupation')" (click)="toggleReportFilterColumn('atr-pivotal', 'pivotalOfoOccupation', $event)" aria-label="Filter by pivotal programmes">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'pivotalOfoOccupation')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('atr-pivotal', 'pivotalOfoOccupation')" (change)="updateReportColumnFilter('atr-pivotal', 'pivotalOfoOccupation', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(pivotalActualTrainingRows(), 'pivotalOfoOccupation'); track option) {
@@ -4032,12 +4033,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'typeOfEducationalInstitution')">
                                     <div class="admin-report-th-content">
                                       <span>Type Of Educational Institution</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'typeOfEducationalInstitution')" (click)="toggleReportFilterColumn('atr-pivotal', 'typeOfEducationalInstitution')" aria-label="Filter by type of educational institution">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'typeOfEducationalInstitution')" (click)="toggleReportFilterColumn('atr-pivotal', 'typeOfEducationalInstitution', $event)" aria-label="Filter by type of educational institution">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'typeOfEducationalInstitution')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('atr-pivotal', 'typeOfEducationalInstitution')" (change)="updateReportColumnFilter('atr-pivotal', 'typeOfEducationalInstitution', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(pivotalActualTrainingRows(), 'typeOfEducationalInstitution'); track option) {
@@ -4050,12 +4051,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'nqfLevel')">
                                     <div class="admin-report-th-content">
                                       <span>NQF Level</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'nqfLevel')" (click)="toggleReportFilterColumn('atr-pivotal', 'nqfLevel')" aria-label="Filter by nqf level">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'nqfLevel')" (click)="toggleReportFilterColumn('atr-pivotal', 'nqfLevel', $event)" aria-label="Filter by nqf level">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'nqfLevel')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('atr-pivotal', 'nqfLevel')" (change)="updateReportColumnFilter('atr-pivotal', 'nqfLevel', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(pivotalActualTrainingRows(), 'nqfLevel'); track option) {
@@ -4068,12 +4069,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'cost')">
                                     <div class="admin-report-th-content">
                                       <span>Cost</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'cost')" (click)="toggleReportFilterColumn('atr-pivotal', 'cost')" aria-label="Filter by cost">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'cost')" (click)="toggleReportFilterColumn('atr-pivotal', 'cost', $event)" aria-label="Filter by cost">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'cost')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'cost')" (input)="updateReportColumnFilter('atr-pivotal', 'cost', $event)" placeholder="Search cost" />
                                       </div>
                                     }
@@ -4081,12 +4082,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'entryLevel')">
                                     <div class="admin-report-th-content">
                                       <span>Entry Level</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'entryLevel')" (click)="toggleReportFilterColumn('atr-pivotal', 'entryLevel')" aria-label="Filter by entry level">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'entryLevel')" (click)="toggleReportFilterColumn('atr-pivotal', 'entryLevel', $event)" aria-label="Filter by entry level">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'entryLevel')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'entryLevel')" (input)="updateReportColumnFilter('atr-pivotal', 'entryLevel', $event)" placeholder="Search entry level" />
                                       </div>
                                     }
@@ -4094,12 +4095,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'intermediateLevel')">
                                     <div class="admin-report-th-content">
                                       <span>Intermediate Level</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'intermediateLevel')" (click)="toggleReportFilterColumn('atr-pivotal', 'intermediateLevel')" aria-label="Filter by intermediate level">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'intermediateLevel')" (click)="toggleReportFilterColumn('atr-pivotal', 'intermediateLevel', $event)" aria-label="Filter by intermediate level">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'intermediateLevel')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'intermediateLevel')" (input)="updateReportColumnFilter('atr-pivotal', 'intermediateLevel', $event)" placeholder="Search intermediate level" />
                                       </div>
                                     }
@@ -4107,12 +4108,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'advancedLevel')">
                                     <div class="admin-report-th-content">
                                       <span>Advanced Level</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'advancedLevel')" (click)="toggleReportFilterColumn('atr-pivotal', 'advancedLevel')" aria-label="Filter by advanced level">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'advancedLevel')" (click)="toggleReportFilterColumn('atr-pivotal', 'advancedLevel', $event)" aria-label="Filter by advanced level">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'advancedLevel')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'advancedLevel')" (input)="updateReportColumnFilter('atr-pivotal', 'advancedLevel', $event)" placeholder="Search advanced level" />
                                       </div>
                                     }
@@ -4120,12 +4121,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'africanMale')">
                                     <div class="admin-report-th-content">
                                       <span>African Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'africanMale')" (click)="toggleReportFilterColumn('atr-pivotal', 'africanMale')" aria-label="Filter by african male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'africanMale')" (click)="toggleReportFilterColumn('atr-pivotal', 'africanMale', $event)" aria-label="Filter by african male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'africanMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'africanMale')" (input)="updateReportColumnFilter('atr-pivotal', 'africanMale', $event)" placeholder="Search african male" />
                                       </div>
                                     }
@@ -4133,12 +4134,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'africanFemale')">
                                     <div class="admin-report-th-content">
                                       <span>African Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'africanFemale')" (click)="toggleReportFilterColumn('atr-pivotal', 'africanFemale')" aria-label="Filter by african female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'africanFemale')" (click)="toggleReportFilterColumn('atr-pivotal', 'africanFemale', $event)" aria-label="Filter by african female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'africanFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'africanFemale')" (input)="updateReportColumnFilter('atr-pivotal', 'africanFemale', $event)" placeholder="Search african female" />
                                       </div>
                                     }
@@ -4146,12 +4147,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'africanDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>African Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'africanDisabled')" (click)="toggleReportFilterColumn('atr-pivotal', 'africanDisabled')" aria-label="Filter by african disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'africanDisabled')" (click)="toggleReportFilterColumn('atr-pivotal', 'africanDisabled', $event)" aria-label="Filter by african disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'africanDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'africanDisabled')" (input)="updateReportColumnFilter('atr-pivotal', 'africanDisabled', $event)" placeholder="Search african disabled" />
                                       </div>
                                     }
@@ -4159,12 +4160,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'colouredMale')">
                                     <div class="admin-report-th-content">
                                       <span>Coloured Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'colouredMale')" (click)="toggleReportFilterColumn('atr-pivotal', 'colouredMale')" aria-label="Filter by coloured male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'colouredMale')" (click)="toggleReportFilterColumn('atr-pivotal', 'colouredMale', $event)" aria-label="Filter by coloured male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'colouredMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'colouredMale')" (input)="updateReportColumnFilter('atr-pivotal', 'colouredMale', $event)" placeholder="Search coloured male" />
                                       </div>
                                     }
@@ -4172,12 +4173,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'colouredFemale')">
                                     <div class="admin-report-th-content">
                                       <span>Coloured Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'colouredFemale')" (click)="toggleReportFilterColumn('atr-pivotal', 'colouredFemale')" aria-label="Filter by coloured female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'colouredFemale')" (click)="toggleReportFilterColumn('atr-pivotal', 'colouredFemale', $event)" aria-label="Filter by coloured female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'colouredFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'colouredFemale')" (input)="updateReportColumnFilter('atr-pivotal', 'colouredFemale', $event)" placeholder="Search coloured female" />
                                       </div>
                                     }
@@ -4185,12 +4186,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'colouredDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>Coloured Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'colouredDisabled')" (click)="toggleReportFilterColumn('atr-pivotal', 'colouredDisabled')" aria-label="Filter by coloured disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'colouredDisabled')" (click)="toggleReportFilterColumn('atr-pivotal', 'colouredDisabled', $event)" aria-label="Filter by coloured disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'colouredDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'colouredDisabled')" (input)="updateReportColumnFilter('atr-pivotal', 'colouredDisabled', $event)" placeholder="Search coloured disabled" />
                                       </div>
                                     }
@@ -4198,12 +4199,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'indianMale')">
                                     <div class="admin-report-th-content">
                                       <span>Indian/Asian Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'indianMale')" (click)="toggleReportFilterColumn('atr-pivotal', 'indianMale')" aria-label="Filter by indian/asian male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'indianMale')" (click)="toggleReportFilterColumn('atr-pivotal', 'indianMale', $event)" aria-label="Filter by indian/asian male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'indianMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'indianMale')" (input)="updateReportColumnFilter('atr-pivotal', 'indianMale', $event)" placeholder="Search indian/asian male" />
                                       </div>
                                     }
@@ -4211,12 +4212,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'indianFemale')">
                                     <div class="admin-report-th-content">
                                       <span>Indian/Asian Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'indianFemale')" (click)="toggleReportFilterColumn('atr-pivotal', 'indianFemale')" aria-label="Filter by indian/asian female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'indianFemale')" (click)="toggleReportFilterColumn('atr-pivotal', 'indianFemale', $event)" aria-label="Filter by indian/asian female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'indianFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'indianFemale')" (input)="updateReportColumnFilter('atr-pivotal', 'indianFemale', $event)" placeholder="Search indian/asian female" />
                                       </div>
                                     }
@@ -4224,12 +4225,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'indianDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>Indian/Asian Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'indianDisabled')" (click)="toggleReportFilterColumn('atr-pivotal', 'indianDisabled')" aria-label="Filter by indian/asian disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'indianDisabled')" (click)="toggleReportFilterColumn('atr-pivotal', 'indianDisabled', $event)" aria-label="Filter by indian/asian disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'indianDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'indianDisabled')" (input)="updateReportColumnFilter('atr-pivotal', 'indianDisabled', $event)" placeholder="Search indian/asian disabled" />
                                       </div>
                                     }
@@ -4237,12 +4238,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'whiteMale')">
                                     <div class="admin-report-th-content">
                                       <span>White Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'whiteMale')" (click)="toggleReportFilterColumn('atr-pivotal', 'whiteMale')" aria-label="Filter by white male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'whiteMale')" (click)="toggleReportFilterColumn('atr-pivotal', 'whiteMale', $event)" aria-label="Filter by white male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'whiteMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'whiteMale')" (input)="updateReportColumnFilter('atr-pivotal', 'whiteMale', $event)" placeholder="Search white male" />
                                       </div>
                                     }
@@ -4250,12 +4251,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'whiteFemale')">
                                     <div class="admin-report-th-content">
                                       <span>White Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'whiteFemale')" (click)="toggleReportFilterColumn('atr-pivotal', 'whiteFemale')" aria-label="Filter by white female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'whiteFemale')" (click)="toggleReportFilterColumn('atr-pivotal', 'whiteFemale', $event)" aria-label="Filter by white female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'whiteFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'whiteFemale')" (input)="updateReportColumnFilter('atr-pivotal', 'whiteFemale', $event)" placeholder="Search white female" />
                                       </div>
                                     }
@@ -4263,12 +4264,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'whiteDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>White Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'whiteDisabled')" (click)="toggleReportFilterColumn('atr-pivotal', 'whiteDisabled')" aria-label="Filter by white disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'whiteDisabled')" (click)="toggleReportFilterColumn('atr-pivotal', 'whiteDisabled', $event)" aria-label="Filter by white disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'whiteDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'whiteDisabled')" (input)="updateReportColumnFilter('atr-pivotal', 'whiteDisabled', $event)" placeholder="Search white disabled" />
                                       </div>
                                     }
@@ -4276,12 +4277,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'age1')">
                                     <div class="admin-report-th-content">
                                       <span>Age < 35</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'age1')" (click)="toggleReportFilterColumn('atr-pivotal', 'age1')" aria-label="Filter by age < 35">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'age1')" (click)="toggleReportFilterColumn('atr-pivotal', 'age1', $event)" aria-label="Filter by age < 35">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'age1')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'age1')" (input)="updateReportColumnFilter('atr-pivotal', 'age1', $event)" placeholder="Search age < 35" />
                                       </div>
                                     }
@@ -4289,12 +4290,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'age2')">
                                     <div class="admin-report-th-content">
                                       <span>Age 35-55</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'age2')" (click)="toggleReportFilterColumn('atr-pivotal', 'age2')" aria-label="Filter by age 35-55">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'age2')" (click)="toggleReportFilterColumn('atr-pivotal', 'age2', $event)" aria-label="Filter by age 35-55">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'age2')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'age2')" (input)="updateReportColumnFilter('atr-pivotal', 'age2', $event)" placeholder="Search age 35-55" />
                                       </div>
                                     }
@@ -4302,12 +4303,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('atr-pivotal', 'age3')">
                                     <div class="admin-report-th-content">
                                       <span>Age > 55</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'age3')" (click)="toggleReportFilterColumn('atr-pivotal', 'age3')" aria-label="Filter by age > 55">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('atr-pivotal', 'age3')" (click)="toggleReportFilterColumn('atr-pivotal', 'age3', $event)" aria-label="Filter by age > 55">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('atr-pivotal', 'age3')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('atr-pivotal', 'age3')" (input)="updateReportColumnFilter('atr-pivotal', 'age3', $event)" placeholder="Search age > 55" />
                                       </div>
                                     }
@@ -4449,19 +4450,19 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
                         @if (selectedWspSubReport() === 'beneficiaries-planned') {
                           @if (filteredWspBeneficiariesPlannedRows().length) {
-                            <div class="admin-report-table-wrap">
+                            <div class="admin-report-table-wrap" (scroll)="closeAnyReportFilterPopover()">
                               <table class="admin-report-table">
                                 <thead>
                                   <tr>
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'ofoOccupation')">
                                     <div class="admin-report-th-content">
                                       <span>OFO Occupation</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'ofoOccupation')" (click)="toggleReportFilterColumn('wsp-planned', 'ofoOccupation')" aria-label="Filter by ofo occupation">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'ofoOccupation')" (click)="toggleReportFilterColumn('wsp-planned', 'ofoOccupation', $event)" aria-label="Filter by ofo occupation">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'ofoOccupation')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('wsp-planned', 'ofoOccupation')" (change)="updateReportColumnFilter('wsp-planned', 'ofoOccupation', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(wspBeneficiariesPlannedRows(), 'ofoOccupation'); track option) {
@@ -4474,12 +4475,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'municipality')">
                                     <div class="admin-report-th-content">
                                       <span>Municipality</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'municipality')" (click)="toggleReportFilterColumn('wsp-planned', 'municipality')" aria-label="Filter by municipality">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'municipality')" (click)="toggleReportFilterColumn('wsp-planned', 'municipality', $event)" aria-label="Filter by municipality">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'municipality')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('wsp-planned', 'municipality')" (change)="updateReportColumnFilter('wsp-planned', 'municipality', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(wspBeneficiariesPlannedRows(), 'municipality'); track option) {
@@ -4492,12 +4493,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'nqfAlignedTraining')">
                                     <div class="admin-report-th-content">
                                       <span>NQF Aligned Training</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'nqfAlignedTraining')" (click)="toggleReportFilterColumn('wsp-planned', 'nqfAlignedTraining')" aria-label="Filter by nqf aligned training">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'nqfAlignedTraining')" (click)="toggleReportFilterColumn('wsp-planned', 'nqfAlignedTraining', $event)" aria-label="Filter by nqf aligned training">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'nqfAlignedTraining')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('wsp-planned', 'nqfAlignedTraining')" (change)="updateReportColumnFilter('wsp-planned', 'nqfAlignedTraining', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(wspBeneficiariesPlannedRows(), 'nqfAlignedTraining'); track option) {
@@ -4510,12 +4511,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'nqfLevel')">
                                     <div class="admin-report-th-content">
                                       <span>NQF Level</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'nqfLevel')" (click)="toggleReportFilterColumn('wsp-planned', 'nqfLevel')" aria-label="Filter by nqf level">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'nqfLevel')" (click)="toggleReportFilterColumn('wsp-planned', 'nqfLevel', $event)" aria-label="Filter by nqf level">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'nqfLevel')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('wsp-planned', 'nqfLevel')" (change)="updateReportColumnFilter('wsp-planned', 'nqfLevel', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(wspBeneficiariesPlannedRows(), 'nqfLevel'); track option) {
@@ -4528,12 +4529,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'programmeNeedsAddressed')">
                                     <div class="admin-report-th-content">
                                       <span>Programme Needs Addressed</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'programmeNeedsAddressed')" (click)="toggleReportFilterColumn('wsp-planned', 'programmeNeedsAddressed')" aria-label="Filter by programme needs addressed">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'programmeNeedsAddressed')" (click)="toggleReportFilterColumn('wsp-planned', 'programmeNeedsAddressed', $event)" aria-label="Filter by programme needs addressed">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'programmeNeedsAddressed')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'programmeNeedsAddressed')" (input)="updateReportColumnFilter('wsp-planned', 'programmeNeedsAddressed', $event)" placeholder="Search programme needs addressed" />
                                       </div>
                                     }
@@ -4541,12 +4542,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'fundingType')">
                                     <div class="admin-report-th-content">
                                       <span>Funding Type</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'fundingType')" (click)="toggleReportFilterColumn('wsp-planned', 'fundingType')" aria-label="Filter by funding type">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'fundingType')" (click)="toggleReportFilterColumn('wsp-planned', 'fundingType', $event)" aria-label="Filter by funding type">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'fundingType')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('wsp-planned', 'fundingType')" (change)="updateReportColumnFilter('wsp-planned', 'fundingType', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(wspBeneficiariesPlannedRows(), 'fundingType'); track option) {
@@ -4559,12 +4560,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'dgContractNumber')">
                                     <div class="admin-report-th-content">
                                       <span>DG Contract Number</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'dgContractNumber')" (click)="toggleReportFilterColumn('wsp-planned', 'dgContractNumber')" aria-label="Filter by dg contract number">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'dgContractNumber')" (click)="toggleReportFilterColumn('wsp-planned', 'dgContractNumber', $event)" aria-label="Filter by dg contract number">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'dgContractNumber')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'dgContractNumber')" (input)="updateReportColumnFilter('wsp-planned', 'dgContractNumber', $event)" placeholder="Search dg contract number" />
                                       </div>
                                     }
@@ -4572,12 +4573,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'socioEconomicStatus')">
                                     <div class="admin-report-th-content">
                                       <span>Socio Economic Status</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'socioEconomicStatus')" (click)="toggleReportFilterColumn('wsp-planned', 'socioEconomicStatus')" aria-label="Filter by socio economic status">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'socioEconomicStatus')" (click)="toggleReportFilterColumn('wsp-planned', 'socioEconomicStatus', $event)" aria-label="Filter by socio economic status">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'socioEconomicStatus')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('wsp-planned', 'socioEconomicStatus')" (change)="updateReportColumnFilter('wsp-planned', 'socioEconomicStatus', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(wspBeneficiariesPlannedRows(), 'socioEconomicStatus'); track option) {
@@ -4590,12 +4591,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'typeOfLearningProgramme')">
                                     <div class="admin-report-th-content">
                                       <span>Type Of Learning Programme</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'typeOfLearningProgramme')" (click)="toggleReportFilterColumn('wsp-planned', 'typeOfLearningProgramme')" aria-label="Filter by type of learning programme">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'typeOfLearningProgramme')" (click)="toggleReportFilterColumn('wsp-planned', 'typeOfLearningProgramme', $event)" aria-label="Filter by type of learning programme">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'typeOfLearningProgramme')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('wsp-planned', 'typeOfLearningProgramme')" (change)="updateReportColumnFilter('wsp-planned', 'typeOfLearningProgramme', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(wspBeneficiariesPlannedRows(), 'typeOfLearningProgramme'); track option) {
@@ -4608,12 +4609,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'nameOfLearningProgramme')">
                                     <div class="admin-report-th-content">
                                       <span>Name Of Learning Programme</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'nameOfLearningProgramme')" (click)="toggleReportFilterColumn('wsp-planned', 'nameOfLearningProgramme')" aria-label="Filter by name of learning programme">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'nameOfLearningProgramme')" (click)="toggleReportFilterColumn('wsp-planned', 'nameOfLearningProgramme', $event)" aria-label="Filter by name of learning programme">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'nameOfLearningProgramme')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'nameOfLearningProgramme')" (input)="updateReportColumnFilter('wsp-planned', 'nameOfLearningProgramme', $event)" placeholder="Search name of learning programme" />
                                       </div>
                                     }
@@ -4621,12 +4622,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'typeOfEducationalInstitution')">
                                     <div class="admin-report-th-content">
                                       <span>Type Of Educational Institution</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'typeOfEducationalInstitution')" (click)="toggleReportFilterColumn('wsp-planned', 'typeOfEducationalInstitution')" aria-label="Filter by type of educational institution">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'typeOfEducationalInstitution')" (click)="toggleReportFilterColumn('wsp-planned', 'typeOfEducationalInstitution', $event)" aria-label="Filter by type of educational institution">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'typeOfEducationalInstitution')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('wsp-planned', 'typeOfEducationalInstitution')" (change)="updateReportColumnFilter('wsp-planned', 'typeOfEducationalInstitution', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(wspBeneficiariesPlannedRows(), 'typeOfEducationalInstitution'); track option) {
@@ -4639,12 +4640,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'totalEstimatedCost')">
                                     <div class="admin-report-th-content">
                                       <span>Total Estimated Cost</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'totalEstimatedCost')" (click)="toggleReportFilterColumn('wsp-planned', 'totalEstimatedCost')" aria-label="Filter by total estimated cost">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'totalEstimatedCost')" (click)="toggleReportFilterColumn('wsp-planned', 'totalEstimatedCost', $event)" aria-label="Filter by total estimated cost">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'totalEstimatedCost')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'totalEstimatedCost')" (input)="updateReportColumnFilter('wsp-planned', 'totalEstimatedCost', $event)" placeholder="Search total estimated cost" />
                                       </div>
                                     }
@@ -4652,12 +4653,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'entryLevel')">
                                     <div class="admin-report-th-content">
                                       <span>Entry Level</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'entryLevel')" (click)="toggleReportFilterColumn('wsp-planned', 'entryLevel')" aria-label="Filter by entry level">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'entryLevel')" (click)="toggleReportFilterColumn('wsp-planned', 'entryLevel', $event)" aria-label="Filter by entry level">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'entryLevel')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'entryLevel')" (input)="updateReportColumnFilter('wsp-planned', 'entryLevel', $event)" placeholder="Search entry level" />
                                       </div>
                                     }
@@ -4665,12 +4666,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'intermediateLevel')">
                                     <div class="admin-report-th-content">
                                       <span>Intermediate Level</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'intermediateLevel')" (click)="toggleReportFilterColumn('wsp-planned', 'intermediateLevel')" aria-label="Filter by intermediate level">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'intermediateLevel')" (click)="toggleReportFilterColumn('wsp-planned', 'intermediateLevel', $event)" aria-label="Filter by intermediate level">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'intermediateLevel')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'intermediateLevel')" (input)="updateReportColumnFilter('wsp-planned', 'intermediateLevel', $event)" placeholder="Search intermediate level" />
                                       </div>
                                     }
@@ -4678,12 +4679,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'advancedLevel')">
                                     <div class="admin-report-th-content">
                                       <span>Advanced Level</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'advancedLevel')" (click)="toggleReportFilterColumn('wsp-planned', 'advancedLevel')" aria-label="Filter by advanced level">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'advancedLevel')" (click)="toggleReportFilterColumn('wsp-planned', 'advancedLevel', $event)" aria-label="Filter by advanced level">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'advancedLevel')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'advancedLevel')" (input)="updateReportColumnFilter('wsp-planned', 'advancedLevel', $event)" placeholder="Search advanced level" />
                                       </div>
                                     }
@@ -4691,12 +4692,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'africanMale')">
                                     <div class="admin-report-th-content">
                                       <span>African Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'africanMale')" (click)="toggleReportFilterColumn('wsp-planned', 'africanMale')" aria-label="Filter by african male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'africanMale')" (click)="toggleReportFilterColumn('wsp-planned', 'africanMale', $event)" aria-label="Filter by african male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'africanMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'africanMale')" (input)="updateReportColumnFilter('wsp-planned', 'africanMale', $event)" placeholder="Search african male" />
                                       </div>
                                     }
@@ -4704,12 +4705,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'africanFemale')">
                                     <div class="admin-report-th-content">
                                       <span>African Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'africanFemale')" (click)="toggleReportFilterColumn('wsp-planned', 'africanFemale')" aria-label="Filter by african female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'africanFemale')" (click)="toggleReportFilterColumn('wsp-planned', 'africanFemale', $event)" aria-label="Filter by african female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'africanFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'africanFemale')" (input)="updateReportColumnFilter('wsp-planned', 'africanFemale', $event)" placeholder="Search african female" />
                                       </div>
                                     }
@@ -4717,12 +4718,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'africanDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>African Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'africanDisabled')" (click)="toggleReportFilterColumn('wsp-planned', 'africanDisabled')" aria-label="Filter by african disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'africanDisabled')" (click)="toggleReportFilterColumn('wsp-planned', 'africanDisabled', $event)" aria-label="Filter by african disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'africanDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'africanDisabled')" (input)="updateReportColumnFilter('wsp-planned', 'africanDisabled', $event)" placeholder="Search african disabled" />
                                       </div>
                                     }
@@ -4730,12 +4731,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'colouredMale')">
                                     <div class="admin-report-th-content">
                                       <span>Coloured Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'colouredMale')" (click)="toggleReportFilterColumn('wsp-planned', 'colouredMale')" aria-label="Filter by coloured male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'colouredMale')" (click)="toggleReportFilterColumn('wsp-planned', 'colouredMale', $event)" aria-label="Filter by coloured male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'colouredMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'colouredMale')" (input)="updateReportColumnFilter('wsp-planned', 'colouredMale', $event)" placeholder="Search coloured male" />
                                       </div>
                                     }
@@ -4743,12 +4744,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'colouredFemale')">
                                     <div class="admin-report-th-content">
                                       <span>Coloured Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'colouredFemale')" (click)="toggleReportFilterColumn('wsp-planned', 'colouredFemale')" aria-label="Filter by coloured female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'colouredFemale')" (click)="toggleReportFilterColumn('wsp-planned', 'colouredFemale', $event)" aria-label="Filter by coloured female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'colouredFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'colouredFemale')" (input)="updateReportColumnFilter('wsp-planned', 'colouredFemale', $event)" placeholder="Search coloured female" />
                                       </div>
                                     }
@@ -4756,12 +4757,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'colouredDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>Coloured Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'colouredDisabled')" (click)="toggleReportFilterColumn('wsp-planned', 'colouredDisabled')" aria-label="Filter by coloured disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'colouredDisabled')" (click)="toggleReportFilterColumn('wsp-planned', 'colouredDisabled', $event)" aria-label="Filter by coloured disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'colouredDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'colouredDisabled')" (input)="updateReportColumnFilter('wsp-planned', 'colouredDisabled', $event)" placeholder="Search coloured disabled" />
                                       </div>
                                     }
@@ -4769,12 +4770,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'indianMale')">
                                     <div class="admin-report-th-content">
                                       <span>Indian/Asian Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'indianMale')" (click)="toggleReportFilterColumn('wsp-planned', 'indianMale')" aria-label="Filter by indian/asian male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'indianMale')" (click)="toggleReportFilterColumn('wsp-planned', 'indianMale', $event)" aria-label="Filter by indian/asian male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'indianMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'indianMale')" (input)="updateReportColumnFilter('wsp-planned', 'indianMale', $event)" placeholder="Search indian/asian male" />
                                       </div>
                                     }
@@ -4782,12 +4783,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'indianFemale')">
                                     <div class="admin-report-th-content">
                                       <span>Indian/Asian Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'indianFemale')" (click)="toggleReportFilterColumn('wsp-planned', 'indianFemale')" aria-label="Filter by indian/asian female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'indianFemale')" (click)="toggleReportFilterColumn('wsp-planned', 'indianFemale', $event)" aria-label="Filter by indian/asian female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'indianFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'indianFemale')" (input)="updateReportColumnFilter('wsp-planned', 'indianFemale', $event)" placeholder="Search indian/asian female" />
                                       </div>
                                     }
@@ -4795,12 +4796,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'indianDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>Indian/Asian Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'indianDisabled')" (click)="toggleReportFilterColumn('wsp-planned', 'indianDisabled')" aria-label="Filter by indian/asian disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'indianDisabled')" (click)="toggleReportFilterColumn('wsp-planned', 'indianDisabled', $event)" aria-label="Filter by indian/asian disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'indianDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'indianDisabled')" (input)="updateReportColumnFilter('wsp-planned', 'indianDisabled', $event)" placeholder="Search indian/asian disabled" />
                                       </div>
                                     }
@@ -4808,12 +4809,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'whiteMale')">
                                     <div class="admin-report-th-content">
                                       <span>White Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'whiteMale')" (click)="toggleReportFilterColumn('wsp-planned', 'whiteMale')" aria-label="Filter by white male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'whiteMale')" (click)="toggleReportFilterColumn('wsp-planned', 'whiteMale', $event)" aria-label="Filter by white male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'whiteMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'whiteMale')" (input)="updateReportColumnFilter('wsp-planned', 'whiteMale', $event)" placeholder="Search white male" />
                                       </div>
                                     }
@@ -4821,12 +4822,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'whiteFemale')">
                                     <div class="admin-report-th-content">
                                       <span>White Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'whiteFemale')" (click)="toggleReportFilterColumn('wsp-planned', 'whiteFemale')" aria-label="Filter by white female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'whiteFemale')" (click)="toggleReportFilterColumn('wsp-planned', 'whiteFemale', $event)" aria-label="Filter by white female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'whiteFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'whiteFemale')" (input)="updateReportColumnFilter('wsp-planned', 'whiteFemale', $event)" placeholder="Search white female" />
                                       </div>
                                     }
@@ -4834,12 +4835,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'whiteDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>White Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'whiteDisabled')" (click)="toggleReportFilterColumn('wsp-planned', 'whiteDisabled')" aria-label="Filter by white disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'whiteDisabled')" (click)="toggleReportFilterColumn('wsp-planned', 'whiteDisabled', $event)" aria-label="Filter by white disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'whiteDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'whiteDisabled')" (input)="updateReportColumnFilter('wsp-planned', 'whiteDisabled', $event)" placeholder="Search white disabled" />
                                       </div>
                                     }
@@ -4847,12 +4848,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'age1')">
                                     <div class="admin-report-th-content">
                                       <span>Age < 35</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'age1')" (click)="toggleReportFilterColumn('wsp-planned', 'age1')" aria-label="Filter by age < 35">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'age1')" (click)="toggleReportFilterColumn('wsp-planned', 'age1', $event)" aria-label="Filter by age < 35">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'age1')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'age1')" (input)="updateReportColumnFilter('wsp-planned', 'age1', $event)" placeholder="Search age < 35" />
                                       </div>
                                     }
@@ -4860,12 +4861,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'age2')">
                                     <div class="admin-report-th-content">
                                       <span>Age 35-55</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'age2')" (click)="toggleReportFilterColumn('wsp-planned', 'age2')" aria-label="Filter by age 35-55">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'age2')" (click)="toggleReportFilterColumn('wsp-planned', 'age2', $event)" aria-label="Filter by age 35-55">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'age2')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'age2')" (input)="updateReportColumnFilter('wsp-planned', 'age2', $event)" placeholder="Search age 35-55" />
                                       </div>
                                     }
@@ -4873,12 +4874,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-planned', 'age3')">
                                     <div class="admin-report-th-content">
                                       <span>Age > 55</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'age3')" (click)="toggleReportFilterColumn('wsp-planned', 'age3')" aria-label="Filter by age > 55">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-planned', 'age3')" (click)="toggleReportFilterColumn('wsp-planned', 'age3', $event)" aria-label="Filter by age > 55">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-planned', 'age3')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-planned', 'age3')" (input)="updateReportColumnFilter('wsp-planned', 'age3', $event)" placeholder="Search age > 55" />
                                       </div>
                                     }
@@ -4910,19 +4911,19 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
                         @if (selectedWspSubReport() === 'employment-summary') {
                           @if (filteredWspEmploymentSummaryRows().length) {
-                            <div class="admin-report-table-wrap">
+                            <div class="admin-report-table-wrap" (scroll)="closeAnyReportFilterPopover()">
                               <table class="admin-report-table">
                                 <thead>
                                   <tr>
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'ofoOccupation')">
                                     <div class="admin-report-th-content">
                                       <span>OFO Occupation</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'ofoOccupation')" (click)="toggleReportFilterColumn('wsp-employment', 'ofoOccupation')" aria-label="Filter by ofo occupation">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'ofoOccupation')" (click)="toggleReportFilterColumn('wsp-employment', 'ofoOccupation', $event)" aria-label="Filter by ofo occupation">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-employment', 'ofoOccupation')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('wsp-employment', 'ofoOccupation')" (change)="updateReportColumnFilter('wsp-employment', 'ofoOccupation', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(wspEmploymentSummaryRows(), 'ofoOccupation'); track option) {
@@ -4935,12 +4936,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'municipality')">
                                     <div class="admin-report-th-content">
                                       <span>Municipality</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'municipality')" (click)="toggleReportFilterColumn('wsp-employment', 'municipality')" aria-label="Filter by municipality">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'municipality')" (click)="toggleReportFilterColumn('wsp-employment', 'municipality', $event)" aria-label="Filter by municipality">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-employment', 'municipality')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('wsp-employment', 'municipality')" (change)="updateReportColumnFilter('wsp-employment', 'municipality', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(wspEmploymentSummaryRows(), 'municipality'); track option) {
@@ -4953,12 +4954,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'africanMale')">
                                     <div class="admin-report-th-content">
                                       <span>African Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'africanMale')" (click)="toggleReportFilterColumn('wsp-employment', 'africanMale')" aria-label="Filter by african male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'africanMale')" (click)="toggleReportFilterColumn('wsp-employment', 'africanMale', $event)" aria-label="Filter by african male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-employment', 'africanMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'africanMale')" (input)="updateReportColumnFilter('wsp-employment', 'africanMale', $event)" placeholder="Search african male" />
                                       </div>
                                     }
@@ -4966,12 +4967,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'africanFemale')">
                                     <div class="admin-report-th-content">
                                       <span>African Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'africanFemale')" (click)="toggleReportFilterColumn('wsp-employment', 'africanFemale')" aria-label="Filter by african female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'africanFemale')" (click)="toggleReportFilterColumn('wsp-employment', 'africanFemale', $event)" aria-label="Filter by african female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-employment', 'africanFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'africanFemale')" (input)="updateReportColumnFilter('wsp-employment', 'africanFemale', $event)" placeholder="Search african female" />
                                       </div>
                                     }
@@ -4979,12 +4980,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'africanDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>African Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'africanDisabled')" (click)="toggleReportFilterColumn('wsp-employment', 'africanDisabled')" aria-label="Filter by african disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'africanDisabled')" (click)="toggleReportFilterColumn('wsp-employment', 'africanDisabled', $event)" aria-label="Filter by african disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-employment', 'africanDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'africanDisabled')" (input)="updateReportColumnFilter('wsp-employment', 'africanDisabled', $event)" placeholder="Search african disabled" />
                                       </div>
                                     }
@@ -4992,12 +4993,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'colouredMale')">
                                     <div class="admin-report-th-content">
                                       <span>Coloured Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'colouredMale')" (click)="toggleReportFilterColumn('wsp-employment', 'colouredMale')" aria-label="Filter by coloured male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'colouredMale')" (click)="toggleReportFilterColumn('wsp-employment', 'colouredMale', $event)" aria-label="Filter by coloured male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-employment', 'colouredMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'colouredMale')" (input)="updateReportColumnFilter('wsp-employment', 'colouredMale', $event)" placeholder="Search coloured male" />
                                       </div>
                                     }
@@ -5005,12 +5006,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'colouredFemale')">
                                     <div class="admin-report-th-content">
                                       <span>Coloured Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'colouredFemale')" (click)="toggleReportFilterColumn('wsp-employment', 'colouredFemale')" aria-label="Filter by coloured female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'colouredFemale')" (click)="toggleReportFilterColumn('wsp-employment', 'colouredFemale', $event)" aria-label="Filter by coloured female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-employment', 'colouredFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'colouredFemale')" (input)="updateReportColumnFilter('wsp-employment', 'colouredFemale', $event)" placeholder="Search coloured female" />
                                       </div>
                                     }
@@ -5018,12 +5019,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'colouredDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>Coloured Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'colouredDisabled')" (click)="toggleReportFilterColumn('wsp-employment', 'colouredDisabled')" aria-label="Filter by coloured disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'colouredDisabled')" (click)="toggleReportFilterColumn('wsp-employment', 'colouredDisabled', $event)" aria-label="Filter by coloured disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-employment', 'colouredDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'colouredDisabled')" (input)="updateReportColumnFilter('wsp-employment', 'colouredDisabled', $event)" placeholder="Search coloured disabled" />
                                       </div>
                                     }
@@ -5031,12 +5032,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'indianMale')">
                                     <div class="admin-report-th-content">
                                       <span>Indian/Asian Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'indianMale')" (click)="toggleReportFilterColumn('wsp-employment', 'indianMale')" aria-label="Filter by indian/asian male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'indianMale')" (click)="toggleReportFilterColumn('wsp-employment', 'indianMale', $event)" aria-label="Filter by indian/asian male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-employment', 'indianMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'indianMale')" (input)="updateReportColumnFilter('wsp-employment', 'indianMale', $event)" placeholder="Search indian/asian male" />
                                       </div>
                                     }
@@ -5044,12 +5045,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'indianFemale')">
                                     <div class="admin-report-th-content">
                                       <span>Indian/Asian Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'indianFemale')" (click)="toggleReportFilterColumn('wsp-employment', 'indianFemale')" aria-label="Filter by indian/asian female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'indianFemale')" (click)="toggleReportFilterColumn('wsp-employment', 'indianFemale', $event)" aria-label="Filter by indian/asian female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-employment', 'indianFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'indianFemale')" (input)="updateReportColumnFilter('wsp-employment', 'indianFemale', $event)" placeholder="Search indian/asian female" />
                                       </div>
                                     }
@@ -5057,12 +5058,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'indianDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>Indian/Asian Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'indianDisabled')" (click)="toggleReportFilterColumn('wsp-employment', 'indianDisabled')" aria-label="Filter by indian/asian disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'indianDisabled')" (click)="toggleReportFilterColumn('wsp-employment', 'indianDisabled', $event)" aria-label="Filter by indian/asian disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-employment', 'indianDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'indianDisabled')" (input)="updateReportColumnFilter('wsp-employment', 'indianDisabled', $event)" placeholder="Search indian/asian disabled" />
                                       </div>
                                     }
@@ -5070,12 +5071,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'whiteMale')">
                                     <div class="admin-report-th-content">
                                       <span>White Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'whiteMale')" (click)="toggleReportFilterColumn('wsp-employment', 'whiteMale')" aria-label="Filter by white male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'whiteMale')" (click)="toggleReportFilterColumn('wsp-employment', 'whiteMale', $event)" aria-label="Filter by white male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-employment', 'whiteMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'whiteMale')" (input)="updateReportColumnFilter('wsp-employment', 'whiteMale', $event)" placeholder="Search white male" />
                                       </div>
                                     }
@@ -5083,12 +5084,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'whiteFemale')">
                                     <div class="admin-report-th-content">
                                       <span>White Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'whiteFemale')" (click)="toggleReportFilterColumn('wsp-employment', 'whiteFemale')" aria-label="Filter by white female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'whiteFemale')" (click)="toggleReportFilterColumn('wsp-employment', 'whiteFemale', $event)" aria-label="Filter by white female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-employment', 'whiteFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'whiteFemale')" (input)="updateReportColumnFilter('wsp-employment', 'whiteFemale', $event)" placeholder="Search white female" />
                                       </div>
                                     }
@@ -5096,12 +5097,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'whiteDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>White Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'whiteDisabled')" (click)="toggleReportFilterColumn('wsp-employment', 'whiteDisabled')" aria-label="Filter by white disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'whiteDisabled')" (click)="toggleReportFilterColumn('wsp-employment', 'whiteDisabled', $event)" aria-label="Filter by white disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-employment', 'whiteDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'whiteDisabled')" (input)="updateReportColumnFilter('wsp-employment', 'whiteDisabled', $event)" placeholder="Search white disabled" />
                                       </div>
                                     }
@@ -5109,12 +5110,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'age1')">
                                     <div class="admin-report-th-content">
                                       <span>Age < 35</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'age1')" (click)="toggleReportFilterColumn('wsp-employment', 'age1')" aria-label="Filter by age < 35">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'age1')" (click)="toggleReportFilterColumn('wsp-employment', 'age1', $event)" aria-label="Filter by age < 35">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-employment', 'age1')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'age1')" (input)="updateReportColumnFilter('wsp-employment', 'age1', $event)" placeholder="Search age < 35" />
                                       </div>
                                     }
@@ -5122,12 +5123,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'age2')">
                                     <div class="admin-report-th-content">
                                       <span>Age 35-55</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'age2')" (click)="toggleReportFilterColumn('wsp-employment', 'age2')" aria-label="Filter by age 35-55">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'age2')" (click)="toggleReportFilterColumn('wsp-employment', 'age2', $event)" aria-label="Filter by age 35-55">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-employment', 'age2')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'age2')" (input)="updateReportColumnFilter('wsp-employment', 'age2', $event)" placeholder="Search age 35-55" />
                                       </div>
                                     }
@@ -5135,12 +5136,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-employment', 'age3')">
                                     <div class="admin-report-th-content">
                                       <span>Age > 55</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'age3')" (click)="toggleReportFilterColumn('wsp-employment', 'age3')" aria-label="Filter by age > 55">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-employment', 'age3')" (click)="toggleReportFilterColumn('wsp-employment', 'age3', $event)" aria-label="Filter by age > 55">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-employment', 'age3')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-employment', 'age3')" (input)="updateReportColumnFilter('wsp-employment', 'age3', $event)" placeholder="Search age > 55" />
                                       </div>
                                     }
@@ -5168,19 +5169,19 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
                         @if (selectedWspSubReport() === 'pivotal-planned') {
                           @if (filteredWspPivotalPlannedRows().length) {
-                            <div class="admin-report-table-wrap">
+                            <div class="admin-report-table-wrap" (scroll)="closeAnyReportFilterPopover()">
                               <table class="admin-report-table">
                                 <thead>
                                   <tr>
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'ofoOccupation')">
                                     <div class="admin-report-th-content">
                                       <span>OFO Occupation</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'ofoOccupation')" (click)="toggleReportFilterColumn('wsp-pivotal', 'ofoOccupation')" aria-label="Filter by ofo occupation">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'ofoOccupation')" (click)="toggleReportFilterColumn('wsp-pivotal', 'ofoOccupation', $event)" aria-label="Filter by ofo occupation">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'ofoOccupation')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('wsp-pivotal', 'ofoOccupation')" (change)="updateReportColumnFilter('wsp-pivotal', 'ofoOccupation', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(wspPivotalPlannedRows(), 'ofoOccupation'); track option) {
@@ -5193,12 +5194,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'municipality')">
                                     <div class="admin-report-th-content">
                                       <span>Municipality</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'municipality')" (click)="toggleReportFilterColumn('wsp-pivotal', 'municipality')" aria-label="Filter by municipality">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'municipality')" (click)="toggleReportFilterColumn('wsp-pivotal', 'municipality', $event)" aria-label="Filter by municipality">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'municipality')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('wsp-pivotal', 'municipality')" (change)="updateReportColumnFilter('wsp-pivotal', 'municipality', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(wspPivotalPlannedRows(), 'municipality'); track option) {
@@ -5211,12 +5212,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'programmeNeedsAddressed')">
                                     <div class="admin-report-th-content">
                                       <span>Programme Needs Addressed</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'programmeNeedsAddressed')" (click)="toggleReportFilterColumn('wsp-pivotal', 'programmeNeedsAddressed')" aria-label="Filter by programme needs addressed">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'programmeNeedsAddressed')" (click)="toggleReportFilterColumn('wsp-pivotal', 'programmeNeedsAddressed', $event)" aria-label="Filter by programme needs addressed">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'programmeNeedsAddressed')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'programmeNeedsAddressed')" (input)="updateReportColumnFilter('wsp-pivotal', 'programmeNeedsAddressed', $event)" placeholder="Search programme needs addressed" />
                                       </div>
                                     }
@@ -5224,12 +5225,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'fundingType')">
                                     <div class="admin-report-th-content">
                                       <span>Funding Type</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'fundingType')" (click)="toggleReportFilterColumn('wsp-pivotal', 'fundingType')" aria-label="Filter by funding type">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'fundingType')" (click)="toggleReportFilterColumn('wsp-pivotal', 'fundingType', $event)" aria-label="Filter by funding type">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'fundingType')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('wsp-pivotal', 'fundingType')" (change)="updateReportColumnFilter('wsp-pivotal', 'fundingType', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(wspPivotalPlannedRows(), 'fundingType'); track option) {
@@ -5242,12 +5243,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'dgContractNumber')">
                                     <div class="admin-report-th-content">
                                       <span>DG Contract Number</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'dgContractNumber')" (click)="toggleReportFilterColumn('wsp-pivotal', 'dgContractNumber')" aria-label="Filter by dg contract number">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'dgContractNumber')" (click)="toggleReportFilterColumn('wsp-pivotal', 'dgContractNumber', $event)" aria-label="Filter by dg contract number">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'dgContractNumber')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'dgContractNumber')" (input)="updateReportColumnFilter('wsp-pivotal', 'dgContractNumber', $event)" placeholder="Search dg contract number" />
                                       </div>
                                     }
@@ -5255,12 +5256,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'idNumber')">
                                     <div class="admin-report-th-content">
                                       <span>ID Number</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'idNumber')" (click)="toggleReportFilterColumn('wsp-pivotal', 'idNumber')" aria-label="Filter by id number">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'idNumber')" (click)="toggleReportFilterColumn('wsp-pivotal', 'idNumber', $event)" aria-label="Filter by id number">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'idNumber')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'idNumber')" (input)="updateReportColumnFilter('wsp-pivotal', 'idNumber', $event)" placeholder="Search id number" />
                                       </div>
                                     }
@@ -5268,12 +5269,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'firstName')">
                                     <div class="admin-report-th-content">
                                       <span>First Name</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'firstName')" (click)="toggleReportFilterColumn('wsp-pivotal', 'firstName')" aria-label="Filter by first name">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'firstName')" (click)="toggleReportFilterColumn('wsp-pivotal', 'firstName', $event)" aria-label="Filter by first name">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'firstName')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'firstName')" (input)="updateReportColumnFilter('wsp-pivotal', 'firstName', $event)" placeholder="Search first name" />
                                       </div>
                                     }
@@ -5281,12 +5282,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'surname')">
                                     <div class="admin-report-th-content">
                                       <span>Surname</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'surname')" (click)="toggleReportFilterColumn('wsp-pivotal', 'surname')" aria-label="Filter by surname">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'surname')" (click)="toggleReportFilterColumn('wsp-pivotal', 'surname', $event)" aria-label="Filter by surname">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'surname')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'surname')" (input)="updateReportColumnFilter('wsp-pivotal', 'surname', $event)" placeholder="Search surname" />
                                       </div>
                                     }
@@ -5294,12 +5295,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'socioEconomicStatus')">
                                     <div class="admin-report-th-content">
                                       <span>Socio Economic Status</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'socioEconomicStatus')" (click)="toggleReportFilterColumn('wsp-pivotal', 'socioEconomicStatus')" aria-label="Filter by socio economic status">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'socioEconomicStatus')" (click)="toggleReportFilterColumn('wsp-pivotal', 'socioEconomicStatus', $event)" aria-label="Filter by socio economic status">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'socioEconomicStatus')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('wsp-pivotal', 'socioEconomicStatus')" (change)="updateReportColumnFilter('wsp-pivotal', 'socioEconomicStatus', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(wspPivotalPlannedRows(), 'socioEconomicStatus'); track option) {
@@ -5312,12 +5313,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'typeOfLearningProgramme')">
                                     <div class="admin-report-th-content">
                                       <span>Type Of Learning Programme</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'typeOfLearningProgramme')" (click)="toggleReportFilterColumn('wsp-pivotal', 'typeOfLearningProgramme')" aria-label="Filter by type of learning programme">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'typeOfLearningProgramme')" (click)="toggleReportFilterColumn('wsp-pivotal', 'typeOfLearningProgramme', $event)" aria-label="Filter by type of learning programme">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'typeOfLearningProgramme')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('wsp-pivotal', 'typeOfLearningProgramme')" (change)="updateReportColumnFilter('wsp-pivotal', 'typeOfLearningProgramme', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(wspPivotalPlannedRows(), 'typeOfLearningProgramme'); track option) {
@@ -5330,12 +5331,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'nameOfLearningProgramme')">
                                     <div class="admin-report-th-content">
                                       <span>Name Of Learning Programme</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'nameOfLearningProgramme')" (click)="toggleReportFilterColumn('wsp-pivotal', 'nameOfLearningProgramme')" aria-label="Filter by name of learning programme">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'nameOfLearningProgramme')" (click)="toggleReportFilterColumn('wsp-pivotal', 'nameOfLearningProgramme', $event)" aria-label="Filter by name of learning programme">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'nameOfLearningProgramme')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'nameOfLearningProgramme')" (input)="updateReportColumnFilter('wsp-pivotal', 'nameOfLearningProgramme', $event)" placeholder="Search name of learning programme" />
                                       </div>
                                     }
@@ -5343,12 +5344,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'pivotalOfoOccupation')">
                                     <div class="admin-report-th-content">
                                       <span>Pivotal Programmes</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'pivotalOfoOccupation')" (click)="toggleReportFilterColumn('wsp-pivotal', 'pivotalOfoOccupation')" aria-label="Filter by pivotal programmes">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'pivotalOfoOccupation')" (click)="toggleReportFilterColumn('wsp-pivotal', 'pivotalOfoOccupation', $event)" aria-label="Filter by pivotal programmes">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'pivotalOfoOccupation')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('wsp-pivotal', 'pivotalOfoOccupation')" (change)="updateReportColumnFilter('wsp-pivotal', 'pivotalOfoOccupation', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(wspPivotalPlannedRows(), 'pivotalOfoOccupation'); track option) {
@@ -5361,12 +5362,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'typeOfEducationalInstitution')">
                                     <div class="admin-report-th-content">
                                       <span>Type Of Educational Institution</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'typeOfEducationalInstitution')" (click)="toggleReportFilterColumn('wsp-pivotal', 'typeOfEducationalInstitution')" aria-label="Filter by type of educational institution">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'typeOfEducationalInstitution')" (click)="toggleReportFilterColumn('wsp-pivotal', 'typeOfEducationalInstitution', $event)" aria-label="Filter by type of educational institution">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'typeOfEducationalInstitution')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('wsp-pivotal', 'typeOfEducationalInstitution')" (change)="updateReportColumnFilter('wsp-pivotal', 'typeOfEducationalInstitution', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(wspPivotalPlannedRows(), 'typeOfEducationalInstitution'); track option) {
@@ -5379,12 +5380,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'nqfLevel')">
                                     <div class="admin-report-th-content">
                                       <span>NQF Level</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'nqfLevel')" (click)="toggleReportFilterColumn('wsp-pivotal', 'nqfLevel')" aria-label="Filter by nqf level">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'nqfLevel')" (click)="toggleReportFilterColumn('wsp-pivotal', 'nqfLevel', $event)" aria-label="Filter by nqf level">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'nqfLevel')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <select [value]="reportColumnFilterValue('wsp-pivotal', 'nqfLevel')" (change)="updateReportColumnFilter('wsp-pivotal', 'nqfLevel', $event)">
                                           <option value="">All</option>
                                           @for (option of reportColumnOptions(wspPivotalPlannedRows(), 'nqfLevel'); track option) {
@@ -5397,12 +5398,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'cost')">
                                     <div class="admin-report-th-content">
                                       <span>Cost</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'cost')" (click)="toggleReportFilterColumn('wsp-pivotal', 'cost')" aria-label="Filter by cost">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'cost')" (click)="toggleReportFilterColumn('wsp-pivotal', 'cost', $event)" aria-label="Filter by cost">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'cost')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'cost')" (input)="updateReportColumnFilter('wsp-pivotal', 'cost', $event)" placeholder="Search cost" />
                                       </div>
                                     }
@@ -5410,12 +5411,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'entryLevel')">
                                     <div class="admin-report-th-content">
                                       <span>Entry Level</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'entryLevel')" (click)="toggleReportFilterColumn('wsp-pivotal', 'entryLevel')" aria-label="Filter by entry level">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'entryLevel')" (click)="toggleReportFilterColumn('wsp-pivotal', 'entryLevel', $event)" aria-label="Filter by entry level">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'entryLevel')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'entryLevel')" (input)="updateReportColumnFilter('wsp-pivotal', 'entryLevel', $event)" placeholder="Search entry level" />
                                       </div>
                                     }
@@ -5423,12 +5424,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'intermediateLevel')">
                                     <div class="admin-report-th-content">
                                       <span>Intermediate Level</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'intermediateLevel')" (click)="toggleReportFilterColumn('wsp-pivotal', 'intermediateLevel')" aria-label="Filter by intermediate level">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'intermediateLevel')" (click)="toggleReportFilterColumn('wsp-pivotal', 'intermediateLevel', $event)" aria-label="Filter by intermediate level">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'intermediateLevel')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'intermediateLevel')" (input)="updateReportColumnFilter('wsp-pivotal', 'intermediateLevel', $event)" placeholder="Search intermediate level" />
                                       </div>
                                     }
@@ -5436,12 +5437,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'advancedLevel')">
                                     <div class="admin-report-th-content">
                                       <span>Advanced Level</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'advancedLevel')" (click)="toggleReportFilterColumn('wsp-pivotal', 'advancedLevel')" aria-label="Filter by advanced level">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'advancedLevel')" (click)="toggleReportFilterColumn('wsp-pivotal', 'advancedLevel', $event)" aria-label="Filter by advanced level">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'advancedLevel')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'advancedLevel')" (input)="updateReportColumnFilter('wsp-pivotal', 'advancedLevel', $event)" placeholder="Search advanced level" />
                                       </div>
                                     }
@@ -5449,12 +5450,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'africanMale')">
                                     <div class="admin-report-th-content">
                                       <span>African Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'africanMale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'africanMale')" aria-label="Filter by african male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'africanMale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'africanMale', $event)" aria-label="Filter by african male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'africanMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'africanMale')" (input)="updateReportColumnFilter('wsp-pivotal', 'africanMale', $event)" placeholder="Search african male" />
                                       </div>
                                     }
@@ -5462,12 +5463,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'africanFemale')">
                                     <div class="admin-report-th-content">
                                       <span>African Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'africanFemale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'africanFemale')" aria-label="Filter by african female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'africanFemale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'africanFemale', $event)" aria-label="Filter by african female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'africanFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'africanFemale')" (input)="updateReportColumnFilter('wsp-pivotal', 'africanFemale', $event)" placeholder="Search african female" />
                                       </div>
                                     }
@@ -5475,12 +5476,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'africanDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>African Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'africanDisabled')" (click)="toggleReportFilterColumn('wsp-pivotal', 'africanDisabled')" aria-label="Filter by african disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'africanDisabled')" (click)="toggleReportFilterColumn('wsp-pivotal', 'africanDisabled', $event)" aria-label="Filter by african disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'africanDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'africanDisabled')" (input)="updateReportColumnFilter('wsp-pivotal', 'africanDisabled', $event)" placeholder="Search african disabled" />
                                       </div>
                                     }
@@ -5488,12 +5489,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'colouredMale')">
                                     <div class="admin-report-th-content">
                                       <span>Coloured Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'colouredMale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'colouredMale')" aria-label="Filter by coloured male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'colouredMale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'colouredMale', $event)" aria-label="Filter by coloured male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'colouredMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'colouredMale')" (input)="updateReportColumnFilter('wsp-pivotal', 'colouredMale', $event)" placeholder="Search coloured male" />
                                       </div>
                                     }
@@ -5501,12 +5502,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'colouredFemale')">
                                     <div class="admin-report-th-content">
                                       <span>Coloured Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'colouredFemale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'colouredFemale')" aria-label="Filter by coloured female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'colouredFemale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'colouredFemale', $event)" aria-label="Filter by coloured female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'colouredFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'colouredFemale')" (input)="updateReportColumnFilter('wsp-pivotal', 'colouredFemale', $event)" placeholder="Search coloured female" />
                                       </div>
                                     }
@@ -5514,12 +5515,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'colouredDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>Coloured Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'colouredDisabled')" (click)="toggleReportFilterColumn('wsp-pivotal', 'colouredDisabled')" aria-label="Filter by coloured disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'colouredDisabled')" (click)="toggleReportFilterColumn('wsp-pivotal', 'colouredDisabled', $event)" aria-label="Filter by coloured disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'colouredDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'colouredDisabled')" (input)="updateReportColumnFilter('wsp-pivotal', 'colouredDisabled', $event)" placeholder="Search coloured disabled" />
                                       </div>
                                     }
@@ -5527,12 +5528,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'indianMale')">
                                     <div class="admin-report-th-content">
                                       <span>Indian/Asian Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'indianMale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'indianMale')" aria-label="Filter by indian/asian male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'indianMale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'indianMale', $event)" aria-label="Filter by indian/asian male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'indianMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'indianMale')" (input)="updateReportColumnFilter('wsp-pivotal', 'indianMale', $event)" placeholder="Search indian/asian male" />
                                       </div>
                                     }
@@ -5540,12 +5541,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'indianFemale')">
                                     <div class="admin-report-th-content">
                                       <span>Indian/Asian Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'indianFemale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'indianFemale')" aria-label="Filter by indian/asian female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'indianFemale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'indianFemale', $event)" aria-label="Filter by indian/asian female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'indianFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'indianFemale')" (input)="updateReportColumnFilter('wsp-pivotal', 'indianFemale', $event)" placeholder="Search indian/asian female" />
                                       </div>
                                     }
@@ -5553,12 +5554,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'indianDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>Indian/Asian Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'indianDisabled')" (click)="toggleReportFilterColumn('wsp-pivotal', 'indianDisabled')" aria-label="Filter by indian/asian disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'indianDisabled')" (click)="toggleReportFilterColumn('wsp-pivotal', 'indianDisabled', $event)" aria-label="Filter by indian/asian disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'indianDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'indianDisabled')" (input)="updateReportColumnFilter('wsp-pivotal', 'indianDisabled', $event)" placeholder="Search indian/asian disabled" />
                                       </div>
                                     }
@@ -5566,12 +5567,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'whiteMale')">
                                     <div class="admin-report-th-content">
                                       <span>White Male</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'whiteMale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'whiteMale')" aria-label="Filter by white male">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'whiteMale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'whiteMale', $event)" aria-label="Filter by white male">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'whiteMale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'whiteMale')" (input)="updateReportColumnFilter('wsp-pivotal', 'whiteMale', $event)" placeholder="Search white male" />
                                       </div>
                                     }
@@ -5579,12 +5580,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'whiteFemale')">
                                     <div class="admin-report-th-content">
                                       <span>White Female</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'whiteFemale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'whiteFemale')" aria-label="Filter by white female">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'whiteFemale')" (click)="toggleReportFilterColumn('wsp-pivotal', 'whiteFemale', $event)" aria-label="Filter by white female">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'whiteFemale')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'whiteFemale')" (input)="updateReportColumnFilter('wsp-pivotal', 'whiteFemale', $event)" placeholder="Search white female" />
                                       </div>
                                     }
@@ -5592,12 +5593,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'whiteDisabled')">
                                     <div class="admin-report-th-content">
                                       <span>White Disabled</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'whiteDisabled')" (click)="toggleReportFilterColumn('wsp-pivotal', 'whiteDisabled')" aria-label="Filter by white disabled">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'whiteDisabled')" (click)="toggleReportFilterColumn('wsp-pivotal', 'whiteDisabled', $event)" aria-label="Filter by white disabled">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'whiteDisabled')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'whiteDisabled')" (input)="updateReportColumnFilter('wsp-pivotal', 'whiteDisabled', $event)" placeholder="Search white disabled" />
                                       </div>
                                     }
@@ -5605,12 +5606,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'age1')">
                                     <div class="admin-report-th-content">
                                       <span>Age < 35</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'age1')" (click)="toggleReportFilterColumn('wsp-pivotal', 'age1')" aria-label="Filter by age < 35">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'age1')" (click)="toggleReportFilterColumn('wsp-pivotal', 'age1', $event)" aria-label="Filter by age < 35">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'age1')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'age1')" (input)="updateReportColumnFilter('wsp-pivotal', 'age1', $event)" placeholder="Search age < 35" />
                                       </div>
                                     }
@@ -5618,12 +5619,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'age2')">
                                     <div class="admin-report-th-content">
                                       <span>Age 35-55</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'age2')" (click)="toggleReportFilterColumn('wsp-pivotal', 'age2')" aria-label="Filter by age 35-55">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'age2')" (click)="toggleReportFilterColumn('wsp-pivotal', 'age2', $event)" aria-label="Filter by age 35-55">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'age2')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'age2')" (input)="updateReportColumnFilter('wsp-pivotal', 'age2', $event)" placeholder="Search age 35-55" />
                                       </div>
                                     }
@@ -5631,12 +5632,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th [class.admin-report-th-active]="isReportFilterColumnOpen('wsp-pivotal', 'age3')">
                                     <div class="admin-report-th-content">
                                       <span>Age > 55</span>
-                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'age3')" (click)="toggleReportFilterColumn('wsp-pivotal', 'age3')" aria-label="Filter by age > 55">
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!reportColumnFilterValue('wsp-pivotal', 'age3')" (click)="toggleReportFilterColumn('wsp-pivotal', 'age3', $event)" aria-label="Filter by age > 55">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
                                       </button>
                                     </div>
                                     @if (isReportFilterColumnOpen('wsp-pivotal', 'age3')) {
-                                      <div class="admin-report-th-popover">
+                                      <div class="admin-report-th-popover" [style.top.px]="reportFilterPopoverPosition()?.top" [style.left.px]="reportFilterPopoverPosition()?.left">
                                         <input type="text" [value]="reportColumnFilterValue('wsp-pivotal', 'age3')" (input)="updateReportColumnFilter('wsp-pivotal', 'age3', $event)" placeholder="Search age > 55" />
                                       </div>
                                     }
@@ -7499,7 +7500,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     </div>
 
                     @if (assignmentSubmissionRows().length) {
-                      <div class="admin-report-table-wrap">
+                      <div class="admin-report-table-wrap" (scroll)="closeAnyReportFilterPopover()">
                         <table class="admin-report-table assignment-review-table">
                           <thead>
                             <tr>
@@ -7697,7 +7698,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       @if (!selectedSurveyResponses().length) {
                         <div class="admin-empty-state">No responses yet.</div>
                       } @else {
-                        <div class="admin-report-table-wrap">
+                        <div class="admin-report-table-wrap" (scroll)="closeAnyReportFilterPopover()">
                           <table class="admin-report-table">
                             <thead>
                               <tr>
@@ -10462,11 +10463,14 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .admin-report-th-popover {
-      position: absolute;
-      top: 100%;
-      left: 0;
+      /* Fixed, not absolute: top/left come from a JS-measured viewport position (see
+         reportFilterPopoverPosition in the component) rather than from the <th>'s own box, because
+         an absolutely-positioned popover gets clipped the moment its scrollable ancestor
+         (.admin-report-table-wrap, overflow-x: auto) actually engages — overflow:auto clips every
+         descendant regardless of which ancestor it's really positioned against. Fixed positioning
+         is laid out against the viewport instead, so it escapes that clipping entirely. */
+      position: fixed;
       z-index: 40;
-      margin-top: 0.3rem;
       padding: 0.6rem;
       border: 1px solid rgba(148, 163, 184, 0.3);
       border-radius: 10px;
@@ -17269,6 +17273,34 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   private readonly reportColumnFilters = signal<Record<string, Record<string, string>>>({});
   readonly openReportFilterColumn = signal<{ report: string; column: string } | null>(null);
 
+  // A popover positioned with plain CSS (position: absolute, top: 100%) gets clipped the moment
+  // its scrollable ancestor (.admin-report-table-wrap, overflow-x: auto so a wide report table can
+  // scroll inside its card) actually engages — an overflow:auto element clips ALL descendants,
+  // absolutely-positioned ones included, regardless of which ancestor they're really anchored to.
+  // Fixed positioning escapes that clipping entirely (it's laid out against the viewport, not any
+  // scrollable ancestor), but percentage top/left no longer means anything once "fixed" drops the
+  // <th> as a reference, so the button's own on-screen position is measured in JS and applied as
+  // plain pixel coordinates instead. Shared by both filter mechanisms since only one popover is
+  // ever visible across the whole page at a time.
+  readonly reportFilterPopoverPosition = signal<{ top: number; left: number } | null>(null);
+
+  private computeReportFilterPopoverPosition(event: Event): { top: number; left: number } {
+    const target = event.currentTarget as HTMLElement | null;
+    const anchor = (target?.closest('th') as HTMLElement | null) ?? target;
+    const rect = anchor?.getBoundingClientRect();
+    const left = rect ? Math.min(rect.left, window.innerWidth - 200) : 0;
+    return { top: (rect?.bottom ?? 0) + 4, left: Math.max(left, 8) };
+  }
+
+  // Scroll — of the page, or of a report table scrolling horizontally inside its own card — moves
+  // the header an open popover is anchored to, but the popover's fixed pixel position doesn't
+  // follow it. Closing on any scroll is simpler and less error-prone than recomputing position on
+  // every scroll tick, and matches how the popover already closes on an outside click.
+  closeAnyReportFilterPopover() {
+    this.closeReportFilterColumn();
+    this.closeAnnualReportFilterColumn();
+  }
+
   reportColumnFilterValue(report: string, column: string): string {
     return this.reportColumnFilters()[report]?.[column] ?? '';
   }
@@ -17286,10 +17318,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     return !!open && open.report === report && open.column === column;
   }
 
-  toggleReportFilterColumn(report: string, column: string) {
-    this.openReportFilterColumn.update((current) =>
-      current && current.report === report && current.column === column ? null : { report, column },
-    );
+  toggleReportFilterColumn(report: string, column: string, event: Event) {
+    const isOpen = this.isReportFilterColumnOpen(report, column);
+    this.openReportFilterColumn.set(isOpen ? null : { report, column });
+    this.reportFilterPopoverPosition.set(isOpen ? null : this.computeReportFilterPopoverPosition(event));
   }
 
   closeReportFilterColumn() {
@@ -18709,8 +18741,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.annualReportColumnFilters.set({});
   }
 
-  toggleAnnualReportFilterColumn(column: string) {
-    this.annualReportOpenFilterColumn.update((current) => (current === column ? null : column));
+  toggleAnnualReportFilterColumn(column: string, event: Event) {
+    const isOpen = this.annualReportOpenFilterColumn() === column;
+    this.annualReportOpenFilterColumn.set(isOpen ? null : column);
+    this.reportFilterPopoverPosition.set(isOpen ? null : this.computeReportFilterPopoverPosition(event));
   }
 
   closeAnnualReportFilterColumn() {
