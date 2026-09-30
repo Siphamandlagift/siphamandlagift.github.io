@@ -1897,9 +1897,45 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                       </div>
                                     }
                                   </th>
-                                  <th>Email</th>
-                                  <th>ID Number</th>
-                                  <th>Job Title</th>
+                                  <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'email'">
+                                    <div class="admin-report-th-content">
+                                      <span>Email</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('email')" (click)="toggleAnnualReportFilterColumn('email')" aria-label="Filter by email">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (annualReportOpenFilterColumn() === 'email') {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="annualReportColumnFilterValue('email')" (input)="updateAnnualReportColumnFilter('email', $event)" placeholder="Search email" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'idNumber'">
+                                    <div class="admin-report-th-content">
+                                      <span>ID Number</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('idNumber')" (click)="toggleAnnualReportFilterColumn('idNumber')" aria-label="Filter by ID number">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (annualReportOpenFilterColumn() === 'idNumber') {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="annualReportColumnFilterValue('idNumber')" (input)="updateAnnualReportColumnFilter('idNumber', $event)" placeholder="Search ID number" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'jobTitle'">
+                                    <div class="admin-report-th-content">
+                                      <span>Job Title</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('jobTitle')" (click)="toggleAnnualReportFilterColumn('jobTitle')" aria-label="Filter by job title">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (annualReportOpenFilterColumn() === 'jobTitle') {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="annualReportColumnFilterValue('jobTitle')" (input)="updateAnnualReportColumnFilter('jobTitle', $event)" placeholder="Search job title" />
+                                      </div>
+                                    }
+                                  </th>
                                   <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'department'">
                                     <div class="admin-report-th-content">
                                       <span>Department</span>
@@ -1918,11 +1954,86 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                       </div>
                                     }
                                   </th>
-                                  <th>OFO Code</th>
-                                  <th>Race</th>
-                                  <th>Gender</th>
-                                  <th>Municipality</th>
-                                  <th>Training Item</th>
+                                  <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'ofoCode'">
+                                    <div class="admin-report-th-content">
+                                      <span>OFO Code</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('ofoCode')" (click)="toggleAnnualReportFilterColumn('ofoCode')" aria-label="Filter by OFO code">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (annualReportOpenFilterColumn() === 'ofoCode') {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="annualReportColumnFilterValue('ofoCode')" (input)="updateAnnualReportColumnFilter('ofoCode', $event)" placeholder="Search OFO code" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'race'">
+                                    <div class="admin-report-th-content">
+                                      <span>Race</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('race')" (click)="toggleAnnualReportFilterColumn('race')" aria-label="Filter by race">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (annualReportOpenFilterColumn() === 'race') {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="annualReportColumnFilterValue('race')" (change)="updateAnnualReportColumnFilter('race', $event)">
+                                          <option value="">All</option>
+                                          @for (option of annualReportColumnOptions('race'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'gender'">
+                                    <div class="admin-report-th-content">
+                                      <span>Gender</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('gender')" (click)="toggleAnnualReportFilterColumn('gender')" aria-label="Filter by gender">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (annualReportOpenFilterColumn() === 'gender') {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="annualReportColumnFilterValue('gender')" (change)="updateAnnualReportColumnFilter('gender', $event)">
+                                          <option value="">All</option>
+                                          @for (option of annualReportColumnOptions('gender'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'municipality'">
+                                    <div class="admin-report-th-content">
+                                      <span>Municipality</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('municipality')" (click)="toggleAnnualReportFilterColumn('municipality')" aria-label="Filter by municipality">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (annualReportOpenFilterColumn() === 'municipality') {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="annualReportColumnFilterValue('municipality')" (change)="updateAnnualReportColumnFilter('municipality', $event)">
+                                          <option value="">All</option>
+                                          @for (option of annualReportColumnOptions('municipality'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'trainingItem'">
+                                    <div class="admin-report-th-content">
+                                      <span>Training Item</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('trainingItem')" (click)="toggleAnnualReportFilterColumn('trainingItem')" aria-label="Filter by training item">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (annualReportOpenFilterColumn() === 'trainingItem') {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="annualReportColumnFilterValue('trainingItem')" (input)="updateAnnualReportColumnFilter('trainingItem', $event)" placeholder="Search training item" />
+                                      </div>
+                                    }
+                                  </th>
                                   <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'source'">
                                     <div class="admin-report-th-content">
                                       <span>Source</span>
@@ -1940,9 +2051,50 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                       </div>
                                     }
                                   </th>
-                                  <th>Type</th>
-                                  <th>Result</th>
-                                  <th>Provider</th>
+                                  <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'type'">
+                                    <div class="admin-report-th-content">
+                                      <span>Type</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('type')" (click)="toggleAnnualReportFilterColumn('type')" aria-label="Filter by type">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (annualReportOpenFilterColumn() === 'type') {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="annualReportColumnFilterValue('type')" (change)="updateAnnualReportColumnFilter('type', $event)">
+                                          <option value="">All</option>
+                                          @for (option of annualReportColumnOptions('trainingType'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'result'">
+                                    <div class="admin-report-th-content">
+                                      <span>Result</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('result')" (click)="toggleAnnualReportFilterColumn('result')" aria-label="Filter by result">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (annualReportOpenFilterColumn() === 'result') {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="annualReportColumnFilterValue('result')" (input)="updateAnnualReportColumnFilter('result', $event)" placeholder="Search result" />
+                                      </div>
+                                    }
+                                  </th>
+                                  <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'provider'">
+                                    <div class="admin-report-th-content">
+                                      <span>Provider</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('provider')" (click)="toggleAnnualReportFilterColumn('provider')" aria-label="Filter by provider">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (annualReportOpenFilterColumn() === 'provider') {
+                                      <div class="admin-report-th-popover">
+                                        <input type="text" [value]="annualReportColumnFilterValue('provider')" (input)="updateAnnualReportColumnFilter('provider', $event)" placeholder="Search provider" />
+                                      </div>
+                                    }
+                                  </th>
                                   <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'date'">
                                     <div class="admin-report-th-content">
                                       <span>Date</span>
@@ -1963,7 +2115,24 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                       </div>
                                     }
                                   </th>
-                                  <th>Status</th>
+                                  <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'status'">
+                                    <div class="admin-report-th-content">
+                                      <span>Status</span>
+                                      <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportColumnFilterValue('status')" (click)="toggleAnnualReportFilterColumn('status')" aria-label="Filter by status">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                                      </button>
+                                    </div>
+                                    @if (annualReportOpenFilterColumn() === 'status') {
+                                      <div class="admin-report-th-popover">
+                                        <select [value]="annualReportColumnFilterValue('status')" (change)="updateAnnualReportColumnFilter('status', $event)">
+                                          <option value="">All</option>
+                                          @for (option of annualReportColumnOptions('status'); track option) {
+                                            <option [value]="option">{{ option }}</option>
+                                          }
+                                        </select>
+                                      </div>
+                                    }
+                                  </th>
                                   <th>Actions</th>
                                 </tr>
                               </thead>
@@ -13729,8 +13898,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly selectedAnnualReportDateTo = signal('');
   // Which Training Report column header currently has its filter popover open — clicking a
   // column's filter icon is how that column is searched/filtered now, instead of a separate
-  // filter bar above the table.
-  readonly annualReportOpenFilterColumn = signal<'name' | 'department' | 'source' | 'date' | null>(null);
+  // filter bar above the table. A plain string id (matching annualReportColumnFilters' keys for
+  // the generic columns, or one of 'name'/'department'/'source'/'date' for the dedicated ones)
+  // rather than a narrower literal union, since the filterable column set is now open-ended.
+  readonly annualReportOpenFilterColumn = signal<string | null>(null);
   readonly selectedAtrReportDateFrom = signal('');
   readonly selectedAtrReportDateTo = signal('');
   readonly selectedWspReportDateFrom = signal('');
@@ -14237,12 +14408,51 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly annualReportDepartments = computed(() =>
     Array.from(new Set(this.annualTrainingReportRows().map((row) => row.department).filter(Boolean))).sort((left, right) => left.localeCompare(right)),
   );
+  // Every remaining column (everything Name/Department/Source/Date above don't already cover)
+  // shares one generic filter mechanism instead of a dedicated signal each — a text "contains"
+  // filter for free-form/high-cardinality fields, a dropdown of the values actually present in
+  // the current data for bounded-ish ones. Keyed by an arbitrary string id per column rather than
+  // a real field name so the popover-open-state signal below can use the same id space.
+  private readonly annualReportTextFilterColumns: ReadonlyArray<{ key: string; field: keyof ConsolidatedTrainingReportRow }> = [
+    { key: 'email', field: 'learnerEmail' },
+    { key: 'idNumber', field: 'idNumber' },
+    { key: 'jobTitle', field: 'jobTitle' },
+    { key: 'ofoCode', field: 'ofoCode' },
+    { key: 'trainingItem', field: 'trainingItem' },
+    { key: 'provider', field: 'provider' },
+    { key: 'result', field: 'result' },
+  ];
+  private readonly annualReportDropdownFilterColumns: ReadonlyArray<{ key: string; field: keyof ConsolidatedTrainingReportRow }> = [
+    { key: 'race', field: 'race' },
+    { key: 'gender', field: 'gender' },
+    { key: 'municipality', field: 'municipality' },
+    { key: 'type', field: 'trainingType' },
+    { key: 'status', field: 'status' },
+  ];
+  readonly annualReportColumnFilters = signal<Record<string, string>>({});
+
+  updateAnnualReportColumnFilter(column: string, event: Event) {
+    const target = event.target as HTMLInputElement | HTMLSelectElement | null;
+    this.annualReportColumnFilters.update((current) => ({ ...current, [column]: target?.value ?? '' }));
+  }
+
+  annualReportColumnFilterValue(column: string): string {
+    return this.annualReportColumnFilters()[column] ?? '';
+  }
+
+  annualReportColumnOptions(field: keyof ConsolidatedTrainingReportRow): string[] {
+    return Array.from(
+      new Set(this.annualTrainingReportRows().map((row) => String(row[field] ?? '').trim()).filter(Boolean)),
+    ).sort((left, right) => left.localeCompare(right));
+  }
+
   readonly filteredAnnualTrainingReportRows = computed(() => {
     const searchQuery = this.annualReportSearchTerm().trim().toLowerCase();
     const department = this.selectedAnnualReportDepartment();
     const source = this.selectedAnnualReportSource();
     const dateFrom = this.selectedAnnualReportDateFrom();
     const dateTo = this.selectedAnnualReportDateTo();
+    const columnFilters = this.annualReportColumnFilters();
 
     return this.annualTrainingReportRows().filter((row) => {
       if (searchQuery) {
@@ -14276,6 +14486,20 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
       if (dateTo && (!row.dateValue || row.dateValue > dateTo)) {
         return false;
+      }
+
+      for (const { key, field } of this.annualReportTextFilterColumns) {
+        const filterValue = columnFilters[key]?.trim().toLowerCase();
+        if (filterValue && !String(row[field] ?? '').toLowerCase().includes(filterValue)) {
+          return false;
+        }
+      }
+
+      for (const { key, field } of this.annualReportDropdownFilterColumns) {
+        const filterValue = columnFilters[key];
+        if (filterValue && row[field] !== filterValue) {
+          return false;
+        }
       }
 
       return true;
@@ -15345,9 +15569,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.selectedAnnualReportSource.set('All');
     this.selectedAnnualReportDateFrom.set('');
     this.selectedAnnualReportDateTo.set('');
+    this.annualReportColumnFilters.set({});
   }
 
-  toggleAnnualReportFilterColumn(column: 'name' | 'department' | 'source' | 'date') {
+  toggleAnnualReportFilterColumn(column: string) {
     this.annualReportOpenFilterColumn.update((current) => (current === column ? null : column));
   }
 
