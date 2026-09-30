@@ -1008,7 +1008,16 @@ import { LoadingSpinnerComponent } from './loading-spinner.component';
               <span class="kpi-year-readonly-badge" *ngIf="!isViewingCurrentKpiYear()">Read-only — past year</span>
             </div>
 
-            <div class="idp-program-card" [class.kpi-overlay-active]="kpiFullScreen()" *ngIf="myKpiEntries().length > 0; else noKpiEntries">
+            <ng-container *ngIf="myKpiEntries().length > 0; else noKpiEntries">
+            <div class="performance-section-tabs">
+              <button type="button" class="performance-section-tab" [class.performance-section-tab-active]="performanceSection() === 'kpis'" (click)="performanceSection.set('kpis')">KPIs</button>
+              <button type="button" class="performance-section-tab" [class.performance-section-tab-active]="performanceSection() === 'gaps'" (click)="performanceSection.set('gaps')">
+                Performance Gap Analysis
+                <span class="idp-program-count" aria-hidden="true" *ngIf="myKpiGapEntries().length">{{ myKpiGapEntries().length }}</span>
+              </button>
+            </div>
+
+            <div class="idp-program-card" [class.kpi-overlay-active]="kpiFullScreen()" *ngIf="performanceSection() === 'kpis'">
               <div class="idp-program-card-header">
                 <div class="idp-program-card-title-shell">
                   <span class="idp-program-card-title">My KPIs</span>
@@ -1086,7 +1095,7 @@ import { LoadingSpinnerComponent } from './loading-spinner.component';
               </div>
             </div>
 
-            <div class="idp-program-card kpi-gap-card" *ngIf="myKpiEntries().length > 0">
+            <div class="idp-program-card kpi-gap-card" *ngIf="performanceSection() === 'gaps'">
               <div class="idp-program-card-header kpi-gap-card-header">
                 <div class="idp-program-card-title-shell">
                   <span class="kpi-gap-icon" aria-hidden="true">
@@ -1134,6 +1143,7 @@ import { LoadingSpinnerComponent } from './loading-spinner.component';
                 </div>
               </div>
             </div>
+            </ng-container>
             <ng-template #noKpiEntries>
               <article class="utility-card">
                 <p *ngIf="isViewingCurrentKpiYear()">Your manager hasn't set up any KPIs for you yet.</p>
@@ -2933,6 +2943,47 @@ import { LoadingSpinnerComponent } from './loading-spinner.component';
     .kpi-year-chip-active .kpi-year-chip-tag {
       background: rgba(255, 255, 255, 0.25);
       color: #fff;
+    }
+
+    /* Toggle between the KPI table and the Performance Gap Analysis card, which otherwise always
+       rendered stacked underneath it — same pill/chip recipe as .kpi-year-chip above. */
+    .performance-section-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 0.85rem;
+    }
+
+    .performance-section-tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.5rem 1rem;
+      border: 1px solid #dbe1ea;
+      border-radius: 999px;
+      background: #fff;
+      color: #334155;
+      font: inherit;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+
+    .performance-section-tab:hover {
+      border-color: var(--brand-primary);
+      transform: translateY(-1px);
+    }
+
+    .performance-section-tab-active {
+      background: var(--brand-primary);
+      border-color: var(--brand-primary);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+    }
+
+    .performance-section-tab .idp-program-count {
+      font-size: 0.68rem;
     }
 
     .kpi-year-readonly-badge {
@@ -5170,6 +5221,9 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
   );
 
   readonly kpiFullScreen = signal(false);
+  // Which card is showing in the Performance panel — the KPI table itself, or the Performance
+  // Gap Analysis card that used to always render stacked underneath it.
+  readonly performanceSection = signal<'kpis' | 'gaps'>('kpis');
 
   // Weight-weighted average of Final Rating across every KPI that's actually been given a score —
   // unscored rows are excluded from both the numerator and denominator so a still-blank KPI
