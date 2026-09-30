@@ -1011,10 +1011,7 @@ import { LoadingSpinnerComponent } from './loading-spinner.component';
             <ng-container *ngIf="myKpiEntries().length > 0; else noKpiEntries">
             <div class="performance-section-tabs">
               <button type="button" class="performance-section-tab" [class.performance-section-tab-active]="performanceSection() === 'kpis'" (click)="performanceSection.set('kpis')">KPIs</button>
-              <button type="button" class="performance-section-tab" [class.performance-section-tab-active]="performanceSection() === 'gaps'" (click)="performanceSection.set('gaps')">
-                Performance Gap Analysis
-                <span class="idp-program-count" aria-hidden="true" *ngIf="myKpiGapEntries().length">{{ myKpiGapEntries().length }}</span>
-              </button>
+              <button type="button" class="performance-section-tab" [class.performance-section-tab-active]="performanceSection() === 'gaps'" (click)="performanceSection.set('gaps')">Performance Gap Analysis</button>
             </div>
 
             <div class="idp-program-card" [class.kpi-overlay-active]="kpiFullScreen()" *ngIf="performanceSection() === 'kpis'">
@@ -2980,10 +2977,6 @@ import { LoadingSpinnerComponent } from './loading-spinner.component';
       border-color: var(--brand-primary);
       color: #fff;
       box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
-    }
-
-    .performance-section-tab .idp-program-count {
-      font-size: 0.68rem;
     }
 
     .kpi-year-readonly-badge {

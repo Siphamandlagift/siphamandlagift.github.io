@@ -1170,12 +1170,7 @@ type KpiEntryFormGroup = FormGroup<{
 
                     <div class="kpi-approval-view-tabs">
                       <button type="button" class="idp-cancel-btn" [class.idp-program-add]="kpiWorkspaceSection() === 'kpis'" (click)="kpiWorkspaceSection.set('kpis')">KPIs</button>
-                      <button type="button" class="idp-cancel-btn" [class.idp-program-add]="kpiWorkspaceSection() === 'gaps'" (click)="kpiWorkspaceSection.set('gaps')">
-                        Performance Gap Analysis
-                        @if (kpiGapEntries().length) {
-                          <span class="idp-program-count" aria-hidden="true">{{ kpiGapEntries().length }}</span>
-                        }
-                      </button>
+                      <button type="button" class="idp-cancel-btn" [class.idp-program-add]="kpiWorkspaceSection() === 'gaps'" (click)="kpiWorkspaceSection.set('gaps')">Performance Gap Analysis</button>
                     </div>
 
                     @if (kpiWorkspaceSection() === 'kpis') {
