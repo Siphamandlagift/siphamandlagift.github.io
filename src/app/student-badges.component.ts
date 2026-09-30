@@ -249,12 +249,42 @@ type StudentCertificate = {
         @if (selectedCertificateSection() === 'list') {
         <div class="section-heading-row section-heading-row-inner">
           <h3>All Certificates and Licences</h3>
-          <span class="section-badge section-badge-cert">{{ certificates().length }} issued</span>
+          <span class="section-badge section-badge-cert">{{ filteredCertificates().length }} of {{ certificates().length }} issued</span>
         </div>
 
         @if (certificates().length) {
+          <div class="certificate-toolbar">
+            <label class="certificate-search-field">
+              <span>Search</span>
+              <input type="search" [value]="certificateSearchTerm()" (input)="certificateSearchTerm.set($any($event.target).value)" placeholder="Search by name…" />
+            </label>
+            <label class="certificate-search-field">
+              <span>Expiry from</span>
+              <input type="date" [value]="certificateExpiryFrom()" (change)="certificateExpiryFrom.set($any($event.target).value)" />
+            </label>
+            <label class="certificate-search-field">
+              <span>Expiry to</span>
+              <input type="date" [value]="certificateExpiryTo()" (change)="certificateExpiryTo.set($any($event.target).value)" />
+            </label>
+            @if (certificateSearchTerm() || certificateExpiryFrom() || certificateExpiryTo()) {
+              <button type="button" class="secondary-btn" (click)="clearCertificateFilters()">Clear filters</button>
+            }
+          </div>
+        }
+
+        @if (!certificates().length) {
+          <article class="certificate-empty-card">
+            <div class="certificate-empty-title">No certificates yet</div>
+            <p>Earn badges first to generate certificate records in this folder.</p>
+          </article>
+        } @else if (!filteredCertificates().length) {
+          <article class="certificate-empty-card">
+            <div class="certificate-empty-title">No certificates match your search</div>
+            <p>Try a different name or widen the expiry date range.</p>
+          </article>
+        } @else {
           <div class="certificates-list">
-            @for (certificate of certificates(); track certificate.id) {
+            @for (certificate of filteredCertificates(); track certificate.id) {
               <article class="certificate-row">
                 <div class="certificate-mark" [style.background]="certificate.status === 'Active' ? '#16a34a' : (certificate.status === 'Expired' ? '#dc2626' : '#ca8a04')"></div>
                 <div class="certificate-body">
@@ -276,11 +306,6 @@ type StudentCertificate = {
               </article>
             }
           </div>
-        } @else {
-          <article class="certificate-empty-card">
-            <div class="certificate-empty-title">No certificates yet</div>
-            <p>Earn badges first to generate certificate records in this folder.</p>
-          </article>
         }
         }
       }
@@ -655,28 +680,57 @@ type StudentCertificate = {
       z-index: 40;
     }
 
+    .certificate-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 0.75rem;
+      margin-bottom: 0.85rem;
+    }
+
+    .certificate-search-field {
+      display: grid;
+      gap: 0.35rem;
+      flex: 1 1 auto;
+      min-width: 9rem;
+      color: #1f2937;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+
+    .certificate-search-field input {
+      border: 1px solid #dbe7f5;
+      border-radius: 12px;
+      padding: 0.6rem 0.75rem;
+      background: #fff;
+      color: #14213d;
+      font: inherit;
+    }
+
+    .certificate-search-field input:focus {
+      outline: none;
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    }
+
     .certificates-list {
       display: grid;
-      gap: 0.75rem;
+      border-top: 1px solid #e2e8f0;
     }
 
     .certificate-row {
       display: flex;
       align-items: center;
       gap: 0.85rem;
-      border: 1px solid #dbe7f5;
-      border-radius: 18px;
-      background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-      padding: 1rem;
-      box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
+      padding: 0.85rem 0.25rem;
+      border-bottom: 1px solid #e2e8f0;
     }
 
     .certificate-mark {
       align-self: stretch;
       flex-shrink: 0;
-      width: 0.55rem;
+      width: 0.4rem;
       border-radius: 999px;
-      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.65) inset;
     }
 
     .certificate-body {
@@ -1127,6 +1181,15 @@ type StudentCertificate = {
         grid-column: auto;
       }
 
+      .certificate-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .certificate-search-field {
+        min-width: 0;
+      }
+
       .certificate-row {
         flex-direction: column;
         align-items: stretch;
@@ -1164,6 +1227,33 @@ export class StudentBadgesComponent {
   readonly earnedBadges = computed(() => this.studentData.badges().filter((badge) => badge.earned));
   readonly lockedBadges = computed(() => this.studentData.badges().filter((badge) => !badge.earned));
   readonly certificates = this.studentData.certificatesAndLicences;
+  readonly certificateSearchTerm = signal('');
+  readonly certificateExpiryFrom = signal('');
+  readonly certificateExpiryTo = signal('');
+  // expiryDate comes from a native <input type="date">, so it's always a YYYY-MM-DD string —
+  // compares correctly as plain text, same convention normalizeReportDateValue relies on
+  // elsewhere in this app rather than parsing it into a real Date just to compare.
+  readonly filteredCertificates = computed(() => {
+    const query = this.certificateSearchTerm().trim().toLowerCase();
+    const from = this.certificateExpiryFrom();
+    const to = this.certificateExpiryTo();
+
+    return this.certificates().filter((certificate) => {
+      if (query && !certificate.certificationName.toLowerCase().includes(query)) {
+        return false;
+      }
+
+      if (from && certificate.expiryDate && certificate.expiryDate < from) {
+        return false;
+      }
+
+      if (to && certificate.expiryDate && certificate.expiryDate > to) {
+        return false;
+      }
+
+      return true;
+    });
+  });
   private readonly editingCertificateIdSignal = signal<string | null>(null);
   readonly editingCertificateId = computed(() => this.editingCertificateIdSignal());
   private readonly selectedFileDataUrlSignal = signal('');
@@ -1236,6 +1326,13 @@ export class StudentBadgesComponent {
   clearCertificateSection() {
     this.selectedCertificateSectionSignal.set(null);
     this.cancelCertificateEdit();
+    this.clearCertificateFilters();
+  }
+
+  clearCertificateFilters() {
+    this.certificateSearchTerm.set('');
+    this.certificateExpiryFrom.set('');
+    this.certificateExpiryTo.set('');
   }
 
   // The "Cancel edit" button only ever renders while editingCertificateId() is set, which only
