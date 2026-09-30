@@ -13811,7 +13811,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
           continue;
         }
 
-        const matchedCourse = studentCourses.find((course) => course.offeringId === offeringId || course.name === courseTitle);
+        const matchedCourse = this.findReportCourseRecord(studentCourses, offeringId, courseTitle);
         const rawCompletedAt = matchedCourse?.completedAt ?? '';
         const marks = approvedAssignmentsByStudentOffering.get(`${student.id}::${offeringId}`);
 
@@ -16839,6 +16839,18 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     return 'Not Yet Started';
   }
 
+  // Two-pass lookup rather than a single find() with an OR — two offerings can legitimately
+  // share a title (a course re-run for a new cohort, a copy-pasted name), and a student can be
+  // enrolled in both. A single OR condition would match whichever course happens to come first
+  // in the array as soon as EITHER its offeringId OR its name matched, so a same-titled but
+  // unrelated course could shadow the real offeringId match sitting later in the array. Matching
+  // offeringId exhaustively first, and only falling back to name for legacy records that have no
+  // offeringId at all, guarantees the exact offering always wins when it's present.
+  private findReportCourseRecord(courses: StudentCourse[], offeringId: string, courseTitle: string) {
+    return courses.find((course) => course.offeringId === offeringId)
+      ?? courses.find((course) => !course.offeringId && course.name === courseTitle);
+  }
+
   private resolveReportCompletionStatus(student: EnrollmentStudent, offeringId: string, courseTitle: string): EnrollmentStudent['status'] {
     const courses = this.reportStudentCoursesById()[student.id];
 
@@ -16847,9 +16859,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       return student.status;
     }
 
-    const matchedCourse = courses.find((course) =>
-      course.offeringId === offeringId || course.name === courseTitle,
-    );
+    const matchedCourse = this.findReportCourseRecord(courses, offeringId, courseTitle);
 
     // Snapshot is loaded but no course record for this offering — the student hasn't started it.
     if (!matchedCourse) {
@@ -16864,9 +16874,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   }
 
   private resolveReportCompletionDate(student: EnrollmentStudent, offeringId: string, courseTitle: string) {
-    const matchedCourse = (this.reportStudentCoursesById()[student.id] ?? []).find((course) =>
-      course.offeringId === offeringId || course.name === courseTitle,
-    );
+    const matchedCourse = this.findReportCourseRecord(this.reportStudentCoursesById()[student.id] ?? [], offeringId, courseTitle);
 
     if (!matchedCourse) {
       return student.status === 'Completed' ? 'Not recorded' : 'Not completed';

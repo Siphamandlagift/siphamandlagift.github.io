@@ -970,30 +970,42 @@ export class StudentDataService {
     this.persistStudentSnapshot();
   }
 
-  syncCourseProgress(courseName: string, progress: number) {
+  // Identifies the course by offeringId when the caller has one, falling back to name only for
+  // legacy course records that predate offeringId — the same "prefer offeringId, name is only a
+  // fallback" rule syncPublishedOfferingsToLearnerCourses and the courseStepKey migration above
+  // already enforce. Matching on name alone here (as this used to) meant two offerings that happen
+  // to share a title — an already-acknowledged, legitimate case elsewhere in this file (a course
+  // re-run for a new cohort, a copy-pasted name) — had their progress/completed state silently
+  // shared: finishing steps in one bumped (or wrongly flipped "Completed" on) the other, unrelated
+  // course's card too, since course.name === courseName matched both rows.
+  syncCourseProgress(course: { offeringId?: string; name: string }, progress: number) {
     const normalizedProgress = Math.max(0, Math.min(100, Math.round(progress)));
     let updatedCourse: StudentCourse | null = null;
     let justCompleted = false;
 
     this.coursesSignal.update((courses) =>
-      courses.map((course) => {
-        if (course.name !== courseName) {
-          return course;
+      courses.map((existingCourse) => {
+        const isMatch = course.offeringId
+          ? existingCourse.offeringId === course.offeringId
+          : existingCourse.name === course.name;
+
+        if (!isMatch) {
+          return existingCourse;
         }
 
-        const nextProgress = Math.max(course.progress ?? 0, normalizedProgress);
-        const nextCompleted = course.completed || nextProgress >= 100;
-        const nextCompletedAt = nextCompleted ? (course.completedAt ?? this.createCompletionDateStamp()) : course.completedAt;
+        const nextProgress = Math.max(existingCourse.progress ?? 0, normalizedProgress);
+        const nextCompleted = existingCourse.completed || nextProgress >= 100;
+        const nextCompletedAt = nextCompleted ? (existingCourse.completedAt ?? this.createCompletionDateStamp()) : existingCourse.completedAt;
 
-        if ((course.progress ?? 0) === nextProgress && course.completed === nextCompleted && course.completedAt === nextCompletedAt) {
-          updatedCourse = course;
-          return course;
+        if ((existingCourse.progress ?? 0) === nextProgress && existingCourse.completed === nextCompleted && existingCourse.completedAt === nextCompletedAt) {
+          updatedCourse = existingCourse;
+          return existingCourse;
         }
 
-        justCompleted = nextCompleted && !course.completed;
+        justCompleted = nextCompleted && !existingCourse.completed;
 
         updatedCourse = {
-          ...course,
+          ...existingCourse,
           progress: nextProgress,
           completed: nextCompleted,
           completedAt: nextCompletedAt,

@@ -3280,9 +3280,16 @@ export class StudentCoursesComponent {
         return;
       }
 
-      const matchingCourse = [...this.studentData.inProgressCourses(), ...this.studentData.completedCourses()].find((course) =>
-        (request.offeringId && course.offeringId === request.offeringId) || course.name === request.courseName,
-      );
+      // Prefer an exact offeringId match outright rather than OR-ing it with a name match — two
+      // offerings can legitimately share a title (a course re-run for a new cohort, a
+      // copy-pasted name), and an OR condition lets whichever one happens to come first in the
+      // array win even when a different row further down is the actual offeringId match. Name
+      // matching is only a fallback for legacy course records that predate offeringId.
+      const navigableCourses = [...this.studentData.inProgressCourses(), ...this.studentData.completedCourses()];
+      const matchingCourse = request.offeringId
+        ? navigableCourses.find((course) => course.offeringId === request.offeringId)
+          ?? navigableCourses.find((course) => !course.offeringId && course.name === request.courseName)
+        : navigableCourses.find((course) => course.name === request.courseName);
 
       if (!matchingCourse) {
         this.studentData.clearCourseNavigationRequest();
@@ -3314,9 +3321,13 @@ export class StudentCoursesComponent {
       }
 
       const nextProgress = this.calculateCourseProgress(course, workspace.steps);
-      const updatedCourse = this.studentData.syncCourseProgress(course.name, nextProgress);
+      const updatedCourse = this.studentData.syncCourseProgress({ offeringId: course.offeringId, name: course.name }, nextProgress);
 
-      if (updatedCourse && this.selectedCourse()?.name === course.name) {
+      const isSameCourse = course.offeringId
+        ? this.selectedCourse()?.offeringId === course.offeringId
+        : this.selectedCourse()?.name === course.name;
+
+      if (updatedCourse && isSameCourse) {
         this.selectedCourse.set(updatedCourse);
       }
     });
