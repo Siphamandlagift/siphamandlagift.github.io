@@ -8924,6 +8924,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       gap: 1rem;
       width: 100%;
       max-width: 100%;
+      min-width: 0;
     }
 
     .admin-report-content-stack {
@@ -8962,6 +8963,11 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .admin-report-open-card {
       gap: 1.15rem;
+      /* A grid item's automatic minimum size defaults to its content's min-content size, which for
+         a wide report table (30+ SETA columns) is far more than this card's available width —
+         without this, the card (and the whole picker grid) stretches to fit the table instead of
+         the table scrolling inside its own .admin-report-table-wrap (overflow-x: auto). */
+      min-width: 0;
     }
 
     .admin-report-open-header {
@@ -10377,6 +10383,11 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
          box's own bottom edge on a short/filtered-empty table without being clipped. The toolbar
          below gets the top corners rounded directly instead, which is the only place a clip was
          actually covering for. */
+      /* This box is itself a grid item of .admin-report-content-stack. Without an explicit
+         min-width, its automatic minimum size is its content's min-content size — a wide table
+         (16+ columns) — which forces the whole card wider instead of scrolling inside the nested
+         .admin-report-table-wrap (overflow-x: auto). */
+      min-width: 0;
     }
 
     .admin-report-table-box .admin-report-table-wrap {
