@@ -1168,6 +1168,17 @@ type KpiEntryFormGroup = FormGroup<{
                       }
                     </div>
 
+                    <div class="kpi-approval-view-tabs">
+                      <button type="button" class="idp-cancel-btn" [class.idp-program-add]="kpiWorkspaceSection() === 'kpis'" (click)="kpiWorkspaceSection.set('kpis')">KPIs</button>
+                      <button type="button" class="idp-cancel-btn" [class.idp-program-add]="kpiWorkspaceSection() === 'gaps'" (click)="kpiWorkspaceSection.set('gaps')">
+                        Performance Gap Analysis
+                        @if (kpiGapEntries().length) {
+                          <span class="idp-program-count" aria-hidden="true">{{ kpiGapEntries().length }}</span>
+                        }
+                      </button>
+                    </div>
+
+                    @if (kpiWorkspaceSection() === 'kpis') {
                     <div class="activity-card mentorship-review-card">
                       @if (!isViewingCurrentKpiYear() || (kpiHasSavedEntries() && !kpiEditMode())) {
                     <!-- Read-only view -->
@@ -1390,7 +1401,9 @@ type KpiEntryFormGroup = FormGroup<{
                     </form>
                   }
                     </div>
+                    }
 
+                    @if (kpiWorkspaceSection() === 'gaps') {
                     <div class="activity-card kpi-gap-card">
                       <div class="idp-program-card-header kpi-gap-card-header">
                         <div class="idp-program-card-title-shell">
@@ -1482,6 +1495,7 @@ type KpiEntryFormGroup = FormGroup<{
                         }
                       }
                     </div>
+                    }
                   </div>
                 </div>
               }
@@ -7796,6 +7810,9 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   readonly selectedKpiStudentId = signal<string | null>(null);
   readonly kpiSaved = signal(false);
   readonly kpiEditMode = signal(false);
+  // Which card is showing inside a selected student's KPI overlay — the KPI table itself, or
+  // the Performance Gap Analysis card that used to always render stacked underneath it.
+  readonly kpiWorkspaceSection = signal<'kpis' | 'gaps'>('kpis');
   readonly kpiMemberSearchTerm = signal('');
   // Which team-member list is showing when no student is selected yet — "All KPIs" (every
   // student, as before) or "Awaiting My Approval" (cross-team, see kpiApprovalsAwaitingMe).
@@ -8172,6 +8189,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     const hasSaved = (this.kpiEntriesByStudent()[studentId]?.length ?? 0) > 0;
     this.kpiEditMode.set(!hasSaved);
     this.kpiSaved.set(false);
+    this.kpiWorkspaceSection.set('kpis');
   }
 
   clearKpiStudent() {
@@ -8180,6 +8198,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
     this.kpiEditMode.set(false);
     this.kpiSaved.set(false);
     this.gapAnalysisDraft.set({});
+    this.kpiWorkspaceSection.set('kpis');
   }
 
   // Switches which year's table is on screen for the selected student. Always drops out of edit
