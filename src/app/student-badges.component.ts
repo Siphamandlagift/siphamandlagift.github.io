@@ -253,9 +253,9 @@ type StudentCertificate = {
         </div>
 
         @if (certificates().length) {
-          <div class="certificates-grid">
+          <div class="certificates-list">
             @for (certificate of certificates(); track certificate.id) {
-              <article class="certificate-card">
+              <article class="certificate-row">
                 <div class="certificate-mark" [style.background]="certificate.status === 'Active' ? '#16a34a' : (certificate.status === 'Expired' ? '#dc2626' : '#ca8a04')"></div>
                 <div class="certificate-body">
                   <div class="certificate-title">{{ certificate.certificationName }}</div>
@@ -266,12 +266,12 @@ type StudentCertificate = {
                   <div class="certificate-meta">Reminder Notification: {{ certificate.reminderNotification }}</div>
                   <div class="certificate-meta">Days Before Expiry Alert: {{ certificate.reminderNotification === 'Yes' ? certificate.reminderDaysBeforeExpiry : 'Not set' }}</div>
                   <div class="certificate-meta">File: {{ certificate.fileName || 'No file uploaded' }}</div>
-                  <div class="certificate-actions">
-                    <button type="button" class="secondary-btn" (click)="startCertificateEdit(certificate)">Edit</button>
-                    @if (certificate.fileUrl || certificate.fileDataUrl) {
-                      <a class="secondary-btn secondary-btn-link" [href]="certificate.fileUrl || certificate.fileDataUrl" [download]="certificate.fileName || 'certificate-file'">Download file</a>
-                    }
-                  </div>
+                </div>
+                <div class="certificate-actions">
+                  <button type="button" class="secondary-btn" (click)="startCertificateEdit(certificate)">Edit</button>
+                  @if (certificate.fileUrl || certificate.fileDataUrl) {
+                    <a class="secondary-btn secondary-btn-link" [href]="certificate.fileUrl || certificate.fileDataUrl" [download]="certificate.fileName || 'certificate-file'">Download file</a>
+                  }
                 </div>
               </article>
             }
@@ -655,17 +655,15 @@ type StudentCertificate = {
       z-index: 40;
     }
 
-    .certificates-grid {
+    .certificates-list {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-      gap: 1rem;
+      gap: 0.75rem;
     }
 
-    .certificate-card {
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
+    .certificate-row {
+      display: flex;
+      align-items: center;
       gap: 0.85rem;
-      align-items: start;
       border: 1px solid #dbe7f5;
       border-radius: 18px;
       background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
@@ -674,13 +672,16 @@ type StudentCertificate = {
     }
 
     .certificate-mark {
+      align-self: stretch;
+      flex-shrink: 0;
       width: 0.55rem;
-      min-height: 100%;
       border-radius: 999px;
       box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.65) inset;
     }
 
     .certificate-body {
+      flex: 1 1 auto;
+      min-width: 0;
       display: grid;
       gap: 0.3rem;
     }
@@ -860,11 +861,12 @@ type StudentCertificate = {
     }
 
     .certificate-actions {
+      flex-shrink: 0;
       display: flex;
       gap: 0.5rem;
       align-items: center;
       flex-wrap: wrap;
-      margin-top: 0.35rem;
+      margin-left: auto;
     }
 
     .certificate-title {
@@ -1123,6 +1125,20 @@ type StudentCertificate = {
 
       .certificate-form-span-2 {
         grid-column: auto;
+      }
+
+      .certificate-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .certificate-mark {
+        width: 100%;
+        height: 0.4rem;
+      }
+
+      .certificate-actions {
+        margin-left: 0;
       }
 
       .badge-detail-header {
