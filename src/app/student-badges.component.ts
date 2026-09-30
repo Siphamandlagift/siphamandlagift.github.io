@@ -283,28 +283,52 @@ type StudentCertificate = {
             <p>Try a different name or widen the expiry date range.</p>
           </article>
         } @else {
-          <div class="certificates-list">
-            @for (certificate of filteredCertificates(); track certificate.id) {
-              <article class="certificate-row">
-                <div class="certificate-mark" [style.background]="certificate.status === 'Active' ? '#16a34a' : (certificate.status === 'Expired' ? '#dc2626' : '#ca8a04')"></div>
-                <div class="certificate-body">
-                  <div class="certificate-title">{{ certificate.certificationName }}</div>
-                  <div class="certificate-meta">Completion Date: {{ certificate.completionDate }}</div>
-                  <div class="certificate-meta">Expiry Date: {{ certificate.expiryDate }}</div>
-                  <div class="certificate-meta">Status: {{ certificate.status }}</div>
-                  <div class="certificate-meta">Renewal Required: {{ certificate.renewalRequired }}</div>
-                  <div class="certificate-meta">Reminder Notification: {{ certificate.reminderNotification }}</div>
-                  <div class="certificate-meta">Days Before Expiry Alert: {{ certificate.reminderNotification === 'Yes' ? certificate.reminderDaysBeforeExpiry : 'Not set' }}</div>
-                  <div class="certificate-meta">File: {{ certificate.fileName || 'No file uploaded' }}</div>
-                </div>
-                <div class="certificate-actions">
-                  <button type="button" class="secondary-btn" (click)="startCertificateEdit(certificate)">Edit</button>
-                  @if (certificate.fileUrl || certificate.fileDataUrl) {
-                    <a class="secondary-btn secondary-btn-link" [href]="certificate.fileUrl || certificate.fileDataUrl" [download]="certificate.fileName || 'certificate-file'">Download file</a>
-                  }
-                </div>
-              </article>
-            }
+          <div class="certificate-table-wrap">
+            <table class="certificate-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Completed</th>
+                  <th>Expires</th>
+                  <th>Status</th>
+                  <th>Renewal</th>
+                  <th>Reminder</th>
+                  <th>Alert Days</th>
+                  <th>File</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (certificate of filteredCertificates(); track certificate.id) {
+                  <tr>
+                    <td class="certificate-table-name">{{ certificate.certificationName }}</td>
+                    <td>{{ certificate.completionDate }}</td>
+                    <td>{{ certificate.expiryDate }}</td>
+                    <td>
+                      <span
+                        class="certificate-status-pill"
+                        [class.certificate-status-pill-active]="certificate.status === 'Active'"
+                        [class.certificate-status-pill-expired]="certificate.status === 'Expired'"
+                        [class.certificate-status-pill-pending]="certificate.status === 'Pending Renewal'">
+                        {{ certificate.status }}
+                      </span>
+                    </td>
+                    <td>{{ certificate.renewalRequired }}</td>
+                    <td>{{ certificate.reminderNotification }}</td>
+                    <td>{{ certificate.reminderNotification === 'Yes' ? certificate.reminderDaysBeforeExpiry : 'Not set' }}</td>
+                    <td>{{ certificate.fileName || 'No file' }}</td>
+                    <td>
+                      <div class="certificate-actions">
+                        <button type="button" class="secondary-btn" (click)="startCertificateEdit(certificate)">Edit</button>
+                        @if (certificate.fileUrl || certificate.fileDataUrl) {
+                          <a class="secondary-btn secondary-btn-link" [href]="certificate.fileUrl || certificate.fileDataUrl" [download]="certificate.fileName || 'certificate-file'">Download</a>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
           </div>
         }
         }
@@ -713,31 +737,70 @@ type StudentCertificate = {
       box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
     }
 
-    .certificates-list {
-      display: grid;
+    .certificate-table-wrap {
+      overflow-x: auto;
       border-top: 1px solid #e2e8f0;
+      border-radius: 12px;
     }
 
-    .certificate-row {
-      display: flex;
-      align-items: center;
-      gap: 0.85rem;
-      padding: 0.85rem 0.25rem;
+    .certificate-table {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+    }
+
+    .certificate-table th,
+    .certificate-table td {
+      padding: 0.65rem 0.75rem;
+      text-align: left;
       border-bottom: 1px solid #e2e8f0;
+      font-size: 0.84rem;
+      color: #14213d;
+      white-space: nowrap;
     }
 
-    .certificate-mark {
-      align-self: stretch;
-      flex-shrink: 0;
-      width: 0.4rem;
+    .certificate-table th {
+      color: #64748b;
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .certificate-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .certificate-table-name {
+      font-weight: 700;
+      white-space: normal;
+    }
+
+    .certificate-status-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.6rem;
       border-radius: 999px;
+      background: #f1f5f9;
+      color: #475569;
+      font-size: 0.72rem;
+      font-weight: 700;
+      white-space: nowrap;
     }
 
-    .certificate-body {
-      flex: 1 1 auto;
-      min-width: 0;
-      display: grid;
-      gap: 0.3rem;
+    .certificate-status-pill-active {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .certificate-status-pill-expired {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .certificate-status-pill-pending {
+      background: #fef3c7;
+      color: #92400e;
     }
 
     .certificate-form {
@@ -915,25 +978,12 @@ type StudentCertificate = {
     }
 
     .certificate-actions {
-      flex-shrink: 0;
       display: flex;
       gap: 0.5rem;
       align-items: center;
       flex-wrap: wrap;
-      margin-left: auto;
     }
 
-    .certificate-title {
-      color: #14213d;
-      font-size: 0.98rem;
-      font-weight: 800;
-      line-height: 1.35;
-    }
-
-    .certificate-meta {
-      color: #64748b;
-      font-size: 0.86rem;
-    }
 
     .certificate-empty-card {
       border: 1px dashed #cbd5e1;
@@ -1188,20 +1238,6 @@ type StudentCertificate = {
 
       .certificate-search-field {
         min-width: 0;
-      }
-
-      .certificate-row {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .certificate-mark {
-        width: 100%;
-        height: 0.4rem;
-      }
-
-      .certificate-actions {
-        margin-left: 0;
       }
 
       .badge-detail-header {
