@@ -1884,7 +1884,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                             <table class="admin-report-table">
                               <thead>
                                 <tr>
-                                  <th>
+                                  <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'name'">
                                     <div class="admin-report-th-content">
                                       <span>Name</span>
                                       <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!annualReportSearchTerm()" (click)="toggleAnnualReportFilterColumn('name')" aria-label="Search by name, training item, or provider">
@@ -1900,7 +1900,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th>Email</th>
                                   <th>ID Number</th>
                                   <th>Job Title</th>
-                                  <th>
+                                  <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'department'">
                                     <div class="admin-report-th-content">
                                       <span>Department</span>
                                       <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!selectedAnnualReportDepartment()" (click)="toggleAnnualReportFilterColumn('department')" aria-label="Filter by department">
@@ -1923,7 +1923,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th>Gender</th>
                                   <th>Municipality</th>
                                   <th>Training Item</th>
-                                  <th>
+                                  <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'source'">
                                     <div class="admin-report-th-content">
                                       <span>Source</span>
                                       <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="selectedAnnualReportSource() !== 'All'" (click)="toggleAnnualReportFilterColumn('source')" aria-label="Filter by source">
@@ -1943,7 +1943,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <th>Type</th>
                                   <th>Result</th>
                                   <th>Provider</th>
-                                  <th>
+                                  <th [class.admin-report-th-active]="annualReportOpenFilterColumn() === 'date'">
                                     <div class="admin-report-th-content">
                                       <span>Date</span>
                                       <button type="button" class="admin-report-th-filter-btn" [class.admin-report-th-filter-btn-active]="!!(selectedAnnualReportDateFrom() || selectedAnnualReportDateTo())" (click)="toggleAnnualReportFilterColumn('date')" aria-label="Filter by date range">
@@ -7622,6 +7622,20 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       letter-spacing: 0.05em;
       text-transform: uppercase;
       z-index: 1;
+    }
+
+    /* A header's own z-index:1 above puts it (and everything painted inside it, including its
+       filter popover) in a stacking context that a plain z-index:40 on the popover alone can't
+       escape — that z-index is only compared against the popover's OWN siblings inside this <th>,
+       not against the popover-backdrop button sitting elsewhere in the DOM at z-index:39. Without
+       this, the transparent backdrop silently wins that outer comparison and sits in front of the
+       popover, swallowing every click/keystroke meant for its input or select — the exact "the
+       popover shows but doesn't respond" bug. Bumping the ACTIVE header itself above the backdrop
+       (rather than raising every header's z-index unconditionally, which isn't needed when no
+       popover is open) fixes it without disturbing the sticky-header stacking the rest of the
+       time. */
+    .admin-report-table th.admin-report-th-active {
+      z-index: 50;
     }
 
     .survey-result-card-grid {
