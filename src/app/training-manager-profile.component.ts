@@ -1509,8 +1509,7 @@ type KpiEntryFormGroup = FormGroup<{
                 <p class="kpi-year-prompt-error" role="alert">{{ successionActionError() }}</p>
               }
 
-              @if (!selectedSuccessionRoleId()) {
-                @if (myTeam().length) {
+              @if (myTeam().length) {
                   <div class="succession-stats-row">
                     <div class="succession-stat-card">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h13A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5v-9Z" stroke="currentColor" stroke-width="1.8"/><path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7" stroke="currentColor" stroke-width="1.8"/></svg>
@@ -1601,17 +1600,28 @@ type KpiEntryFormGroup = FormGroup<{
                     No team members are assigned to you yet — an administrator sets each employee's Line Manager under User Management.
                   </div>
                 }
-              } @else if (selectedSuccessionRole(); as role) {
+
+              @if (selectedSuccessionRole(); as role) {
+                <!-- Role detail pops out into a bigger overlay so the editable fields and the
+                     nomination table have room to breathe, same pattern as the per-student KPI
+                     overlay above — see .kpi-overlay for the shared layout/CSS. -->
+                <div class="kpi-overlay" role="dialog" aria-modal="true" aria-labelledby="succession-overlay-title">
+                  <button type="button" class="kpi-overlay-backdrop" aria-label="Close position details" (click)="clearSuccessionRole()"></button>
+                  <div class="kpi-overlay-panel">
                 <div class="idp-detail-header">
                   <button type="button" class="idp-back-btn" (click)="clearSuccessionRole()">← Back to team</button>
                   <div class="idp-detail-identity">
                     <div class="succession-avatar succession-avatar-lg succession-avatar-critical" aria-hidden="true">{{ successorInitials(role.incumbentStudentId) }}</div>
                     <div>
-                      <h2 class="idp-detail-name">{{ role.title }}</h2>
+                      <h2 class="idp-detail-name" id="succession-overlay-title">{{ role.title }}</h2>
                       <span class="idp-detail-meta">{{ role.department }} · {{ successorName(role.incumbentStudentId) }}</span>
                     </div>
                   </div>
                 </div>
+
+                @if (successionActionError()) {
+                  <p class="kpi-year-prompt-error" role="alert">{{ successionActionError() }}</p>
+                }
 
                 <div class="activity-card mentorship-review-card">
                   <div class="idp-program-actions succession-unflag-row">
@@ -1831,6 +1841,8 @@ type KpiEntryFormGroup = FormGroup<{
                       }
                     </div>
                   }
+                </div>
+                  </div>
                 </div>
               }
             </section>
@@ -6900,6 +6912,11 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
     if (this.selectedPanel() === 'performance' && this.selectedKpiStudentId()) {
       this.clearKpiStudent();
+      return;
+    }
+
+    if (this.selectedPanel() === 'succession' && this.selectedSuccessionRoleId()) {
+      this.clearSuccessionRole();
     }
   }
 
