@@ -5679,8 +5679,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
             <section class="admin-panel">
               <div class="section-heading-block">
                 <p class="eyebrow">Succession Planning</p>
-                <h1>Company-wide succession overview</h1>
-                <p class="section-copy">Read-only — each manager flags critical roles on their own team and manages nominations for them directly.</p>
               </div>
 
               <div class="admin-report-actions succession-org-view-tabs">
@@ -5844,8 +5842,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
             <section class="admin-panel">
               <div class="section-heading-block">
                 <p class="eyebrow">Training Providers</p>
-                <h1>Provider Directory</h1>
-                <p class="section-copy">Accredited training providers, vendors and institutions your company works with.</p>
               </div>
 
               <section class="admin-section-card">
@@ -6014,8 +6010,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
             <section class="admin-panel">
               <div class="section-heading-block">
                 <p class="eyebrow">Training Programmes</p>
-                <h1>Programme Directory</h1>
-                <p class="section-copy">Structured learning programmes — their accreditation, structure, and the providers/courses linked to them.</p>
               </div>
 
               <section class="admin-section-card">
@@ -7408,7 +7402,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <svg width="38" height="38" viewBox="0 0 24 24" fill="none"><path d="M9 7h6M9 11h6M9 15h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="4.5" y="4.5" width="15" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="m8 18.5 1.5 1.5L13 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                 </span>
                                 <strong>Add a survey unit</strong>
-                                <span>Collect learner feedback with choice, text, rating, date, and file-upload questions.</span>
                               </button>
                               <button type="button" class="course-studio-empty-card" (click)="openExistingQuizPicker()">
                                 <span class="course-studio-upload-icon" aria-hidden="true">
@@ -7810,9 +7803,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
           @if (selectedPanel() === 'enrollment') {
             <section class="manager-panel">
               <div class="section-heading-row">
-                <div class="section-heading-block">
-                  <h1>Assign students to created courses</h1>
-                </div>
                 <button type="button" class="admin-primary-btn" (click)="openAssignWizard()">+ New assignment</button>
               </div>
 
