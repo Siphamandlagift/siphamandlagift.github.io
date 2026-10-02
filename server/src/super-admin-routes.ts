@@ -92,6 +92,7 @@ const addCompanyDocumentSchema = z.object({
   label: z.string().min(1).max(200),
   fileName: z.string().min(1).max(255),
   url: z.string().url(),
+  slot: z.enum(['sla', 'invoice']).optional(),
 });
 
 const strongPasswordSchema = z.string().refine(isStrongPassword, { message: passwordPolicyMessage });

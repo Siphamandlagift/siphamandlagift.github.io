@@ -1205,12 +1205,20 @@ export type CompanyCostSettings = {
   setupCost: number | null;
 };
 
+// A document with a `slot` occupies one of the two standard, single-file slots (Service Level
+// Agreement / Invoice) shown above the free-form list — uploading a new file to an occupied slot
+// replaces it rather than adding a duplicate (see addCompanyDocument in platform-repository.ts).
+// A document with no `slot` is a plain "additional document" with a free-text label, and there
+// can be any number of those.
+export type CompanyDocumentSlot = 'sla' | 'invoice';
+
 export type CompanyDocumentRecord = {
   id: string;
   label: string;
   fileName: string;
   url: string;
   uploadedAt: string;
+  slot?: CompanyDocumentSlot;
 };
 
 export type PlatformRole = 'super-admin';
@@ -1269,6 +1277,7 @@ export type AddCompanyDocumentInput = {
   label: string;
   fileName: string;
   url: string;
+  slot?: CompanyDocumentSlot;
 };
 
 // No name field — AuthAccountRecord itself has none (an account's display name is always derived

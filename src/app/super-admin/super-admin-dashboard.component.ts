@@ -5,6 +5,8 @@ import { Router } from '@angular/router';
 import { finalize, switchMap } from 'rxjs';
 import {
   AdministratorAccountSummary,
+  CompanyDocument,
+  CompanyDocumentSlot,
   CompanyWithUsage,
   PlatformBackendService,
   PlatformBrandingSettings,
@@ -597,13 +599,58 @@ type CompanyViewSection = 'subscription' | 'admins' | 'branding' | 'management';
 
               <div class="overlay-divider"></div>
               <h4 class="overlay-subheading">Documents</h4>
-              <p class="branding-hint">
-                Invoices, the signed Service Level Agreement, or any other file worth keeping on file for
-                {{ company.name }}.
-              </p>
+              <p class="branding-hint">Two standard documents, kept on file for {{ company.name }}.</p>
 
               <div class="admin-list">
-                @for (document of company.documents ?? []; track document.id) {
+                <div class="admin-list-row">
+                  <span class="admin-list-email">Service Level Agreement</span>
+                  @if (slaDocument(company); as document) {
+                    <div class="admin-reset-inline">
+                      <a [href]="document.url" target="_blank" rel="noopener" class="inline-btn">Download</a>
+                      <label class="inline-btn branding-upload-btn">
+                        <span>{{ uploadingDocumentSlot() === 'sla' ? 'Uploading…' : 'Replace' }}</span>
+                        <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,image/png,image/jpeg" [disabled]="!!uploadingDocumentSlot()" (change)="onSlotDocumentFileSelected($event, 'sla')" />
+                      </label>
+                      <button type="button" class="inline-btn" [disabled]="removingDocumentId() === document.id" (click)="removeDocument(document.id)">
+                        {{ removingDocumentId() === document.id ? 'Removing…' : 'Remove' }}
+                      </button>
+                    </div>
+                  } @else {
+                    <label class="inline-btn branding-upload-btn">
+                      <span>{{ uploadingDocumentSlot() === 'sla' ? 'Uploading…' : 'Upload' }}</span>
+                      <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,image/png,image/jpeg" [disabled]="!!uploadingDocumentSlot()" (change)="onSlotDocumentFileSelected($event, 'sla')" />
+                    </label>
+                  }
+                </div>
+
+                <div class="admin-list-row">
+                  <span class="admin-list-email">Invoice</span>
+                  @if (invoiceDocument(company); as document) {
+                    <div class="admin-reset-inline">
+                      <a [href]="document.url" target="_blank" rel="noopener" class="inline-btn">Download</a>
+                      <label class="inline-btn branding-upload-btn">
+                        <span>{{ uploadingDocumentSlot() === 'invoice' ? 'Uploading…' : 'Replace' }}</span>
+                        <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,image/png,image/jpeg" [disabled]="!!uploadingDocumentSlot()" (change)="onSlotDocumentFileSelected($event, 'invoice')" />
+                      </label>
+                      <button type="button" class="inline-btn" [disabled]="removingDocumentId() === document.id" (click)="removeDocument(document.id)">
+                        {{ removingDocumentId() === document.id ? 'Removing…' : 'Remove' }}
+                      </button>
+                    </div>
+                  } @else {
+                    <label class="inline-btn branding-upload-btn">
+                      <span>{{ uploadingDocumentSlot() === 'invoice' ? 'Uploading…' : 'Upload' }}</span>
+                      <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,image/png,image/jpeg" [disabled]="!!uploadingDocumentSlot()" (change)="onSlotDocumentFileSelected($event, 'invoice')" />
+                    </label>
+                  }
+                </div>
+              </div>
+
+              <div class="overlay-divider"></div>
+              <h4 class="overlay-subheading">Additional documents</h4>
+              <p class="branding-hint">Anything else worth keeping on file for {{ company.name }}.</p>
+
+              <div class="admin-list">
+                @for (document of additionalDocuments(company); track document.id) {
                   <div class="admin-list-row">
                     <span class="admin-list-email">{{ document.label }}</span>
                     <div class="admin-reset-inline">
@@ -614,7 +661,7 @@ type CompanyViewSection = 'subscription' | 'admins' | 'branding' | 'management';
                     </div>
                   </div>
                 } @empty {
-                  <div class="empty-state">No documents yet — add the first one below.</div>
+                  <div class="empty-state">No additional documents yet.</div>
                 }
               </div>
 
@@ -623,19 +670,19 @@ type CompanyViewSection = 'subscription' | 'admins' | 'branding' | 'management';
               }
 
               <div class="overlay-divider"></div>
-              <h4 class="overlay-subheading">Add document</h4>
+              <h4 class="overlay-subheading">Add additional document</h4>
 
               <label>
                 <span>Label</span>
-                <input type="text" name="newDocumentLabel" [(ngModel)]="newDocumentLabel" placeholder="e.g. 2026 Service Level Agreement" />
+                <input type="text" name="newDocumentLabel" [(ngModel)]="newDocumentLabel" placeholder="e.g. Signed onboarding contract" />
               </label>
 
               <label class="secondary-btn branding-upload-btn">
-                <span>{{ uploadingCompanyDocument() ? 'Uploading…' : 'Upload document' }}</span>
+                <span>{{ uploadingDocumentSlot() === 'additional' ? 'Uploading…' : 'Upload document' }}</span>
                 <input
                   type="file"
                   accept=".pdf,.doc,.docx,.xls,.xlsx,image/png,image/jpeg"
-                  [disabled]="uploadingCompanyDocument()"
+                  [disabled]="!!uploadingDocumentSlot()"
                   (change)="onCompanyDocumentFileSelected($event)" />
               </label>
 
@@ -2306,11 +2353,58 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
       });
   }
 
+  // 'sla' | 'invoice' while that standard slot is uploading, 'additional' while the free-form
+  // uploader below is — only one upload at a time, so a single signal covers all three controls.
+  readonly uploadingDocumentSlot = signal<CompanyDocumentSlot | 'additional' | null>(null);
   newDocumentLabel = '';
-  readonly uploadingCompanyDocument = signal(false);
   readonly addDocumentError = signal('');
   readonly removingDocumentId = signal<string | null>(null);
   readonly removeDocumentError = signal('');
+
+  slaDocument(company: CompanyWithUsage): CompanyDocument | undefined {
+    return company.documents?.find((document) => document.slot === 'sla');
+  }
+
+  invoiceDocument(company: CompanyWithUsage): CompanyDocument | undefined {
+    return company.documents?.find((document) => document.slot === 'invoice');
+  }
+
+  additionalDocuments(company: CompanyWithUsage): CompanyDocument[] {
+    return company.documents?.filter((document) => !document.slot) ?? [];
+  }
+
+  // Shared by both standard-slot upload controls (Service Level Agreement / Invoice) — the slot
+  // itself carries which one, and the server replaces whatever previously occupied that slot
+  // rather than adding a duplicate (see addCompanyDocument in platform-repository.ts).
+  onSlotDocumentFileSelected(event: Event, slot: CompanyDocumentSlot) {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (input) {
+      input.value = '';
+    }
+
+    const companyId = this.activeCompanyId();
+    if (!file || !companyId || this.uploadingDocumentSlot()) {
+      return;
+    }
+
+    const label = slot === 'sla' ? 'Service Level Agreement' : 'Invoice';
+
+    this.addDocumentError.set('');
+    this.uploadingDocumentSlot.set(slot);
+
+    this.backend.uploadCompanyDocumentFile(file, companyId)
+      .pipe(
+        switchMap((uploaded) => this.backend.addCompanyDocument(companyId, { label, fileName: file.name, url: uploaded.url, slot })),
+        finalize(() => this.uploadingDocumentSlot.set(null)),
+      )
+      .subscribe({
+        next: () => this.loadAll(),
+        error: (error) => {
+          this.addDocumentError.set(error?.error?.message || `Could not upload "${file.name}". Please check your connection and try again.`);
+        },
+      });
+  }
 
   onCompanyDocumentFileSelected(event: Event) {
     const input = event.target as HTMLInputElement | null;
@@ -2320,19 +2414,19 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
     }
 
     const companyId = this.activeCompanyId();
-    if (!file || !companyId || this.uploadingCompanyDocument()) {
+    if (!file || !companyId || this.uploadingDocumentSlot()) {
       return;
     }
 
     const label = this.newDocumentLabel.trim() || file.name;
 
     this.addDocumentError.set('');
-    this.uploadingCompanyDocument.set(true);
+    this.uploadingDocumentSlot.set('additional');
 
     this.backend.uploadCompanyDocumentFile(file, companyId)
       .pipe(
         switchMap((uploaded) => this.backend.addCompanyDocument(companyId, { label, fileName: file.name, url: uploaded.url })),
-        finalize(() => this.uploadingCompanyDocument.set(false)),
+        finalize(() => this.uploadingDocumentSlot.set(null)),
       )
       .subscribe({
         next: () => {

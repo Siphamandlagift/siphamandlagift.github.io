@@ -441,6 +441,7 @@ export async function addCompanyDocument(companyId: string, input: AddCompanyDoc
     fileName: input.fileName,
     url: input.url,
     uploadedAt: new Date().toISOString(),
+    ...(input.slot ? { slot: input.slot } : {}),
   };
 
   return firestore.runTransaction(async (transaction): Promise<CompanyDocumentRecord | null> => {
@@ -450,7 +451,12 @@ export async function addCompanyDocument(companyId: string, input: AddCompanyDoc
     }
 
     const existingDocuments: CompanyDocumentRecord[] = Array.isArray(snapshot.data()?.['documents']) ? snapshot.data()!['documents'] : [];
-    transaction.set(companyRef, { documents: [...existingDocuments, document] }, { merge: true });
+    // A standard slot (SLA/Invoice) holds exactly one file — uploading a new one into an already
+    // occupied slot replaces it instead of leaving the old one stranded in the list alongside it.
+    const withoutReplacedSlot = input.slot
+      ? existingDocuments.filter((existingDocument) => existingDocument.slot !== input.slot)
+      : existingDocuments;
+    transaction.set(companyRef, { documents: [...withoutReplacedSlot, document] }, { merge: true });
     return document;
   });
 }

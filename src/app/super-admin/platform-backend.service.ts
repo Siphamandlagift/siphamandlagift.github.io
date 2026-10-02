@@ -25,12 +25,15 @@ export type CompanyCostSettings = {
   setupCost: number | null;
 };
 
+export type CompanyDocumentSlot = 'sla' | 'invoice';
+
 export type CompanyDocument = {
   id: string;
   label: string;
   fileName: string;
   url: string;
   uploadedAt: string;
+  slot?: CompanyDocumentSlot;
 };
 
 export type CompanyWithUsage = {
@@ -285,7 +288,7 @@ export class PlatformBackendService {
     });
   }
 
-  addCompanyDocument(companyId: string, input: { label: string; fileName: string; url: string }): Observable<CompanyDocument> {
+  addCompanyDocument(companyId: string, input: { label: string; fileName: string; url: string; slot?: CompanyDocumentSlot }): Observable<CompanyDocument> {
     return this.http.post<CompanyDocument>(`${this.baseUrl}/companies/${encodeURIComponent(companyId)}/documents`, input);
   }
 
