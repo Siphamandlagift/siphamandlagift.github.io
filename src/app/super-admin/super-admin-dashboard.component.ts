@@ -153,13 +153,23 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-adm
         <section class="companies-section">
           <div class="section-heading">
             <h2>Companies</h2>
-            <button type="button" class="primary-btn" (click)="openCreateCompany()">+ New company</button>
+            <div class="companies-section-actions">
+              <input
+                type="text"
+                class="company-search-field"
+                placeholder="Search companies…"
+                [value]="companySearchTerm()"
+                (input)="updateCompanySearch($event)" />
+              <button type="button" class="primary-btn" (click)="openCreateCompany()">+ New company</button>
+            </div>
           </div>
 
           @if (loading()) {
             <div class="empty-state">Loading companies…</div>
           } @else if (companies().length === 0) {
             <div class="empty-state">No companies yet — create the first one above.</div>
+          } @else if (filteredCompanies().length === 0) {
+            <div class="empty-state">No companies match "{{ companySearchTerm() }}".</div>
           } @else {
             <div class="company-table">
               <div class="company-row company-row-head" aria-hidden="true">
@@ -171,7 +181,7 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-adm
                 <span>Actions</span>
               </div>
 
-              @for (company of companies(); track company.id) {
+              @for (company of filteredCompanies(); track company.id) {
                 <article class="company-row">
                   <div class="company-cell">
                     <div class="company-name">{{ company.name }}</div>
@@ -728,6 +738,16 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-adm
       margin: 0;
       font-size: 1.1rem;
       font-weight: 800;
+    }
+
+    .companies-section-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .company-search-field {
+      width: 15rem;
     }
 
     .empty-state {
@@ -1308,6 +1328,24 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
   readonly usageOverview = signal<PlatformUsageOverview | null>(null);
   readonly loading = signal(true);
   readonly loadError = signal('');
+
+  readonly companySearchTerm = signal('');
+  readonly filteredCompanies = computed(() => {
+    const query = this.companySearchTerm().trim().toLowerCase();
+    if (!query) {
+      return this.companies();
+    }
+
+    return this.companies().filter((company) =>
+      company.name.toLowerCase().includes(query)
+      || company.id.toLowerCase().includes(query)
+      || (company.slug ?? '').toLowerCase().includes(query),
+    );
+  });
+
+  updateCompanySearch(event: Event) {
+    this.companySearchTerm.set((event.target as HTMLInputElement).value);
+  }
 
   readonly themeOptions = LMS_BRAND_THEME_OPTIONS;
   readonly platformBranding = signal<PlatformBrandingSettings | null>(null);
