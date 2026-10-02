@@ -16,9 +16,10 @@ import {
 import { clearPlatformAuthSession, readPlatformSessionRecord } from './platform-session-auth';
 import { LMS_BRAND_THEME_OPTIONS, type LmsBrandThemeId } from '../lms-brand-themes';
 
-type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-admins' | 'edit-branding' | 'manage-super-admins';
+type ActivePanel = 'none' | 'create-company' | 'view-company' | 'manage-super-admins';
 type SuperAdminTab = 'dashboard' | 'login-page' | 'companies' | 'reporting';
 type ReportDownloadFormat = 'CSV' | 'XLSX';
+type CompanyViewSection = 'subscription' | 'admins' | 'branding';
 
 @Component({
   selector: 'app-super-admin-dashboard',
@@ -216,9 +217,7 @@ type ReportDownloadFormat = 'CSV' | 'XLSX';
                     {{ company.subscription.startDate }} → {{ company.subscription.endDate }}
                   </div>
                   <div class="company-cell company-cell-actions">
-                    <button type="button" class="inline-btn" (click)="openEditSubscription(company)">Edit subscription</button>
-                    <button type="button" class="inline-btn" (click)="openManageAdmins(company)">Admins</button>
-                    <button type="button" class="inline-btn" (click)="openEditBranding(company)">Login URL &amp; branding</button>
+                    <button type="button" class="inline-btn" (click)="openCompanyView(company)">View</button>
                   </div>
                 </article>
               }
@@ -345,224 +344,228 @@ type ReportDownloadFormat = 'CSV' | 'XLSX';
       </div>
     }
 
-    @if (activePanel() === 'edit-subscription' && editingCompany(); as company) {
-      <div class="overlay-panel" role="dialog" aria-modal="true">
+    @if (activePanel() === 'view-company' && editingCompany(); as company) {
+      <div class="overlay-panel overlay-panel-wide" role="dialog" aria-modal="true">
         <div class="overlay-header">
-          <h3>Edit subscription — {{ company.name }}</h3>
+          <h3>{{ company.name }}</h3>
           <button type="button" class="icon-btn" (click)="closePanel()" aria-label="Close">✕</button>
         </div>
 
-        <form (ngSubmit)="submitEditSubscription()">
-          <label>
-            <span>Plan</span>
-            <select name="editPlan" [(ngModel)]="editPlan">
-              <option value="starter">Starter</option>
-              <option value="growth">Growth</option>
-              <option value="enterprise">Enterprise</option>
-            </select>
-          </label>
+        <div class="company-view-body">
+          <nav class="company-view-tabs" aria-label="Company sections">
+            <button type="button" class="company-view-tab" [class.company-view-tab-active]="companyViewSection() === 'subscription'" (click)="selectCompanyViewSection('subscription')">Edit subscription</button>
+            <button type="button" class="company-view-tab" [class.company-view-tab-active]="companyViewSection() === 'admins'" (click)="selectCompanyViewSection('admins')">Admins</button>
+            <button type="button" class="company-view-tab" [class.company-view-tab-active]="companyViewSection() === 'branding'" (click)="selectCompanyViewSection('branding')">Login URL &amp; branding</button>
+          </nav>
 
-          <label>
-            <span>Licence limit (total users)</span>
-            <input type="number" name="editLicenseLimit" min="1" [(ngModel)]="editLicenseLimit" required />
-          </label>
-
-          <div class="field-row">
-            <label>
-              <span>Start date</span>
-              <input type="date" name="editStartDate" [(ngModel)]="editStartDate" required />
-            </label>
-            <label>
-              <span>End date</span>
-              <input type="date" name="editEndDate" [(ngModel)]="editEndDate" required />
-            </label>
-          </div>
-
-          <label>
-            <span>Status</span>
-            <select name="editStatus" [(ngModel)]="editStatus">
-              <option value="active">Active</option>
-              <option value="suspended">Suspended</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </label>
-
-          @if (editSubscriptionError()) {
-            <div class="error">{{ editSubscriptionError() }}</div>
-          }
-
-          <div class="overlay-footer">
-            <button type="button" class="secondary-btn" (click)="closePanel()">Cancel</button>
-            <button type="submit" class="primary-btn" [disabled]="savingSubscription()">
-              {{ savingSubscription() ? 'Saving…' : 'Save subscription' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    }
-
-    @if (activePanel() === 'manage-admins' && editingCompany(); as company) {
-      <div class="overlay-panel" role="dialog" aria-modal="true">
-        <div class="overlay-header">
-          <h3>Administrators — {{ company.name }}</h3>
-          <button type="button" class="icon-btn" (click)="closePanel()" aria-label="Close">✕</button>
-        </div>
-
-        @if (loadingCompanyAdmins()) {
-          <div class="empty-state">Loading…</div>
-        } @else {
-          <div class="admin-list">
-            @for (admin of companyAdmins(); track admin.id) {
-              <div class="admin-list-row">
-                <span class="admin-list-email">{{ admin.email }}</span>
-                @if (resettingPasswordForAdminId() === admin.id) {
-                  <div class="admin-reset-inline">
-                    <input
-                      type="password"
-                      name="resetAdminPasswordValue"
-                      [(ngModel)]="resetAdminPasswordValue"
-                      placeholder="New password"
-                      autocomplete="new-password" />
-                    <button type="button" class="inline-btn" [disabled]="resettingPassword()" (click)="submitResetAdminPassword(admin)">
-                      {{ resettingPassword() ? 'Saving…' : 'Save' }}
-                    </button>
-                    <button type="button" class="inline-btn" [disabled]="resettingPassword()" (click)="cancelResetAdminPassword()">Cancel</button>
-                  </div>
-                } @else {
-                  <button type="button" class="inline-btn" (click)="startResetAdminPassword(admin)">Reset password</button>
-                }
-              </div>
-            } @empty {
-              <div class="empty-state">No administrators yet — add the first one below.</div>
-            }
-          </div>
-
-          @if (resetAdminPasswordError()) {
-            <div class="error">{{ resetAdminPasswordError() }}</div>
-          }
-          @if (resetAdminPasswordSuccess()) {
-            <div class="success">{{ resetAdminPasswordSuccess() }}</div>
-          }
-        }
-
-        <div class="overlay-divider"></div>
-        <h4 class="overlay-subheading">Add administrator</h4>
-
-        <form (ngSubmit)="submitAddAdmin()">
-          <label>
-            <span>Email</span>
-            <input type="email" name="newAdminEmail" [(ngModel)]="newAdminEmail" required />
-          </label>
-
-          <label>
-            <span>Temporary password</span>
-            <input type="password" name="newAdminPassword" [(ngModel)]="newAdminPassword" required autocomplete="new-password" />
-          </label>
-
-          @if (addAdminError()) {
-            <div class="error">{{ addAdminError() }}</div>
-          }
-          @if (addAdminSuccess()) {
-            <div class="success">{{ addAdminSuccess() }}</div>
-          }
-
-          <div class="overlay-footer">
-            <button type="button" class="secondary-btn" (click)="closePanel()">Close</button>
-            <button type="submit" class="primary-btn" [disabled]="creatingAdmin()">
-              {{ creatingAdmin() ? 'Creating…' : 'Add administrator' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    }
-
-    @if (activePanel() === 'edit-branding' && editingCompany(); as company) {
-      <div class="overlay-panel" role="dialog" aria-modal="true">
-        <div class="overlay-header">
-          <h3>Login URL &amp; branding — {{ company.name }}</h3>
-          <button type="button" class="icon-btn" (click)="closePanel()" aria-label="Close">✕</button>
-        </div>
-
-        @if (companyBrandingLoading()) {
-          <div class="empty-state">Loading…</div>
-        } @else {
-          <form (ngSubmit)="submitEditBranding()">
-            <label>
-              <span>Login URL</span>
-              <div class="slug-input-row">
-                <span class="slug-input-prefix">/login/</span>
-                <input type="text" name="editBrandingSlug" [(ngModel)]="editBrandingSlug" placeholder="acme-corp" pattern="[a-z0-9-]*" />
-              </div>
-              <span class="branding-hint">
-                @if (editBrandingSlug.trim()) {
-                  Visitors reach {{ company.name }}'s own branded login at .../login/{{ editBrandingSlug.trim().toLowerCase() }}
-                } @else {
-                  No custom login URL set yet — {{ company.name }} still shows the shared default login screen.
-                }
-              </span>
-            </label>
-
-            <div class="overlay-divider"></div>
-
-            <div class="branding-editor">
-              <div class="branding-logo-block">
-                <div class="branding-logo-preview" [class.branding-logo-preview-has-image]="!!companyBrandingLogoPreview()">
-                  @if (companyBrandingLogoPreview(); as previewUrl) {
-                    <img [src]="previewUrl" alt="" />
-                  } @else {
-                    <span>{{ company.name.slice(0, 2).toUpperCase() }}</span>
-                  }
-                </div>
-                <div class="branding-logo-actions">
-                  <label class="secondary-btn branding-upload-btn">
-                    <span>Upload logo</span>
-                    <input type="file" accept="image/*" (change)="onCompanyBrandingLogoSelected($event)" />
-                  </label>
-                  <button type="button" class="secondary-btn" [disabled]="!companyBrandingLogoPreview()" (click)="removeCompanyBrandingLogo()">Remove logo</button>
-                </div>
-              </div>
-
-              <div class="branding-theme-field">
+          <div class="company-view-section">
+            @if (companyViewSection() === 'subscription') {
+              <form (ngSubmit)="submitEditSubscription()">
                 <label>
-                  <span>Theme colour</span>
-                  <select name="editBrandingThemeId" [(ngModel)]="editBrandingThemeId">
-                    @for (theme of themeOptions; track theme.id) {
-                      <option [value]="theme.id">{{ theme.label }}</option>
-                    }
+                  <span>Plan</span>
+                  <select name="editPlan" [(ngModel)]="editPlan">
+                    <option value="starter">Starter</option>
+                    <option value="growth">Growth</option>
+                    <option value="enterprise">Enterprise</option>
                   </select>
                 </label>
-              </div>
 
-              <div class="branding-logo-block">
-                <div class="branding-bg-preview" [class.branding-bg-preview-has-image]="!!companyBrandingBackgroundImagePreview()">
-                  @if (companyBrandingBackgroundImagePreview(); as previewUrl) {
-                    <img [src]="previewUrl" alt="" />
-                  } @else {
-                    <span>No image set</span>
-                  }
-                </div>
-                <div class="branding-logo-actions">
-                  <label class="secondary-btn branding-upload-btn">
-                    <span>{{ companyBrandingBackgroundUploading() ? 'Uploading…' : 'Upload background' }}</span>
-                    <input type="file" accept="image/*" [disabled]="companyBrandingBackgroundUploading()" (change)="onCompanyBrandingBackgroundImageSelected($event, company.id)" />
+                <label>
+                  <span>Licence limit (total users)</span>
+                  <input type="number" name="editLicenseLimit" min="1" [(ngModel)]="editLicenseLimit" required />
+                </label>
+
+                <div class="field-row">
+                  <label>
+                    <span>Start date</span>
+                    <input type="date" name="editStartDate" [(ngModel)]="editStartDate" required />
                   </label>
-                  <button type="button" class="secondary-btn" [disabled]="!companyBrandingBackgroundImagePreview()" (click)="removeCompanyBrandingBackgroundImage()">Remove background</button>
+                  <label>
+                    <span>End date</span>
+                    <input type="date" name="editEndDate" [(ngModel)]="editEndDate" required />
+                  </label>
                 </div>
-              </div>
-            </div>
 
-            @if (companyBrandingError()) {
-              <div class="error">{{ companyBrandingError() }}</div>
+                <label>
+                  <span>Status</span>
+                  <select name="editStatus" [(ngModel)]="editStatus">
+                    <option value="active">Active</option>
+                    <option value="suspended">Suspended</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </label>
+
+                @if (editSubscriptionSuccess()) {
+                  <div class="success">{{ editSubscriptionSuccess() }}</div>
+                }
+                @if (editSubscriptionError()) {
+                  <div class="error">{{ editSubscriptionError() }}</div>
+                }
+
+                <div class="overlay-footer">
+                  <button type="button" class="secondary-btn" (click)="closePanel()">Close</button>
+                  <button type="submit" class="primary-btn" [disabled]="savingSubscription()">
+                    {{ savingSubscription() ? 'Saving…' : 'Save subscription' }}
+                  </button>
+                </div>
+              </form>
             }
 
-            <div class="overlay-footer">
-              <button type="button" class="secondary-btn" (click)="closePanel()">Cancel</button>
-              <button type="submit" class="primary-btn" [disabled]="companyBrandingSaving()">
-                {{ companyBrandingSaving() ? 'Saving…' : 'Save' }}
-              </button>
-            </div>
-          </form>
-        }
+            @if (companyViewSection() === 'admins') {
+              @if (loadingCompanyAdmins()) {
+                <div class="empty-state">Loading…</div>
+              } @else {
+                <div class="admin-list">
+                  @for (admin of companyAdmins(); track admin.id) {
+                    <div class="admin-list-row">
+                      <span class="admin-list-email">{{ admin.email }}</span>
+                      @if (resettingPasswordForAdminId() === admin.id) {
+                        <div class="admin-reset-inline">
+                          <input
+                            type="password"
+                            name="resetAdminPasswordValue"
+                            [(ngModel)]="resetAdminPasswordValue"
+                            placeholder="New password"
+                            autocomplete="new-password" />
+                          <button type="button" class="inline-btn" [disabled]="resettingPassword()" (click)="submitResetAdminPassword(admin)">
+                            {{ resettingPassword() ? 'Saving…' : 'Save' }}
+                          </button>
+                          <button type="button" class="inline-btn" [disabled]="resettingPassword()" (click)="cancelResetAdminPassword()">Cancel</button>
+                        </div>
+                      } @else {
+                        <button type="button" class="inline-btn" (click)="startResetAdminPassword(admin)">Reset password</button>
+                      }
+                    </div>
+                  } @empty {
+                    <div class="empty-state">No administrators yet — add the first one below.</div>
+                  }
+                </div>
+
+                @if (resetAdminPasswordError()) {
+                  <div class="error">{{ resetAdminPasswordError() }}</div>
+                }
+                @if (resetAdminPasswordSuccess()) {
+                  <div class="success">{{ resetAdminPasswordSuccess() }}</div>
+                }
+              }
+
+              <div class="overlay-divider"></div>
+              <h4 class="overlay-subheading">Add administrator</h4>
+
+              <form (ngSubmit)="submitAddAdmin()">
+                <label>
+                  <span>Email</span>
+                  <input type="email" name="newAdminEmail" [(ngModel)]="newAdminEmail" required />
+                </label>
+
+                <label>
+                  <span>Temporary password</span>
+                  <input type="password" name="newAdminPassword" [(ngModel)]="newAdminPassword" required autocomplete="new-password" />
+                </label>
+
+                @if (addAdminError()) {
+                  <div class="error">{{ addAdminError() }}</div>
+                }
+                @if (addAdminSuccess()) {
+                  <div class="success">{{ addAdminSuccess() }}</div>
+                }
+
+                <div class="overlay-footer">
+                  <button type="button" class="secondary-btn" (click)="closePanel()">Close</button>
+                  <button type="submit" class="primary-btn" [disabled]="creatingAdmin()">
+                    {{ creatingAdmin() ? 'Creating…' : 'Add administrator' }}
+                  </button>
+                </div>
+              </form>
+            }
+
+            @if (companyViewSection() === 'branding') {
+              @if (companyBrandingLoading()) {
+                <div class="empty-state">Loading…</div>
+              } @else {
+                <form (ngSubmit)="submitEditBranding()">
+                  <label>
+                    <span>Login URL</span>
+                    <div class="slug-input-row">
+                      <span class="slug-input-prefix">/login/</span>
+                      <input type="text" name="editBrandingSlug" [(ngModel)]="editBrandingSlug" placeholder="acme-corp" pattern="[a-z0-9-]*" />
+                    </div>
+                    <span class="branding-hint">
+                      @if (editBrandingSlug.trim()) {
+                        Visitors reach {{ company.name }}'s own branded login at .../login/{{ editBrandingSlug.trim().toLowerCase() }}
+                      } @else {
+                        No custom login URL set yet — {{ company.name }} still shows the shared default login screen.
+                      }
+                    </span>
+                  </label>
+
+                  <div class="overlay-divider"></div>
+
+                  <div class="branding-editor">
+                    <div class="branding-logo-block">
+                      <div class="branding-logo-preview" [class.branding-logo-preview-has-image]="!!companyBrandingLogoPreview()">
+                        @if (companyBrandingLogoPreview(); as previewUrl) {
+                          <img [src]="previewUrl" alt="" />
+                        } @else {
+                          <span>{{ company.name.slice(0, 2).toUpperCase() }}</span>
+                        }
+                      </div>
+                      <div class="branding-logo-actions">
+                        <label class="secondary-btn branding-upload-btn">
+                          <span>Upload logo</span>
+                          <input type="file" accept="image/*" (change)="onCompanyBrandingLogoSelected($event)" />
+                        </label>
+                        <button type="button" class="secondary-btn" [disabled]="!companyBrandingLogoPreview()" (click)="removeCompanyBrandingLogo()">Remove logo</button>
+                      </div>
+                    </div>
+
+                    <div class="branding-theme-field">
+                      <label>
+                        <span>Theme colour</span>
+                        <select name="editBrandingThemeId" [(ngModel)]="editBrandingThemeId">
+                          @for (theme of themeOptions; track theme.id) {
+                            <option [value]="theme.id">{{ theme.label }}</option>
+                          }
+                        </select>
+                      </label>
+                    </div>
+
+                    <div class="branding-logo-block">
+                      <div class="branding-bg-preview" [class.branding-bg-preview-has-image]="!!companyBrandingBackgroundImagePreview()">
+                        @if (companyBrandingBackgroundImagePreview(); as previewUrl) {
+                          <img [src]="previewUrl" alt="" />
+                        } @else {
+                          <span>No image set</span>
+                        }
+                      </div>
+                      <div class="branding-logo-actions">
+                        <label class="secondary-btn branding-upload-btn">
+                          <span>{{ companyBrandingBackgroundUploading() ? 'Uploading…' : 'Upload background' }}</span>
+                          <input type="file" accept="image/*" [disabled]="companyBrandingBackgroundUploading()" (change)="onCompanyBrandingBackgroundImageSelected($event, company.id)" />
+                        </label>
+                        <button type="button" class="secondary-btn" [disabled]="!companyBrandingBackgroundImagePreview()" (click)="removeCompanyBrandingBackgroundImage()">Remove background</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  @if (companyBrandingSuccess()) {
+                    <div class="success">{{ companyBrandingSuccess() }}</div>
+                  }
+                  @if (companyBrandingError()) {
+                    <div class="error">{{ companyBrandingError() }}</div>
+                  }
+
+                  <div class="overlay-footer">
+                    <button type="button" class="secondary-btn" (click)="closePanel()">Close</button>
+                    <button type="submit" class="primary-btn" [disabled]="companyBrandingSaving()">
+                      {{ companyBrandingSaving() ? 'Saving…' : 'Save' }}
+                    </button>
+                  </div>
+                </form>
+              }
+            }
+          </div>
+        </div>
       </div>
     }
 
@@ -1259,6 +1262,51 @@ type ReportDownloadFormat = 'CSV' | 'XLSX';
       box-sizing: border-box;
     }
 
+    .overlay-panel-wide {
+      width: min(44rem, calc(100vw - 2rem));
+    }
+
+    .company-view-body {
+      display: flex;
+      gap: 1.5rem;
+      align-items: flex-start;
+    }
+
+    .company-view-tabs {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      width: 11rem;
+      flex-shrink: 0;
+    }
+
+    .company-view-tab {
+      padding: 0.6rem 0.75rem;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: #475569;
+      font: inherit;
+      font-weight: 600;
+      font-size: 0.85rem;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .company-view-tab:hover {
+      background: rgba(100, 116, 139, 0.08);
+    }
+
+    .company-view-tab-active {
+      background: #0f172a;
+      color: #fff;
+    }
+
+    .company-view-section {
+      flex: 1;
+      min-width: 0;
+    }
+
     .overlay-header {
       display: flex;
       align-items: center;
@@ -1824,7 +1872,7 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
         next: (company) => {
           this.closePanel();
           this.loadAll();
-          this.openManageAdmins(company);
+          this.openCompanyView(company, 'admins');
         },
         error: (error) => {
           this.createCompanyError.set(error?.error?.message || 'Could not create this company.');
@@ -1832,16 +1880,50 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
       });
   }
 
-  openEditSubscription(company: CompanyWithUsage) {
+  readonly companyViewSection = signal<CompanyViewSection>('subscription');
+  readonly editSubscriptionSuccess = signal('');
+  readonly companyBrandingSuccess = signal('');
+
+  openCompanyView(company: CompanyWithUsage, initialSection: CompanyViewSection = 'subscription') {
     this.activeCompanyId.set(company.id);
     this.activeCompanySnapshot.set(company);
-    this.editPlan = company.subscription.plan;
-    this.editLicenseLimit = company.subscription.licenseLimit;
-    this.editStartDate = company.subscription.startDate;
-    this.editEndDate = company.subscription.endDate;
-    this.editStatus = company.subscription.status;
-    this.editSubscriptionError.set('');
-    this.activePanel.set('edit-subscription');
+    this.activePanel.set('view-company');
+    this.selectCompanyViewSection(initialSection, company);
+  }
+
+  selectCompanyViewSection(section: CompanyViewSection, company?: CompanyWithUsage) {
+    const activeCompany = company ?? this.editingCompany();
+    if (!activeCompany) {
+      return;
+    }
+
+    this.companyViewSection.set(section);
+
+    if (section === 'subscription') {
+      this.editPlan = activeCompany.subscription.plan;
+      this.editLicenseLimit = activeCompany.subscription.licenseLimit;
+      this.editStartDate = activeCompany.subscription.startDate;
+      this.editEndDate = activeCompany.subscription.endDate;
+      this.editStatus = activeCompany.subscription.status;
+      this.editSubscriptionError.set('');
+      this.editSubscriptionSuccess.set('');
+    } else if (section === 'admins') {
+      this.newAdminEmail = '';
+      this.newAdminPassword = '';
+      this.addAdminError.set('');
+      this.addAdminSuccess.set('');
+      this.companyAdmins.set([]);
+      this.cancelResetAdminPassword();
+      this.loadCompanyAdmins(activeCompany.id);
+    } else {
+      this.editBrandingSlug = activeCompany.slug ?? '';
+      this.companyBrandingPendingLogoDataUrl.set(undefined);
+      this.companyBrandingPendingBackgroundImageUrl.set(undefined);
+      this.companyBranding.set(null);
+      this.companyBrandingError.set('');
+      this.companyBrandingSuccess.set('');
+      this.loadCompanyBranding(activeCompany.id);
+    }
   }
 
   submitEditSubscription() {
@@ -1852,6 +1934,7 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
 
     this.savingSubscription.set(true);
     this.editSubscriptionError.set('');
+    this.editSubscriptionSuccess.set('');
 
     this.backend.updateSubscription(companyId, {
       plan: this.editPlan,
@@ -1863,26 +1946,13 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
       .pipe(finalize(() => this.savingSubscription.set(false)))
       .subscribe({
         next: () => {
-          this.closePanel();
+          this.editSubscriptionSuccess.set('Subscription saved.');
           this.loadAll();
         },
         error: (error) => {
           this.editSubscriptionError.set(error?.error?.message || 'Could not save this subscription.');
         },
       });
-  }
-
-  openManageAdmins(company: CompanyWithUsage) {
-    this.activeCompanyId.set(company.id);
-    this.activeCompanySnapshot.set(company);
-    this.newAdminEmail = '';
-    this.newAdminPassword = '';
-    this.addAdminError.set('');
-    this.addAdminSuccess.set('');
-    this.companyAdmins.set([]);
-    this.cancelResetAdminPassword();
-    this.activePanel.set('manage-admins');
-    this.loadCompanyAdmins(company.id);
   }
 
   private loadCompanyAdmins(companyId: string) {
@@ -2010,18 +2080,9 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
       });
   }
 
-  openEditBranding(company: CompanyWithUsage) {
-    this.activeCompanyId.set(company.id);
-    this.activeCompanySnapshot.set(company);
-    this.editBrandingSlug = company.slug ?? '';
-    this.companyBrandingPendingLogoDataUrl.set(undefined);
-    this.companyBrandingPendingBackgroundImageUrl.set(undefined);
-    this.companyBranding.set(null);
-    this.companyBrandingError.set('');
-    this.activePanel.set('edit-branding');
-
+  private loadCompanyBranding(companyId: string) {
     this.companyBrandingLoading.set(true);
-    this.backend.getCompanyBranding(company.id)
+    this.backend.getCompanyBranding(companyId)
       .pipe(finalize(() => this.companyBrandingLoading.set(false)))
       .subscribe({
         next: (branding) => {
@@ -2075,6 +2136,7 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
 
     this.companyBrandingSaving.set(true);
     this.companyBrandingError.set('');
+    this.companyBrandingSuccess.set('');
 
     const trimmedSlug = this.editBrandingSlug.trim().toLowerCase();
     const currentSlug = this.activeCompanySnapshot()?.slug ?? '';
@@ -2093,7 +2155,7 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
         .pipe(finalize(() => this.companyBrandingSaving.set(false)))
         .subscribe({
           next: () => {
-            this.closePanel();
+            this.companyBrandingSuccess.set('Branding saved.');
             this.loadAll();
           },
           error: (error) => {
