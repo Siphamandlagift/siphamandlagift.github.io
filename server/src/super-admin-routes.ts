@@ -288,6 +288,7 @@ export function createSuperAdminRouter(options: {
         companies.map(async (company) => ({
           ...company,
           usage: { userCount: await getCompanyUserCount(company.id), licenseLimit: company.subscription.licenseLimit },
+          engagement: await createLmsRepository(company.id).getEngagementSummary(),
         })),
       );
       response.json(withUsage);
@@ -300,10 +301,14 @@ export function createSuperAdminRouter(options: {
     try {
       const input = createCompanySchema.parse(request.body);
       const company = await createCompanyRecord(input, request.platformAuth!.adminId);
-      // A brand-new company always starts at 0 users — filled in directly rather than a
-      // redundant getCompanyUsage() read, and required to match this route's own declared
-      // response type, CompanyWithUsage (see the import above).
-      const withUsage: CompanyWithUsage = { ...company, usage: { userCount: 0, licenseLimit: company.subscription.licenseLimit } };
+      // A brand-new company always starts at 0 users/logins/hours — filled in directly rather
+      // than a redundant getCompanyUsage()/getEngagementSummary() read, and required to match
+      // this route's own declared response type, CompanyWithUsage (see the import above).
+      const withUsage: CompanyWithUsage = {
+        ...company,
+        usage: { userCount: 0, licenseLimit: company.subscription.licenseLimit },
+        engagement: { loginCount: 0, totalTrainingHours: 0 },
+      };
       response.status(201).json(withUsage);
     } catch (error) {
       next(error);
@@ -320,7 +325,8 @@ export function createSuperAdminRouter(options: {
       }
 
       const usage = (await getCompanyUsage(companyId)) ?? { userCount: 0, licenseLimit: company.subscription.licenseLimit };
-      const withUsage: CompanyWithUsage = { ...company, usage };
+      const engagement = await createLmsRepository(companyId).getEngagementSummary();
+      const withUsage: CompanyWithUsage = { ...company, usage, engagement };
       response.json(withUsage);
     } catch (error) {
       next(error);

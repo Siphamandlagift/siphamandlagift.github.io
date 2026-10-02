@@ -502,6 +502,7 @@ const trainingOfferingSchema = z.object({
   // Links to a TrainingProgrammeRecord — see the field's own comment in contracts.ts for why
   // this is unrelated to `type` above.
   trainingProgrammeId: z.string().optional(),
+  durationHours: z.number().nonnegative().optional(),
 }).superRefine(requireCategoryAndDescriptionUnlessSurveyOnly);
 
 const trainingOfferingUpdateSchema = z.object({
@@ -516,6 +517,7 @@ const trainingOfferingUpdateSchema = z.object({
   thumbnailDataUrl: z.string().nullable(),
   contentItems: z.array(trainingContentItemSchema).optional(),
   trainingProgrammeId: z.string().optional(),
+  durationHours: z.number().nonnegative().optional(),
 }).superRefine(requireCategoryAndDescriptionUnlessSurveyOnly);
 
 const assignmentSubmissionSchema = z.object({
@@ -2334,6 +2336,11 @@ app.post('/api/auth/login', async (request, response, next) => {
       return;
     }
 
+    // Fire-and-forget: feeds the Super Admin Reporting tab's "number of logins" column, but a
+    // failure here must never turn an already-successful, fully-authorized login into an error
+    // response for the user — the .catch swallows it rather than leaving an unhandled rejection.
+    void createLmsRepository(companyId).recordLogin(authenticated.accountId).catch(() => {});
+
     const token = jwt.sign(
       { role: authenticated.role, username: authenticated.username, email: authenticated.email, studentId: authenticated.studentId, companyId },
       jwtSecret,
@@ -2770,6 +2777,9 @@ app.get('/api/auth/sso/microsoft/callback', async (request, response, next) => {
       }));
       return;
     }
+
+    // Same fire-and-forget reasoning as /api/auth/login above.
+    void createLmsRepository(ssoCompanyId).recordLogin(authenticated.accountId).catch(() => {});
 
     const token = jwt.sign(
       { role: authenticated.role, username: authenticated.username, email: authenticated.email, studentId: authenticated.studentId, companyId: ssoCompanyId },

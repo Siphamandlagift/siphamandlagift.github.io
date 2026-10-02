@@ -6803,6 +6803,14 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                 </select>
                               </label>
 
+                              <label title="How many hours this course typically takes to complete — feeds the Super Admin's training-hours reporting. Optional.">
+                                <span>Duration (hours)</span>
+                                <input formControlName="durationHours" type="number" min="0" step="0.5" placeholder="Example: 4" />
+                                @if (courseForm.controls.durationHours.touched && courseForm.controls.durationHours.invalid) {
+                                  <span class="field-error">Duration can't be negative.</span>
+                                }
+                              </label>
+
                               <label class="upload-field form-grid-span-two" title="Upload a cover image for the course card.">
                                 <span>Course Thumbnail</span>
                                 <div class="course-thumbnail-panel">
@@ -22347,6 +22355,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     category: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     trainingProgrammeId: new FormControl('', { nonNullable: true }),
     description: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(12)] }),
+    // Optional — feeds the Super Admin Reporting tab's "total training hours completed" column
+    // (see TrainingOffering.durationHours' own comment). Not required, since most of this app's
+    // existing courses predate the field and still need to be editable without it.
+    durationHours: new FormControl<number | null>(null, { validators: [Validators.min(0)] }),
     contentItems: new FormArray<ContentItemFormGroup>([]),
   });
 
@@ -24509,6 +24521,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         description: this.courseForm.controls.description.value,
         status: editingOffering.status,
         contentItems: this.contentItemsPayload(),
+        durationHours: this.courseForm.controls.durationHours.value ?? undefined,
       });
 
       if (!updatedOffering) {
@@ -24533,6 +24546,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       thumbnailDataUrl: this.thumbnailPreview(),
       description: this.courseForm.controls.description.value,
       contentItems: this.contentItemsPayload(),
+      durationHours: this.courseForm.controls.durationHours.value ?? undefined,
     });
 
     if (!createdOffering) {
@@ -24559,6 +24573,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       category: offering.category,
       trainingProgrammeId: offering.trainingProgrammeId ?? '',
       description: offering.description,
+      durationHours: offering.durationHours ?? null,
     });
     this.courseForm.setControl(
       'contentItems',
@@ -24588,6 +24603,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       category: '',
       trainingProgrammeId: '',
       description: '',
+      durationHours: null,
     });
     this.courseForm.setControl('contentItems', new FormArray<ContentItemFormGroup>([]));
     this.thumbnailPreview.set(null);

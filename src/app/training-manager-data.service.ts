@@ -195,6 +195,9 @@ export type TrainingOffering = {
   // Links this course to a TrainingProgrammeRecord — unrelated to `type` above (see the server
   // contract's own comment on this same field for the full "why").
   trainingProgrammeId?: string;
+  // Feeds the Super Admin Reporting tab's "total training hours completed" column — see the
+  // server contract's own comment on this same field for the full "why".
+  durationHours?: number;
 };
 
 export type TrainingOfferingUpdate = {
@@ -210,6 +213,7 @@ export type TrainingOfferingUpdate = {
   thumbnailDataUrl: string | null;
   contentItems?: TrainingContentItem[];
   trainingProgrammeId?: string;
+  durationHours?: number;
 };
 
 export type EnrollmentStudent = {
@@ -1454,6 +1458,7 @@ export class TrainingManagerDataService {
     completionDeadline: string;
     thumbnailDataUrl: string | null;
     trainingProgrammeId?: string;
+    durationHours?: number;
     contentItems: Array<{
       id?: string;
       kind: TrainingContentKind;
@@ -1524,6 +1529,7 @@ export class TrainingManagerDataService {
       createdOn: this.formatDisplayDate(new Date()),
       status: 'Published',
       trainingProgrammeId: input.trainingProgrammeId,
+      durationHours: input.durationHours,
     };
 
     this.offeringsSignal.update((items) => [newOffering, ...items]);
@@ -1583,6 +1589,7 @@ export class TrainingManagerDataService {
           thumbnailDataUrl: input.thumbnailDataUrl,
           contentItems: normalizedContentItems ?? item.contentItems,
           trainingProgrammeId: input.trainingProgrammeId,
+          durationHours: input.durationHours,
         };
         return updatedOffering;
       }),

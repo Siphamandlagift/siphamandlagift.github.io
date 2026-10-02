@@ -22,6 +22,7 @@ import {
   AuthAccountRecord,
   AssignmentSubmissionRecord,
   BrandingSettingsUpdateInput,
+  CompanyEngagementSummary,
   CreateAdministratorAccountResult,
   ChangePasswordInput,
   ResetAdministratorPasswordResult,
@@ -2430,6 +2431,7 @@ export class LmsRepository {
         thumbnailDataUrl: update.thumbnailDataUrl,
         contentItems: update.contentItems ?? offering.contentItems,
         trainingProgrammeId: update.trainingProgrammeId,
+        durationHours: update.durationHours,
       };
     });
 
@@ -3022,6 +3024,7 @@ export class LmsRepository {
           username: account.username,
           email: account.email,
           studentId: account.linkedStudentId,
+          accountId: account.id,
         };
       }
 
@@ -3034,6 +3037,7 @@ export class LmsRepository {
       username: account.username,
       email: account.email,
       studentId: resolveStudentIdForAccount(data, account),
+      accountId: account.id,
     };
   }
 
@@ -3090,6 +3094,7 @@ export class LmsRepository {
         username: account.username,
         email: account.email,
         studentId: lineManagerStudentId,
+        accountId: account.id,
       };
     }
 
@@ -3099,6 +3104,7 @@ export class LmsRepository {
       username: account.username,
       email: account.email,
       studentId: resolveStudentIdForAccount(data, account),
+      accountId: account.id,
     };
   }
 
@@ -3586,6 +3592,48 @@ export class LmsRepository {
     };
     await this.write(data);
     return { status: 'reset' };
+  }
+
+  // Called from both login routes in server.ts (password and Microsoft SSO) right after a
+  // successful authenticate()/authenticateSso() — feeds the Super Admin Reporting tab's "number
+  // of logins" column. Silently no-ops on an unknown accountId rather than throwing, since a
+  // failure here must never turn a real, already-successful login into an error response.
+  async recordLogin(accountId: string): Promise<void> {
+    const data = await this.read();
+    const accountIndex = data.authAccounts.findIndex((entry) => entry.id === accountId);
+    if (accountIndex === -1) {
+      return;
+    }
+
+    data.authAccounts[accountIndex] = {
+      ...data.authAccounts[accountIndex],
+      loginCount: (data.authAccounts[accountIndex].loginCount ?? 0) + 1,
+    };
+    await this.write(data);
+  }
+
+  // Feeds the Super Admin Reporting tab's two engagement columns for this one company. Hours only
+  // count a course once it has a durationHours set (see that field's own comment in
+  // contracts.ts) — a completed course with none set simply contributes 0, not an error, since
+  // most existing courses predate the field.
+  async getEngagementSummary(): Promise<CompanyEngagementSummary> {
+    const data = await this.read();
+
+    const loginCount = data.authAccounts.reduce((total, account) => total + (account.loginCount ?? 0), 0);
+
+    const durationHoursByOfferingId = new Map(
+      data.offerings.map((offering) => [offering.id, offering.durationHours ?? 0] as const),
+    );
+    let totalTrainingHours = 0;
+    for (const student of data.students) {
+      for (const course of student.courses) {
+        if (course.completed && course.offeringId) {
+          totalTrainingHours += durationHoursByOfferingId.get(course.offeringId) ?? 0;
+        }
+      }
+    }
+
+    return { loginCount, totalTrainingHours };
   }
 
   async createPasswordResetRequest(emailAddress: string) {

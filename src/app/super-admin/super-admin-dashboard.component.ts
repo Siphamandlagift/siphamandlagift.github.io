@@ -253,16 +253,18 @@ type CompanyViewSection = 'subscription' | 'admins' | 'branding' | 'management';
             <div class="empty-state">No companies yet.</div>
           } @else {
             <div class="company-table">
-              <div class="company-row company-row-head" aria-hidden="true">
+              <div class="company-row company-row-report company-row-head" aria-hidden="true">
                 <span>Company</span>
                 <span>Plan</span>
                 <span>Usage</span>
                 <span>Status</span>
                 <span>Subscription</span>
+                <span>Logins</span>
+                <span>Training Hours</span>
               </div>
 
               @for (company of companies(); track company.id) {
-                <article class="company-row">
+                <article class="company-row company-row-report">
                   <div class="company-cell">
                     <div class="company-name">{{ company.name }}</div>
                     <div class="company-id">{{ company.id }}</div>
@@ -281,6 +283,8 @@ type CompanyViewSection = 'subscription' | 'admins' | 'branding' | 'management';
                   <div class="company-cell company-cell-dates">
                     {{ company.subscription.startDate }} → {{ company.subscription.endDate }}
                   </div>
+                  <div class="company-cell">{{ company.engagement.loginCount }}</div>
+                  <div class="company-cell">{{ company.engagement.totalTrainingHours }}</div>
                 </article>
               }
             </div>
@@ -1263,6 +1267,12 @@ type CompanyViewSection = 'subscription' | 'admins' | 'branding' | 'management';
       min-width: 44rem;
     }
 
+    /* Reporting tab: same row, but Actions is swapped for two extra data columns instead. */
+    .company-row-report {
+      grid-template-columns: 1.4fr 0.7fr 0.8fr 0.8fr 1.1fr 0.7fr 0.9fr;
+      min-width: 50rem;
+    }
+
     .company-row:not(.company-row-head):hover {
       background: #f8fafc;
     }
@@ -1644,7 +1654,7 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
   }
 
   private buildCompaniesReportExportRows() {
-    const columns = ['Company', 'Company ID', 'Plan', 'Users', 'Licence Limit', 'Status', 'Subscription Start', 'Subscription End'];
+    const columns = ['Company', 'Company ID', 'Plan', 'Users', 'Licence Limit', 'Status', 'Subscription Start', 'Subscription End', 'Logins', 'Training Hours'];
     const reportRows = this.companies();
 
     return {
@@ -1659,6 +1669,8 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
         this.effectiveStatusLabel(company),
         company.subscription.startDate,
         company.subscription.endDate,
+        String(company.engagement.loginCount),
+        String(company.engagement.totalTrainingHours),
       ]),
     };
   }

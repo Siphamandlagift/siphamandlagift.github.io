@@ -20,6 +20,11 @@ export type CompanyUsageSummary = {
   licenseLimit: number;
 };
 
+export type CompanyEngagementSummary = {
+  loginCount: number;
+  totalTrainingHours: number;
+};
+
 export type CompanyCostSettings = {
   licenseCostPerUser: number | null;
   setupCost: number | null;
@@ -43,6 +48,7 @@ export type CompanyWithUsage = {
   createdBySuperAdminId: string;
   subscription: SubscriptionRecord;
   usage: CompanyUsageSummary;
+  engagement: CompanyEngagementSummary;
   // URL slug for this company's own branded login page (.../login/{slug}) — unset until a Super
   // Admin assigns one (see updateCompanySlug below).
   slug?: string;

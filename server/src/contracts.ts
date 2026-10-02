@@ -88,6 +88,12 @@ export type TrainingOffering = {
   // Training Programmes directory). A programme's own "linked courses" is never stored on the
   // programme — it's always computed by filtering offerings for this field.
   trainingProgrammeId?: string;
+  // Feeds the Super Admin Reporting tab's "total training hours completed" column (sum of this ×
+  // every student's completed StudentCourseRecord for this offering, across a company). Optional
+  // and unset on every course that existed before this field shipped — those simply don't
+  // contribute to the total until an admin edits the course and fills it in, rather than the whole
+  // feature needing a backfill.
+  durationHours?: number;
 };
 
 export type TrainingOfferingUpdate = {
@@ -103,6 +109,7 @@ export type TrainingOfferingUpdate = {
   thumbnailDataUrl: string | null;
   contentItems?: TrainingContentItem[];
   trainingProgrammeId?: string;
+  durationHours?: number;
 };
 
 export type StudentCourseRecord = {
@@ -895,6 +902,11 @@ export type AuthAccountRecord = {
   companyId: string;
   usernameLower: string;
   emailLower: string;
+  // Incremented on every successful authenticate()/authenticateSso() (see recordLogin in
+  // repository.ts, called from /api/auth/login and the Microsoft SSO callback in server.ts) —
+  // feeds the Super Admin Reporting tab's "number of logins" column (summed across a company's
+  // accounts). Absent on any account that hasn't logged in since this field shipped.
+  loginCount?: number;
 };
 
 export type PasswordResetTokenRecord = {
@@ -1318,6 +1330,12 @@ export type CompanyUsageSummary = {
   licenseLimit: number;
 };
 
+export type CompanyEngagementSummary = {
+  loginCount: number;
+  totalTrainingHours: number;
+};
+
 export type CompanyWithUsage = CompanyRecord & {
   usage: CompanyUsageSummary;
+  engagement: CompanyEngagementSummary;
 };
