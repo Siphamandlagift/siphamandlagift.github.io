@@ -18,7 +18,7 @@ import {
 import { clearPlatformAuthSession, readPlatformSessionRecord } from './platform-session-auth';
 import { LMS_BRAND_THEME_OPTIONS, type LmsBrandThemeId } from '../lms-brand-themes';
 
-type ActivePanel = 'none' | 'create-company' | 'view-company' | 'manage-super-admins';
+type ActivePanel = 'none' | 'create-company' | 'view-company' | 'delete-company' | 'manage-super-admins';
 type SuperAdminTab = 'dashboard' | 'login-page' | 'companies' | 'reporting';
 type ReportDownloadFormat = 'CSV' | 'XLSX';
 type CompanyViewSection = 'subscription' | 'admins' | 'branding' | 'management';
@@ -220,6 +220,7 @@ type CompanyViewSection = 'subscription' | 'admins' | 'branding' | 'management';
                   </div>
                   <div class="company-cell company-cell-actions">
                     <button type="button" class="inline-btn" (click)="openCompanyView(company)">View</button>
+                    <button type="button" class="inline-btn inline-btn-danger" (click)="openDeleteCompany(company)">Delete</button>
                   </div>
                 </article>
               }
@@ -344,6 +345,38 @@ type CompanyViewSection = 'subscription' | 'admins' | 'branding' | 'management';
             <button type="button" class="secondary-btn" (click)="closePanel()">Cancel</button>
             <button type="submit" class="primary-btn" [disabled]="creatingCompany()">
               {{ creatingCompany() ? 'Creating…' : 'Create company' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    }
+
+    @if (activePanel() === 'delete-company' && editingCompany(); as company) {
+      <div class="overlay-panel" role="dialog" aria-modal="true" aria-labelledby="delete-company-title">
+        <div class="overlay-header">
+          <h3 id="delete-company-title">Delete {{ company.name }}?</h3>
+          <button type="button" class="icon-btn" (click)="closePanel()" aria-label="Close">✕</button>
+        </div>
+
+        <p class="delete-company-warning">
+          This permanently deletes <strong>{{ company.name }}</strong> and everything that belongs to it —
+          every student, course, submission, administrator account, and document. There is no undo.
+        </p>
+
+        <form (ngSubmit)="submitDeleteCompany(company)">
+          <label>
+            <span>Type <strong>{{ company.name }}</strong> to confirm</span>
+            <input type="text" name="deleteCompanyConfirmName" [(ngModel)]="deleteCompanyConfirmName" autocomplete="off" />
+          </label>
+
+          @if (deleteCompanyError()) {
+            <div class="error">{{ deleteCompanyError() }}</div>
+          }
+
+          <div class="overlay-footer">
+            <button type="button" class="secondary-btn" (click)="closePanel()">Cancel</button>
+            <button type="submit" class="danger-btn" [disabled]="deletingCompany() || deleteCompanyConfirmName.trim() !== company.name">
+              {{ deletingCompany() ? 'Deleting…' : 'Delete permanently' }}
             </button>
           </div>
         </form>
@@ -1363,6 +1396,33 @@ type CompanyViewSection = 'subscription' | 'admins' | 'branding' | 'management';
       cursor: default;
     }
 
+    .danger-btn {
+      padding: 0.6rem 1.1rem;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      background: linear-gradient(135deg, #b91c1c, #dc2626);
+      color: #fff;
+      font-size: 0.86rem;
+    }
+
+    .danger-btn:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    .delete-company-warning {
+      margin: 0 0 1.1rem;
+      padding: 0.75rem 0.9rem;
+      border-radius: 10px;
+      background: rgba(220, 38, 38, 0.08);
+      border: 1px solid rgba(220, 38, 38, 0.25);
+      color: #7f1d1d;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
     .secondary-btn {
       padding: 0.6rem 1.1rem;
       background: #fff;
@@ -1377,6 +1437,12 @@ type CompanyViewSection = 'subscription' | 'admins' | 'branding' | 'management';
       color: #0f172a;
       font-size: 0.76rem;
       border: 1px solid rgba(100, 116, 139, 0.2);
+    }
+
+    .inline-btn-danger {
+      background: rgba(220, 38, 38, 0.08);
+      color: #b91c1c;
+      border-color: rgba(220, 38, 38, 0.25);
     }
 
     .overlay-backdrop {
@@ -2032,6 +2098,45 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
     this.activeCompanySnapshot.set(company);
     this.activePanel.set('view-company');
     this.selectCompanyViewSection(initialSection, company);
+  }
+
+  // ── Delete company ──────────────────────────────────────────────────────
+  // Irreversible: wipes every one of this company's Firestore documents (students, offerings,
+  // accounts, submissions — everything). Confirmed by typing the company's own name back exactly
+  // — matched client-side for instant feedback, and re-checked server-side as the real guard (see
+  // DELETE /companies/:companyId in super-admin-routes.ts) since a client-side check alone is
+  // trivially bypassable.
+  deleteCompanyConfirmName = '';
+  readonly deletingCompany = signal(false);
+  readonly deleteCompanyError = signal('');
+
+  openDeleteCompany(company: CompanyWithUsage) {
+    this.activeCompanyId.set(company.id);
+    this.activeCompanySnapshot.set(company);
+    this.deleteCompanyConfirmName = '';
+    this.deleteCompanyError.set('');
+    this.activePanel.set('delete-company');
+  }
+
+  submitDeleteCompany(company: CompanyWithUsage) {
+    if (this.deletingCompany() || this.deleteCompanyConfirmName.trim() !== company.name) {
+      return;
+    }
+
+    this.deletingCompany.set(true);
+    this.deleteCompanyError.set('');
+
+    this.backend.deleteCompany(company.id, this.deleteCompanyConfirmName.trim())
+      .pipe(finalize(() => this.deletingCompany.set(false)))
+      .subscribe({
+        next: () => {
+          this.closePanel();
+          this.loadAll();
+        },
+        error: (error) => {
+          this.deleteCompanyError.set(error?.error?.message || 'Could not delete this company.');
+        },
+      });
   }
 
   selectCompanyViewSection(section: CompanyViewSection, company?: CompanyWithUsage) {

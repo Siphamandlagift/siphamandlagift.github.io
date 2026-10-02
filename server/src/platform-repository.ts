@@ -339,6 +339,19 @@ export async function getCompanyRecord(companyId: string): Promise<CompanyRecord
   return companyDocToRecord(snapshot.id, snapshot.data()!);
 }
 
+// Permanently wipes every one of this company's documents — the companies/{companyId} document
+// itself AND every subcollection under it (students, offerings, authAccounts, submissions, the
+// lot), via Firestore's own recursiveDelete rather than this file enumerating each subcollection
+// name by hand (see FirestoreCollectionName in repository.ts for how long that list already is).
+// Irreversible: the caller (DELETE /api/platform/companies/:companyId in super-admin-routes.ts)
+// is responsible for getting explicit, typed confirmation before ever calling this. Storage
+// cleanup (lms-uploads/{companyId}/...) is handled by that same route, not here, since the
+// Storage bucket name isn't known at this module's level.
+export async function deleteCompanyRecord(companyId: string): Promise<void> {
+  const firestore = getFirestoreClient();
+  await firestore.recursiveDelete(firestore.collection(COMPANIES_COLLECTION_ID).doc(companyId));
+}
+
 // Public, pre-login lookup (see GET /api/companies/:slug/branding in server.ts) — the one way an
 // unauthenticated visitor's browsable URL resolves to a specific company, so this must never
 // return more than an exact, unambiguous match (a plain equality query already guarantees that;

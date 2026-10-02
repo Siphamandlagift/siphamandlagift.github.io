@@ -267,6 +267,13 @@ export class PlatformBackendService {
     return this.http.patch<CompanyWithUsage>(`${this.baseUrl}/companies/${encodeURIComponent(companyId)}/slug`, { slug });
   }
 
+  // Irreversible — see this route's own comment in super-admin-routes.ts. confirmName must match
+  // the company's current name exactly (server-checked), which is why the dashboard's own
+  // confirmation dialog makes the Super Admin type it rather than just clicking a button.
+  deleteCompany(companyId: string, confirmName: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/companies/${encodeURIComponent(companyId)}`, { body: { confirmName } });
+  }
+
   updateCompanyCost(companyId: string, input: CompanyCostSettings): Observable<CompanyWithUsage> {
     return this.http.put<CompanyWithUsage>(`${this.baseUrl}/companies/${encodeURIComponent(companyId)}/cost`, input);
   }

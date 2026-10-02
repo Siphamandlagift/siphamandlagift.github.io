@@ -16,6 +16,7 @@ import {
   createCompanyRecord,
   createPlatformAdmin,
   createPlatformPasswordResetRequest,
+  deleteCompanyRecord,
   findPlatformAdminByEmail,
   getCompanyRecord,
   getCompanyUsage,
@@ -81,6 +82,10 @@ const resetCompanyAdminPasswordSchema = z.object({
 
 const updateCompanySlugSchema = z.object({
   slug: z.string().min(1),
+});
+
+const deleteCompanySchema = z.object({
+  confirmName: z.string().min(1),
 });
 
 const updateCompanyCostSchema = z.object({
@@ -328,6 +333,39 @@ export function createSuperAdminRouter(options: {
       const engagement = await createLmsRepository(companyId).getEngagementSummary();
       const withUsage: CompanyWithUsage = { ...company, usage, engagement };
       response.json(withUsage);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Permanently deletes a company and every one of its Firestore documents (students, offerings,
+  // accounts, submissions — everything, see deleteCompanyRecord's own comment). Irreversible, so
+  // this requires the caller to echo the company's own current name back exactly — the dashboard's
+  // confirmation dialog makes the Super Admin type it, not just click a button — as a server-side
+  // backstop against a stray/mistaken call hitting the wrong id, not just a client-side check.
+  //
+  // NOTE: this does not yet clean up this company's previously-uploaded files in Cloud Storage
+  // (course thumbnails, SCORM packages, logos, company documents under lms-uploads/{companyId}/).
+  // Those are orphaned, not deleted, by this route today — left for a deliberate follow-up rather
+  // than a bulk Storage delete added here without that being asked for explicitly.
+  router.delete('/companies/:companyId', requireSuperAdmin, async (request, response, next) => {
+    try {
+      const companyId = request.params['companyId'] as string;
+      const { confirmName } = deleteCompanySchema.parse(request.body);
+
+      const company = await getCompanyRecord(companyId);
+      if (!company) {
+        response.status(404).json({ message: 'Company not found.' });
+        return;
+      }
+
+      if (confirmName.trim() !== company.name) {
+        response.status(400).json({ message: 'Typed name does not match this company. Nothing was deleted.' });
+        return;
+      }
+
+      await deleteCompanyRecord(companyId);
+      response.status(204).send();
     } catch (error) {
       next(error);
     }
