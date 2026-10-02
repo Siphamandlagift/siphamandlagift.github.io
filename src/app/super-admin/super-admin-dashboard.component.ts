@@ -17,6 +17,8 @@ import { clearPlatformAuthSession, readPlatformSessionRecord } from './platform-
 import { LMS_BRAND_THEME_OPTIONS, type LmsBrandThemeId } from '../lms-brand-themes';
 
 type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-admins' | 'edit-branding' | 'manage-super-admins';
+type SuperAdminTab = 'dashboard' | 'login-page' | 'companies' | 'reporting';
+type ReportDownloadFormat = 'CSV' | 'XLSX';
 
 @Component({
   selector: 'app-super-admin-dashboard',
@@ -48,6 +50,14 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-adm
           <div class="banner banner-error">{{ loadError() }}</div>
         }
 
+        <nav class="top-tabs" aria-label="Super admin sections">
+          <button type="button" class="top-tab" [class.top-tab-active]="activeTab() === 'dashboard'" (click)="activeTab.set('dashboard')">Dashboard</button>
+          <button type="button" class="top-tab" [class.top-tab-active]="activeTab() === 'login-page'" (click)="activeTab.set('login-page')">Login Page</button>
+          <button type="button" class="top-tab" [class.top-tab-active]="activeTab() === 'companies'" (click)="activeTab.set('companies')">Companies</button>
+          <button type="button" class="top-tab" [class.top-tab-active]="activeTab() === 'reporting'" (click)="activeTab.set('reporting')">Reporting</button>
+        </nav>
+
+        @if (activeTab() === 'dashboard') {
         <section class="stat-row">
           <div class="stat-card">
             <span class="stat-label">Companies</span>
@@ -58,7 +68,9 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-adm
             <span class="stat-value">{{ usageOverview()?.totalUsers ?? '—' }}</span>
           </div>
         </section>
+        }
 
+        @if (activeTab() === 'login-page') {
         <section class="companies-section">
           <div class="section-heading">
             <h2>Login page branding</h2>
@@ -149,7 +161,9 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-adm
             </div>
           }
         </section>
+        }
 
+        @if (activeTab() === 'companies') {
         <section class="companies-section">
           <div class="section-heading">
             <h2>Companies</h2>
@@ -211,6 +225,67 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-adm
             </div>
           }
         </section>
+        }
+
+        @if (activeTab() === 'reporting') {
+        <section class="companies-section">
+          <div class="section-heading">
+            <h2>Companies report</h2>
+          </div>
+
+          <p class="branding-hint">Every company's plan, usage, status, and subscription dates — exactly as shown below.</p>
+
+          <div class="companies-section-actions">
+            <label class="report-download-field">
+              <span>Download As</span>
+              <select [value]="selectedCompaniesReportDownloadFormat()" (change)="updateCompaniesReportDownloadFormat($event)">
+                <option value="CSV">CSV</option>
+                <option value="XLSX">XLSX</option>
+              </select>
+            </label>
+            <button type="button" class="primary-btn" [disabled]="!companies().length" (click)="downloadCompaniesReport()">Download report</button>
+          </div>
+
+          @if (loading()) {
+            <div class="empty-state">Loading companies…</div>
+          } @else if (companies().length === 0) {
+            <div class="empty-state">No companies yet.</div>
+          } @else {
+            <div class="company-table">
+              <div class="company-row company-row-head" aria-hidden="true">
+                <span>Company</span>
+                <span>Plan</span>
+                <span>Usage</span>
+                <span>Status</span>
+                <span>Subscription</span>
+              </div>
+
+              @for (company of companies(); track company.id) {
+                <article class="company-row">
+                  <div class="company-cell">
+                    <div class="company-name">{{ company.name }}</div>
+                    <div class="company-id">{{ company.id }}</div>
+                  </div>
+                  <div class="company-cell">
+                    <span class="pill pill-plan">{{ company.subscription.plan }}</span>
+                  </div>
+                  <div class="company-cell">
+                    <span [class.usage-over]="company.usage.userCount >= company.usage.licenseLimit">
+                      {{ company.usage.userCount }} / {{ company.usage.licenseLimit }}
+                    </span>
+                  </div>
+                  <div class="company-cell">
+                    <span class="pill" [class]="statusPillClass(effectiveStatusLabel(company))">{{ effectiveStatusLabel(company) }}</span>
+                  </div>
+                  <div class="company-cell company-cell-dates">
+                    {{ company.subscription.startDate }} → {{ company.subscription.endDate }}
+                  </div>
+                </article>
+              }
+            </div>
+          }
+        </section>
+        }
       </main>
     </div>
 
@@ -689,6 +764,35 @@ type ActivePanel = 'none' | 'create-company' | 'edit-subscription' | 'manage-adm
       background: rgba(220, 38, 38, 0.08);
       border: 1px solid rgba(220, 38, 38, 0.25);
       color: #b91c1c;
+    }
+
+    .top-tabs {
+      display: flex;
+      gap: 0.4rem;
+      border-bottom: 1px solid rgba(100, 116, 139, 0.18);
+      margin-bottom: 1.3rem;
+    }
+
+    .top-tab {
+      padding: 0.65rem 1.1rem;
+      border: none;
+      background: transparent;
+      color: #64748b;
+      font: inherit;
+      font-weight: 700;
+      font-size: 0.88rem;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+    }
+
+    .top-tab:hover {
+      color: #0f172a;
+    }
+
+    .top-tab-active {
+      color: #0f172a;
+      border-bottom-color: #0f172a;
     }
 
     .stat-row {
@@ -1324,6 +1428,8 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
 
   readonly adminName = signal(readPlatformSessionRecord()?.name ?? readPlatformSessionRecord()?.email ?? 'Super Admin');
 
+  readonly activeTab = signal<SuperAdminTab>('dashboard');
+
   readonly companies = signal<CompanyWithUsage[]>([]);
   readonly usageOverview = signal<PlatformUsageOverview | null>(null);
   readonly loading = signal(true);
@@ -1345,6 +1451,105 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
 
   updateCompanySearch(event: Event) {
     this.companySearchTerm.set((event.target as HTMLInputElement).value);
+  }
+
+  readonly selectedCompaniesReportDownloadFormat = signal<ReportDownloadFormat>('CSV');
+
+  updateCompaniesReportDownloadFormat(event: Event) {
+    const value = (event.target as HTMLSelectElement | null)?.value;
+    this.selectedCompaniesReportDownloadFormat.set(value === 'XLSX' ? 'XLSX' : 'CSV');
+  }
+
+  private reportGeneratedOnLabel() {
+    return new Intl.DateTimeFormat('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date());
+  }
+
+  private buildCompaniesReportExportRows() {
+    const columns = ['Company', 'Company ID', 'Plan', 'Users', 'Licence Limit', 'Status', 'Subscription Start', 'Subscription End'];
+    const reportRows = this.companies();
+
+    return {
+      columns,
+      reportRows,
+      rows: reportRows.map((company) => [
+        company.name,
+        company.id,
+        company.subscription.plan,
+        String(company.usage.userCount),
+        String(company.usage.licenseLimit),
+        this.effectiveStatusLabel(company),
+        company.subscription.startDate,
+        company.subscription.endDate,
+      ]),
+    };
+  }
+
+  downloadCompaniesReportCsv() {
+    const { columns, rows, reportRows } = this.buildCompaniesReportExportRows();
+
+    if (!rows.length) {
+      return;
+    }
+
+    const lines = [
+      ['Report', 'Companies Report'],
+      ['Generated On', this.reportGeneratedOnLabel()],
+      ['Rows Included', String(reportRows.length)],
+      [],
+      columns,
+      ...rows,
+    ];
+
+    const csv = lines
+      .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+
+    this.triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), 'SkillsConnect-Companies-Report.csv');
+  }
+
+  async downloadCompaniesReportXlsx() {
+    const { columns, rows, reportRows } = this.buildCompaniesReportExportRows();
+
+    if (!rows.length) {
+      return;
+    }
+
+    const xlsx = await import('xlsx');
+    const workbook = xlsx.utils.book_new();
+    const worksheetRows = [
+      ['Report', 'Companies Report'],
+      ['Generated On', this.reportGeneratedOnLabel()],
+      ['Rows Included', String(reportRows.length)],
+      [],
+      columns,
+      ...rows,
+    ];
+    const worksheet = xlsx.utils.aoa_to_sheet(worksheetRows);
+
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Companies');
+    const workbookArray = xlsx.write(workbook, { bookType: 'xlsx', type: 'array' });
+    this.triggerDownload(
+      new Blob([workbookArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      'SkillsConnect-Companies-Report.xlsx',
+    );
+  }
+
+  downloadCompaniesReport() {
+    if (this.selectedCompaniesReportDownloadFormat() === 'XLSX') {
+      void this.downloadCompaniesReportXlsx();
+      return;
+    }
+
+    this.downloadCompaniesReportCsv();
+  }
+
+  private triggerDownload(blob: Blob, filename: string) {
+    const downloadUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = downloadUrl;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(downloadUrl);
   }
 
   readonly themeOptions = LMS_BRAND_THEME_OPTIONS;
