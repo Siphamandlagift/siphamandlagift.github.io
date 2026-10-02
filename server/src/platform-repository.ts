@@ -3,13 +3,16 @@ import { getApp, getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, type Firestore, type DocumentReference } from 'firebase-admin/firestore';
 import { createPasswordCredentials, generatePasswordResetToken, hashPasswordResetToken, isStrongPassword } from './auth-utils.js';
 import type {
+  AddCompanyDocumentInput,
   BrandingSettingsRecord,
+  CompanyDocumentRecord,
   CompanyRecord,
   CompanyUsageSummary,
   CreateCompanyInput,
   PlatformAdminRecord,
   PlatformAdminSummary,
   SubscriptionPlan,
+  UpdateCompanyCostInput,
   UpdateCompanySubscriptionInput,
 } from './contracts.js';
 
@@ -311,6 +314,8 @@ function companyDocToRecord(id: string, data: FirebaseFirestore.DocumentData): C
     createdBySuperAdminId: data['createdBySuperAdminId'],
     subscription: data['subscription'],
     ...(typeof data['slug'] === 'string' && data['slug'] ? { slug: data['slug'] } : {}),
+    ...(data['cost'] ? { cost: data['cost'] } : {}),
+    ...(Array.isArray(data['documents']) ? { documents: data['documents'] } : {}),
   } as CompanyRecord;
 }
 
@@ -407,6 +412,70 @@ export async function updateCompanySubscription(companyId: string, patch: Update
   await firestore.collection(COMPANIES_COLLECTION_ID).doc(companyId).set({ subscription: nextSubscription }, { merge: true });
 
   return { ...existing, subscription: nextSubscription };
+}
+
+export async function updateCompanyCost(companyId: string, input: UpdateCompanyCostInput): Promise<CompanyRecord | null> {
+  const existing = await getCompanyRecord(companyId);
+  if (!existing) {
+    return null;
+  }
+
+  const firestore = getFirestoreClient();
+  await firestore.collection(COMPANIES_COLLECTION_ID).doc(companyId).set({ cost: input }, { merge: true });
+
+  return { ...existing, cost: input };
+}
+
+// Read-modify-write runs inside a transaction (unlike updateCompanySubscription/updateCompanyCost
+// above, which just overwrite a single field) because this APPENDS to a list — two Super Admins
+// adding a document to the same company at nearly the same moment would otherwise race: both read
+// the same starting array, both append, and whichever write lands second silently discards the
+// first document instead of both surviving. Firestore retries the transaction automatically if the
+// document changes between this read and the write.
+export async function addCompanyDocument(companyId: string, input: AddCompanyDocumentInput): Promise<CompanyDocumentRecord | null> {
+  const firestore = getFirestoreClient();
+  const companyRef = firestore.collection(COMPANIES_COLLECTION_ID).doc(companyId);
+  const document: CompanyDocumentRecord = {
+    id: randomUUID(),
+    label: input.label,
+    fileName: input.fileName,
+    url: input.url,
+    uploadedAt: new Date().toISOString(),
+  };
+
+  return firestore.runTransaction(async (transaction): Promise<CompanyDocumentRecord | null> => {
+    const snapshot = await transaction.get(companyRef);
+    if (!snapshot.exists) {
+      return null;
+    }
+
+    const existingDocuments: CompanyDocumentRecord[] = Array.isArray(snapshot.data()?.['documents']) ? snapshot.data()!['documents'] : [];
+    transaction.set(companyRef, { documents: [...existingDocuments, document] }, { merge: true });
+    return document;
+  });
+}
+
+export type RemoveCompanyDocumentResult = { status: 'ok' } | { status: 'not-found' };
+
+export async function removeCompanyDocument(companyId: string, documentId: string): Promise<RemoveCompanyDocumentResult> {
+  const firestore = getFirestoreClient();
+  const companyRef = firestore.collection(COMPANIES_COLLECTION_ID).doc(companyId);
+
+  return firestore.runTransaction(async (transaction): Promise<RemoveCompanyDocumentResult> => {
+    const snapshot = await transaction.get(companyRef);
+    if (!snapshot.exists) {
+      return { status: 'not-found' };
+    }
+
+    const existingDocuments: CompanyDocumentRecord[] = Array.isArray(snapshot.data()?.['documents']) ? snapshot.data()!['documents'] : [];
+    const remaining = existingDocuments.filter((document) => document.id !== documentId);
+    if (remaining.length === existingDocuments.length) {
+      return { status: 'not-found' };
+    }
+
+    transaction.set(companyRef, { documents: remaining }, { merge: true });
+    return { status: 'ok' };
+  });
 }
 
 export type UpdateCompanySlugResult =

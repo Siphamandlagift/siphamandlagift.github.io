@@ -20,6 +20,19 @@ export type CompanyUsageSummary = {
   licenseLimit: number;
 };
 
+export type CompanyCostSettings = {
+  licenseCostPerUser: number | null;
+  setupCost: number | null;
+};
+
+export type CompanyDocument = {
+  id: string;
+  label: string;
+  fileName: string;
+  url: string;
+  uploadedAt: string;
+};
+
 export type CompanyWithUsage = {
   id: string;
   name: string;
@@ -30,6 +43,8 @@ export type CompanyWithUsage = {
   // URL slug for this company's own branded login page (.../login/{slug}) — unset until a Super
   // Admin assigns one (see updateCompanySlug below).
   slug?: string;
+  cost?: CompanyCostSettings;
+  documents?: CompanyDocument[];
 };
 
 export type PlatformLoginRequest = {
@@ -241,5 +256,40 @@ export class PlatformBackendService {
 
   updateCompanySlug(companyId: string, slug: string): Observable<CompanyWithUsage> {
     return this.http.patch<CompanyWithUsage>(`${this.baseUrl}/companies/${encodeURIComponent(companyId)}/slug`, { slug });
+  }
+
+  updateCompanyCost(companyId: string, input: CompanyCostSettings): Observable<CompanyWithUsage> {
+    return this.http.put<CompanyWithUsage>(`${this.baseUrl}/companies/${encodeURIComponent(companyId)}/cost`, input);
+  }
+
+  // Same FileReader-to-base64 upload as uploadBrandingImage above, reusing the same endpoint with
+  // kind: 'document' to widen the server's content-type allowlist beyond images (PDFs, Word,
+  // Excel) — see allowedCompanyDocumentContentTypes in super-admin-routes.ts.
+  uploadCompanyDocumentFile(file: File, companyId: string): Observable<UploadedBrandingImage> {
+    return new Observable((observer) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = typeof reader.result === 'string' ? reader.result : '';
+        const dataBase64 = result.slice(result.indexOf(',') + 1);
+        this.http.post<UploadedBrandingImage>(`${this.baseUrl}/storage/upload-base64`, {
+          folder: 'company-documents',
+          fileName: file.name,
+          contentType: file.type || 'application/octet-stream',
+          dataBase64,
+          companyId,
+          kind: 'document',
+        }).subscribe(observer);
+      };
+      reader.onerror = () => observer.error(reader.error ?? new Error('Could not read the selected file.'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  addCompanyDocument(companyId: string, input: { label: string; fileName: string; url: string }): Observable<CompanyDocument> {
+    return this.http.post<CompanyDocument>(`${this.baseUrl}/companies/${encodeURIComponent(companyId)}/documents`, input);
+  }
+
+  removeCompanyDocument(companyId: string, documentId: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/companies/${encodeURIComponent(companyId)}/documents/${encodeURIComponent(documentId)}`);
   }
 }

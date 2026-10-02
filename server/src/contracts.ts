@@ -1189,6 +1189,28 @@ export type CompanyRecord = {
   // deliberately assigns one (see updateCompanySlug in platform-repository.ts); a company with no
   // slug simply has no custom login URL yet and every visitor sees the shared platform branding.
   slug?: string;
+  // Commercial terms a Super Admin tracks per company — distinct from `subscription` above
+  // (which drives actual access control). Purely informational, so both fields are nullable and
+  // absent entirely until a Super Admin fills them in.
+  cost?: CompanyCostSettings;
+  // Free-form file attachments (invoices, the signed SLA, contracts, ...) — one shared list rather
+  // than fixed slots per document type, so a company can have as many or as few as it actually has
+  // on file. Small enough in practice (a handful of documents per company) to store inline on the
+  // company document rather than a subcollection.
+  documents?: CompanyDocumentRecord[];
+};
+
+export type CompanyCostSettings = {
+  licenseCostPerUser: number | null;
+  setupCost: number | null;
+};
+
+export type CompanyDocumentRecord = {
+  id: string;
+  label: string;
+  fileName: string;
+  url: string;
+  uploadedAt: string;
 };
 
 export type PlatformRole = 'super-admin';
@@ -1239,6 +1261,14 @@ export type UpdateCompanySubscriptionInput = {
   startDate?: string;
   endDate?: string;
   status?: SubscriptionStatus;
+};
+
+export type UpdateCompanyCostInput = CompanyCostSettings;
+
+export type AddCompanyDocumentInput = {
+  label: string;
+  fileName: string;
+  url: string;
 };
 
 // No name field — AuthAccountRecord itself has none (an account's display name is always derived

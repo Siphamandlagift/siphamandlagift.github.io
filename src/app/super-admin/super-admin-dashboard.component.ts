@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { finalize } from 'rxjs';
+import { finalize, switchMap } from 'rxjs';
 import {
   AdministratorAccountSummary,
   CompanyWithUsage,
@@ -19,7 +19,7 @@ import { LMS_BRAND_THEME_OPTIONS, type LmsBrandThemeId } from '../lms-brand-them
 type ActivePanel = 'none' | 'create-company' | 'view-company' | 'manage-super-admins';
 type SuperAdminTab = 'dashboard' | 'login-page' | 'companies' | 'reporting';
 type ReportDownloadFormat = 'CSV' | 'XLSX';
-type CompanyViewSection = 'subscription' | 'admins' | 'branding';
+type CompanyViewSection = 'subscription' | 'admins' | 'branding' | 'management';
 
 @Component({
   selector: 'app-super-admin-dashboard',
@@ -356,6 +356,7 @@ type CompanyViewSection = 'subscription' | 'admins' | 'branding';
             <button type="button" class="company-view-tab" [class.company-view-tab-active]="companyViewSection() === 'subscription'" (click)="selectCompanyViewSection('subscription')">Edit subscription</button>
             <button type="button" class="company-view-tab" [class.company-view-tab-active]="companyViewSection() === 'admins'" (click)="selectCompanyViewSection('admins')">Admins</button>
             <button type="button" class="company-view-tab" [class.company-view-tab-active]="companyViewSection() === 'branding'" (click)="selectCompanyViewSection('branding')">Login URL &amp; branding</button>
+            <button type="button" class="company-view-tab" [class.company-view-tab-active]="companyViewSection() === 'management'" (click)="selectCompanyViewSection('management')">Company Management</button>
           </nav>
 
           <div class="company-view-section">
@@ -563,6 +564,88 @@ type CompanyViewSection = 'subscription' | 'admins' | 'branding';
                   </div>
                 </form>
               }
+            }
+
+            @if (companyViewSection() === 'management') {
+              <h4 class="overlay-subheading">Cost</h4>
+              <form (ngSubmit)="submitCompanyCost()">
+                <div class="field-row">
+                  <label>
+                    <span>Licence cost per user</span>
+                    <input type="number" name="editLicenseCostPerUser" min="0" step="0.01" [(ngModel)]="editLicenseCostPerUser" />
+                  </label>
+                  <label>
+                    <span>Setup cost</span>
+                    <input type="number" name="editSetupCost" min="0" step="0.01" [(ngModel)]="editSetupCost" />
+                  </label>
+                </div>
+
+                @if (companyCostSuccess()) {
+                  <div class="success">{{ companyCostSuccess() }}</div>
+                }
+                @if (companyCostError()) {
+                  <div class="error">{{ companyCostError() }}</div>
+                }
+
+                <div class="overlay-footer">
+                  <button type="button" class="secondary-btn" (click)="closePanel()">Close</button>
+                  <button type="submit" class="primary-btn" [disabled]="savingCompanyCost()">
+                    {{ savingCompanyCost() ? 'Saving…' : 'Save cost' }}
+                  </button>
+                </div>
+              </form>
+
+              <div class="overlay-divider"></div>
+              <h4 class="overlay-subheading">Documents</h4>
+              <p class="branding-hint">
+                Invoices, the signed Service Level Agreement, or any other file worth keeping on file for
+                {{ company.name }}.
+              </p>
+
+              <div class="admin-list">
+                @for (document of company.documents ?? []; track document.id) {
+                  <div class="admin-list-row">
+                    <span class="admin-list-email">{{ document.label }}</span>
+                    <div class="admin-reset-inline">
+                      <a [href]="document.url" target="_blank" rel="noopener" class="inline-btn">Download</a>
+                      <button type="button" class="inline-btn" [disabled]="removingDocumentId() === document.id" (click)="removeDocument(document.id)">
+                        {{ removingDocumentId() === document.id ? 'Removing…' : 'Remove' }}
+                      </button>
+                    </div>
+                  </div>
+                } @empty {
+                  <div class="empty-state">No documents yet — add the first one below.</div>
+                }
+              </div>
+
+              @if (removeDocumentError()) {
+                <div class="error">{{ removeDocumentError() }}</div>
+              }
+
+              <div class="overlay-divider"></div>
+              <h4 class="overlay-subheading">Add document</h4>
+
+              <label>
+                <span>Label</span>
+                <input type="text" name="newDocumentLabel" [(ngModel)]="newDocumentLabel" placeholder="e.g. 2026 Service Level Agreement" />
+              </label>
+
+              <label class="secondary-btn branding-upload-btn">
+                <span>{{ uploadingCompanyDocument() ? 'Uploading…' : 'Upload document' }}</span>
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,image/png,image/jpeg"
+                  [disabled]="uploadingCompanyDocument()"
+                  (change)="onCompanyDocumentFileSelected($event)" />
+              </label>
+
+              @if (addDocumentError()) {
+                <div class="error">{{ addDocumentError() }}</div>
+              }
+
+              <div class="overlay-footer">
+                <button type="button" class="secondary-btn" (click)="closePanel()">Close</button>
+              </div>
             }
           </div>
         </div>
@@ -1263,7 +1346,8 @@ type CompanyViewSection = 'subscription' | 'admins' | 'branding';
     }
 
     .overlay-panel-wide {
-      width: min(44rem, calc(100vw - 2rem));
+      width: min(68rem, calc(100vw - 2rem));
+      max-height: calc(100vh - 2rem);
     }
 
     .company-view-body {
@@ -1915,7 +1999,7 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
       this.companyAdmins.set([]);
       this.cancelResetAdminPassword();
       this.loadCompanyAdmins(activeCompany.id);
-    } else {
+    } else if (section === 'branding') {
       this.editBrandingSlug = activeCompany.slug ?? '';
       this.companyBrandingPendingLogoDataUrl.set(undefined);
       this.companyBrandingPendingBackgroundImageUrl.set(undefined);
@@ -1923,6 +2007,14 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
       this.companyBrandingError.set('');
       this.companyBrandingSuccess.set('');
       this.loadCompanyBranding(activeCompany.id);
+    } else {
+      this.editLicenseCostPerUser = activeCompany.cost?.licenseCostPerUser ?? null;
+      this.editSetupCost = activeCompany.cost?.setupCost ?? null;
+      this.companyCostError.set('');
+      this.companyCostSuccess.set('');
+      this.newDocumentLabel = '';
+      this.addDocumentError.set('');
+      this.removeDocumentError.set('');
     }
   }
 
@@ -2175,6 +2267,101 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
     } else {
       saveBranding();
     }
+  }
+
+  // ── Per-company management (cost + documents) ──────────────────────────
+  // Cost is purely informational — it never feeds into access control the way `subscription`
+  // does, so there's no validation beyond "non-negative number or left blank". Documents are one
+  // shared list (see CompanyDocument) rather than fixed slots per type, so this panel covers
+  // invoices, the signed SLA, or anything else worth keeping on file for this company.
+  editLicenseCostPerUser: number | null = null;
+  editSetupCost: number | null = null;
+  readonly savingCompanyCost = signal(false);
+  readonly companyCostError = signal('');
+  readonly companyCostSuccess = signal('');
+
+  submitCompanyCost() {
+    const companyId = this.activeCompanyId();
+    if (!companyId || this.savingCompanyCost()) {
+      return;
+    }
+
+    this.savingCompanyCost.set(true);
+    this.companyCostError.set('');
+    this.companyCostSuccess.set('');
+
+    this.backend.updateCompanyCost(companyId, {
+      licenseCostPerUser: this.editLicenseCostPerUser,
+      setupCost: this.editSetupCost,
+    })
+      .pipe(finalize(() => this.savingCompanyCost.set(false)))
+      .subscribe({
+        next: () => {
+          this.companyCostSuccess.set('Cost saved.');
+          this.loadAll();
+        },
+        error: (error) => {
+          this.companyCostError.set(error?.error?.message || 'Could not save cost settings.');
+        },
+      });
+  }
+
+  newDocumentLabel = '';
+  readonly uploadingCompanyDocument = signal(false);
+  readonly addDocumentError = signal('');
+  readonly removingDocumentId = signal<string | null>(null);
+  readonly removeDocumentError = signal('');
+
+  onCompanyDocumentFileSelected(event: Event) {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (input) {
+      input.value = '';
+    }
+
+    const companyId = this.activeCompanyId();
+    if (!file || !companyId || this.uploadingCompanyDocument()) {
+      return;
+    }
+
+    const label = this.newDocumentLabel.trim() || file.name;
+
+    this.addDocumentError.set('');
+    this.uploadingCompanyDocument.set(true);
+
+    this.backend.uploadCompanyDocumentFile(file, companyId)
+      .pipe(
+        switchMap((uploaded) => this.backend.addCompanyDocument(companyId, { label, fileName: file.name, url: uploaded.url })),
+        finalize(() => this.uploadingCompanyDocument.set(false)),
+      )
+      .subscribe({
+        next: () => {
+          this.newDocumentLabel = '';
+          this.loadAll();
+        },
+        error: (error) => {
+          this.addDocumentError.set(error?.error?.message || `Could not upload "${file.name}". Please check your connection and try again.`);
+        },
+      });
+  }
+
+  removeDocument(documentId: string) {
+    const companyId = this.activeCompanyId();
+    if (!companyId || this.removingDocumentId()) {
+      return;
+    }
+
+    this.removeDocumentError.set('');
+    this.removingDocumentId.set(documentId);
+
+    this.backend.removeCompanyDocument(companyId, documentId)
+      .pipe(finalize(() => this.removingDocumentId.set(null)))
+      .subscribe({
+        next: () => this.loadAll(),
+        error: (error) => {
+          this.removeDocumentError.set(error?.error?.message || 'Could not remove this document.');
+        },
+      });
   }
 
   // Only stages a preview — nothing is sent to the server until "Save theme" is clicked (see

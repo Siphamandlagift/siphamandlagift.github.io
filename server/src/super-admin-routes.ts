@@ -12,6 +12,7 @@ import { createPasswordCredentials, isStrongPassword, passwordPolicyMessage, ver
 import { createLmsRepository } from './repository.js';
 import type { PasswordResetEmailService } from './email-service.js';
 import {
+  addCompanyDocument,
   createCompanyRecord,
   createPlatformAdmin,
   createPlatformPasswordResetRequest,
@@ -23,7 +24,9 @@ import {
   getPlatformPasswordResetTokenStatus,
   listCompanies,
   listPlatformAdmins,
+  removeCompanyDocument,
   resetPlatformAdminPassword,
+  updateCompanyCost,
   updateCompanySlug,
   updateCompanySubscription,
   updatePlatformBranding,
@@ -78,6 +81,17 @@ const resetCompanyAdminPasswordSchema = z.object({
 
 const updateCompanySlugSchema = z.object({
   slug: z.string().min(1),
+});
+
+const updateCompanyCostSchema = z.object({
+  licenseCostPerUser: z.number().nonnegative().nullable(),
+  setupCost: z.number().nonnegative().nullable(),
+});
+
+const addCompanyDocumentSchema = z.object({
+  label: z.string().min(1).max(200),
+  fileName: z.string().min(1).max(255),
+  url: z.string().url(),
 });
 
 const strongPasswordSchema = z.string().refine(isStrongPassword, { message: passwordPolicyMessage });
@@ -329,6 +343,57 @@ export function createSuperAdminRouter(options: {
     }
   });
 
+  router.put('/companies/:companyId/cost', requireSuperAdmin, async (request, response, next) => {
+    try {
+      const companyId = request.params['companyId'] as string;
+      const input = updateCompanyCostSchema.parse(request.body);
+      const updated = await updateCompanyCost(companyId, input);
+
+      if (!updated) {
+        response.status(404).json({ message: 'Company not found.' });
+        return;
+      }
+
+      response.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post('/companies/:companyId/documents', requireSuperAdmin, async (request, response, next) => {
+    try {
+      const companyId = request.params['companyId'] as string;
+      const input = addCompanyDocumentSchema.parse(request.body);
+      const document = await addCompanyDocument(companyId, input);
+
+      if (!document) {
+        response.status(404).json({ message: 'Company not found.' });
+        return;
+      }
+
+      response.status(201).json(document);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete('/companies/:companyId/documents/:documentId', requireSuperAdmin, async (request, response, next) => {
+    try {
+      const companyId = request.params['companyId'] as string;
+      const documentId = request.params['documentId'] as string;
+      const result = await removeCompanyDocument(companyId, documentId);
+
+      if (result.status === 'not-found') {
+        response.status(404).json({ message: 'Document not found.' });
+        return;
+      }
+
+      response.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.post('/companies/:companyId/admins', requireSuperAdmin, async (request, response, next) => {
     try {
       const companyId = request.params['companyId'] as string;
@@ -465,6 +530,15 @@ export function createSuperAdminRouter(options: {
   // background image only — the logo stays embedded as base64 (see platformBrandingUpdateSchema's
   // own comment for why that's still fine for a small logo but not for a full-page picture).
   const maxJsonUploadBytes = 8 * 1024 * 1024;
+  const allowedCompanyDocumentContentTypes = new Set([
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'image/png',
+    'image/jpeg',
+  ]);
   router.post('/storage/upload-base64', requireSuperAdmin, async (request, response, next) => {
     try {
       if (!storageBucket) {
@@ -472,16 +546,25 @@ export function createSuperAdminRouter(options: {
         return;
       }
 
-      const { folder, fileName, contentType, dataBase64, companyId } = z.object({
+      const { folder, fileName, contentType, dataBase64, companyId, kind } = z.object({
         folder: z.string().regex(/^[a-zA-Z0-9_-]+$/).max(64),
         fileName: z.string().min(1).max(255),
         contentType: z.string().min(1).max(127),
         dataBase64: z.string().min(1),
         companyId: z.string().min(1).optional(),
+        // 'document' widens the content-type allowlist below for the company-management
+        // Documents list (invoices, the signed SLA, ...) — every other caller (branding
+        // logo/background images) omits this and keeps the image-only default.
+        kind: z.enum(['image', 'document']).optional().default('image'),
       }).parse(request.body);
 
-      if (!contentType.startsWith('image/')) {
+      if (kind === 'image' && !contentType.startsWith('image/')) {
         response.status(400).json({ message: 'Only image files are allowed.' });
+        return;
+      }
+
+      if (kind === 'document' && !allowedCompanyDocumentContentTypes.has(contentType)) {
+        response.status(400).json({ message: 'Only PDF, Word, Excel, or image files are allowed.' });
         return;
       }
 
