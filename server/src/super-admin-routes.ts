@@ -338,16 +338,14 @@ export function createSuperAdminRouter(options: {
     }
   });
 
-  // Permanently deletes a company and every one of its Firestore documents (students, offerings,
-  // accounts, submissions — everything, see deleteCompanyRecord's own comment). Irreversible, so
-  // this requires the caller to echo the company's own current name back exactly — the dashboard's
-  // confirmation dialog makes the Super Admin type it, not just click a button — as a server-side
-  // backstop against a stray/mistaken call hitting the wrong id, not just a client-side check.
-  //
-  // NOTE: this does not yet clean up this company's previously-uploaded files in Cloud Storage
-  // (course thumbnails, SCORM packages, logos, company documents under lms-uploads/{companyId}/).
-  // Those are orphaned, not deleted, by this route today — left for a deliberate follow-up rather
-  // than a bulk Storage delete added here without that being asked for explicitly.
+  // Permanently deletes a company: every one of its Firestore documents (students, offerings,
+  // accounts, submissions — everything, see deleteCompanyRecord's own comment) AND every file it
+  // ever uploaded to Cloud Storage (course thumbnails, SCORM packages, logos, company documents —
+  // all live under lms-uploads/{companyId}/, see the companyId-scoped path built in
+  // POST /storage/upload-base64 above). Irreversible, so this requires the caller to echo the
+  // company's own current name back exactly — the dashboard's confirmation dialog makes the Super
+  // Admin type it, not just click a button — as a server-side backstop against a stray/mistaken
+  // call hitting the wrong id, not just a client-side check.
   router.delete('/companies/:companyId', requireSuperAdmin, async (request, response, next) => {
     try {
       const companyId = request.params['companyId'] as string;
@@ -365,6 +363,21 @@ export function createSuperAdminRouter(options: {
       }
 
       await deleteCompanyRecord(companyId);
+
+      // Best-effort: the company's actual data is already gone by this point (the irreversible
+      // part), so a Storage hiccup here must not surface as a failure of the whole delete — it'd
+      // be a confusing response for an operation that, from the caller's perspective, already
+      // succeeded. Any file this fails to remove is simply orphaned, not deleted, same as before
+      // this cleanup existed.
+      if (storageBucket) {
+        try {
+          const adminApp = getApps().length > 0 ? getApp() : initializeApp();
+          await getStorage(adminApp).bucket(storageBucket).deleteFiles({ prefix: `lms-uploads/${companyId}/` });
+        } catch {
+          // Swallowed — see comment above.
+        }
+      }
+
       response.status(204).send();
     } catch (error) {
       next(error);
