@@ -151,7 +151,7 @@ type QuizQuestionImportRow = {
   forceFalseCorrect: boolean;
 };
 
-type AdminSettingsSection = 'profile-picture' | 'company-logo' | 'theme' | 'hr-integration' | 'approval-settings';
+type AdminSettingsSection = 'profile-picture' | 'theme' | 'hr-integration' | 'approval-settings';
 type ReportDownloadFormat = 'CSV' | 'XLSX';
 type AdminReportView = 'annual-training' | 'idp-report' | 'performance-report' | 'certificate-licence-report' | 'assignments-report' | 'seta-report';
 type TrainingReportSource = 'All' | 'LMS' | 'External';
@@ -6257,11 +6257,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                       <span class="admin-settings-menu-item-copy">Upload or remove the picture shown for your admin account.</span>
                       <span class="admin-settings-menu-item-status">{{ uploadingProfileImage() ? 'Uploading…' : (adminProfileImageDataUrl() ? 'Uploaded' : 'Using initials avatar') }}</span>
                     </button>
-                    <button type="button" class="admin-settings-menu-item" role="listitem" (click)="selectSettingsSection('company-logo')">
-                      <span class="admin-settings-menu-item-title">Company logo</span>
-                      <span class="admin-settings-menu-item-copy">Upload the brand mark shown across the LMS.</span>
-                      <span class="admin-settings-menu-item-status">{{ companyLogoUploading() ? 'Uploading…' : (branding.companyLogoDataUrl() ? 'Uploaded' : 'Default brand mark') }}</span>
-                    </button>
                     <button type="button" class="admin-settings-menu-item" role="listitem" (click)="selectSettingsSection('theme')">
                       <span class="admin-settings-menu-item-title">Theme colour</span>
                       <span class="admin-settings-menu-item-copy">Choose the colour theme used across the admin, manager and student workspaces.</span>
@@ -6310,36 +6305,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           <input type="file" accept="image/*" [disabled]="uploadingProfileImage()" (change)="onAdminProfileImageSelected($event)" />
                         </label>
                         <button type="button" class="admin-secondary-btn" [disabled]="!adminProfileImageDataUrl() || uploadingProfileImage()" (click)="clearAdminProfileImage()">Remove picture</button>
-                      </div>
-                    </div>
-                  </div>
-                }
-
-                @if (selectedSettingsSection() === 'company-logo') {
-                  <div class="admin-settings-section-detail">
-                    <div class="admin-section-card-header">
-                      <h2>Company logo</h2>
-                      <span>{{ companyLogoUploading() ? 'Uploading…' : (branding.companyLogoDataUrl() ? 'Uploaded' : 'Default brand mark') }}</span>
-                    </div>
-                    @if (companyLogoUploadError()) {
-                      <div class="admin-upload-feedback admin-upload-feedback-error" role="status" aria-live="polite">{{ companyLogoUploadError() }}</div>
-                    }
-
-                    <div class="admin-settings-item-controls admin-logo-panel">
-                      <div class="admin-logo-preview" [class.admin-logo-preview-has-image]="!!branding.companyLogoDataUrl()">
-                        @if (branding.companyLogoDataUrl()) {
-                          <img [src]="branding.companyLogoDataUrl()!" alt="Selected company logo preview" />
-                        } @else {
-                          <span>AD</span>
-                        }
-                      </div>
-
-                      <div class="admin-logo-actions">
-                        <label class="admin-upload-btn" [class.admin-upload-btn-disabled]="companyLogoUploading()">
-                          <span>{{ companyLogoUploading() ? 'Uploading…' : 'Upload logo' }}</span>
-                          <input type="file" accept="image/*" [disabled]="companyLogoUploading()" (change)="onLogoSelected($event)" />
-                        </label>
-                        <button type="button" class="admin-secondary-btn" [disabled]="!branding.companyLogoDataUrl() || companyLogoUploading()" (click)="removeCompanyLogo()">Remove logo</button>
                       </div>
                     </div>
                   </div>
@@ -16674,8 +16639,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly trainingRecordApprovingManagerId = signal('');
   readonly adminProfileImageDataUrl = signal<string | null>(null);
   readonly uploadingProfileImage = signal(false);
-  readonly companyLogoUploading = signal(false);
-  readonly companyLogoUploadError = signal('');
   readonly themeUpdateError = signal('');
   readonly adminName = signal(
     readLmsSessionRecord()?.displayName
@@ -21150,44 +21113,6 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   removeAgreementDocument(form: UserFormGroup) {
     form.patchValue({ agreementDocumentFileName: '', agreementDocumentUrl: '' });
-  }
-
-  onLogoSelected(event: Event) {
-    const input = event.target as HTMLInputElement | null;
-    const file = input?.files?.[0];
-
-    if (!file) {
-      return;
-    }
-
-    if (input) {
-      input.value = '';
-    }
-
-    this.companyLogoUploadError.set('');
-    this.companyLogoUploading.set(true);
-
-    this.backend.uploadFileBase64(file, 'branding').subscribe({
-      next: async (result) => {
-        const saved = await this.branding.setCompanyLogo(result.url);
-        this.companyLogoUploading.set(false);
-        if (!saved) {
-          this.companyLogoUploadError.set('The logo was uploaded, but could not be saved. Please try again.');
-        }
-      },
-      error: () => {
-        this.companyLogoUploading.set(false);
-        this.companyLogoUploadError.set('Could not upload the logo. Please try again.');
-      },
-    });
-  }
-
-  async removeCompanyLogo() {
-    this.companyLogoUploadError.set('');
-    const saved = await this.branding.clearCompanyLogo();
-    if (!saved) {
-      this.companyLogoUploadError.set('The logo could not be removed. Please try again.');
-    }
   }
 
   downloadAnnualReportCsv() {
