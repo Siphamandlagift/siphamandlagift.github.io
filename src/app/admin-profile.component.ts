@@ -10566,8 +10566,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       display: flex;
       flex-direction: column;
       gap: 0.75rem;
-      position: sticky;
-      top: 0;
     }
 
     .certificate-template-preview-label {
