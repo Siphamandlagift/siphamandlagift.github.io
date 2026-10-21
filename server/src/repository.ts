@@ -1283,6 +1283,21 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
     kpiApproversRequired: clampApproversRequired(data.approvalWorkflowSettings?.kpiApproversRequired),
     trainingApproversRequired: clampApproversRequired(data.approvalWorkflowSettings?.trainingApproversRequired),
   };
+  // Per-field fallback (not a whole-object one) — a company's stored certificateTemplate can
+  // predate a field added after it was first saved (e.g. textColor), and defaults.certificateTemplate
+  // ?? would never kick in since the stored object itself isn't null/undefined, just missing that
+  // one key. Without this, that missing key reaches the client as undefined, which JSON silently
+  // drops from the save request body, which then fails the server's required-string zod schema —
+  // "Failed to save the certificate template" for every company whose template predates the field.
+  const certificateTemplate: CertificateTemplateSettings = {
+    titleText: data.certificateTemplate?.titleText ?? defaults.certificateTemplate.titleText,
+    accentColor: data.certificateTemplate?.accentColor ?? defaults.certificateTemplate.accentColor,
+    backgroundColor: data.certificateTemplate?.backgroundColor ?? defaults.certificateTemplate.backgroundColor,
+    textColor: data.certificateTemplate?.textColor ?? defaults.certificateTemplate.textColor,
+    brandText: data.certificateTemplate?.brandText ?? defaults.certificateTemplate.brandText,
+    signatoryName: data.certificateTemplate?.signatoryName ?? defaults.certificateTemplate.signatoryName,
+    signatoryTitle: data.certificateTemplate?.signatoryTitle ?? defaults.certificateTemplate.signatoryTitle,
+  };
   const students = data.students.map((student) => {
     const rawRole = (student.role ?? defaultStudentTemplate.role ?? 'student') as EnrollmentStudentRecord['role'] | LoginRole | 'admin';
     // Legacy migration: 'admin'/'administrator' used to be a base role. It's now the isAdmin flag
@@ -1350,7 +1365,7 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
     idpYearsOpened,
     hrIntegration: data.hrIntegration ?? defaults.hrIntegration,
     approvalWorkflowSettings,
-    certificateTemplate: data.certificateTemplate ?? defaults.certificateTemplate,
+    certificateTemplate,
   });
 
   syncLinkedAuthAccounts(normalized);

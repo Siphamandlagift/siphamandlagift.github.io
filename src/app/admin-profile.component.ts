@@ -10491,7 +10491,13 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     }
 
     .certificate-field-row-colors {
-      grid-template-columns: repeat(3, 1fr);
+      /* auto-fit (not a rigid repeat(3, 1fr)) so a narrow card wraps a colour field onto its own
+         row instead of squeezing all three until the swatch+hex pair overflows the card. */
+      grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+    }
+
+    .certificate-field-row-colors .certificate-template-color-field {
+      min-width: 0;
     }
 
     .certificate-field-compact {
