@@ -7725,47 +7725,70 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     </p>
 
                     <div class="certificate-template-layout">
-                      <div class="certificate-template-fields">
-                        <label>
-                          <span>Title</span>
-                          <input
-                            type="text"
-                            [value]="certificateTemplateTitleText()"
-                            (input)="certificateTemplateTitleText.set($any($event.target).value)"
-                            placeholder="Certificate of Completion" />
-                        </label>
-
-                        <label>
-                          <span>Accent colour</span>
-                          <div class="certificate-template-color-field">
-                            <input
-                              type="color"
-                              [value]="certificateTemplateAccentColor()"
-                              (input)="certificateTemplateAccentColor.set($any($event.target).value)" />
+                      <div class="certificate-template-card certificate-template-fields">
+                        <label class="certificate-field">
+                          <span class="certificate-field-label">Title</span>
+                          <span class="certificate-field-input-wrap">
+                            <svg class="certificate-field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                             <input
                               type="text"
+                              [value]="certificateTemplateTitleText()"
+                              (input)="certificateTemplateTitleText.set($any($event.target).value)"
+                              placeholder="Certificate of Completion" />
+                          </span>
+                          <span class="certificate-field-hint">The large heading shown on every certificate.</span>
+                        </label>
+
+                        <label class="certificate-field">
+                          <span class="certificate-field-label">Accent colour</span>
+                          <span class="certificate-template-color-field">
+                            <span class="certificate-template-swatch-wrap" [style.--swatch-color]="certificateTemplateAccentColor()">
+                              <input
+                                type="color"
+                                class="certificate-template-swatch"
+                                [value]="certificateTemplateAccentColor()"
+                                (input)="certificateTemplateAccentColor.set($any($event.target).value)"
+                                aria-label="Pick accent colour" />
+                            </span>
+                            <input
+                              type="text"
+                              class="certificate-template-color-text"
                               [value]="certificateTemplateAccentColor()"
                               (input)="certificateTemplateAccentColor.set($any($event.target).value)"
                               placeholder="#c9a227" />
-                          </div>
+                          </span>
+                          <span class="certificate-field-hint">Used for the inner border and the underline beneath the learner's name.</span>
                         </label>
 
-                        <label title="Optional — shown as a signature line near the bottom of the certificate. Leave blank to omit it entirely.">
-                          <span>Signatory name (optional)</span>
-                          <input
-                            type="text"
-                            [value]="certificateTemplateSignatoryName()"
-                            (input)="certificateTemplateSignatoryName.set($any($event.target).value)"
-                            placeholder="Example: Jane Doe" />
+                        <div class="certificate-field-divider">
+                          <span>Signature line</span>
+                          <span class="certificate-field-optional-pill">Optional</span>
+                        </div>
+
+                        <label class="certificate-field">
+                          <span class="certificate-field-label">Signatory name</span>
+                          <span class="certificate-field-input-wrap">
+                            <svg class="certificate-field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.6" stroke="currentColor" stroke-width="1.8"/><path d="M5 19.5c0-3.6 3.1-5.5 7-5.5s7 1.9 7 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                            <input
+                              type="text"
+                              [value]="certificateTemplateSignatoryName()"
+                              (input)="certificateTemplateSignatoryName.set($any($event.target).value)"
+                              placeholder="Example: Jane Doe" />
+                          </span>
+                          <span class="certificate-field-hint">Leave blank to omit the signature line entirely.</span>
                         </label>
 
-                        <label title="Shown under the signatory name — only rendered when a signatory name is set.">
-                          <span>Signatory title (optional)</span>
-                          <input
-                            type="text"
-                            [value]="certificateTemplateSignatoryTitle()"
-                            (input)="certificateTemplateSignatoryTitle.set($any($event.target).value)"
-                            placeholder="Example: Head of Learning & Development" />
+                        <label class="certificate-field">
+                          <span class="certificate-field-label">Signatory title</span>
+                          <span class="certificate-field-input-wrap">
+                            <svg class="certificate-field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="7.5" width="17" height="11.5" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 7.5V6a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v1.5" stroke="currentColor" stroke-width="1.8"/></svg>
+                            <input
+                              type="text"
+                              [value]="certificateTemplateSignatoryTitle()"
+                              (input)="certificateTemplateSignatoryTitle.set($any($event.target).value)"
+                              placeholder="Example: Head of Learning & Development" />
+                          </span>
+                          <span class="certificate-field-hint">Shown under the signatory name, only when one is set.</span>
                         </label>
 
                         @if (certificateTemplateMessage(); as message) {
@@ -7774,13 +7797,13 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           </div>
                         }
 
-                        <button type="button" class="detail-action-btn detail-action-btn-primary" [disabled]="savingCertificateTemplate()" (click)="saveCertificateTemplate()">
+                        <button type="button" class="detail-action-btn detail-action-btn-primary certificate-template-save-btn" [disabled]="savingCertificateTemplate()" (click)="saveCertificateTemplate()">
                           {{ savingCertificateTemplate() ? 'Saving…' : 'Save template' }}
                         </button>
                       </div>
 
-                      <div class="certificate-template-preview">
-                        <span class="certificate-template-preview-label">Preview</span>
+                      <div class="certificate-template-card certificate-template-preview">
+                        <span class="certificate-template-preview-label">Live preview</span>
                         <img [src]="certificateTemplatePreviewUrl()" alt="Certificate template preview" />
                       </div>
                     </div>
@@ -10326,45 +10349,167 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .certificate-template-layout {
       display: grid;
-      grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
-      gap: 2rem;
+      grid-template-columns: minmax(0, 24rem) minmax(0, 1fr);
+      gap: 1.5rem;
       align-items: start;
-      margin-top: 1rem;
+      margin-top: 1.25rem;
+    }
+
+    .certificate-template-card {
+      background: #fff;
+      border: 1px solid #e8ecf1;
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
     }
 
     .certificate-template-fields {
       display: flex;
       flex-direction: column;
-      gap: 1rem;
+      gap: 1.25rem;
+    }
+
+    .certificate-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .certificate-field-label {
+      font-size: 0.78rem;
+      font-weight: 800;
+      color: #173446;
+      letter-spacing: 0.03em;
+    }
+
+    .certificate-field-input-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      border: 1px solid #dbe2ea;
+      border-radius: 12px;
+      padding: 0 0.8rem;
+      background: #fff;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .certificate-field-input-wrap:has(input:focus) {
+      border-color: #818cf8;
+      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+    }
+
+    .certificate-field-icon {
+      flex-shrink: 0;
+      color: #94a3b8;
+    }
+
+    .certificate-field-input-wrap input {
+      flex: 1;
+      min-width: 0;
+      border: none;
+      padding: 0.68rem 0;
+      font-size: 0.9rem;
+      color: #173446;
+      background: transparent;
+      outline: none;
+    }
+
+    .certificate-field-hint {
+      font-size: 0.78rem;
+      color: #8a94a3;
+      line-height: 1.3;
+    }
+
+    .certificate-field-divider {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.25rem;
+      padding-top: 1rem;
+      border-top: 1px dashed #e8ecf1;
+      font-size: 0.78rem;
+      font-weight: 800;
+      color: #173446;
+      letter-spacing: 0.03em;
+    }
+
+    .certificate-field-optional-pill {
+      padding: 0.1rem 0.55rem;
+      border-radius: 999px;
+      background: #eef2ff;
+      color: #4f46e5;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
     }
 
     .certificate-template-color-field {
       display: flex;
       align-items: center;
-      gap: 0.6rem;
+      gap: 0.65rem;
     }
 
-    .certificate-template-color-field input[type='color'] {
-      width: 2.75rem;
-      height: 2.75rem;
-      padding: 0.15rem;
+    .certificate-template-swatch-wrap {
+      position: relative;
       flex-shrink: 0;
+      width: 2.6rem;
+      height: 2.6rem;
+      border-radius: 10px;
+      background: var(--swatch-color, #c9a227);
+      border: 1px solid rgba(15, 23, 42, 0.1);
+      box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
+      overflow: hidden;
+    }
+
+    .certificate-template-swatch {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      border: none;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .certificate-template-color-text {
+      flex: 1;
+      min-width: 0;
+      border: 1px solid #dbe2ea;
+      border-radius: 12px;
+      padding: 0.68rem 0.8rem;
+      font-size: 0.9rem;
+      color: #173446;
+      background: #fff;
+      box-sizing: border-box;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .certificate-template-color-text:focus {
+      outline: none;
+      border-color: #818cf8;
+      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+    }
+
+    .certificate-template-save-btn {
+      align-self: flex-start;
+      margin-top: 0.25rem;
     }
 
     .certificate-template-preview {
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
+      gap: 0.75rem;
       position: sticky;
       top: 0;
     }
 
     .certificate-template-preview-label {
-      font-size: 0.8rem;
-      font-weight: 700;
-      color: #6b7280;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
+      font-size: 0.78rem;
+      font-weight: 800;
+      color: #173446;
+      letter-spacing: 0.03em;
     }
 
     .certificate-template-preview img {
