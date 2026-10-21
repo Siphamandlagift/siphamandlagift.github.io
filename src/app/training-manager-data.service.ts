@@ -326,6 +326,8 @@ export type ApprovalWorkflowSettings = {
 export type CertificateTemplateSettings = {
   titleText: string;
   accentColor: string;
+  backgroundColor: string;
+  brandText: string;
   signatoryName: string;
   signatoryTitle: string;
 };
@@ -728,6 +730,8 @@ export class TrainingManagerDataService {
   private readonly certificateTemplateSignal = signal<CertificateTemplateSettings>({
     titleText: 'Certificate of Completion',
     accentColor: '#c9a227',
+    backgroundColor: '#fdfaf3',
+    brandText: 'SKILLSCONNECT',
     signatoryName: '',
     signatoryTitle: '',
   });

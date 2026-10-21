@@ -7727,6 +7727,19 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     <div class="certificate-template-layout">
                       <div class="certificate-template-card certificate-template-fields">
                         <label class="certificate-field">
+                          <span class="certificate-field-label">Brand text</span>
+                          <span class="certificate-field-input-wrap">
+                            <svg class="certificate-field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.5 5 7v6c0 3.5 3 6.1 7 7.5 4-1.4 7-4 7-7.5V7l-7-3.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                            <input
+                              type="text"
+                              [value]="certificateTemplateBrandText()"
+                              (input)="certificateTemplateBrandText.set($any($event.target).value)"
+                              placeholder="SKILLSCONNECT" />
+                          </span>
+                          <span class="certificate-field-hint">The small line above the title — put your own company name here.</span>
+                        </label>
+
+                        <label class="certificate-field">
                           <span class="certificate-field-label">Title</span>
                           <span class="certificate-field-input-wrap">
                             <svg class="certificate-field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -7739,26 +7752,49 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                           <span class="certificate-field-hint">The large heading shown on every certificate.</span>
                         </label>
 
-                        <label class="certificate-field">
-                          <span class="certificate-field-label">Accent colour</span>
-                          <span class="certificate-template-color-field">
-                            <span class="certificate-template-swatch-wrap" [style.--swatch-color]="certificateTemplateAccentColor()">
+                        <div class="certificate-field-row">
+                          <label class="certificate-field">
+                            <span class="certificate-field-label">Accent colour</span>
+                            <span class="certificate-template-color-field">
+                              <span class="certificate-template-swatch-wrap" [style.--swatch-color]="certificateTemplateAccentColor()">
+                                <input
+                                  type="color"
+                                  class="certificate-template-swatch"
+                                  [value]="certificateTemplateAccentColor()"
+                                  (input)="certificateTemplateAccentColor.set($any($event.target).value)"
+                                  aria-label="Pick accent colour" />
+                              </span>
                               <input
-                                type="color"
-                                class="certificate-template-swatch"
+                                type="text"
+                                class="certificate-template-color-text"
                                 [value]="certificateTemplateAccentColor()"
                                 (input)="certificateTemplateAccentColor.set($any($event.target).value)"
-                                aria-label="Pick accent colour" />
+                                placeholder="#c9a227" />
                             </span>
-                            <input
-                              type="text"
-                              class="certificate-template-color-text"
-                              [value]="certificateTemplateAccentColor()"
-                              (input)="certificateTemplateAccentColor.set($any($event.target).value)"
-                              placeholder="#c9a227" />
-                          </span>
-                          <span class="certificate-field-hint">Used for the inner border and the underline beneath the learner's name.</span>
-                        </label>
+                            <span class="certificate-field-hint">Inner border and the underline beneath the learner's name.</span>
+                          </label>
+
+                          <label class="certificate-field">
+                            <span class="certificate-field-label">Background colour</span>
+                            <span class="certificate-template-color-field">
+                              <span class="certificate-template-swatch-wrap" [style.--swatch-color]="certificateTemplateBackgroundColor()">
+                                <input
+                                  type="color"
+                                  class="certificate-template-swatch"
+                                  [value]="certificateTemplateBackgroundColor()"
+                                  (input)="certificateTemplateBackgroundColor.set($any($event.target).value)"
+                                  aria-label="Pick background colour" />
+                              </span>
+                              <input
+                                type="text"
+                                class="certificate-template-color-text"
+                                [value]="certificateTemplateBackgroundColor()"
+                                (input)="certificateTemplateBackgroundColor.set($any($event.target).value)"
+                                placeholder="#fdfaf3" />
+                            </span>
+                            <span class="certificate-field-hint">Fills the whole certificate behind the text.</span>
+                          </label>
+                        </div>
 
                         <div class="certificate-field-divider">
                           <span>Signature line</span>
@@ -10349,7 +10385,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .certificate-template-layout {
       display: grid;
-      grid-template-columns: minmax(0, 24rem) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 27rem) minmax(0, 1fr);
       gap: 1.5rem;
       align-items: start;
       margin-top: 1.25rem;
@@ -10431,6 +10467,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       font-weight: 800;
       color: #173446;
       letter-spacing: 0.03em;
+    }
+
+    .certificate-field-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.85rem;
     }
 
     .certificate-field-optional-pill {
@@ -10521,6 +10563,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     @media (max-width: 900px) {
       .certificate-template-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .certificate-field-row {
         grid-template-columns: 1fr;
       }
     }
@@ -18490,6 +18538,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   // clobbered by a background bootstrap refresh, then pushed to the server on Save.
   readonly certificateTemplateTitleText = signal('Certificate of Completion');
   readonly certificateTemplateAccentColor = signal('#c9a227');
+  readonly certificateTemplateBackgroundColor = signal('#fdfaf3');
+  readonly certificateTemplateBrandText = signal('SKILLSCONNECT');
   readonly certificateTemplateSignatoryName = signal('');
   readonly certificateTemplateSignatoryTitle = signal('');
   readonly savingCertificateTemplate = signal(false);
@@ -18503,6 +18553,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       completionDate: this.createCompletionDateStamp(),
       titleText: this.certificateTemplateTitleText(),
       accentColor: this.certificateTemplateAccentColor(),
+      backgroundColor: this.certificateTemplateBackgroundColor(),
+      brandText: this.certificateTemplateBrandText(),
       signatoryName: this.certificateTemplateSignatoryName(),
       signatoryTitle: this.certificateTemplateSignatoryTitle(),
     }),
@@ -18522,6 +18574,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     const input: CertificateTemplateSettings = {
       titleText: this.certificateTemplateTitleText(),
       accentColor: this.certificateTemplateAccentColor(),
+      backgroundColor: this.certificateTemplateBackgroundColor(),
+      brandText: this.certificateTemplateBrandText(),
       signatoryName: this.certificateTemplateSignatoryName(),
       signatoryTitle: this.certificateTemplateSignatoryTitle(),
     };
@@ -22682,6 +22736,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       const template = this.managerData.certificateTemplate();
       this.certificateTemplateTitleText.set(template.titleText);
       this.certificateTemplateAccentColor.set(template.accentColor);
+      this.certificateTemplateBackgroundColor.set(template.backgroundColor);
+      this.certificateTemplateBrandText.set(template.brandText);
       this.certificateTemplateSignatoryName.set(template.signatoryName);
       this.certificateTemplateSignatoryTitle.set(template.signatoryTitle);
       this.certificateTemplateMessage.set('');

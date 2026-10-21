@@ -1027,6 +1027,8 @@ const approvalWorkflowSettingsUpdateSchema = z.object({
 const certificateTemplateUpdateSchema = z.object({
   titleText: z.string(),
   accentColor: z.string(),
+  backgroundColor: z.string(),
+  brandText: z.string(),
   signatoryName: z.string(),
   signatoryTitle: z.string(),
 });

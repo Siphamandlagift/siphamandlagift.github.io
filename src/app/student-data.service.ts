@@ -1157,6 +1157,8 @@ export class StudentDataService {
       completionDate,
       titleText: template.titleText,
       accentColor: template.accentColor,
+      backgroundColor: template.backgroundColor,
+      brandText: template.brandText,
       signatoryName: template.signatoryName,
       signatoryTitle: template.signatoryTitle,
     });

@@ -181,6 +181,8 @@ export function createDefaultData(companyId = ''): LmsDataStore {
     certificateTemplate: {
       titleText: 'Certificate of Completion',
       accentColor: '#c9a227',
+      backgroundColor: '#fdfaf3',
+      brandText: 'SKILLSCONNECT',
       signatoryName: '',
       signatoryTitle: '',
     },

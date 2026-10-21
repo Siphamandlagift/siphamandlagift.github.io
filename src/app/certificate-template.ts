@@ -5,9 +5,12 @@ export type CourseCompletionCertificateInput = {
   // Admin-configurable (Course Studio > Certificate Template) — see CertificateTemplateSettings
   // in training-manager-data.service.ts. Left undefined/blank, every one of these reproduces
   // today's fixed design exactly: titleText defaults to 'Certificate of Completion', accentColor
-  // to '#c9a227', and the signature line is omitted entirely when signatoryName is blank.
+  // to '#c9a227', backgroundColor to '#fdfaf3', brandText to 'SKILLSCONNECT', and the signature
+  // line is omitted entirely when signatoryName is blank.
   titleText?: string;
   accentColor?: string;
+  backgroundColor?: string;
+  brandText?: string;
   signatoryName?: string;
   signatoryTitle?: string;
 };
@@ -43,10 +46,12 @@ export function renderCourseCompletionCertificate(input: CourseCompletionCertifi
   const centerX = canvas.width / 2;
   const titleText = input.titleText?.trim() || 'Certificate of Completion';
   const accentColor = input.accentColor?.trim() || '#c9a227';
+  const backgroundColor = input.backgroundColor?.trim() || '#fdfaf3';
+  const brandText = input.brandText?.trim() || 'SKILLSCONNECT';
   const signatoryName = input.signatoryName?.trim() ?? '';
   const signatoryTitle = input.signatoryTitle?.trim() ?? '';
 
-  ctx.fillStyle = '#fdfaf3';
+  ctx.fillStyle = backgroundColor;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   ctx.strokeStyle = '#173446';
@@ -61,7 +66,7 @@ export function renderCourseCompletionCertificate(input: CourseCompletionCertifi
 
   ctx.fillStyle = '#94a3b8';
   ctx.font = '600 26px Georgia, "Times New Roman", serif';
-  ctx.fillText('SKILLSCONNECT', centerX, 160);
+  ctx.fillText(brandText, centerX, 160);
 
   ctx.fillStyle = '#173446';
   ctx.font = 'bold 62px Georgia, "Times New Roman", serif';

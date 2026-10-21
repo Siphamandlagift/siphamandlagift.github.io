@@ -732,6 +732,10 @@ export type StudentRecord = EnrollmentStudentRecord & {
 export type CertificateTemplateSettings = {
   titleText: string;
   accentColor: string;
+  backgroundColor: string;
+  // The small eyebrow line above the title — defaults to 'SKILLSCONNECT' but is editable so a
+  // company can put its own name there instead.
+  brandText: string;
   // Both optional/blank — the rendered certificate omits the whole signature block when
   // signatoryName is blank, rather than drawing an empty line.
   signatoryName: string;
