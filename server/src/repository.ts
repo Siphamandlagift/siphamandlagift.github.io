@@ -22,6 +22,8 @@ import {
   AuthAccountRecord,
   AssignmentSubmissionRecord,
   BrandingSettingsUpdateInput,
+  CertificateTemplateSettings,
+  CertificateTemplateUpdateInput,
   CompanyEngagementSummary,
   CreateAdministratorAccountResult,
   ChangePasswordInput,
@@ -1348,6 +1350,7 @@ function normalizeData(data: LmsDataStore): LmsDataStore {
     idpYearsOpened,
     hrIntegration: data.hrIntegration ?? defaults.hrIntegration,
     approvalWorkflowSettings,
+    certificateTemplate: data.certificateTemplate ?? defaults.certificateTemplate,
   });
 
   syncLinkedAuthAccounts(normalized);
@@ -1557,6 +1560,7 @@ export class LmsRepository {
         currentKpiYear: data.currentKpiYear,
         kpiYearsOpened: data.kpiYearsOpened,
         approvalWorkflowSettings: data.approvalWorkflowSettings,
+        certificateTemplate: data.certificateTemplate,
         kpiApprovalByStudent,
         trainingManagers: data.trainingManagers,
         administrators,
@@ -1605,6 +1609,7 @@ export class LmsRepository {
       currentKpiYear: data.currentKpiYear,
       kpiYearsOpened: data.kpiYearsOpened,
       approvalWorkflowSettings: data.approvalWorkflowSettings,
+      certificateTemplate: data.certificateTemplate,
       kpiApprovalByStudent: ownStudentId ? { [ownStudentId]: kpiApprovalByStudent[ownStudentId] ?? null } : {},
       trainingManagers: data.trainingManagers,
       administrators,
@@ -2238,6 +2243,21 @@ export class LmsRepository {
     return next.approvalWorkflowSettings;
   }
 
+  // Same "broadly readable, admin-only write" shape as approvalWorkflowSettings above — a
+  // student session needs this to render its own course-completion certificates.
+  async updateCertificateTemplate(input: CertificateTemplateUpdateInput): Promise<CertificateTemplateSettings> {
+    const data = await this.read();
+    data.certificateTemplate = {
+      titleText: input.titleText.trim() || 'Certificate of Completion',
+      accentColor: input.accentColor.trim() || '#c9a227',
+      signatoryName: input.signatoryName.trim(),
+      signatoryTitle: input.signatoryTitle.trim(),
+    };
+
+    const next = await this.write(data);
+    return next.certificateTemplate;
+  }
+
   // Pulls roster data from the admin-configured external HR endpoint and upserts it into the
   // student roster. Deliberately additive-only: an existing student (matched by email, the same
   // key the bulk-upload flow already dedupes on — see bulkUpsertStudents in
@@ -2432,6 +2452,7 @@ export class LmsRepository {
         contentItems: update.contentItems ?? offering.contentItems,
         trainingProgrammeId: update.trainingProgrammeId,
         durationHours: update.durationHours,
+        certificateEnabled: update.certificateEnabled,
       };
     });
 
@@ -4420,7 +4441,7 @@ class FirestoreLmsRepository extends LmsRepository {
 
     const defaults = normalizeData(createDefaultData());
     const storeData = storeSnapshot.exists
-      ? (storeSnapshot.data() as Partial<Pick<LmsDataStore, 'branding' | 'updatedAt' | 'currentKpiYear' | 'kpiYearsOpened' | 'currentIdpYear' | 'idpYearsOpened' | 'hrIntegration' | 'approvalWorkflowSettings'>>)
+      ? (storeSnapshot.data() as Partial<Pick<LmsDataStore, 'branding' | 'updatedAt' | 'currentKpiYear' | 'kpiYearsOpened' | 'currentIdpYear' | 'idpYearsOpened' | 'hrIntegration' | 'approvalWorkflowSettings' | 'certificateTemplate'>>)
       : undefined;
 
     const data = normalizeData({
@@ -4448,6 +4469,7 @@ class FirestoreLmsRepository extends LmsRepository {
       idpYearsOpened: storeData?.idpYearsOpened ?? defaults.idpYearsOpened,
       hrIntegration: storeData?.hrIntegration ?? defaults.hrIntegration,
       approvalWorkflowSettings: storeData?.approvalWorkflowSettings ?? defaults.approvalWorkflowSettings,
+      certificateTemplate: storeData?.certificateTemplate ?? defaults.certificateTemplate,
     });
 
     // Self-heals every read (not just the specific writes that already called this before
@@ -4489,6 +4511,7 @@ class FirestoreLmsRepository extends LmsRepository {
             idpYearsOpened: nextData.idpYearsOpened,
             hrIntegration: nextData.hrIntegration,
             approvalWorkflowSettings: nextData.approvalWorkflowSettings,
+            certificateTemplate: nextData.certificateTemplate,
           }), { merge: true });
         },
       ];
@@ -5270,6 +5293,13 @@ class FirestoreLmsRepository extends LmsRepository {
         thumbnailDataUrl: update.thumbnailDataUrl,
         contentItems: update.contentItems ?? existing.contentItems,
         trainingProgrammeId: update.trainingProgrammeId,
+        // This override previously omitted durationHours entirely, so the spread of ...existing
+        // above silently kept it frozen at whatever it was on creation — editing Duration (hours)
+        // on an already-created course had no effect in production (the only repository class
+        // actually backing real company data). Fixed alongside adding certificateEnabled here so
+        // the new field doesn't ship with the exact same gap.
+        durationHours: update.durationHours,
+        certificateEnabled: update.certificateEnabled,
       };
 
       transaction.set(ref, this.sanitizeForFirestore(nextOffering));

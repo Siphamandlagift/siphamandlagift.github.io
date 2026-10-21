@@ -94,6 +94,11 @@ export type TrainingOffering = {
   // contribute to the total until an admin edits the course and fills it in, rather than the whole
   // feature needing a backfill.
   durationHours?: number;
+  // Whether a student automatically gets a certificate (rendered from the company's
+  // CertificateTemplateSettings) the moment they complete this course. Undefined/missing means
+  // true — every course issued one unconditionally before this toggle existed, so an absent value
+  // must preserve that behavior rather than silently stop issuing certificates on old courses.
+  certificateEnabled?: boolean;
 };
 
 export type TrainingOfferingUpdate = {
@@ -110,6 +115,7 @@ export type TrainingOfferingUpdate = {
   contentItems?: TrainingContentItem[];
   trainingProgrammeId?: string;
   durationHours?: number;
+  certificateEnabled?: boolean;
 };
 
 export type StudentCourseRecord = {
@@ -720,6 +726,20 @@ export type StudentRecord = EnrollmentStudentRecord & {
   kpiYears?: StudentKpiYearRecord[];
 };
 
+// One shared certificate design per company (Course Studio > Certificate Template), used by
+// every course with certificateEnabled on TrainingOffering. Every field has a default that
+// reproduces the certificate's original fixed design exactly — see certificate-template.ts.
+export type CertificateTemplateSettings = {
+  titleText: string;
+  accentColor: string;
+  // Both optional/blank — the rendered certificate omits the whole signature block when
+  // signatoryName is blank, rather than drawing an empty line.
+  signatoryName: string;
+  signatoryTitle: string;
+};
+
+export type CertificateTemplateUpdateInput = CertificateTemplateSettings;
+
 export type BrandingSettingsRecord = {
   themeId: 'ocean' | 'forest' | 'sunrise' | 'purple' | 'black' | 'grey';
   companyLogoDataUrl: string | null;
@@ -983,11 +1003,15 @@ export type LmsDataStore = {
   idpYearsOpened: number[];
   hrIntegration: HrIntegrationConfigRecord;
   approvalWorkflowSettings: ApprovalWorkflowSettingsRecord;
+  certificateTemplate: CertificateTemplateSettings;
 };
 
 export type LmsBootstrapResponse = {
   offerings: TrainingOffering[];
   branding: BrandingSettingsRecord;
+  // Readable by every role (unlike hrIntegration) — a student session needs this to render its
+  // own course-completion certificates; only an admin can change it (PUT /certificate-template).
+  certificateTemplate: CertificateTemplateSettings;
   // Added by the /api/bootstrap route handler itself, not repository.getBootstrap() — the
   // repository has no concept of subscription/plan (see the multi-tenant retrofit's licensing
   // design). Optional since this type is also used server-side before that merge happens.

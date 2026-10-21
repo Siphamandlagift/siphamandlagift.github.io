@@ -1017,7 +1017,7 @@ export class StudentDataService {
     if (updatedCourse) {
       const completedCourse: StudentCourse = updatedCourse;
       this.recordCourseEngagement();
-      if (justCompleted) {
+      if (justCompleted && this.offeringIssuesCertificate(completedCourse)) {
         void this.generateCourseCompletionCertificate(completedCourse.name, completedCourse.completedAt ?? this.createCompletionDateStamp());
       }
       this.persistStudentSnapshot();
@@ -1127,9 +1127,20 @@ export class StudentDataService {
     return `${year}-${month}-${day}`;
   }
 
-  /** Generates a "Certificate of Completion" image for a just-finished course and adds it to the
-   *  student's certificates list. Uploads it to Storage for a durable fileUrl in the background —
-   *  if that fails, the certificate still shows and downloads from this browser's local copy. */
+  // Same offeringId-preferred, name-fallback match as syncCourseProgress's own isMatch above —
+  // certificateEnabled undefined/missing means true, since every course issued one
+  // unconditionally before this toggle existed (see TrainingOffering.certificateEnabled).
+  private offeringIssuesCertificate(course: { offeringId?: string; name: string }): boolean {
+    const offering = course.offeringId
+      ? this.managerData.offerings().find((item) => item.id === course.offeringId)
+      : this.managerData.offerings().find((item) => item.title === course.name);
+    return offering?.certificateEnabled !== false;
+  }
+
+  /** Generates a certificate (using the company's CertificateTemplateSettings) for a
+   *  just-finished course and adds it to the student's certificates list. Uploads it to Storage
+   *  for a durable fileUrl in the background — if that fails, the certificate still shows and
+   *  downloads from this browser's local copy. */
   private async generateCourseCompletionCertificate(courseName: string, completionDate: string) {
     const alreadyExists = this.certificatesAndLicencesSignal().some(
       (record) => record.source === 'course-completion' && record.certificationName === courseName,
@@ -1139,7 +1150,16 @@ export class StudentDataService {
     }
 
     const studentName = this.profileSignal().name.trim() || 'Learner';
-    const dataUrl = renderCourseCompletionCertificate({ studentName, courseName, completionDate });
+    const template = this.managerData.certificateTemplate();
+    const dataUrl = renderCourseCompletionCertificate({
+      studentName,
+      courseName,
+      completionDate,
+      titleText: template.titleText,
+      accentColor: template.accentColor,
+      signatoryName: template.signatoryName,
+      signatoryTitle: template.signatoryTitle,
+    });
     if (!dataUrl) {
       return;
     }

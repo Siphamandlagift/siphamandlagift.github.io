@@ -198,6 +198,10 @@ export type TrainingOffering = {
   // Feeds the Super Admin Reporting tab's "total training hours completed" column — see the
   // server contract's own comment on this same field for the full "why".
   durationHours?: number;
+  // Whether a student automatically gets a certificate on completion — see the server contract's
+  // own comment on this same field. Undefined/missing means true (every course issued one
+  // unconditionally before this toggle existed).
+  certificateEnabled?: boolean;
 };
 
 export type TrainingOfferingUpdate = {
@@ -214,6 +218,7 @@ export type TrainingOfferingUpdate = {
   contentItems?: TrainingContentItem[];
   trainingProgrammeId?: string;
   durationHours?: number;
+  certificateEnabled?: boolean;
 };
 
 export type EnrollmentStudent = {
@@ -313,6 +318,16 @@ export type ExternalTrainingRequestStatus = SubmissionReviewStatus;
 export type ApprovalWorkflowSettings = {
   kpiApproversRequired: number;
   trainingApproversRequired: number;
+};
+
+// One shared certificate design per company (Course Studio > Certificate Template), used by
+// every course with certificateEnabled on TrainingOffering below. Every field defaults to
+// reproducing the certificate's original fixed design exactly — see certificate-template.ts.
+export type CertificateTemplateSettings = {
+  titleText: string;
+  accentColor: string;
+  signatoryName: string;
+  signatoryTitle: string;
 };
 
 // One completed step in either approval chain below.
@@ -708,6 +723,16 @@ export class TrainingManagerDataService {
   private approvalWorkflowSettingsDirtyAt: number | null = null;
   private readonly kpiApprovalByStudentSignal = signal<Record<string, KpiApprovalRecord | null>>({});
 
+  // Same "broadly readable, admin-only write, dirty-guard against a racing bootstrap poll" shape
+  // as approvalWorkflowSettingsSignal above.
+  private readonly certificateTemplateSignal = signal<CertificateTemplateSettings>({
+    titleText: 'Certificate of Completion',
+    accentColor: '#c9a227',
+    signatoryName: '',
+    signatoryTitle: '',
+  });
+  private certificateTemplateDirtyAt: number | null = null;
+
   // Timestamp of the last local write per student id, so a periodic bootstrap poll that was
   // already in flight when that write happened doesn't clobber it with stale data once the poll
   // resolves (see mergeServerAuthoritativeRecord) — this is what made a student's KPI self-score
@@ -854,6 +879,7 @@ export class TrainingManagerDataService {
   readonly currentKpiYear = this.currentKpiYearSignal.asReadonly();
   readonly kpiYearsOpened = this.kpiYearsOpenedSignal.asReadonly();
   readonly approvalWorkflowSettings = this.approvalWorkflowSettingsSignal.asReadonly();
+  readonly certificateTemplate = this.certificateTemplateSignal.asReadonly();
   readonly kpiApprovalByStudent = this.kpiApprovalByStudentSignal.asReadonly();
   // The shared approver pool (see nextApproverCandidates/buildTrainingManagers) minus anyone who's
   // already approved earlier in a given chain — feeds the "pick who reviews next" dropdown on both
@@ -1154,6 +1180,20 @@ export class TrainingManagerDataService {
     }
   }
 
+  // Admin-facing (Course Studio > Certificate Template). Updates the shared signal directly from
+  // the server's response so every course's next completion renders with the new design
+  // immediately, in this session and (via the next bootstrap poll) every other open one.
+  async updateCertificateTemplate(input: CertificateTemplateSettings): Promise<{ success: true } | { success: false; message: string }> {
+    try {
+      this.certificateTemplateDirtyAt = Date.now();
+      const template = await firstValueFrom(this.backend.updateCertificateTemplate(input));
+      this.certificateTemplateSignal.set(template);
+      return { success: true };
+    } catch {
+      return { success: false, message: 'Failed to save the certificate template.' };
+    }
+  }
+
   // The manager-facing "submit this KPI table for sign-off" action — only meaningful once
   // kpiApproversRequired >= 2 (server.ts enforces the actual business rules; this just calls
   // through). Updates kpiApprovalByStudentSignal directly from the server's response rather than
@@ -1377,6 +1417,10 @@ export class TrainingManagerDataService {
         if (bootstrap.approvalWorkflowSettings && !isApprovalWorkflowSettingsStale) {
           this.approvalWorkflowSettingsSignal.set(bootstrap.approvalWorkflowSettings);
         }
+        const isCertificateTemplateStale = this.certificateTemplateDirtyAt !== null && this.certificateTemplateDirtyAt >= requestStartedAt;
+        if (bootstrap.certificateTemplate && !isCertificateTemplateStale) {
+          this.certificateTemplateSignal.set(bootstrap.certificateTemplate);
+        }
         if (bootstrap.kpiApprovalByStudent) {
           this.kpiApprovalByStudentSignal.set(bootstrap.kpiApprovalByStudent);
         }
@@ -1459,6 +1503,7 @@ export class TrainingManagerDataService {
     thumbnailDataUrl: string | null;
     trainingProgrammeId?: string;
     durationHours?: number;
+    certificateEnabled?: boolean;
     contentItems: Array<{
       id?: string;
       kind: TrainingContentKind;
@@ -1530,6 +1575,7 @@ export class TrainingManagerDataService {
       status: 'Published',
       trainingProgrammeId: input.trainingProgrammeId,
       durationHours: input.durationHours,
+      certificateEnabled: input.certificateEnabled,
     };
 
     this.offeringsSignal.update((items) => [newOffering, ...items]);
@@ -1590,6 +1636,7 @@ export class TrainingManagerDataService {
           contentItems: normalizedContentItems ?? item.contentItems,
           trainingProgrammeId: input.trainingProgrammeId,
           durationHours: input.durationHours,
+          certificateEnabled: input.certificateEnabled,
         };
         return updatedOffering;
       }),
@@ -3568,6 +3615,10 @@ export class TrainingManagerDataService {
           const isApprovalWorkflowSettingsStale = this.approvalWorkflowSettingsDirtyAt !== null && this.approvalWorkflowSettingsDirtyAt >= requestStartedAt;
           if (bootstrap.approvalWorkflowSettings && !isApprovalWorkflowSettingsStale) {
             this.approvalWorkflowSettingsSignal.set(bootstrap.approvalWorkflowSettings);
+          }
+          const isCertificateTemplateStale = this.certificateTemplateDirtyAt !== null && this.certificateTemplateDirtyAt >= requestStartedAt;
+          if (bootstrap.certificateTemplate && !isCertificateTemplateStale) {
+            this.certificateTemplateSignal.set(bootstrap.certificateTemplate);
           }
           if (bootstrap.kpiApprovalByStudent) {
             if (kpiYearChanged) {

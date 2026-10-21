@@ -2,6 +2,14 @@ export type CourseCompletionCertificateInput = {
   studentName: string;
   courseName: string;
   completionDate: string;
+  // Admin-configurable (Course Studio > Certificate Template) — see CertificateTemplateSettings
+  // in training-manager-data.service.ts. Left undefined/blank, every one of these reproduces
+  // today's fixed design exactly: titleText defaults to 'Certificate of Completion', accentColor
+  // to '#c9a227', and the signature line is omitted entirely when signatoryName is blank.
+  titleText?: string;
+  accentColor?: string;
+  signatoryName?: string;
+  signatoryTitle?: string;
 };
 
 /** Converts a data URL (e.g. from canvas.toDataURL()) into a File, so a generated image can be
@@ -33,6 +41,10 @@ export function renderCourseCompletionCertificate(input: CourseCompletionCertifi
   }
 
   const centerX = canvas.width / 2;
+  const titleText = input.titleText?.trim() || 'Certificate of Completion';
+  const accentColor = input.accentColor?.trim() || '#c9a227';
+  const signatoryName = input.signatoryName?.trim() ?? '';
+  const signatoryTitle = input.signatoryTitle?.trim() ?? '';
 
   ctx.fillStyle = '#fdfaf3';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -41,7 +53,7 @@ export function renderCourseCompletionCertificate(input: CourseCompletionCertifi
   ctx.lineWidth = 10;
   ctx.strokeRect(30, 30, canvas.width - 60, canvas.height - 60);
 
-  ctx.strokeStyle = '#c9a227';
+  ctx.strokeStyle = accentColor;
   ctx.lineWidth = 3;
   ctx.strokeRect(56, 56, canvas.width - 112, canvas.height - 112);
 
@@ -53,7 +65,7 @@ export function renderCourseCompletionCertificate(input: CourseCompletionCertifi
 
   ctx.fillStyle = '#173446';
   ctx.font = 'bold 62px Georgia, "Times New Roman", serif';
-  ctx.fillText('Certificate of Completion', centerX, 260);
+  ctx.fillText(titleText, centerX, 260);
 
   ctx.fillStyle = '#475569';
   ctx.font = '26px Georgia, "Times New Roman", serif';
@@ -64,7 +76,7 @@ export function renderCourseCompletionCertificate(input: CourseCompletionCertifi
   ctx.fillText(input.studentName, centerX, 450);
 
   const nameWidth = Math.min(620, ctx.measureText(input.studentName).width + 80);
-  ctx.strokeStyle = '#c9a227';
+  ctx.strokeStyle = accentColor;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(centerX - nameWidth / 2, 478);
@@ -82,6 +94,28 @@ export function renderCourseCompletionCertificate(input: CourseCompletionCertifi
   ctx.fillStyle = '#475569';
   ctx.font = '24px Georgia, "Times New Roman", serif';
   ctx.fillText(formatCertificateDate(input.completionDate), centerX, 840);
+
+  // Signature block is entirely optional — omitted (rather than drawn blank) when the admin
+  // hasn't set a signatory name, so a template left at its defaults renders pixel-identical to
+  // the original fixed design.
+  if (signatoryName) {
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(centerX - 130, 872);
+    ctx.lineTo(centerX + 130, 872);
+    ctx.stroke();
+
+    ctx.fillStyle = '#173446';
+    ctx.font = 'bold 22px Georgia, "Times New Roman", serif';
+    ctx.fillText(signatoryName, centerX, 897);
+
+    if (signatoryTitle) {
+      ctx.fillStyle = '#64748b';
+      ctx.font = '17px Georgia, "Times New Roman", serif';
+      ctx.fillText(signatoryTitle, centerX, 918);
+    }
+  }
 
   return canvas.toDataURL('image/png');
 }

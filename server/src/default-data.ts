@@ -177,5 +177,12 @@ export function createDefaultData(companyId = ''): LmsDataStore {
       kpiApproversRequired: 1,
       trainingApproversRequired: 1,
     },
+    // Reproduces the certificate's original fixed design — see certificate-template.ts.
+    certificateTemplate: {
+      titleText: 'Certificate of Completion',
+      accentColor: '#c9a227',
+      signatoryName: '',
+      signatoryTitle: '',
+    },
   };
 }

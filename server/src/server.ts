@@ -503,6 +503,7 @@ const trainingOfferingSchema = z.object({
   // this is unrelated to `type` above.
   trainingProgrammeId: z.string().optional(),
   durationHours: z.number().nonnegative().optional(),
+  certificateEnabled: z.boolean().optional(),
 }).superRefine(requireCategoryAndDescriptionUnlessSurveyOnly);
 
 const trainingOfferingUpdateSchema = z.object({
@@ -518,6 +519,7 @@ const trainingOfferingUpdateSchema = z.object({
   contentItems: z.array(trainingContentItemSchema).optional(),
   trainingProgrammeId: z.string().optional(),
   durationHours: z.number().nonnegative().optional(),
+  certificateEnabled: z.boolean().optional(),
 }).superRefine(requireCategoryAndDescriptionUnlessSurveyOnly);
 
 const assignmentSubmissionSchema = z.object({
@@ -1020,6 +1022,13 @@ const openIdpYearSchema = z.object({
 const approvalWorkflowSettingsUpdateSchema = z.object({
   kpiApproversRequired: z.number().int().min(1),
   trainingApproversRequired: z.number().int().min(1),
+});
+
+const certificateTemplateUpdateSchema = z.object({
+  titleText: z.string(),
+  accentColor: z.string(),
+  signatoryName: z.string(),
+  signatoryTitle: z.string(),
 });
 
 const kpiApprovalSubmitSchema = z.object({
@@ -2277,6 +2286,19 @@ app.put('/api/approval-workflow-settings', requireAdministrator, requirePlanFeat
     const repository = request.repository!;
     const payload = approvalWorkflowSettingsUpdateSchema.parse(request.body);
     response.json(await repository.updateApprovalWorkflowSettings(payload));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Admin-only write side — reading the current template rides along in bootstrap for every role
+// instead (see repository.getBootstrap), since a student session needs it to render its own
+// course-completion certificates.
+app.put('/api/certificate-template', requireAdministrator, async (request, response, next) => {
+  try {
+    const repository = request.repository!;
+    const payload = certificateTemplateUpdateSchema.parse(request.body);
+    response.json(await repository.updateCertificateTemplate(payload));
   } catch (error) {
     next(error);
   }

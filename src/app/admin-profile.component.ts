@@ -8,6 +8,7 @@ import { firstValueFrom, interval } from 'rxjs';
 import {
   AssignmentReviewStatus,
   AssignmentSubmissionRecord,
+  CertificateTemplateSettings,
   EnrollmentStudent,
   EnrollmentStudentInput,
   ExternalTrainingRequestRecord,
@@ -36,6 +37,7 @@ import {
 } from './training-manager-data.service';
 import { LmsBackendService, type HrIntegrationConfig, type HrIntegrationConfigUpdate, type HrIntegrationSyncSummary, type LoginRole, type ManagedUserCredentialInput, type ManagedUserCredentialsUpsertResponse, type ResolveRolesEntry } from './lms-backend.service';
 import { LmsBrandThemeId, LmsBrandingService } from './lms-branding.service';
+import { renderCourseCompletionCertificate } from './certificate-template';
 import type { StudentCertificateLicence, StudentCertificateStatus, StudentCourse } from './student-data.service';
 import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLmsSessionRecord } from './session-auth';
 import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component';
@@ -56,7 +58,7 @@ type UserColumnId =
   | 'qualification' | 'employmentType';
 
 // ── Courses panel types (relocated from training-manager-profile.component.ts) ────
-type CoursesPanelView = 'create' | 'created' | 'submissions' | 'survey-results';
+type CoursesPanelView = 'create' | 'created' | 'submissions' | 'survey-results' | 'certificate-template';
 type AssignmentSubmissionFilter = 'All' | 'Pending Review' | 'Approved' | 'Needs Revision';
 type CreateCourseSection = 'basics' | 'content';
 
@@ -6621,6 +6623,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                     </span>
                     <span>Survey Results</span>
                   </button>
+                  <button type="button" class="courses-tab-btn" [class.courses-tab-btn-active]="selectedCoursesView() === 'certificate-template'" (click)="selectCoursesView('certificate-template')">
+                    <span class="courses-tab-icon" aria-hidden="true">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.5" r="5" stroke="currentColor" stroke-width="1.8"/><path d="m8 13 -1.5 7 5.5 -3 5.5 3 -1.5 -7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </span>
+                    <span>Certificate Template</span>
+                  </button>
                 </div>
 
                 @if (selectedCoursesView() === 'create') {
@@ -6774,6 +6782,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                 @if (courseForm.controls.durationHours.touched && courseForm.controls.durationHours.invalid) {
                                   <span class="field-error">Duration can't be negative.</span>
                                 }
+                              </label>
+
+                              <label class="doc-toggle form-grid-span-two" [class.doc-toggle-active]="courseForm.controls.certificateEnabled.value" title="When enabled, learners automatically receive a certificate (using Courses &gt; Certificate Template) the moment they complete this course.">
+                                <input formControlName="certificateEnabled" type="checkbox" class="doc-toggle-input" />
+                                <span class="doc-toggle-track" aria-hidden="true"><span class="doc-toggle-thumb"></span></span>
+                                <span class="doc-toggle-label">Issue a certificate on completion</span>
                               </label>
 
                               <label class="upload-field form-grid-span-two" title="Upload a cover image for the course card.">
@@ -7697,6 +7711,79 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                         </div>
                       }
                     }
+                  </section>
+                }
+
+                @if (selectedCoursesView() === 'certificate-template') {
+                  <section class="activity-card">
+                    <div class="section-heading-row">
+                      <h2>Certificate Template</h2>
+                    </div>
+                    <p class="admin-field-hint">
+                      One certificate design is shared by every course in this company. Turn certificates on or off per course from that
+                      course's Basics tab in Create Course.
+                    </p>
+
+                    <div class="certificate-template-layout">
+                      <div class="certificate-template-fields">
+                        <label>
+                          <span>Title</span>
+                          <input
+                            type="text"
+                            [value]="certificateTemplateTitleText()"
+                            (input)="certificateTemplateTitleText.set($any($event.target).value)"
+                            placeholder="Certificate of Completion" />
+                        </label>
+
+                        <label>
+                          <span>Accent colour</span>
+                          <div class="certificate-template-color-field">
+                            <input
+                              type="color"
+                              [value]="certificateTemplateAccentColor()"
+                              (input)="certificateTemplateAccentColor.set($any($event.target).value)" />
+                            <input
+                              type="text"
+                              [value]="certificateTemplateAccentColor()"
+                              (input)="certificateTemplateAccentColor.set($any($event.target).value)"
+                              placeholder="#c9a227" />
+                          </div>
+                        </label>
+
+                        <label title="Optional — shown as a signature line near the bottom of the certificate. Leave blank to omit it entirely.">
+                          <span>Signatory name (optional)</span>
+                          <input
+                            type="text"
+                            [value]="certificateTemplateSignatoryName()"
+                            (input)="certificateTemplateSignatoryName.set($any($event.target).value)"
+                            placeholder="Example: Jane Doe" />
+                        </label>
+
+                        <label title="Shown under the signatory name — only rendered when a signatory name is set.">
+                          <span>Signatory title (optional)</span>
+                          <input
+                            type="text"
+                            [value]="certificateTemplateSignatoryTitle()"
+                            (input)="certificateTemplateSignatoryTitle.set($any($event.target).value)"
+                            placeholder="Example: Head of Learning & Development" />
+                        </label>
+
+                        @if (certificateTemplateMessage(); as message) {
+                          <div class="admin-upload-feedback" [class.admin-upload-feedback-error]="certificateTemplateTone() === 'error'" role="status" aria-live="polite">
+                            {{ message }}
+                          </div>
+                        }
+
+                        <button type="button" class="detail-action-btn detail-action-btn-primary" [disabled]="savingCertificateTemplate()" (click)="saveCertificateTemplate()">
+                          {{ savingCertificateTemplate() ? 'Saving…' : 'Save template' }}
+                        </button>
+                      </div>
+
+                      <div class="certificate-template-preview">
+                        <span class="certificate-template-preview-label">Preview</span>
+                        <img [src]="certificateTemplatePreviewUrl()" alt="Certificate template preview" />
+                      </div>
+                    </div>
                   </section>
                 }
               </div>
@@ -10235,6 +10322,62 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .admin-upload-feedback-error {
       background: rgba(239, 68, 68, 0.12);
       color: #b91c1c;
+    }
+
+    .certificate-template-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
+      gap: 2rem;
+      align-items: start;
+      margin-top: 1rem;
+    }
+
+    .certificate-template-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .certificate-template-color-field {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .certificate-template-color-field input[type='color'] {
+      width: 2.75rem;
+      height: 2.75rem;
+      padding: 0.15rem;
+      flex-shrink: 0;
+    }
+
+    .certificate-template-preview {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      position: sticky;
+      top: 0;
+    }
+
+    .certificate-template-preview-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .certificate-template-preview img {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid #e5e5e5;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    @media (max-width: 900px) {
+      .certificate-template-layout {
+        grid-template-columns: 1fr;
+      }
     }
 
     /* User Management's three toolbar CTAs (Download template / Upload users file / Add user)
@@ -18197,6 +18340,52 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     this.approvalWorkflowSettingsMessage.set(result.success ? 'Approval settings saved.' : result.message);
   }
 
+  // ── Certificate template (Courses > Certificate Template) ───────────────
+  // Staged locally (same reasoning as the approval settings above) so an in-progress edit isn't
+  // clobbered by a background bootstrap refresh, then pushed to the server on Save.
+  readonly certificateTemplateTitleText = signal('Certificate of Completion');
+  readonly certificateTemplateAccentColor = signal('#c9a227');
+  readonly certificateTemplateSignatoryName = signal('');
+  readonly certificateTemplateSignatoryTitle = signal('');
+  readonly savingCertificateTemplate = signal(false);
+  readonly certificateTemplateMessage = signal('');
+  readonly certificateTemplateTone = signal<'success' | 'error'>('success');
+
+  readonly certificateTemplatePreviewUrl = computed(() =>
+    renderCourseCompletionCertificate({
+      studentName: 'Jane Student',
+      courseName: 'Example Course Name',
+      completionDate: this.createCompletionDateStamp(),
+      titleText: this.certificateTemplateTitleText(),
+      accentColor: this.certificateTemplateAccentColor(),
+      signatoryName: this.certificateTemplateSignatoryName(),
+      signatoryTitle: this.certificateTemplateSignatoryTitle(),
+    }),
+  );
+
+  private createCompletionDateStamp() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  async saveCertificateTemplate() {
+    this.savingCertificateTemplate.set(true);
+    this.certificateTemplateMessage.set('');
+    const input: CertificateTemplateSettings = {
+      titleText: this.certificateTemplateTitleText(),
+      accentColor: this.certificateTemplateAccentColor(),
+      signatoryName: this.certificateTemplateSignatoryName(),
+      signatoryTitle: this.certificateTemplateSignatoryTitle(),
+    };
+    const result = await this.managerData.updateCertificateTemplate(input);
+    this.savingCertificateTemplate.set(false);
+    this.certificateTemplateTone.set(result.success ? 'success' : 'error');
+    this.certificateTemplateMessage.set(result.success ? 'Certificate template saved.' : result.message);
+  }
+
   // Flags the exact footgun that let a training request silently go to the wrong recipient: the
   // student's approving-manager dropdown shows only a name (see student-profile.component.ts), so
   // an explicit entry here sharing a name with an active roster manager but a DIFFERENT email is
@@ -22284,6 +22473,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
     // (see TrainingOffering.durationHours' own comment). Not required, since most of this app's
     // existing courses predate the field and still need to be editable without it.
     durationHours: new FormControl<number | null>(null, { validators: [Validators.min(0)] }),
+    // Defaults to true — every course issued a certificate unconditionally before this toggle
+    // existed, so a brand-new course should start the same way the old behavior always did.
+    certificateEnabled: new FormControl(true, { nonNullable: true }),
     contentItems: new FormArray<ContentItemFormGroup>([]),
   });
 
@@ -22339,6 +22531,15 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
     if (view !== 'survey-results') {
       this.closeSurveyResults();
+    }
+
+    if (view === 'certificate-template') {
+      const template = this.managerData.certificateTemplate();
+      this.certificateTemplateTitleText.set(template.titleText);
+      this.certificateTemplateAccentColor.set(template.accentColor);
+      this.certificateTemplateSignatoryName.set(template.signatoryName);
+      this.certificateTemplateSignatoryTitle.set(template.signatoryTitle);
+      this.certificateTemplateMessage.set('');
     }
 
     this.selectedCoursesView.set(view);
@@ -24447,6 +24648,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
         status: editingOffering.status,
         contentItems: this.contentItemsPayload(),
         durationHours: this.courseForm.controls.durationHours.value ?? undefined,
+        certificateEnabled: this.courseForm.controls.certificateEnabled.value,
       });
 
       if (!updatedOffering) {
@@ -24472,6 +24674,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       description: this.courseForm.controls.description.value,
       contentItems: this.contentItemsPayload(),
       durationHours: this.courseForm.controls.durationHours.value ?? undefined,
+      certificateEnabled: this.courseForm.controls.certificateEnabled.value,
     });
 
     if (!createdOffering) {
@@ -24499,6 +24702,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       trainingProgrammeId: offering.trainingProgrammeId ?? '',
       description: offering.description,
       durationHours: offering.durationHours ?? null,
+      certificateEnabled: offering.certificateEnabled !== false,
     });
     this.courseForm.setControl(
       'contentItems',
@@ -24529,6 +24733,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       trainingProgrammeId: '',
       description: '',
       durationHours: null,
+      certificateEnabled: true,
     });
     this.courseForm.setControl('contentItems', new FormArray<ContentItemFormGroup>([]));
     this.thumbnailPreview.set(null);

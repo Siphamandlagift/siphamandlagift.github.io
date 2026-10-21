@@ -7,6 +7,7 @@ import type {
   AdministratorDirectoryEntry,
   ApprovalWorkflowSettings,
   AssignmentSubmissionRecord,
+  CertificateTemplateSettings,
   EnrollmentStudent,
   ExternalTrainingRequestCreateInput,
   ExternalTrainingRequestDocumentsInput,
@@ -77,6 +78,9 @@ export type LmsBootstrapResponse = {
   // Readable by every role — see repository.getBootstrap. Only an admin can change it (PUT
   // /api/approval-workflow-settings).
   approvalWorkflowSettings?: ApprovalWorkflowSettings;
+  // Readable by every role — a student session needs this to render its own course-completion
+  // certificates. Only an admin can change it (PUT updateCertificateTemplate below).
+  certificateTemplate?: CertificateTemplateSettings;
   // Current KPI year's approval chain state per student — null/absent when kpiApproversRequired
   // is 1 (the default) or the table hasn't been submitted for approval.
   kpiApprovalByStudent?: Record<string, KpiApprovalRecord | null>;
@@ -586,6 +590,10 @@ export class LmsBackendService {
 
   updateApprovalWorkflowSettings(input: ApprovalWorkflowSettings): Observable<ApprovalWorkflowSettings> {
     return this.http.put<ApprovalWorkflowSettings>(`${this.config.baseUrl}/approval-workflow-settings`, input);
+  }
+
+  updateCertificateTemplate(input: CertificateTemplateSettings): Observable<CertificateTemplateSettings> {
+    return this.http.put<CertificateTemplateSettings>(`${this.config.baseUrl}/certificate-template`, input);
   }
 
   submitKpiTableForApproval(studentId: string, nextApproverId: string): Observable<KpiApprovalRecord> {
