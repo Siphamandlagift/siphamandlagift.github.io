@@ -2251,6 +2251,7 @@ export class LmsRepository {
       titleText: input.titleText.trim() || 'Certificate of Completion',
       accentColor: input.accentColor.trim() || '#c9a227',
       backgroundColor: input.backgroundColor.trim() || '#fdfaf3',
+      textColor: input.textColor.trim() || '#173446',
       brandText: input.brandText.trim() || 'SKILLSCONNECT',
       signatoryName: input.signatoryName.trim(),
       signatoryTitle: input.signatoryTitle.trim(),

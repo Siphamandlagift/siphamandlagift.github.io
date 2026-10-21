@@ -7726,7 +7726,7 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
                     <div class="certificate-template-layout">
                       <div class="certificate-template-card certificate-template-fields">
-                        <label class="certificate-field">
+                        <label class="certificate-field" title="The small line above the title — put your own company name here.">
                           <span class="certificate-field-label">Brand text</span>
                           <span class="certificate-field-input-wrap">
                             <svg class="certificate-field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.5 5 7v6c0 3.5 3 6.1 7 7.5 4-1.4 7-4 7-7.5V7l-7-3.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
@@ -7736,10 +7736,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                               (input)="certificateTemplateBrandText.set($any($event.target).value)"
                               placeholder="SKILLSCONNECT" />
                           </span>
-                          <span class="certificate-field-hint">The small line above the title — put your own company name here.</span>
                         </label>
 
-                        <label class="certificate-field">
+                        <label class="certificate-field" title="The large heading shown on every certificate.">
                           <span class="certificate-field-label">Title</span>
                           <span class="certificate-field-input-wrap">
                             <svg class="certificate-field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -7749,12 +7748,11 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                               (input)="certificateTemplateTitleText.set($any($event.target).value)"
                               placeholder="Certificate of Completion" />
                           </span>
-                          <span class="certificate-field-hint">The large heading shown on every certificate.</span>
                         </label>
 
-                        <div class="certificate-field-row">
-                          <label class="certificate-field">
-                            <span class="certificate-field-label">Accent colour</span>
+                        <div class="certificate-field-row certificate-field-row-colors">
+                          <label class="certificate-field certificate-field-compact">
+                            <span class="certificate-field-label">Accent</span>
                             <span class="certificate-template-color-field">
                               <span class="certificate-template-swatch-wrap" [style.--swatch-color]="certificateTemplateAccentColor()">
                                 <input
@@ -7771,11 +7769,10 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                 (input)="certificateTemplateAccentColor.set($any($event.target).value)"
                                 placeholder="#c9a227" />
                             </span>
-                            <span class="certificate-field-hint">Inner border and the underline beneath the learner's name.</span>
                           </label>
 
-                          <label class="certificate-field">
-                            <span class="certificate-field-label">Background colour</span>
+                          <label class="certificate-field certificate-field-compact">
+                            <span class="certificate-field-label">Background</span>
                             <span class="certificate-template-color-field">
                               <span class="certificate-template-swatch-wrap" [style.--swatch-color]="certificateTemplateBackgroundColor()">
                                 <input
@@ -7792,16 +7789,36 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                 (input)="certificateTemplateBackgroundColor.set($any($event.target).value)"
                                 placeholder="#fdfaf3" />
                             </span>
-                            <span class="certificate-field-hint">Fills the whole certificate behind the text.</span>
+                          </label>
+
+                          <label class="certificate-field certificate-field-compact">
+                            <span class="certificate-field-label">Text</span>
+                            <span class="certificate-template-color-field">
+                              <span class="certificate-template-swatch-wrap" [style.--swatch-color]="certificateTemplateTextColor()">
+                                <input
+                                  type="color"
+                                  class="certificate-template-swatch"
+                                  [value]="certificateTemplateTextColor()"
+                                  (input)="certificateTemplateTextColor.set($any($event.target).value)"
+                                  aria-label="Pick text colour" />
+                              </span>
+                              <input
+                                type="text"
+                                class="certificate-template-color-text"
+                                [value]="certificateTemplateTextColor()"
+                                (input)="certificateTemplateTextColor.set($any($event.target).value)"
+                                placeholder="#173446" />
+                            </span>
                           </label>
                         </div>
+                        <span class="certificate-field-hint">Accent is the border and name underline; Text is the title, name, and course name.</span>
 
                         <div class="certificate-field-divider">
                           <span>Signature line</span>
                           <span class="certificate-field-optional-pill">Optional</span>
                         </div>
 
-                        <label class="certificate-field">
+                        <label class="certificate-field" title="Leave blank to omit the signature line entirely.">
                           <span class="certificate-field-label">Signatory name</span>
                           <span class="certificate-field-input-wrap">
                             <svg class="certificate-field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.6" stroke="currentColor" stroke-width="1.8"/><path d="M5 19.5c0-3.6 3.1-5.5 7-5.5s7 1.9 7 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -7811,10 +7828,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                               (input)="certificateTemplateSignatoryName.set($any($event.target).value)"
                               placeholder="Example: Jane Doe" />
                           </span>
-                          <span class="certificate-field-hint">Leave blank to omit the signature line entirely.</span>
                         </label>
 
-                        <label class="certificate-field">
+                        <label class="certificate-field" title="Shown under the signatory name, only when one is set.">
                           <span class="certificate-field-label">Signatory title</span>
                           <span class="certificate-field-input-wrap">
                             <svg class="certificate-field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="7.5" width="17" height="11.5" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 7.5V6a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v1.5" stroke="currentColor" stroke-width="1.8"/></svg>
@@ -7824,7 +7840,6 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                               (input)="certificateTemplateSignatoryTitle.set($any($event.target).value)"
                               placeholder="Example: Head of Learning & Development" />
                           </span>
-                          <span class="certificate-field-hint">Shown under the signatory name, only when one is set.</span>
                         </label>
 
                         @if (certificateTemplateMessage(); as message) {
@@ -10385,34 +10400,34 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
 
     .certificate-template-layout {
       display: grid;
-      grid-template-columns: minmax(0, 27rem) minmax(0, 1fr);
-      gap: 1.5rem;
+      grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
+      gap: 1.25rem;
       align-items: start;
-      margin-top: 1.25rem;
+      margin-top: 1rem;
     }
 
     .certificate-template-card {
       background: #fff;
       border: 1px solid #e8ecf1;
-      border-radius: 16px;
-      padding: 1.5rem;
+      border-radius: 14px;
+      padding: 1.1rem 1.1rem 1.2rem;
       box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
     }
 
     .certificate-template-fields {
       display: flex;
       flex-direction: column;
-      gap: 1.25rem;
+      gap: 0.75rem;
     }
 
     .certificate-field {
       display: flex;
       flex-direction: column;
-      gap: 0.4rem;
+      gap: 0.25rem;
     }
 
     .certificate-field-label {
-      font-size: 0.78rem;
+      font-size: 0.72rem;
       font-weight: 800;
       color: #173446;
       letter-spacing: 0.03em;
@@ -10421,17 +10436,17 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .certificate-field-input-wrap {
       display: flex;
       align-items: center;
-      gap: 0.55rem;
+      gap: 0.5rem;
       border: 1px solid #dbe2ea;
-      border-radius: 12px;
-      padding: 0 0.8rem;
+      border-radius: 10px;
+      padding: 0 0.65rem;
       background: #fff;
       transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
 
     .certificate-field-input-wrap:has(input:focus) {
       border-color: #818cf8;
-      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
     }
 
     .certificate-field-icon {
@@ -10443,27 +10458,27 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       flex: 1;
       min-width: 0;
       border: none;
-      padding: 0.68rem 0;
-      font-size: 0.9rem;
+      padding: 0.46rem 0;
+      font-size: 0.84rem;
       color: #173446;
       background: transparent;
       outline: none;
     }
 
     .certificate-field-hint {
-      font-size: 0.78rem;
+      font-size: 0.72rem;
       color: #8a94a3;
-      line-height: 1.3;
+      line-height: 1.25;
     }
 
     .certificate-field-divider {
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      margin-top: 0.25rem;
-      padding-top: 1rem;
+      margin-top: 0.1rem;
+      padding-top: 0.65rem;
       border-top: 1px dashed #e8ecf1;
-      font-size: 0.78rem;
+      font-size: 0.72rem;
       font-weight: 800;
       color: #173446;
       letter-spacing: 0.03em;
@@ -10472,15 +10487,23 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .certificate-field-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 0.85rem;
+      gap: 0.6rem;
+    }
+
+    .certificate-field-row-colors {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .certificate-field-compact {
+      gap: 0.3rem;
     }
 
     .certificate-field-optional-pill {
-      padding: 0.1rem 0.55rem;
+      padding: 0.1rem 0.5rem;
       border-radius: 999px;
       background: #eef2ff;
       color: #4f46e5;
-      font-size: 0.68rem;
+      font-size: 0.64rem;
       font-weight: 700;
       letter-spacing: 0.03em;
       text-transform: uppercase;
@@ -10489,15 +10512,15 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .certificate-template-color-field {
       display: flex;
       align-items: center;
-      gap: 0.65rem;
+      gap: 0.4rem;
     }
 
     .certificate-template-swatch-wrap {
       position: relative;
       flex-shrink: 0;
-      width: 2.6rem;
-      height: 2.6rem;
-      border-radius: 10px;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 8px;
       background: var(--swatch-color, #c9a227);
       border: 1px solid rgba(15, 23, 42, 0.1);
       box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
@@ -10519,9 +10542,9 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       flex: 1;
       min-width: 0;
       border: 1px solid #dbe2ea;
-      border-radius: 12px;
-      padding: 0.68rem 0.8rem;
-      font-size: 0.9rem;
+      border-radius: 10px;
+      padding: 0.46rem 0.5rem;
+      font-size: 0.78rem;
       color: #173446;
       background: #fff;
       box-sizing: border-box;
@@ -10531,12 +10554,12 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
     .certificate-template-color-text:focus {
       outline: none;
       border-color: #818cf8;
-      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
     }
 
     .certificate-template-save-btn {
       align-self: flex-start;
-      margin-top: 0.25rem;
+      margin-top: 0.1rem;
     }
 
     .certificate-template-preview {
@@ -18539,6 +18562,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
   readonly certificateTemplateTitleText = signal('Certificate of Completion');
   readonly certificateTemplateAccentColor = signal('#c9a227');
   readonly certificateTemplateBackgroundColor = signal('#fdfaf3');
+  readonly certificateTemplateTextColor = signal('#173446');
   readonly certificateTemplateBrandText = signal('SKILLSCONNECT');
   readonly certificateTemplateSignatoryName = signal('');
   readonly certificateTemplateSignatoryTitle = signal('');
@@ -18554,6 +18578,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       titleText: this.certificateTemplateTitleText(),
       accentColor: this.certificateTemplateAccentColor(),
       backgroundColor: this.certificateTemplateBackgroundColor(),
+      textColor: this.certificateTemplateTextColor(),
       brandText: this.certificateTemplateBrandText(),
       signatoryName: this.certificateTemplateSignatoryName(),
       signatoryTitle: this.certificateTemplateSignatoryTitle(),
@@ -18575,6 +18600,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       titleText: this.certificateTemplateTitleText(),
       accentColor: this.certificateTemplateAccentColor(),
       backgroundColor: this.certificateTemplateBackgroundColor(),
+      textColor: this.certificateTemplateTextColor(),
       brandText: this.certificateTemplateBrandText(),
       signatoryName: this.certificateTemplateSignatoryName(),
       signatoryTitle: this.certificateTemplateSignatoryTitle(),
@@ -22737,6 +22763,7 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       this.certificateTemplateTitleText.set(template.titleText);
       this.certificateTemplateAccentColor.set(template.accentColor);
       this.certificateTemplateBackgroundColor.set(template.backgroundColor);
+      this.certificateTemplateTextColor.set(template.textColor);
       this.certificateTemplateBrandText.set(template.brandText);
       this.certificateTemplateSignatoryName.set(template.signatoryName);
       this.certificateTemplateSignatoryTitle.set(template.signatoryTitle);

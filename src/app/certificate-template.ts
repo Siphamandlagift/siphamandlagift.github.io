@@ -5,11 +5,15 @@ export type CourseCompletionCertificateInput = {
   // Admin-configurable (Course Studio > Certificate Template) — see CertificateTemplateSettings
   // in training-manager-data.service.ts. Left undefined/blank, every one of these reproduces
   // today's fixed design exactly: titleText defaults to 'Certificate of Completion', accentColor
-  // to '#c9a227', backgroundColor to '#fdfaf3', brandText to 'SKILLSCONNECT', and the signature
-  // line is omitted entirely when signatoryName is blank.
+  // to '#c9a227', backgroundColor to '#fdfaf3', textColor to '#173446', brandText to
+  // 'SKILLSCONNECT', and the signature line is omitted entirely when signatoryName is blank.
   titleText?: string;
   accentColor?: string;
   backgroundColor?: string;
+  // The primary/dark text colour — outer border, title, student name, course name, and the
+  // signatory name. The lighter supporting copy ("This certifies that", the date, etc.) stays a
+  // fixed muted tone regardless, so there's still visual hierarchy no matter what's picked here.
+  textColor?: string;
   brandText?: string;
   signatoryName?: string;
   signatoryTitle?: string;
@@ -47,6 +51,7 @@ export function renderCourseCompletionCertificate(input: CourseCompletionCertifi
   const titleText = input.titleText?.trim() || 'Certificate of Completion';
   const accentColor = input.accentColor?.trim() || '#c9a227';
   const backgroundColor = input.backgroundColor?.trim() || '#fdfaf3';
+  const textColor = input.textColor?.trim() || '#173446';
   const brandText = input.brandText?.trim() || 'SKILLSCONNECT';
   const signatoryName = input.signatoryName?.trim() ?? '';
   const signatoryTitle = input.signatoryTitle?.trim() ?? '';
@@ -54,7 +59,7 @@ export function renderCourseCompletionCertificate(input: CourseCompletionCertifi
   ctx.fillStyle = backgroundColor;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  ctx.strokeStyle = '#173446';
+  ctx.strokeStyle = textColor;
   ctx.lineWidth = 10;
   ctx.strokeRect(30, 30, canvas.width - 60, canvas.height - 60);
 
@@ -68,7 +73,7 @@ export function renderCourseCompletionCertificate(input: CourseCompletionCertifi
   ctx.font = '600 26px Georgia, "Times New Roman", serif';
   ctx.fillText(brandText, centerX, 160);
 
-  ctx.fillStyle = '#173446';
+  ctx.fillStyle = textColor;
   ctx.font = 'bold 62px Georgia, "Times New Roman", serif';
   ctx.fillText(titleText, centerX, 260);
 
@@ -76,7 +81,7 @@ export function renderCourseCompletionCertificate(input: CourseCompletionCertifi
   ctx.font = '26px Georgia, "Times New Roman", serif';
   ctx.fillText('This certifies that', centerX, 365);
 
-  ctx.fillStyle = '#173446';
+  ctx.fillStyle = textColor;
   ctx.font = 'bold 50px "Brush Script MT", cursive, Georgia, serif';
   ctx.fillText(input.studentName, centerX, 450);
 
@@ -92,7 +97,7 @@ export function renderCourseCompletionCertificate(input: CourseCompletionCertifi
   ctx.font = '26px Georgia, "Times New Roman", serif';
   ctx.fillText('has successfully completed the course', centerX, 545);
 
-  ctx.fillStyle = '#173446';
+  ctx.fillStyle = textColor;
   ctx.font = 'bold 38px Georgia, "Times New Roman", serif';
   drawWrappedCenteredText(ctx, input.courseName, centerX, 615, 1140, 46);
 
@@ -111,7 +116,7 @@ export function renderCourseCompletionCertificate(input: CourseCompletionCertifi
     ctx.lineTo(centerX + 130, 872);
     ctx.stroke();
 
-    ctx.fillStyle = '#173446';
+    ctx.fillStyle = textColor;
     ctx.font = 'bold 22px Georgia, "Times New Roman", serif';
     ctx.fillText(signatoryName, centerX, 897);
 

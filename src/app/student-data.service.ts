@@ -1158,6 +1158,7 @@ export class StudentDataService {
       titleText: template.titleText,
       accentColor: template.accentColor,
       backgroundColor: template.backgroundColor,
+      textColor: template.textColor,
       brandText: template.brandText,
       signatoryName: template.signatoryName,
       signatoryTitle: template.signatoryTitle,

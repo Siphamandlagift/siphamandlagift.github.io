@@ -733,6 +733,7 @@ export type CertificateTemplateSettings = {
   titleText: string;
   accentColor: string;
   backgroundColor: string;
+  textColor: string;
   // The small eyebrow line above the title — defaults to 'SKILLSCONNECT' but is editable so a
   // company can put its own name there instead.
   brandText: string;

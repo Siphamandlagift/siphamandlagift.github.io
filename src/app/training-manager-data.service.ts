@@ -327,6 +327,7 @@ export type CertificateTemplateSettings = {
   titleText: string;
   accentColor: string;
   backgroundColor: string;
+  textColor: string;
   brandText: string;
   signatoryName: string;
   signatoryTitle: string;
@@ -731,6 +732,7 @@ export class TrainingManagerDataService {
     titleText: 'Certificate of Completion',
     accentColor: '#c9a227',
     backgroundColor: '#fdfaf3',
+    textColor: '#173446',
     brandText: 'SKILLSCONNECT',
     signatoryName: '',
     signatoryTitle: '',
