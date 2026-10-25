@@ -24,6 +24,7 @@ import {
   resolveCompanyIdsForLoginIdentifier,
   resolveCompanyIdForPasswordResetToken,
   getCompanyRecordBySlug,
+  getCompanyUrlSlug,
   getCompanySubscriptionContext,
   getCompanyPlan,
   getCompanyUsage,
@@ -2439,8 +2440,10 @@ app.post('/api/auth/resolve-roles', async (request, response, next) => {
       }
     }
 
+    const companyUrlSlug = await getCompanyUrlSlug(companyId);
     const rolesWithTokens = roles.map((r) => ({
       ...r,
+      companyUrlSlug,
       token: jwt.sign(
         { role: r.role, username: r.username, email: r.email, studentId: r.studentId, companyId },
         jwtSecret,
@@ -2622,8 +2625,9 @@ app.post('/api/auth/switch-role', async (request, response, next) => {
       jwtSecret,
       { expiresIn: jwtExpiresIn },
     );
+    const companyUrlSlug = await getCompanyUrlSlug(request.authIdentity!.companyId!);
 
-    response.json({ ...match, token: newToken });
+    response.json({ ...match, companyUrlSlug, token: newToken });
   } catch (error) {
     next(error);
   }
@@ -2818,6 +2822,7 @@ app.get('/api/auth/sso/microsoft/callback', async (request, response, next) => {
       username: authenticated.username,
       email: authenticated.email,
       studentId: authenticated.studentId,
+      companyUrlSlug: await getCompanyUrlSlug(ssoCompanyId),
       token,
     });
 

@@ -24,7 +24,7 @@ import {
 import { LmsBrandingService } from './lms-branding.service';
 import { LmsBackendService, type LoginRole, type ResolveRolesEntry } from './lms-backend.service';
 import type { StudentCourse } from './student-data.service';
-import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLmsSessionRecord } from './session-auth';
+import { clearLmsAuthSession, combineDisplayName, companyScopedRoute, createLmsSessionRecord, readLmsSessionRecord, writeLmsCompanyUrlSlug } from './session-auth';
 import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component';
 import { LoadingSpinnerComponent } from './loading-spinner.component';
 import { isFeatureAllowedForPlan, type GatedFeature } from './plan-features';
@@ -6946,7 +6946,8 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
           displayName: combineDisplayName(result.name, result.surname),
         })));
         localStorage.setItem('lms-token', result.token);
-        void this.router.navigate([result.route]);
+        writeLmsCompanyUrlSlug(result.companyUrlSlug);
+        void this.router.navigate([companyScopedRoute(result.companyUrlSlug, result.route)]);
       },
       error: () => {
         this.switchingRole.set(false);

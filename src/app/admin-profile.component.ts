@@ -39,7 +39,7 @@ import { LmsBackendService, type HrIntegrationConfig, type HrIntegrationConfigUp
 import { LmsBrandThemeId, LmsBrandingService } from './lms-branding.service';
 import { renderCourseCompletionCertificate } from './certificate-template';
 import type { StudentCertificateLicence, StudentCertificateStatus, StudentCourse } from './student-data.service';
-import { clearLmsAuthSession, combineDisplayName, createLmsSessionRecord, readLmsSessionRecord } from './session-auth';
+import { clearLmsAuthSession, combineDisplayName, companyScopedRoute, createLmsSessionRecord, readLmsSessionRecord, writeLmsCompanyUrlSlug } from './session-auth';
 import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component';
 import { LoadingSpinnerComponent } from './loading-spinner.component';
 import { PublishedOfferingDetailComponent } from './published-offering-detail.component';
@@ -22111,7 +22111,8 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
           displayName: combineDisplayName(result.name, result.surname),
         })));
         localStorage.setItem('lms-token', result.token);
-        void this.router.navigate([result.route]);
+        writeLmsCompanyUrlSlug(result.companyUrlSlug);
+        void this.router.navigate([companyScopedRoute(result.companyUrlSlug, result.route)]);
       },
       error: () => {
         this.switchingRole.set(false);

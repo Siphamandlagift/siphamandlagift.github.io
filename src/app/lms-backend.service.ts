@@ -207,6 +207,10 @@ export type ResolveRolesEntry = {
   studentId?: string;
   name?: string;
   surname?: string;
+  // The company's own URL slug (or companyId when no custom slug is set) — see
+  // getCompanyUrlSlug in server/src/platform-repository.ts. Combine with `route` via
+  // companyScopedRoute() in session-auth.ts rather than navigating to `route` bare.
+  companyUrlSlug: string;
   token: string;
 };
 

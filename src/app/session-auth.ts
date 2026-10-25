@@ -1,5 +1,10 @@
 const LMS_SESSION_STORAGE_KEY = 'lms-session';
 const LMS_TOKEN_STORAGE_KEY = 'lms-token';
+// The company's own URL slug (custom, or its companyId when no custom slug is set — see
+// getCompanyUrlSlug in server/src/platform-repository.ts) — stored alongside the session/token at
+// every login, switch-role, and SSO completion so a bookmarked/already-open tab's URL can be
+// checked against the CURRENT session's real company (see auth.guard.ts).
+const LMS_COMPANY_SLUG_STORAGE_KEY = 'lms-company-slug';
 
 // Expire authenticated sessions after 15 minutes without user activity.
 export const LMS_INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
@@ -143,4 +148,28 @@ export function clearLmsAuthSession() {
 
   localStorage.removeItem(LMS_TOKEN_STORAGE_KEY);
   localStorage.removeItem(LMS_SESSION_STORAGE_KEY);
+  localStorage.removeItem(LMS_COMPANY_SLUG_STORAGE_KEY);
+}
+
+export function writeLmsCompanyUrlSlug(companyUrlSlug: string) {
+  if (typeof localStorage === 'undefined') {
+    return;
+  }
+
+  localStorage.setItem(LMS_COMPANY_SLUG_STORAGE_KEY, companyUrlSlug);
+}
+
+export function readLmsCompanyUrlSlug(): string | null {
+  if (typeof localStorage === 'undefined') {
+    return null;
+  }
+
+  return localStorage.getItem(LMS_COMPANY_SLUG_STORAGE_KEY);
+}
+
+// `route` is always a leading-slash path like '/admin-profile' (see ResolveRolesEntry.route) —
+// this is the one place that turns a bare route and a company's URL slug into the actual
+// company-scoped path every login/switch-role/SSO navigation uses.
+export function companyScopedRoute(companyUrlSlug: string, route: string): string {
+  return `/${companyUrlSlug}${route}`;
 }

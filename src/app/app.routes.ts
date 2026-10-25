@@ -16,6 +16,15 @@ export const routes: Routes = [
   },
   { path: 'super-admin/reset-password', loadComponent: () => import('./super-admin/super-admin-reset-password.component').then((m) => m.SuperAdminResetPasswordComponent) },
   { path: 'reset-password', loadComponent: () => import('./reset-password/reset-password').then((m) => m.ResetPasswordComponent) },
+  // Company-scoped variants (see companyScopedRoute in session-auth.ts) — every login,
+  // switch-role, and SSO completion navigates to one of these now, so the URL keeps naming the
+  // signed-in company across role switches instead of going blank the moment you log in. The
+  // flat routes below stay registered too, purely so an already-bookmarked or already-open
+  // slug-less URL from before this shipped keeps working — company is still resolved from the
+  // session token either way, never from the URL itself (see auth.guard.ts).
+  { path: ':companySlug/admin-profile', loadComponent: () => import('./admin-profile.component').then((m) => m.AdminProfileComponent), canActivate: [authGuard] },
+  { path: ':companySlug/student-profile', loadComponent: () => import('./student-profile.component').then((m) => m.StudentProfileComponent), canActivate: [authGuard] },
+  { path: ':companySlug/training-manager-profile', loadComponent: () => import('./training-manager-profile.component').then((m) => m.TrainingManagerProfileComponent), canActivate: [authGuard] },
   { path: 'admin-profile', loadComponent: () => import('./admin-profile.component').then((m) => m.AdminProfileComponent), canActivate: [authGuard] },
   { path: 'student-profile', loadComponent: () => import('./student-profile.component').then((m) => m.StudentProfileComponent), canActivate: [authGuard] },
   { path: 'training-manager-profile', loadComponent: () => import('./training-manager-profile.component').then((m) => m.TrainingManagerProfileComponent), canActivate: [authGuard] },

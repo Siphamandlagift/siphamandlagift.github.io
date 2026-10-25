@@ -15,6 +15,7 @@ describe('Login', () => {
     resolveRoles: ReturnType<typeof vi.fn>;
     requestPasswordReset: ReturnType<typeof vi.fn>;
     getBranding: ReturnType<typeof vi.fn>;
+    getMyBranding: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(async () => {
@@ -22,6 +23,10 @@ describe('Login', () => {
       resolveRoles: vi.fn(),
       requestPasswordReset: vi.fn(),
       getBranding: vi.fn().mockReturnValue(of({ themeId: 'ocean', companyLogoDataUrl: null })),
+      // A successful onSubmit() always calls persistAuthenticatedSession, which refreshes
+      // branding for the just-authenticated session — without this, LmsBrandingService throws
+      // "getMyBranding is not a function" and the subscribe() callback below never runs at all.
+      getMyBranding: vi.fn().mockReturnValue(of({ themeId: 'ocean', companyLogoDataUrl: null })),
     };
 
     await TestBed.configureTestingModule({
@@ -85,6 +90,7 @@ describe('Login', () => {
         route: '/student-profile',
         username: 'student',
         email: 'alice.johnson@skillsconnect.app',
+        companyUrlSlug: 'test-co',
         token: 'test-token',
       }],
     }));
@@ -94,7 +100,7 @@ describe('Login', () => {
     component.password = 'student';
     component.onSubmit();
 
-    expect(navigateSpy).toHaveBeenCalledWith(['/student-profile']);
+    expect(navigateSpy).toHaveBeenCalledWith(['/test-co/student-profile']);
   });
 
   it('shows an invalid login message when authentication is rejected', () => {

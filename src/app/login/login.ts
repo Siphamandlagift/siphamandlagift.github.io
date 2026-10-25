@@ -6,7 +6,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs';
 import { LmsBackendService, ResolveRolesEntry } from '../lms-backend.service';
 import { LmsBrandingService } from '../lms-branding.service';
-import { combineDisplayName, createLmsSessionRecord } from '../session-auth';
+import { combineDisplayName, companyScopedRoute, createLmsSessionRecord, writeLmsCompanyUrlSlug } from '../session-auth';
 
 type LoginRole = 'administrator' | 'training-manager' | 'student';
 
@@ -22,6 +22,7 @@ type SsoLoginPayload = {
   studentId?: string;
   name?: string;
   surname?: string;
+  companyUrlSlug: string;
   token: string;
 };
 
@@ -118,7 +119,7 @@ export class Login implements OnInit {
 
           if (landingEntry) {
             this.persistAuthenticatedSession(landingEntry);
-            void this.router.navigate([landingEntry.route]);
+            void this.router.navigate([companyScopedRoute(landingEntry.companyUrlSlug, landingEntry.route)]);
           } else {
             this.resolvedRoles = response.roles;
             this.loginStep = 'pick-role';
@@ -144,7 +145,7 @@ export class Login implements OnInit {
 
   selectRole(entry: ResolveRolesEntry) {
     this.persistAuthenticatedSession(entry);
-    void this.router.navigate([entry.route]);
+    void this.router.navigate([companyScopedRoute(entry.companyUrlSlug, entry.route)]);
   }
 
   backToCredentials() {
@@ -236,7 +237,7 @@ export class Login implements OnInit {
 
       if (parsedPayload) {
         this.persistAuthenticatedSession(parsedPayload);
-        void this.router.navigate([parsedPayload.route], { replaceUrl: true });
+        void this.router.navigate([companyScopedRoute(parsedPayload.companyUrlSlug, parsedPayload.route)], { replaceUrl: true });
         return;
       }
 
@@ -263,6 +264,7 @@ export class Login implements OnInit {
         || typeof payload.route !== 'string'
         || typeof payload.username !== 'string'
         || typeof payload.email !== 'string'
+        || typeof payload.companyUrlSlug !== 'string'
         || typeof payload.token !== 'string'
       ) {
         return null;
@@ -274,6 +276,7 @@ export class Login implements OnInit {
         username: payload.username,
         email: payload.email,
         studentId: payload.studentId,
+        companyUrlSlug: payload.companyUrlSlug,
         token: payload.token,
       };
     } catch {
@@ -290,6 +293,7 @@ export class Login implements OnInit {
       displayName: combineDisplayName(payload.name, payload.surname),
     })));
     localStorage.setItem('lms-token', payload.token);
+    writeLmsCompanyUrlSlug(payload.companyUrlSlug);
 
     // This service instance's constructor already ran (before any login existed) and fetched the
     // pre-auth default-company branding for the login screen's own chrome — refresh it now to the

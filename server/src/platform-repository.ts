@@ -339,6 +339,15 @@ export async function getCompanyRecord(companyId: string): Promise<CompanyRecord
   return companyDocToRecord(snapshot.id, snapshot.data()!);
 }
 
+// Best available URL segment for a company — its custom .../login/{slug} slug when the Super
+// Admin has set one, otherwise companyId itself (always present, always unique, just not as
+// pretty). Called after every login/switch-role/SSO completion (see server.ts) so the resulting
+// dashboard URL always names a company, not just ones that happen to have a custom slug.
+export async function getCompanyUrlSlug(companyId: string): Promise<string> {
+  const company = await getCompanyRecord(companyId);
+  return company?.slug ?? companyId;
+}
+
 // Permanently wipes every one of this company's documents — the companies/{companyId} document
 // itself AND every subcollection under it (students, offerings, authAccounts, submissions, the
 // lot), via Firestore's own recursiveDelete rather than this file enumerating each subcollection
