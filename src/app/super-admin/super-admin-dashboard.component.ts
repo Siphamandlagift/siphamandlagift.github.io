@@ -2216,8 +2216,20 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
     this.backend.listCompanyAdmins(companyId)
       .pipe(finalize(() => this.loadingCompanyAdmins.set(false)))
       .subscribe({
-        next: (admins) => this.companyAdmins.set(admins),
-        error: () => this.companyAdmins.set([]),
+        // Discard if a DIFFERENT company's view is open by the time this resolves — otherwise a
+        // slower response for the company previously open can overwrite a faster one for
+        // whichever company is now open, showing the wrong company's admins under the new
+        // company's name (a cross-tenant data leak, not just a stale-UI glitch).
+        next: (admins) => {
+          if (this.activeCompanyId() === companyId) {
+            this.companyAdmins.set(admins);
+          }
+        },
+        error: () => {
+          if (this.activeCompanyId() === companyId) {
+            this.companyAdmins.set([]);
+          }
+        },
       });
   }
 
@@ -2341,12 +2353,19 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
     this.backend.getCompanyBranding(companyId)
       .pipe(finalize(() => this.companyBrandingLoading.set(false)))
       .subscribe({
+        // Same staleness guard as loadCompanyAdmins above, and for the same reason: without it,
+        // a slower response for the company previously open can land after a different company's
+        // view is already showing, overwriting it with the WRONG company's branding/theme.
         next: (branding) => {
-          this.companyBranding.set(branding);
-          this.editBrandingThemeId = branding.themeId;
+          if (this.activeCompanyId() === companyId) {
+            this.companyBranding.set(branding);
+            this.editBrandingThemeId = branding.themeId;
+          }
         },
         error: () => {
-          this.companyBrandingError.set('Could not load this company\'s current branding.');
+          if (this.activeCompanyId() === companyId) {
+            this.companyBrandingError.set('Could not load this company\'s current branding.');
+          }
         },
       });
   }
