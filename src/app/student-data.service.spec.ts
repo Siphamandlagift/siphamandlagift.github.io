@@ -4,6 +4,21 @@ import { of, throwError } from 'rxjs';
 import { LmsBackendService } from './lms-backend.service';
 import { StudentDataService } from './student-data.service';
 
+// company-scoped-storage.ts decodes this from localStorage's 'lms-token' to resolve the current
+// companyId — needed for readCompanyScopedCache to return anything at all (it refuses to trust
+// any cache entry when it can't resolve a companyId, see getCurrentCompanyId's own comment).
+function fakeSessionToken(companyId: string): string {
+  const payload = btoa(JSON.stringify({ companyId }));
+  return `header.${payload}.signature`;
+}
+
+// readCompanyScopedCache only trusts an entry tagged with the CURRENT companyId (see
+// company-scoped-storage.ts) — seeding a bare, untagged value (as this test used to) means
+// getCurrentCompanyId() has nothing to resolve against and the seed is silently never read back.
+function seedCompanyScopedCache(storageKey: string, companyId: string, data: unknown): void {
+  localStorage.setItem(storageKey, JSON.stringify({ companyId, data }));
+}
+
 function createPersistedSnapshot(studentId: string, name: string, email: string, mentorName: string) {
   return {
     studentId,
@@ -106,8 +121,9 @@ describe('StudentDataService per-student snapshot isolation', () => {
     const studentOneSnapshot = createPersistedSnapshot('student-1', 'Alice Johnson', 'alice.johnson@skillsconnect.app', 'Ava');
     const studentTwoSnapshot = createPersistedSnapshot('student-2', 'Brian Molefe', 'brian.molefe@skillsconnect.app', 'Theo');
 
-    localStorage.setItem('lms-app.student-snapshot.student-1', JSON.stringify(studentOneSnapshot));
-    localStorage.setItem('lms-app.student-snapshot.student-2', JSON.stringify(studentTwoSnapshot));
+    localStorage.setItem('lms-token', fakeSessionToken('test-co'));
+    seedCompanyScopedCache('lms-app.student-snapshot.student-1', 'test-co', studentOneSnapshot);
+    seedCompanyScopedCache('lms-app.student-snapshot.student-2', 'test-co', studentTwoSnapshot);
     localStorage.setItem('lms-session', JSON.stringify({ studentId: 'student-1' }));
 
     const service = TestBed.inject(StudentDataService);

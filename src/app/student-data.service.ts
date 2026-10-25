@@ -4,7 +4,7 @@ import { LmsBackendService } from './lms-backend.service';
 import { LmsBrandThemeId } from './lms-branding.service';
 import { ManagerMessage, ManagerMessageReply, TrainingManagerDataService, TrainingOffering } from './training-manager-data.service';
 import { dataUrlToFile, renderCourseCompletionCertificate } from './certificate-template';
-import { readCompanyScopedCache, writeCompanyScopedCache } from './company-scoped-storage';
+import { getCurrentCompanyId, readCompanyScopedCache, writeCompanyScopedCache } from './company-scoped-storage';
 
 export type StudentProfileData = {
   name: string;
@@ -1207,6 +1207,15 @@ export class StudentDataService {
     }
 
     const studentId = this.currentSessionStudentId();
+    // studentId alone isn't a safe staleness key across a same-tab company switch: ids are
+    // generated from name/surname/email (createUniqueStudentId in
+    // training-manager-data.service.ts), unique only within ONE company's own roster — two
+    // different companies can easily mint the identical id for two unrelated people sharing a
+    // common name (e.g. two different "John Smith"s both becoming "john-smith-john"). Without
+    // also pinning the companyId this request was issued under, a slow response for the student
+    // who used to be logged in at Company A could pass this check and overwrite Company B's
+    // real student's profile/courses/certificates purely by slug coincidence.
+    const requestCompanyId = getCurrentCompanyId();
     this.refreshInFlight = true;
     this.backend.getStudentSnapshot(studentId).subscribe({
       next: (snapshot) => {
@@ -1315,8 +1324,10 @@ export class StudentDataService {
 
         // Discard stale response if the session switched while this request was in-flight.
         // Without this guard, Student A's backend response can overwrite Student B's signals
-        // when accounts are switched before the HTTP request completes.
-        if (studentId !== this.currentSessionStudentId()) {
+        // when accounts are switched before the HTTP request completes — checked by companyId
+        // as well as studentId, since the id alone can coincide across two different companies
+        // (see the comment where requestCompanyId is captured above).
+        if (studentId !== this.currentSessionStudentId() || requestCompanyId !== getCurrentCompanyId()) {
           this.refreshInFlight = false;
           return;
         }
@@ -1333,8 +1344,9 @@ export class StudentDataService {
         }
       },
       error: () => {
-        // Discard stale error if the session switched while this request was in-flight.
-        if (studentId !== this.currentSessionStudentId()) {
+        // Discard stale error if the session switched while this request was in-flight (same
+        // companyId + studentId check as the success handler above).
+        if (studentId !== this.currentSessionStudentId() || requestCompanyId !== getCurrentCompanyId()) {
           this.refreshInFlight = false;
           return;
         }
