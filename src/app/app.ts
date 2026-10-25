@@ -39,6 +39,10 @@ export class App {
       interval(15000).subscribe(() => this.enforceSessionTimeout()),
     );
 
+    this.subscriptions.add(
+      fromEvent<StorageEvent>(window, 'storage').subscribe((event) => this.handleCrossTabSessionChange(event)),
+    );
+
     this.enforceSessionTimeout();
   }
 
@@ -59,6 +63,28 @@ export class App {
     if (!refreshed) {
       this.enforceSessionTimeout();
     }
+  }
+
+  // TrainingManagerDataService/StudentDataService are root singletons that stay resident in
+  // memory across client-side route navigation — correct within one tab's own session, but they
+  // never anticipated a DIFFERENT tab overwriting the shared lms-token (login, switch-role, or
+  // logout all do, in-place, in whichever tab the user acts in). If this tab is sitting on a
+  // dashboard when another tab does that, this tab's own per-request companyId staleness guards
+  // never catch it — they compare against the now-ALREADY-overwritten shared token, which reads
+  // as "unchanged" to them — so a background poll in THIS tab can go on to merge the new
+  // session's server data with this tab's still-resident previous-company records (see
+  // mergeServerAuthoritative in training-manager-data.service.ts, and its own header comment for
+  // the prior incident this exact shape caused). The storage event only ever fires in a tab that
+  // did NOT make the write, so this can never fire for this tab's own login/switch-role/logout —
+  // only when some OTHER tab changed who's signed in. A full reload is deliberate, not a
+  // shortcut: it's the one response that's actually guaranteed to clear every in-memory singleton
+  // rather than relying on each one to have its own correct reset logic.
+  private handleCrossTabSessionChange(event: StorageEvent) {
+    if (event.key !== 'lms-token') {
+      return;
+    }
+
+    window.location.reload();
   }
 
   private enforceSessionTimeout() {
