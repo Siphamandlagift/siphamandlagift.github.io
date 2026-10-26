@@ -39,7 +39,7 @@ import { LmsBackendService, type HrIntegrationConfig, type HrIntegrationConfigUp
 import { LmsBrandThemeId, LmsBrandingService } from './lms-branding.service';
 import { renderCourseCompletionCertificate } from './certificate-template';
 import type { StudentCertificateLicence, StudentCertificateStatus, StudentCourse } from './student-data.service';
-import { clearLmsAuthSession, combineDisplayName, companyScopedRoute, createLmsSessionRecord, readLmsSessionRecord, writeLmsCompanyUrlSlug } from './session-auth';
+import { clearLmsAuthSession, combineDisplayName, companyLoginRoute, companyScopedRoute, createLmsSessionRecord, readLmsCompanyUrlSlug, readLmsSessionRecord, writeLmsCompanyUrlSlug } from './session-auth';
 import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component';
 import { LoadingSpinnerComponent } from './loading-spinner.component';
 import { PublishedOfferingDetailComponent } from './published-offering-detail.component';
@@ -22163,9 +22163,10 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   confirmLogout() {
     this.logoutDialogStage.set('success');
+    const companyUrlSlug = readLmsCompanyUrlSlug();
     clearLmsAuthSession();
     setTimeout(() => {
-      this.router.navigate(['/']);
+      this.router.navigate([companyLoginRoute(companyUrlSlug)]);
     }, 1200);
   }
 

@@ -19,7 +19,7 @@ import {
 import { ExternalTrainingRequestRecord, ExternalTrainingRequestStatus, StudentIdpEntry, StudentKpiEntry, StudentKpiScore, TrainingManagerDataService } from './training-manager-data.service';
 import { LmsBackendService, type LoginRole } from './lms-backend.service';
 import { LmsBrandingService, LmsBrandThemeOption } from './lms-branding.service';
-import { clearLmsAuthSession, combineDisplayName, companyScopedRoute, createLmsSessionRecord, readLmsSessionRecord, writeLmsCompanyUrlSlug } from './session-auth';
+import { clearLmsAuthSession, combineDisplayName, companyLoginRoute, companyScopedRoute, createLmsSessionRecord, readLmsCompanyUrlSlug, readLmsSessionRecord, writeLmsCompanyUrlSlug } from './session-auth';
 import { isFeatureAllowedForPlan } from './plan-features';
 import { LogoutConfirmDialogComponent } from './logout-confirm-dialog.component';
 import { LoadingSpinnerComponent } from './loading-spinner.component';
@@ -6481,12 +6481,13 @@ export class StudentProfileComponent implements OnInit, OnDestroy {
 
   confirmLogout() {
     this.logoutDialogStage.set('success');
+    const companyUrlSlug = readLmsCompanyUrlSlug();
     clearLmsAuthSession();
     // Briefly shows the "logged out successfully" state before navigating away — the profile
     // component (and this dialog along with it) is destroyed the instant navigation happens, so
     // there's no later point at which a confirmation could be shown instead.
     setTimeout(() => {
-      this.router.navigate(['/']);
+      this.router.navigate([companyLoginRoute(companyUrlSlug)]);
     }, 1200);
   }
 }

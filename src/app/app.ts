@@ -3,7 +3,7 @@ import { RouterOutlet } from '@angular/router';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { fromEvent, interval, Subscription } from 'rxjs';
-import { clearLmsAuthSession, hasRequiredSessionFields, isLmsSessionExpired, readLmsSessionRecord, refreshLmsSessionActivity } from './session-auth';
+import { clearLmsAuthSession, companyLoginRoute, hasRequiredSessionFields, isLmsSessionExpired, readLmsCompanyUrlSlug, readLmsSessionRecord, refreshLmsSessionActivity } from './session-auth';
 
 @Component({
   selector: 'app-root',
@@ -97,10 +97,16 @@ export class App {
       return;
     }
 
+    // Read before clearing — clearLmsAuthSession() removes the stored slug along with the rest
+    // of the session (see confirmLogout in each profile component for the same ordering, and
+    // companyLoginRoute's own comment for why this lands on the company's own branded login
+    // screen rather than the shared default).
+    const companyUrlSlug = readLmsCompanyUrlSlug();
     clearLmsAuthSession();
 
-    if (this.router.url !== '/') {
-      void this.router.navigate(['/']);
+    const target = companyLoginRoute(companyUrlSlug);
+    if (this.router.url !== target) {
+      void this.router.navigate([target]);
     }
   }
 }

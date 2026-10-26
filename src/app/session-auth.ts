@@ -167,6 +167,15 @@ export function readLmsCompanyUrlSlug(): string | null {
   return localStorage.getItem(LMS_COMPANY_SLUG_STORAGE_KEY);
 }
 
+// Where a logged-out session should land — the company's own branded .../login/{slug} screen
+// (same company-scoped-URL principle as companyScopedRoute below, just for the one route that
+// isn't behind authGuard) when we know which company this was, otherwise the shared default.
+// Callers must read the slug BEFORE calling clearLmsAuthSession(), which removes it along with
+// the rest of the session.
+export function companyLoginRoute(companyUrlSlug: string | null): string {
+  return companyUrlSlug ? `/login/${companyUrlSlug}` : '/';
+}
+
 // `route` is always a leading-slash path like '/admin-profile' (see ResolveRolesEntry.route) —
 // this is the one place that turns a bare route and a company's URL slug into the actual
 // company-scoped path every login/switch-role/SSO navigation uses.

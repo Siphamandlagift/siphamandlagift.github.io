@@ -3,7 +3,7 @@ import { inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 import { LMS_API_CONFIG } from './lms-api.config';
-import { clearLmsAuthSession, hasRequiredSessionFields, isLmsSessionExpired, readLmsSessionRecord } from './session-auth';
+import { clearLmsAuthSession, companyLoginRoute, hasRequiredSessionFields, isLmsSessionExpired, readLmsCompanyUrlSlug, readLmsSessionRecord } from './session-auth';
 
 export const lmsAuthInterceptor: HttpInterceptorFn = (request, next) => {
   const config = inject(LMS_API_CONFIG);
@@ -17,8 +17,9 @@ export const lmsAuthInterceptor: HttpInterceptorFn = (request, next) => {
 
   const session = readLmsSessionRecord();
   if (session && isLmsSessionExpired(session)) {
+    const companyUrlSlug = readLmsCompanyUrlSlug();
     clearLmsAuthSession();
-    void router.navigate(['/']);
+    void router.navigate([companyLoginRoute(companyUrlSlug)]);
     return next(request);
   }
 
@@ -46,8 +47,9 @@ export const lmsAuthInterceptor: HttpInterceptorFn = (request, next) => {
       // directly for that case — reacting here too would double up two different responses to
       // one failed call.
       if (error?.status === 403 && error?.error?.reason === 'subscription-inactive' && readLmsSessionRecord()) {
+        const companyUrlSlug = readLmsCompanyUrlSlug();
         clearLmsAuthSession();
-        void router.navigate(['/'], { queryParams: { sessionError: error.error.message } });
+        void router.navigate([companyLoginRoute(companyUrlSlug)], { queryParams: { sessionError: error.error.message } });
       }
       return throwError(() => error);
     }),
