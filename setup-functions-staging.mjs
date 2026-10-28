@@ -33,7 +33,10 @@ const rootPkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
 // Packages that exist only in the browser / Angular frontend
 const frontendOnly = new Set([
   'firebase',        // client SDK – server uses firebase-admin
-  'jspdf',
+  // jspdf is NOT frontend-only anymore — server/src/certificate-pdf.ts renders certificate PDFs
+  // server-side with it. Leaving it in this set previously meant the deployed function's
+  // package.json omitted it entirely, crashing on `import { jsPDF } from 'jspdf'` at module load
+  // — which took down every single API route, not just the certificate ones.
   'pdfjs-dist',
   'rxjs',
   'tslib',
