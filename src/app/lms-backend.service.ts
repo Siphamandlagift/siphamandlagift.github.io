@@ -39,6 +39,7 @@ import type {
   TrainingProgrammeRecord,
 } from './training-manager-data.service';
 import type {
+  IssuedCertificate,
   StudentAssessmentAttempt,
   StudentBadgeState,
   StudentCertificateLicence,
@@ -134,6 +135,9 @@ export type StudentSnapshotResponse = {
   profile: StudentProfileData;
   badgeState: StudentBadgeState;
   certificatesAndLicences: StudentCertificateLicence[];
+  // Read-only here — see its own comment on StudentSnapshotUpdate below for why it's excluded
+  // from that type. Written exclusively via issueCourseCompletionCertificate.
+  issuedCertificates: IssuedCertificate[];
   settings: StudentSettingsData;
   mentorshipProfile: StudentMentorshipProfile;
   mentorshipObjectives: StudentMentorshipObjectives;
@@ -151,10 +155,27 @@ export type StudentSnapshotResponse = {
 // assessmentAttempts is optional (unlike on StudentSnapshotResponse, which the server still
 // returns it on) — the server ignores it on this path now and writes it exclusively through
 // gradeQuizAttempt, so a snapshot save no longer needs to carry it. successionStatus is likewise
-// excluded — it's server-computed and never client-writable.
-export type StudentSnapshotUpdate = Omit<StudentSnapshotResponse, 'studentId' | 'assessmentAttempts' | 'successionStatus'> & {
+// excluded — it's server-computed and never client-writable. issuedCertificates is excluded for
+// the same reason: the server's studentSnapshotUpdateSchema never accepts it from a client at
+// all (see StudentSnapshotUpdate in server/src/contracts.ts) — it's written exclusively by
+// POST /students/:studentId/certificates/course-completion below.
+export type StudentSnapshotUpdate = Omit<StudentSnapshotResponse, 'studentId' | 'assessmentAttempts' | 'successionStatus' | 'issuedCertificates'> & {
   assessmentAttempts?: Record<string, StudentAssessmentAttempt>;
 };
+
+// Mirrors the server's CertificateVerificationResult (contracts.ts) — the response from the one
+// PUBLIC, unauthenticated certificate-verification lookup (GET /api/certificates/verify/:serial).
+export type CertificateVerificationResult =
+  | {
+      valid: true;
+      serialNumber: string;
+      studentName: string;
+      courseName: string;
+      companyName: string;
+      completionDate: string;
+      issuedAt: string;
+    }
+  | { valid: false };
 
 export type ScormUploadResponse = {
   packageId: string;
@@ -541,6 +562,19 @@ export class LmsBackendService {
 
   updateStudentSnapshot(snapshot: StudentSnapshotUpdate, studentId = this.config.defaultStudentId): Observable<StudentSnapshotResponse> {
     return this.http.put<StudentSnapshotResponse>(`${this.config.baseUrl}/students/${studentId}/snapshot`, snapshot);
+  }
+
+  // Server renders and serial-numbers the PDF itself (see IssuedCertificateRecord's own comment
+  // in server/src/contracts.ts) — idempotent by offeringId, so calling this again for a course
+  // that already has a certificate just returns the existing one instead of issuing a duplicate.
+  issueCourseCompletionCertificate(offeringId: string, studentId = this.config.defaultStudentId): Observable<{ certificate: IssuedCertificate }> {
+    return this.http.post<{ certificate: IssuedCertificate }>(`${this.config.baseUrl}/students/${studentId}/certificates/course-completion`, { offeringId });
+  }
+
+  // Public — no session required (see isPublicCertificateVerifyPath in server.ts). Used by
+  // VerifyCertificateComponent, the only route in this app reachable with no login at all.
+  verifyCertificate(serialNumber: string): Observable<CertificateVerificationResult> {
+    return this.http.get<CertificateVerificationResult>(`${this.config.baseUrl}/certificates/verify/${encodeURIComponent(serialNumber)}`);
   }
 
   // Its own scoped endpoint rather than routing through updateStudentSnapshot above — see

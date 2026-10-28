@@ -16,6 +16,10 @@ export const routes: Routes = [
   },
   { path: 'super-admin/reset-password', loadComponent: () => import('./super-admin/super-admin-reset-password.component').then((m) => m.SuperAdminResetPasswordComponent) },
   { path: 'reset-password', loadComponent: () => import('./reset-password/reset-password').then((m) => m.ResetPasswordComponent) },
+  // Public, unauthenticated certificate verification — see isPublicCertificateVerifyPath in
+  // server.ts for the matching server-side public-route carve-out. Reached by scanning a PDF
+  // certificate's QR code or typing in its serial number; never behind authGuard.
+  { path: 'verify/:serialNumber', loadComponent: () => import('./verify-certificate.component').then((m) => m.VerifyCertificateComponent) },
   // Company-scoped variants (see companyScopedRoute in session-auth.ts) — every login,
   // switch-role, and SSO completion navigates to one of these now, so the URL keeps naming the
   // signed-in company across role switches instead of going blank the moment you log in. The

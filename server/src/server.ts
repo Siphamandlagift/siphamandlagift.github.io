@@ -23,16 +23,21 @@ import { isStrongPassword, passwordPolicyMessage } from './auth-utils.js';
 import {
   resolveCompanyIdsForLoginIdentifier,
   resolveCompanyIdForPasswordResetToken,
+  getCompanyRecord,
   getCompanyRecordBySlug,
   getCompanyUrlSlug,
   getCompanySubscriptionContext,
   getCompanyPlan,
   getCompanyUsage,
   getPlatformBranding,
+  generateUniqueCertificateSerial,
+  recordCertificateSerial,
+  lookupCertificateSerial,
 } from './platform-repository.js';
 import { createSuperAdminRouter } from './super-admin-routes.js';
 import { isFeatureAllowedForPlan, type GatedFeature } from './plan-features.js';
-import type { AuthAccountRecord, EnrollmentStudentRecord, SubscriptionPlan } from './contracts.js';
+import type { AuthAccountRecord, CertificateVerificationResult, EnrollmentStudentRecord, IssuedCertificateRecord, SubscriptionPlan } from './contracts.js';
+import { renderCourseCompletionCertificatePdf } from './certificate-pdf.js';
 
 // Augments Express's Request with the per-request state the middleware chain below attaches
 // after decoding the caller's JWT: their identity (including which company they belong to), a
@@ -148,6 +153,15 @@ function isPublicCompanyBrandingPath(path: string): boolean {
   return /^\/api\/companies\/[^/]+\/branding$/.test(path);
 }
 
+// GET /api/certificates/verify/:serialNumber (server.ts, below) — the one public, unauthenticated
+// way to confirm a certificate is real (see CertificateVerificationResult in contracts.ts). Same
+// reasoning as isPublicCompanyBrandingPath above: a plain publicPaths.has() string can't match a
+// route with a :serialNumber param, so it needs its own narrow pattern rather than making anything
+// else under /api/certificates/ accidentally public.
+function isPublicCertificateVerifyPath(path: string): boolean {
+  return /^\/api\/certificates\/verify\/[^/]+$/.test(path);
+}
+
 function requireAuth(request: express.Request, response: express.Response, next: express.NextFunction) {
   // Publicly readable uploaded files do not require auth.
   if (
@@ -155,6 +169,7 @@ function requireAuth(request: express.Request, response: express.Response, next:
     || request.path.startsWith('/api/files/')
     || request.path.startsWith('/api/storage/scorm')
     || isPublicCompanyBrandingPath(request.path)
+    || isPublicCertificateVerifyPath(request.path)
   ) {
     next();
     return;
@@ -231,6 +246,7 @@ async function attachRequestContext(request: express.Request, response: express.
     || request.path.startsWith('/api/storage/scorm')
     || request.path.startsWith('/api/platform/')
     || isPublicCompanyBrandingPath(request.path)
+    || isPublicCertificateVerifyPath(request.path)
   ) {
     next();
     return;
@@ -1048,6 +1064,10 @@ const certificateTemplateUpdateSchema = z.object({
   brandText: z.string(),
   signatoryName: z.string(),
   signatoryTitle: z.string(),
+});
+
+const issueCourseCompletionCertificateSchema = z.object({
+  offeringId: z.string().min(1),
 });
 
 const kpiApprovalSubmitSchema = z.object({
@@ -3156,6 +3176,170 @@ app.put('/api/students/:studentId/snapshot', async (request, response, next) => 
     }
 
     response.json(updated);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Issues a server-rendered, serial-numbered, QR-verifiable PDF certificate for a completed
+// course — the tamper-resistant replacement for the client-side canvas PNG that
+// generateCourseCompletionCertificate (student-data.service.ts) used to build and upload itself.
+// Deliberately a separate route rather than something folded into the snapshot PUT above: that
+// route's schema never even accepts issuedCertificates from a client (see StudentSnapshotUpdate
+// in contracts.ts), so this is the ONLY way that field is ever written.
+app.post('/api/students/:studentId/certificates/course-completion', async (request, response, next) => {
+  try {
+    const identity = getAuthenticatedIdentity(request);
+    if (!identity || !request.repository || !identity.companyId) {
+      response.status(401).json({ message: 'Your session has expired. Please log in again.' });
+      return;
+    }
+    const repository = request.repository;
+    const studentId = request.params.studentId;
+
+    // A student may only issue their own certificate; managers/admins may issue any student's.
+    const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
+    if (!isPrivileged && !(await isOwnStudentRecord(repository, studentId, identity))) {
+      response.status(403).json({ message: 'You do not have permission to issue a certificate for this student.' });
+      return;
+    }
+
+    const { offeringId } = issueCourseCompletionCertificateSchema.parse(request.body);
+
+    const [snapshot, offerings] = await Promise.all([
+      repository.getStudentSnapshot(studentId),
+      repository.listOfferings(),
+    ]);
+    if (!snapshot) {
+      response.status(404).json({ message: 'Student not found.' });
+      return;
+    }
+
+    const offering = offerings.find((entry) => entry.id === offeringId);
+    if (!offering) {
+      response.status(404).json({ message: 'Course not found.' });
+      return;
+    }
+    if (offering.certificateEnabled === false) {
+      response.status(400).json({ message: 'This course does not issue a certificate.' });
+      return;
+    }
+
+    // Trusts the same completion signal the rest of the app already does (see
+    // offeringIssuesCertificate/syncCourseProgress in student-data.service.ts) — this route's own
+    // job is making the ISSUED CERTIFICATE tamper-proof and uniquely verifiable, not re-deriving
+    // course-completion truth from scratch.
+    const course = snapshot.courses.find((entry) => entry.offeringId === offeringId)
+      ?? snapshot.courses.find((entry) => entry.name === offering.title);
+    if (!course?.completed) {
+      response.status(400).json({ message: 'This course has not been completed yet.' });
+      return;
+    }
+
+    const existingCertificate = snapshot.issuedCertificates.find((entry) => entry.offeringId === offeringId);
+    if (existingCertificate) {
+      response.json({ certificate: existingCertificate });
+      return;
+    }
+
+    if (!storageBucket) {
+      response.status(503).json({ message: 'Firebase Storage is not configured on this server.' });
+      return;
+    }
+
+    const studentName = snapshot.profile.name.trim() || 'Learner';
+    const completionDate = course.completedAt ?? new Date().toISOString().slice(0, 10);
+    const certificateTemplate = await repository.getCertificateTemplate();
+    const serialNumber = await generateUniqueCertificateSerial();
+    const verifyUrl = `${resolveAppBaseUrl(request)}/verify/${serialNumber}`;
+
+    const pdfBytes = await renderCourseCompletionCertificatePdf({
+      studentName,
+      courseName: offering.title,
+      completionDate,
+      serialNumber,
+      verifyUrl,
+      titleText: certificateTemplate.titleText,
+      accentColor: certificateTemplate.accentColor,
+      backgroundColor: certificateTemplate.backgroundColor,
+      textColor: certificateTemplate.textColor,
+      brandText: certificateTemplate.brandText,
+      signatoryName: certificateTemplate.signatoryName,
+      signatoryTitle: certificateTemplate.signatoryTitle,
+    });
+
+    const adminApp = getApps().length > 0 ? getApp() : initializeApp();
+    const bucket = getStorage(adminApp).bucket(storageBucket);
+    const safeCourseName = offering.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'certificate';
+    const filePath = `lms-uploads/${identity.companyId}/certificates/${studentId}/${serialNumber}-${safeCourseName}.pdf`;
+    const storageFile = bucket.file(filePath);
+    await storageFile.save(Buffer.from(pdfBytes), { contentType: 'application/pdf' });
+    await storageFile.makePublic();
+    const fileUrl = `https://storage.googleapis.com/${storageBucket}/${filePath}`;
+
+    const record: IssuedCertificateRecord = {
+      id: `issued-cert-${randomUUID()}`,
+      serialNumber,
+      offeringId,
+      courseName: offering.title,
+      studentName,
+      completionDate,
+      issuedAt: new Date().toISOString(),
+      fileUrl,
+    };
+
+    const result = await repository.addIssuedCertificate(studentId, record);
+    if ('error' in result) {
+      response.status(404).json({ message: 'Student not found.' });
+      return;
+    }
+
+    // Only register the serial globally when OUR record actually won the idempotency race in
+    // addIssuedCertificate — if a concurrent request for the same offering landed first,
+    // result.certificate is THAT one (a different serial we just built a PDF for, for nothing;
+    // an acceptable, rare bit of waste next to the alternative of two verifiable certificates
+    // existing for one course completion).
+    if (result.certificate.id === record.id) {
+      const company = await getCompanyRecord(identity.companyId);
+      await recordCertificateSerial({
+        serialNumber,
+        companyId: identity.companyId,
+        studentId,
+        certificateId: record.id,
+        studentName,
+        courseName: offering.title,
+        companyName: company?.name ?? '',
+        completionDate,
+        issuedAt: record.issuedAt,
+      });
+    }
+
+    response.json({ certificate: result.certificate });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// The one PUBLIC, unauthenticated way to confirm a certificate is real — an employer or auditor
+// handed a printed certificate (or scanning its QR code) types/visits this with no SkillsConnect
+// session at all. Deliberately returns only CertificateVerificationResult's minimal fields (see
+// its own comment in contracts.ts), never the student's full record.
+app.get('/api/certificates/verify/:serialNumber', async (request, response, next) => {
+  try {
+    const record = await lookupCertificateSerial(request.params.serialNumber);
+    const result: CertificateVerificationResult = record
+      ? {
+          valid: true,
+          serialNumber: record.serialNumber,
+          studentName: record.studentName,
+          courseName: record.courseName,
+          companyName: record.companyName,
+          completionDate: record.completionDate,
+          issuedAt: record.issuedAt,
+        }
+      : { valid: false };
+
+    response.json(result);
   } catch (error) {
     next(error);
   }

@@ -3,7 +3,6 @@ import { firstValueFrom, interval } from 'rxjs';
 import { LmsBackendService } from './lms-backend.service';
 import { LmsBrandThemeId } from './lms-branding.service';
 import { ManagerMessage, ManagerMessageReply, TrainingManagerDataService, TrainingOffering } from './training-manager-data.service';
-import { dataUrlToFile, renderCourseCompletionCertificate } from './certificate-template';
 import { getCurrentCompanyId, readCompanyScopedCache, writeCompanyScopedCache } from './company-scoped-storage';
 
 export type StudentProfileData = {
@@ -205,6 +204,21 @@ export type StudentCertificateLicence = {
   reminderDaysBeforeExpiry: number;
 };
 
+// A server-issued, tamper-evident PDF — see IssuedCertificateRecord's own comment in
+// server/src/contracts.ts. Deliberately separate from StudentCertificateLicence above: that type
+// rides through the fully client-writable snapshot save, this one is written exclusively by the
+// server (addIssuedCertificate) and is read-only here.
+export type IssuedCertificate = {
+  id: string;
+  serialNumber: string;
+  offeringId: string;
+  courseName: string;
+  studentName: string;
+  completionDate: string;
+  issuedAt: string;
+  fileUrl: string;
+};
+
 export type StudentNotificationPreferences = {
   emailUpdates: boolean;
   smsAlerts: boolean;
@@ -237,6 +251,8 @@ type PersistedStudentSnapshot = {
   profile: StudentProfileData;
   badgeState: StudentBadgeState;
   certificatesAndLicences: StudentCertificateLicence[];
+  // Optional for backward compat with a snapshot cached locally before this field existed.
+  issuedCertificates?: IssuedCertificate[];
   settings: StudentSettingsData;
   mentorshipProfile: StudentMentorshipProfile;
   mentorshipObjectives: StudentMentorshipObjectives;
@@ -321,6 +337,9 @@ export class StudentDataService {
   private readonly certificatesAndLicencesSignal = signal<StudentCertificateLicence[]>(
     this.initialPersistedStudentSnapshot?.certificatesAndLicences ?? [],
   );
+  private readonly issuedCertificatesSignal = signal<IssuedCertificate[]>(
+    this.initialPersistedStudentSnapshot?.issuedCertificates ?? [],
+  );
   private readonly assessmentAttemptsSignal = signal<Record<string, StudentAssessmentAttempt>>(
     this.initialPersistedStudentSnapshot?.assessmentAttempts ?? {},
   );
@@ -399,6 +418,7 @@ export class StudentDataService {
   readonly messages = this.messagesSignal.asReadonly();
   readonly courses = this.coursesSignal.asReadonly();
   readonly certificatesAndLicences = this.certificatesAndLicencesSignal.asReadonly();
+  readonly issuedCertificates = this.issuedCertificatesSignal.asReadonly();
   readonly calendarEvents = computed(() => this.buildCalendarEvents(this.coursesSignal(), this.managerData.offerings()));
   readonly courseNavigationRequest = this.courseNavigationRequestSignal.asReadonly();
   readonly assessmentAttempts = this.assessmentAttemptsSignal.asReadonly();
@@ -1018,7 +1038,7 @@ export class StudentDataService {
       const completedCourse: StudentCourse = updatedCourse;
       this.recordCourseEngagement();
       if (justCompleted && this.offeringIssuesCertificate(completedCourse)) {
-        void this.generateCourseCompletionCertificate(completedCourse.name, completedCourse.completedAt ?? this.createCompletionDateStamp());
+        this.issueCourseCompletionCertificate(completedCourse.offeringId);
       }
       this.persistStudentSnapshot();
     }
@@ -1084,7 +1104,10 @@ export class StudentDataService {
     // assessmentAttempts is dropped rather than sent: the server now ignores it on this path and
     // writes it exclusively through gradeQuizAttempt (see recordAssessmentAttempt above), so
     // sending the local copy here would just be redundant, stale-by-construction payload.
-    const { studentId: _studentId, assessmentAttempts: _assessmentAttempts, ...snapshotUpdate } = persistedSnapshot;
+    // issuedCertificates is dropped the same way — the server's schema for this route doesn't
+    // even accept it (see StudentSnapshotUpdate's own comment), it's written exclusively through
+    // issueCourseCompletionCertificate above.
+    const { studentId: _studentId, assessmentAttempts: _assessmentAttempts, issuedCertificates: _issuedCertificates, ...snapshotUpdate } = persistedSnapshot;
     const snapshotUpdateForBackend = {
       ...snapshotUpdate,
       // Strip the bulky base64 blob from backend writes once a Firebase Storage URL exists for
@@ -1137,68 +1160,37 @@ export class StudentDataService {
     return offering?.certificateEnabled !== false;
   }
 
-  /** Generates a certificate (using the company's CertificateTemplateSettings) for a
-   *  just-finished course and adds it to the student's certificates list. Uploads it to Storage
-   *  for a durable fileUrl in the background — if that fails, the certificate still shows and
-   *  downloads from this browser's local copy. */
-  private async generateCourseCompletionCertificate(courseName: string, completionDate: string) {
-    const alreadyExists = this.certificatesAndLicencesSignal().some(
-      (record) => record.source === 'course-completion' && record.certificationName === courseName,
-    );
+  /** Asks the server to issue a tamper-evident, serial-numbered PDF certificate for a
+   *  just-finished course (see IssuedCertificateRecord in server/src/contracts.ts) and adds the
+   *  result to the student's issued-certificates list. Unlike the old client-rendered PNG this
+   *  replaces, the PDF itself is built entirely server-side — genuine tamper-resistance requires
+   *  that, since a browser canvas is always under the certificate holder's own control. Silently
+   *  skipped for a course with no offeringId (legacy, title-only course records predating the
+   *  offering/course link this route is keyed on) — the next progress sync will retry. */
+  private issueCourseCompletionCertificate(offeringId: string | undefined) {
+    if (!offeringId || !this.readSessionOwnStudentId()) {
+      return;
+    }
+
+    const alreadyExists = this.issuedCertificatesSignal().some((record) => record.offeringId === offeringId);
     if (alreadyExists) {
       return;
     }
 
-    const studentName = this.profileSignal().name.trim() || 'Learner';
-    const template = this.managerData.certificateTemplate();
-    const dataUrl = renderCourseCompletionCertificate({
-      studentName,
-      courseName,
-      completionDate,
-      titleText: template.titleText,
-      accentColor: template.accentColor,
-      backgroundColor: template.backgroundColor,
-      textColor: template.textColor,
-      brandText: template.brandText,
-      signatoryName: template.signatoryName,
-      signatoryTitle: template.signatoryTitle,
+    const studentId = this.currentSessionStudentId();
+    this.backend.issueCourseCompletionCertificate(offeringId, studentId).subscribe({
+      next: (response) => {
+        this.issuedCertificatesSignal.update((records) =>
+          records.some((entry) => entry.id === response.certificate.id)
+            ? records
+            : [response.certificate, ...records],
+        );
+      },
+      error: () => {
+        // Best-effort — the next time this course's progress syncs (e.g. a page refresh),
+        // issuedCertificates still won't have an entry for this offeringId, so this is retried.
+      },
     });
-    if (!dataUrl) {
-      return;
-    }
-
-    const safeCourseName = courseName.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'certificate';
-    const fileName = `${safeCourseName}-Certificate-of-Completion.png`;
-
-    const certificate: StudentCertificateLicence = {
-      id: `cert-completion-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      certificationName: courseName,
-      completionDate,
-      expiryDate: '',
-      fileName,
-      fileDataUrl: dataUrl,
-      fileUrl: null,
-      source: 'course-completion',
-      status: 'Active',
-      renewalRequired: 'No',
-      reminderNotification: 'No',
-      reminderDaysBeforeExpiry: 0,
-    };
-
-    this.certificatesAndLicencesSignal.update((records) => [certificate, ...records]);
-    this.persistStudentSnapshot();
-
-    try {
-      const file = dataUrlToFile(dataUrl, fileName);
-      const uploaded = await firstValueFrom(this.backend.uploadFileBase64(file, 'certificates'));
-      this.certificatesAndLicencesSignal.update((records) =>
-        records.map((record) => (record.id === certificate.id ? { ...record, fileUrl: uploaded.url } : record)),
-      );
-      this.persistStudentSnapshot();
-    } catch {
-      // Keep the local-only copy if the upload fails — it still shows and downloads in this
-      // browser session, it just won't survive a device switch until the next successful sync.
-    }
   }
 
   private refreshStudentSnapshot(force = false) {
@@ -1307,6 +1299,10 @@ export class StudentDataService {
           profile: mergedProfile,
           badgeState: { earnedBadgeIds: snapshot.badgeState.earnedBadgeIds },
           certificatesAndLicences: mergedCertificates,
+          // No local-optimistic merge needed here (unlike mergedCertificates above): this field
+          // is only ever updated locally AFTER the issuance call it came from has already
+          // succeeded server-side, so the server's own copy is always at least as current.
+          issuedCertificates: snapshot.issuedCertificates ?? [],
           settings: snapshot.settings,
           mentorshipProfile: snapshot.mentorshipProfile,
           mentorshipObjectives: snapshot.mentorshipObjectives,
@@ -1408,6 +1404,7 @@ export class StudentDataService {
     this.mentorshipProgressReportSignal.set(snapshot.mentorshipProgressReport);
     this.coursesSignal.set(this.filterLegacySeedCourses(snapshot.courses));
     this.certificatesAndLicencesSignal.set(snapshot.certificatesAndLicences);
+    this.issuedCertificatesSignal.set(snapshot.issuedCertificates ?? []);
     this.assessmentAttemptsSignal.set(snapshot.assessmentAttempts);
     this.notificationsSignal.set(snapshot.notifications);
     this.messagesSignal.set(snapshot.messages);
@@ -1432,6 +1429,7 @@ export class StudentDataService {
     this.mentorshipProgressReportSignal.set(this.createInitialMentorshipProgressReport());
     this.coursesSignal.set([]);
     this.certificatesAndLicencesSignal.set([]);
+    this.issuedCertificatesSignal.set([]);
     this.assessmentAttemptsSignal.set({});
     this.notificationsSignal.set(this.createInitialNotifications());
     this.messagesSignal.set(this.createInitialMessages());
@@ -1447,6 +1445,7 @@ export class StudentDataService {
       profile: this.profileSignal(),
       badgeState: { earnedBadgeIds: this.persistedEarnedBadgeIdsSignal() },
       certificatesAndLicences: this.certificatesAndLicencesSignal(),
+      issuedCertificates: this.issuedCertificatesSignal(),
       settings: this.settingsSignal(),
       mentorshipProfile: this.mentorshipProfileSignal(),
       mentorshipObjectives: this.mentorshipObjectivesSignal(),
@@ -2274,6 +2273,18 @@ export class StudentDataService {
             && (record?.renewalRequired === 'Yes' || record?.renewalRequired === 'No')
             && (record?.reminderNotification === 'Yes' || record?.reminderNotification === 'No')
             && typeof record?.reminderDaysBeforeExpiry === 'number'
+          )
+          : [],
+        issuedCertificates: Array.isArray(parsed.issuedCertificates)
+          ? parsed.issuedCertificates.filter((record): record is IssuedCertificate =>
+            typeof record?.id === 'string'
+            && typeof record?.serialNumber === 'string'
+            && typeof record?.offeringId === 'string'
+            && typeof record?.courseName === 'string'
+            && typeof record?.studentName === 'string'
+            && typeof record?.completionDate === 'string'
+            && typeof record?.issuedAt === 'string'
+            && typeof record?.fileUrl === 'string'
           )
           : [],
         settings: parsed.settings as StudentSettingsData,

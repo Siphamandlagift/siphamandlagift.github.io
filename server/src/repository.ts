@@ -37,6 +37,7 @@ import {
   HrIntegrationConfigUpdateInput,
   HrIntegrationRosterRecord,
   HrIntegrationSyncSummary,
+  IssuedCertificateRecord,
   KpiApprovalDecisionInput,
   KpiApprovalRecord,
   KpiApprovalStatus,
@@ -1028,6 +1029,10 @@ type GradeQuizAttemptResult =
   | { attempt: StudentAssessmentAttemptRecord }
   | { error: 'not-found' | 'attempts-exhausted' };
 
+type AddIssuedCertificateResult =
+  | { certificate: IssuedCertificateRecord }
+  | { error: 'not-found' };
+
 // Masks (rather than strips) the answer key on every quiz question so a non-privileged (student)
 // response never carries choices[].isCorrect / matchingPairs[].answer — now that grading happens
 // server-side (gradeQuizAttempt above), the student app never needs these values for anything.
@@ -1810,6 +1815,7 @@ export class LmsRepository {
           },
           badgeState: student.badgeState,
           certificatesAndLicences: student.certificatesAndLicences ?? [],
+          issuedCertificates: student.issuedCertificates ?? [],
           settings: student.settings,
           mentorshipProfile: student.mentorshipProfile,
           mentorshipObjectives: student.mentorshipObjectives,
@@ -1903,6 +1909,7 @@ export class LmsRepository {
           profile: student.profile,
           badgeState: student.badgeState,
           certificatesAndLicences: student.certificatesAndLicences ?? [],
+          issuedCertificates: student.issuedCertificates ?? [],
           settings: student.settings,
           mentorshipProfile: student.mentorshipProfile,
           mentorshipObjectives: student.mentorshipObjectives,
@@ -2256,6 +2263,13 @@ export class LmsRepository {
 
     const next = await this.write(data);
     return next.approvalWorkflowSettings;
+  }
+
+  // Used by the server-side certificate-issuance route (see addIssuedCertificate/server.ts)
+  // instead of the client fetching the whole getBootstrap payload just to read this one setting.
+  async getCertificateTemplate(): Promise<CertificateTemplateSettings> {
+    const data = await this.read();
+    return data.certificateTemplate;
   }
 
   // Same "broadly readable, admin-only write" shape as approvalWorkflowSettings above — a
@@ -2775,6 +2789,33 @@ export class LmsRepository {
 
     await this.write(data);
     return { attempt };
+  }
+
+  // The sole writer of issuedCertificates — bypasses the generic snapshot-save path entirely
+  // (that schema never even accepts this field from a client, see StudentSnapshotUpdate), and is
+  // idempotent by offeringId rather than exact record equality: each call generates a fresh
+  // id/serialNumber/timestamp, so two racing "issue my certificate" calls for the same course
+  // must resolve to the one record already on file rather than appending a duplicate.
+  async addIssuedCertificate(studentId: string, record: IssuedCertificateRecord): Promise<AddIssuedCertificateResult> {
+    const data = await this.read();
+    const studentIndex = data.students.findIndex((entry) => entry.id === studentId);
+    if (studentIndex === -1) {
+      return { error: 'not-found' };
+    }
+
+    const student = data.students[studentIndex];
+    const existing = student.issuedCertificates?.find((entry) => entry.offeringId === record.offeringId);
+    if (existing) {
+      return { certificate: existing };
+    }
+
+    data.students[studentIndex] = {
+      ...student,
+      issuedCertificates: [...(student.issuedCertificates ?? []), record],
+    };
+
+    await this.write(data);
+    return { certificate: record };
   }
 
   async createExternalTrainingRequest(input: ExternalTrainingRequestCreateInput) {
@@ -5189,6 +5230,7 @@ class FirestoreLmsRepository extends LmsRepository {
       profile: updatedStudent.profile,
       badgeState: updatedStudent.badgeState,
       certificatesAndLicences: updatedStudent.certificatesAndLicences ?? [],
+      issuedCertificates: updatedStudent.issuedCertificates ?? [],
       settings: updatedStudent.settings,
       mentorshipProfile: updatedStudent.mentorshipProfile,
       mentorshipObjectives: updatedStudent.mentorshipObjectives,
@@ -5711,6 +5753,33 @@ class FirestoreLmsRepository extends LmsRepository {
     await this.collection('quizSubmissions').doc(submission.id).set(this.sanitizeForFirestore(submission));
 
     return { attempt };
+  }
+
+  // Scoped override, same reasoning as gradeQuizAttempt above: the idempotency check and the
+  // write that follows it happen inside one transaction on just this student's own document, so
+  // two racing calls for the same offeringId can't both pass the "no existing certificate" check
+  // before either has written — the second one will see the first's write and return it instead
+  // of appending a duplicate.
+  override async addIssuedCertificate(studentId: string, record: IssuedCertificateRecord): Promise<AddIssuedCertificateResult> {
+    const ref = this.collection('students').doc(studentId);
+
+    return this.firestore.runTransaction(async (transaction): Promise<AddIssuedCertificateResult> => {
+      const snapshot = await transaction.get(ref);
+      if (!snapshot.exists) {
+        return { error: 'not-found' };
+      }
+
+      const student = snapshot.data() as StudentRecord;
+      const existing = student.issuedCertificates?.find((entry) => entry.offeringId === record.offeringId);
+      if (existing) {
+        return { certificate: existing };
+      }
+
+      const nextCertificates = [...(student.issuedCertificates ?? []), record];
+      transaction.update(ref, this.sanitizeForFirestore({ issuedCertificates: nextCertificates }));
+
+      return { certificate: record };
+    });
   }
 
   // Succession roles/nominations are brand-new top-level collections nothing else writes to, so

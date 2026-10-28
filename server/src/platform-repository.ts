@@ -600,3 +600,75 @@ export async function updatePlatformBranding(input: BrandingSettingsRecord): Pro
   await firestore.collection(PLATFORM_SETTINGS_COLLECTION_ID).doc(PLATFORM_BRANDING_DOC_ID).set(input);
   return input;
 }
+
+// --- Certificate serial verification (public, cross-company) ---
+
+const CERTIFICATE_SERIALS_COLLECTION_ID = 'certificateSerials';
+// Unambiguous alphabet (no 0/O, 1/I/L) so a serial printed on a PDF or read aloud can't be
+// misread, and typing one into the public verify page isn't tripped up by a font that renders
+// those pairs identically.
+const CERTIFICATE_SERIAL_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const CERTIFICATE_SERIAL_LENGTH = 10;
+
+// What's stored under certificateSerials/{serialNumber} — a top-level, cross-company collection
+// (unlike everything in repository.ts, which lives inside one company's own document tree)
+// because the one thing that reads this, the public GET /api/certificates/verify/:serialNumber
+// route, has no company context at all: a visitor who was just handed a PDF and is typing its
+// serial number in. Deliberately denormalized with everything CertificateVerificationResult needs
+// to answer them, rather than just a companyId+studentId pointer, so verification never needs a
+// second, company-scoped lookup for a caller who by definition has no company to scope it to.
+export type CertificateSerialRecord = {
+  serialNumber: string;
+  companyId: string;
+  studentId: string;
+  certificateId: string;
+  studentName: string;
+  courseName: string;
+  companyName: string;
+  completionDate: string;
+  issuedAt: string;
+};
+
+function randomCertificateSerial(): string {
+  let code = '';
+  for (let index = 0; index < CERTIFICATE_SERIAL_LENGTH; index += 1) {
+    code += CERTIFICATE_SERIAL_ALPHABET[Math.floor(Math.random() * CERTIFICATE_SERIAL_ALPHABET.length)];
+  }
+  return `SC-${code}`;
+}
+
+export async function lookupCertificateSerial(serialNumber: string): Promise<CertificateSerialRecord | null> {
+  const normalized = serialNumber.trim().toUpperCase();
+  if (!normalized) {
+    return null;
+  }
+
+  const firestore = getFirestoreClient();
+  const snapshot = await firestore.collection(CERTIFICATE_SERIALS_COLLECTION_ID).doc(normalized).get();
+  return snapshot.exists ? (snapshot.data() as CertificateSerialRecord) : null;
+}
+
+// Draws a serial not already in use. A fresh random draw colliding with an existing serial is
+// vanishingly unlikely (32^10 possibilities) — this loop is a formality against that, not a real
+// contention point the way updateCompanySlug's transaction above guards a genuine race, since
+// there's no legitimate reason for two callers to ever contend over the SAME candidate serial.
+export async function generateUniqueCertificateSerial(): Promise<string> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const candidate = randomCertificateSerial();
+    const existing = await lookupCertificateSerial(candidate);
+    if (!existing) {
+      return candidate;
+    }
+  }
+
+  throw new Error('Could not generate a unique certificate serial number after 10 attempts.');
+}
+
+// Permanently records a serial's verification details. Uses create() rather than set() so that
+// even in the astronomically unlikely case of two concurrent issuances drawing the same candidate
+// serial, the second write fails outright instead of silently overwriting the first certificate's
+// verification record with the second certificate's details.
+export async function recordCertificateSerial(record: CertificateSerialRecord): Promise<void> {
+  const firestore = getFirestoreClient();
+  await firestore.collection(CERTIFICATE_SERIALS_COLLECTION_ID).doc(record.serialNumber).create(record);
+}

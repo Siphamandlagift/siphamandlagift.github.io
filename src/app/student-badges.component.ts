@@ -247,6 +247,48 @@ type StudentCertificate = {
         }
 
         @if (selectedCertificateSection() === 'list') {
+        @if (issuedCertificates().length) {
+          <div class="section-heading-row section-heading-row-inner">
+            <h3>Verified Course Certificates</h3>
+            <span class="section-badge section-badge-cert">{{ issuedCertificates().length }} issued</span>
+          </div>
+          <p class="certificate-verified-hint">Server-issued, serial-numbered PDFs — anyone can confirm one is genuine using its serial number or QR code.</p>
+
+          <div class="certificate-table-wrap">
+            <div class="certificate-table-scroll">
+              <table class="certificate-table">
+                <thead>
+                  <tr>
+                    <th>Course</th>
+                    <th>Completed</th>
+                    <th>Serial</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (certificate of issuedCertificates(); track certificate.id) {
+                    <tr>
+                      <td class="certificate-table-name">{{ certificate.courseName }}</td>
+                      <td>{{ certificate.completionDate }}</td>
+                      <td><code>{{ certificate.serialNumber }}</code></td>
+                      <td>
+                        <span class="certificate-status-pill certificate-status-pill-active">Verified</span>
+                      </td>
+                      <td>
+                        <div class="certificate-actions">
+                          <a class="secondary-btn secondary-btn-link" [href]="certificate.fileUrl" [download]="certificate.courseName + '-Certificate.pdf'">Download PDF</a>
+                          <a class="secondary-btn secondary-btn-link" [href]="'/verify/' + certificate.serialNumber" target="_blank" rel="noopener">Verify</a>
+                        </div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+
         <div class="section-heading-row section-heading-row-inner">
           <h3>All Certificates and Licences</h3>
           <span class="section-badge section-badge-cert">{{ filteredCertificates().length }} of {{ certificates().length }} issued</span>
@@ -758,6 +800,12 @@ type StudentCertificate = {
 
     .certificate-table-scroll {
       overflow-x: auto;
+    }
+
+    .certificate-verified-hint {
+      margin: -0.3rem 0 0.75rem;
+      color: #64748b;
+      font-size: 0.82rem;
     }
 
     .certificate-table {
@@ -1280,6 +1328,7 @@ export class StudentBadgesComponent {
   readonly earnedBadges = computed(() => this.studentData.badges().filter((badge) => badge.earned));
   readonly lockedBadges = computed(() => this.studentData.badges().filter((badge) => !badge.earned));
   readonly certificates = this.studentData.certificatesAndLicences;
+  readonly issuedCertificates = this.studentData.issuedCertificates;
   readonly certificateSearchTerm = signal('');
   readonly certificateExpiryFrom = signal('');
   readonly certificateExpiryTo = signal('');

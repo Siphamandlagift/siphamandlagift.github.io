@@ -223,6 +223,46 @@ export type StudentCertificateLicenceRecord = {
   reminderDaysBeforeExpiry: number;
 };
 
+// A server-issued, tamper-evident PDF — deliberately NOT part of certificatesAndLicences above.
+// That array rides through the fully client-writable PUT /api/students/:studentId/snapshot route
+// (studentCertificateLicenceSchema accepts whatever status/fileUrl/dates the client sends, with no
+// server-side derivation at all), so a direct API call could otherwise insert a fake "certificate"
+// record indistinguishable from a real one. issuedCertificates is written exclusively by
+// LmsRepository.addIssuedCertificate (server-verified course completion → server-rendered PDF with
+// a unique serial number + QR code → recorded here) and is intentionally absent from
+// StudentSnapshotUpdate, so the generic snapshot-save schema never accepts it from a client at all
+// — see that type's own comment.
+export type IssuedCertificateRecord = {
+  id: string;
+  serialNumber: string;
+  offeringId: string;
+  courseName: string;
+  studentName: string;
+  completionDate: string;
+  issuedAt: string;
+  fileUrl: string;
+};
+
+export type IssueCourseCompletionCertificateInput = {
+  offeringId: string;
+};
+
+// What GET /api/certificates/verify/:serialNumber returns — the one PUBLIC, unauthenticated way
+// to confirm a certificate is real. Deliberately minimal: just enough for a third party (an
+// employer, an auditor) to compare against what's printed on the PDF they were handed, not a full
+// certificate/student record.
+export type CertificateVerificationResult =
+  | {
+      valid: true;
+      serialNumber: string;
+      studentName: string;
+      courseName: string;
+      companyName: string;
+      completionDate: string;
+      issuedAt: string;
+    }
+  | { valid: false };
+
 export type StudentNotificationPreferencesRecord = {
   emailUpdates: boolean;
   smsAlerts: boolean;
@@ -732,6 +772,7 @@ export type StudentRecord = EnrollmentStudentRecord & {
   profile: StudentProfileRecord;
   badgeState: StudentBadgeStateRecord;
   certificatesAndLicences?: StudentCertificateLicenceRecord[];
+  issuedCertificates?: IssuedCertificateRecord[];
   settings: StudentSettingsRecord;
   mentorshipProfile: StudentMentorshipProfileRecord;
   mentorshipObjectives: StudentMentorshipObjectivesRecord;
@@ -1092,6 +1133,9 @@ export type StudentSnapshotResponse = {
   profile: StudentProfileRecord;
   badgeState: StudentBadgeStateRecord;
   certificatesAndLicences: StudentCertificateLicenceRecord[];
+  // Read-only here — deliberately absent from StudentSnapshotUpdate below (see
+  // IssuedCertificateRecord's own comment). A client can read this, never write it.
+  issuedCertificates: IssuedCertificateRecord[];
   settings: StudentSettingsRecord;
   mentorshipProfile: StudentMentorshipProfileRecord;
   mentorshipObjectives: StudentMentorshipObjectivesRecord;
