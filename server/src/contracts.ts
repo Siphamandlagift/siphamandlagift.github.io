@@ -18,6 +18,27 @@ export type TrainingMatchingPair = {
   answer: string;
 };
 
+export type VideoCheckpointChoice = {
+  id: string;
+  text: string;
+  isCorrect: boolean;
+};
+
+// Pauses a natively-played video at timestampSeconds and requires a correct answer before
+// playback can resume — see onSelectedVideoTimeUpdate in student-courses.component.ts. Deliberately
+// not scored/submitted anywhere (no points, no server-side grading, no answer-key masking the way
+// TrainingAssessmentQuestion.choices gets for the real Quiz system) — this is a comprehension
+// nudge during a video, not a graded assessment, so isCorrect ships to the client same as every
+// other field. Only Multiple Choice/True or False are supported (single correct choice each,
+// enforced by the admin builder's setCheckpointCorrectChoice, not by this type).
+export type VideoCheckpoint = {
+  id: string;
+  timestampSeconds: number;
+  prompt: string;
+  questionType: 'Multiple Choice' | 'True or False';
+  choices: VideoCheckpointChoice[];
+};
+
 export type TrainingAssessmentQuestion = {
   // Optional: older questions saved before this field existed have none, and fall back to a
   // position-derived id (see createAssessmentStepId, student-courses.component.ts). A persisted
@@ -65,6 +86,8 @@ export type TrainingContentItem = {
   durationSeconds?: number;
   questions: TrainingAssessmentQuestion[];
   surveyQuestions: SurveyQuestion[];
+  // Video only — see VideoCheckpoint's own comment.
+  checkpoints?: VideoCheckpoint[];
 };
 
 export type TrainingOffering = {

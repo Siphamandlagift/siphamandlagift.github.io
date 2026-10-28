@@ -103,6 +103,8 @@ export type TrainingContentItem = {
   durationSeconds?: number;
   questions: TrainingAssessmentQuestion[];
   surveyQuestions: SurveyQuestion[];
+  // Video only — see VideoCheckpoint's own comment.
+  checkpoints?: VideoCheckpoint[];
 };
 
 export type SurveyQuestionOption = {
@@ -167,6 +169,24 @@ export type TrainingAssessmentChoice = {
   text: string;
   points: number;
   isCorrect: boolean;
+};
+
+export type VideoCheckpointChoice = {
+  id: string;
+  text: string;
+  isCorrect: boolean;
+};
+
+// Pauses a natively-played video at timestampSeconds and requires a correct answer before
+// playback can resume — see the matching server contract's own comment for the full reasoning
+// (not scored/submitted, isCorrect ships to the client unmasked — a comprehension nudge, not a
+// graded assessment). Only Multiple Choice/True or False, single correct choice each.
+export type VideoCheckpoint = {
+  id: string;
+  timestampSeconds: number;
+  prompt: string;
+  questionType: 'Multiple Choice' | 'True or False';
+  choices: VideoCheckpointChoice[];
 };
 
 export type TrainingMatchingPair = {
@@ -1551,6 +1571,17 @@ export class TrainingManagerDataService {
         allowLongAnswer: boolean;
         ratingScale: number;
       }>;
+      checkpoints?: Array<{
+        id?: string;
+        timestampSeconds: number;
+        prompt: string;
+        questionType: 'Multiple Choice' | 'True or False';
+        choices: Array<{
+          id?: string;
+          text: string;
+          isCorrect: boolean;
+        }>;
+      }>;
     }>;
   }): TrainingOffering | null {
     const normalizedTitle = input.title.trim();
@@ -1782,6 +1813,17 @@ export class TrainingManagerDataService {
         allowLongAnswer: boolean;
         ratingScale: number;
       }>;
+      checkpoints?: Array<{
+        id?: string;
+        timestampSeconds: number;
+        prompt: string;
+        questionType: 'Multiple Choice' | 'True or False';
+        choices: Array<{
+          id?: string;
+          text: string;
+          isCorrect: boolean;
+        }>;
+      }>;
     }>,
     normalizedTitle: string,
   ) {
@@ -1857,9 +1899,35 @@ export class TrainingManagerDataService {
               }))
               .filter((question) => question.prompt.length > 0)
           : [],
+        checkpoints: item.kind === 'Video'
+          ? (item.checkpoints ?? [])
+              .map((checkpoint) => ({
+                id: checkpoint.id?.trim() || this.createVideoCheckpointIdFallback(),
+                timestampSeconds: Math.max(0, Math.round(Number(checkpoint.timestampSeconds) || 0)),
+                prompt: checkpoint.prompt.trim(),
+                questionType: checkpoint.questionType,
+                choices: checkpoint.choices
+                  .map((choice) => ({
+                    id: choice.id?.trim() || this.createVideoCheckpointChoiceIdFallback(),
+                    text: choice.text.trim(),
+                    isCorrect: Boolean(choice.isCorrect),
+                  }))
+                  .filter((choice) => choice.text.length > 0),
+              }))
+              .filter((checkpoint) => checkpoint.prompt.length > 0 && checkpoint.choices.some((choice) => choice.isCorrect))
+              .sort((a, b) => a.timestampSeconds - b.timestampSeconds)
+          : [],
           };
           })
       .filter((item) => item.title.length > 0);
+  }
+
+  private createVideoCheckpointIdFallback() {
+    return `checkpoint-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  private createVideoCheckpointChoiceIdFallback() {
+    return `checkpoint-choice-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
   private createSurveyQuestionIdFallback() {

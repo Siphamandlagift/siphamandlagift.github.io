@@ -417,6 +417,20 @@ const trainingMatchingPairSchema = z.object({
   answer: z.string(),
 });
 
+const videoCheckpointChoiceSchema = z.object({
+  id: z.string().min(1),
+  text: z.string(),
+  isCorrect: z.boolean(),
+});
+
+const videoCheckpointSchema = z.object({
+  id: z.string().min(1),
+  timestampSeconds: z.number().nonnegative(),
+  prompt: z.string(),
+  questionType: z.enum(['Multiple Choice', 'True or False']),
+  choices: z.array(videoCheckpointChoiceSchema),
+});
+
 const trainingAssessmentQuestionSchema = z.object({
   id: z.string().optional(),
   prompt: z.string(),
@@ -459,6 +473,7 @@ const trainingContentItemSchema = z.object({
   durationSeconds: z.number().min(0).optional(),
   questions: z.array(trainingAssessmentQuestionSchema),
   surveyQuestions: z.array(surveyQuestionSchema),
+  checkpoints: z.array(videoCheckpointSchema).optional(),
 });
 
 // category/description are only required unless the course is survey-only (every content item

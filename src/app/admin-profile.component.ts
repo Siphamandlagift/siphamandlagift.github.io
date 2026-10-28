@@ -34,6 +34,8 @@ import {
   TrainingProgrammeInput,
   TrainingProgrammeRecord,
   TrainingQuestionType,
+  VideoCheckpoint,
+  VideoCheckpointChoice,
 } from './training-manager-data.service';
 import { LmsBackendService, type HrIntegrationConfig, type HrIntegrationConfigUpdate, type HrIntegrationSyncSummary, type LoginRole, type ManagedUserCredentialInput, type ManagedUserCredentialsUpsertResponse, type ResolveRolesEntry } from './lms-backend.service';
 import { LmsBrandThemeId, LmsBrandingService } from './lms-branding.service';
@@ -96,6 +98,20 @@ type MatchingPairFormGroup = FormGroup<{
   answer: FormControl<string>;
 }>;
 
+type CheckpointChoiceFormGroup = FormGroup<{
+  id: FormControl<string>;
+  text: FormControl<string>;
+  isCorrect: FormControl<boolean>;
+}>;
+
+type VideoCheckpointFormGroup = FormGroup<{
+  id: FormControl<string>;
+  timestampSeconds: FormControl<number>;
+  prompt: FormControl<string>;
+  questionType: FormControl<'Multiple Choice' | 'True or False'>;
+  choices: FormArray<CheckpointChoiceFormGroup>;
+}>;
+
 type SurveyQuestionOptionFormGroup = FormGroup<{
   text: FormControl<string>;
 }>;
@@ -126,6 +142,7 @@ type ContentItemFormGroup = FormGroup<{
   durationSeconds: FormControl<number | null>;
   questions: FormArray<AssessmentQuestionFormGroup>;
   surveyQuestions: FormArray<SurveyQuestionFormGroup>;
+  checkpoints: FormArray<VideoCheckpointFormGroup>;
 }>;
 
 type PowerPointPreviewState = {
@@ -7301,6 +7318,93 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
                                   <input formControlName="resourceLink" type="url" placeholder="Paste a hosted link for this item" />
                                 </label>
                               </div>
+
+                              @if (activeItem.controls.kind.value === 'Video') {
+                                <section class="form-section-card course-studio-checkpoint-panel">
+                                  <div class="form-section-header">
+                                    <div>
+                                      <p class="form-section-eyebrow">Checkpoints</p>
+                                      <h3>Pause for a question</h3>
+                                    </div>
+                                  </div>
+                                  <p class="admin-field-hint">Scrub the preview to where you want to pause, then add a checkpoint there. Learners must answer correctly before the video continues. Checkpoints only work for an uploaded file or a direct video link — not an embedded YouTube/Vimeo link.</p>
+
+                                  @if (activeItem.controls.uploadedFileDataUrl.value || activeItem.controls.resourceLink.value) {
+                                    <video
+                                      #checkpointPreviewVideo
+                                      class="course-studio-checkpoint-preview"
+                                      controls
+                                      preload="metadata"
+                                      [src]="activeItem.controls.uploadedFileDataUrl.value || activeItem.controls.resourceLink.value"
+                                      (timeupdate)="checkpointPreviewCurrentTime.set(checkpointPreviewVideo.currentTime)"></video>
+                                    <button type="button" class="detail-action-btn" (click)="addCheckpointAtVideoTime(activeContentItemIndex(), checkpointPreviewVideo.currentTime)">Add checkpoint at {{ formatCheckpointTimestamp(checkpointPreviewCurrentTime()) }}</button>
+                                  } @else {
+                                    <p class="admin-field-hint">Upload a video file or add a link above, then come back here to add checkpoints.</p>
+                                  }
+
+                                  <div class="course-studio-checkpoint-list" formArrayName="checkpoints">
+                                    @for (checkpoint of checkpointsAt(activeContentItemIndex()).controls; track checkpoint.controls.id.value; let checkpointIndex = $index) {
+                                      <div class="course-studio-checkpoint-card" [formGroupName]="checkpointIndex">
+                                        <div class="course-studio-checkpoint-card-header">
+                                          <label class="course-studio-checkpoint-timestamp" title="When the video should pause — type M:SS or a number of seconds.">
+                                            <span>Pause at</span>
+                                            <input
+                                              type="text"
+                                              [value]="formatCheckpointTimestamp(checkpoint.controls.timestampSeconds.value)"
+                                              (change)="setCheckpointTimestampFromInput(activeContentItemIndex(), checkpointIndex, $any($event.target).value)" />
+                                          </label>
+
+                                          <select [value]="checkpoint.controls.questionType.value" (change)="setCheckpointQuestionType(activeContentItemIndex(), checkpointIndex, $any($event.target).value)">
+                                            <option value="Multiple Choice">Multiple Choice</option>
+                                            <option value="True or False">True or False</option>
+                                          </select>
+
+                                          <button type="button" class="detail-action-btn detail-action-btn-subtle" (click)="removeCheckpoint(activeContentItemIndex(), checkpointIndex)">Remove checkpoint</button>
+                                        </div>
+
+                                        <label>
+                                          <span class="required-label">Question <span class="required-marker" aria-hidden="true">*</span></span>
+                                          <input formControlName="prompt" type="text" placeholder="What should the learner answer?" />
+                                        </label>
+
+                                        <div class="assessment-choice-list" formArrayName="choices">
+                                          @for (choice of checkpoint.controls.choices.controls; track choice.controls.id.value; let choiceIndex = $index) {
+                                            <div class="assessment-choice-row" [formGroupName]="choiceIndex">
+                                              <label class="assessment-choice-text">
+                                                <span class="required-label">Option {{ choiceIndex + 1 }} <span class="required-marker" aria-hidden="true">*</span></span>
+                                                <input formControlName="text" type="text" [placeholder]="'Option ' + (choiceIndex + 1)" [readOnly]="checkpoint.controls.questionType.value === 'True or False'" />
+                                              </label>
+
+                                              <button type="button" class="detail-action-btn" [class.detail-action-btn-primary]="choice.controls.isCorrect.value" (click)="setCheckpointCorrectChoice(activeContentItemIndex(), checkpointIndex, choiceIndex)">
+                                                {{ choice.controls.isCorrect.value ? 'Correct answer' : 'Mark correct' }}
+                                              </button>
+
+                                              @if (checkpoint.controls.questionType.value === 'Multiple Choice') {
+                                                <button type="button" class="assessment-remove-btn assessment-choice-remove-btn" [disabled]="checkpoint.controls.choices.length === 2" (click)="removeCheckpointChoice(activeContentItemIndex(), checkpointIndex, choiceIndex)">Remove option</button>
+                                              }
+                                            </div>
+                                          }
+                                        </div>
+
+                                        @if (checkpoint.controls.questionType.value === 'Multiple Choice') {
+                                          <button type="button" class="assessment-add-btn assessment-choice-add-btn" (click)="addCheckpointChoice(activeContentItemIndex(), checkpointIndex)">Add option</button>
+                                        }
+
+                                        @if (checkpoint.errors && (checkpoint.touched || courseForm.touched)) {
+                                          @if (checkpoint.errors['checkpointMinOptions']) {
+                                            <span class="field-error">Add at least two answer options.</span>
+                                          }
+                                          @if (checkpoint.errors['checkpointCorrectAnswerRequired']) {
+                                            <span class="field-error">Select the correct answer.</span>
+                                          }
+                                        }
+                                      </div>
+                                    } @empty {
+                                      <p class="admin-field-hint">No checkpoints yet.</p>
+                                    }
+                                  </div>
+                                </section>
+                              }
 
                               @if (presentationPreviewState(activeItem); as presentationPreview) {
                                 <section class="form-section-card course-studio-presentation-panel">
@@ -14674,6 +14778,59 @@ function deriveDisplayNameFromIdentity(username: string | undefined, email: stri
       display: grid;
       gap: 1rem;
       margin-bottom: 1rem;
+    }
+
+    .course-studio-checkpoint-panel {
+      display: grid;
+      gap: 0.85rem;
+      margin-bottom: 1rem;
+    }
+
+    .course-studio-checkpoint-preview {
+      display: block;
+      width: 100%;
+      max-height: 20rem;
+      border-radius: 12px;
+      background: #0f172a;
+    }
+
+    .course-studio-checkpoint-list {
+      display: grid;
+      gap: 0.85rem;
+    }
+
+    .course-studio-checkpoint-card {
+      display: grid;
+      gap: 0.75rem;
+      padding: 1rem;
+      border: 1px solid #e5e5e5;
+      border-radius: 14px;
+      background: #fafafa;
+    }
+
+    .course-studio-checkpoint-card-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .course-studio-checkpoint-timestamp {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #173446;
+    }
+
+    .course-studio-checkpoint-timestamp input {
+      width: 4.5rem;
+      border: 1px solid #dbe2ea;
+      border-radius: 8px;
+      padding: 0.4rem 0.5rem;
+      font-size: 0.85rem;
+      text-align: center;
     }
 
     .course-studio-empty-grid {
@@ -23039,6 +23196,9 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
       surveyQuestions: new FormArray<SurveyQuestionFormGroup>(
         item?.surveyQuestions?.map((question) => this.createSurveyQuestionGroup(question)) ?? [],
       ),
+      checkpoints: new FormArray<VideoCheckpointFormGroup>(
+        item?.checkpoints?.map((checkpoint) => this.createCheckpointGroup(checkpoint)) ?? [],
+      ),
     });
 
     contentItem.addValidators((control) => this.validateContentItem(control));
@@ -23135,6 +23295,173 @@ export class AdminProfileComponent implements OnInit, OnDestroy {
 
   private createAssessmentQuestionId() {
     return `assessment-q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  // ── Video checkpoints ────────────────────────────────────────────────
+  // Pauses a natively-played video at a timestamp and requires a correct answer before playback
+  // can resume — see onSelectedVideoTimeUpdate in student-courses.component.ts. Single correct
+  // choice only (enforced via setCheckpointCorrectChoice below, not a free checkbox like the
+  // Assessment Multiple Choice builder uses) — checkpoints are a quick in-the-moment pause, not a
+  // multi-select graded question.
+  //
+  // Drives the "Add checkpoint at M:SS" button's label live as the preview plays — reading
+  // the <video> element's currentTime directly in the template wouldn't be reactive (Angular
+  // has no reason to re-check it without something triggering change detection), so a
+  // (timeupdate) listener mirrors it into this signal instead.
+  readonly checkpointPreviewCurrentTime = signal(0);
+
+  createCheckpointGroup(checkpoint?: Partial<VideoCheckpoint>): VideoCheckpointFormGroup {
+    const group = new FormGroup({
+      id: new FormControl(checkpoint?.id ?? this.createVideoCheckpointId(), { nonNullable: true }),
+      timestampSeconds: new FormControl(checkpoint?.timestampSeconds ?? 0, { nonNullable: true, validators: [Validators.required, Validators.min(0)] }),
+      prompt: new FormControl(checkpoint?.prompt ?? '', { nonNullable: true, validators: [Validators.required] }),
+      questionType: new FormControl<'Multiple Choice' | 'True or False'>(checkpoint?.questionType ?? 'Multiple Choice', { nonNullable: true, validators: [Validators.required] }),
+      choices: new FormArray<CheckpointChoiceFormGroup>(
+        checkpoint?.choices?.map((choice) => this.createCheckpointChoiceGroup(choice)) ?? [],
+      ),
+    });
+
+    group.addValidators((control) => this.validateCheckpoint(control));
+    this.normalizeCheckpointChoices(group);
+    return group;
+  }
+
+  createCheckpointChoiceGroup(choice: Partial<VideoCheckpointChoice> = {}): CheckpointChoiceFormGroup {
+    return new FormGroup({
+      id: new FormControl(choice.id ?? this.createVideoCheckpointChoiceId(), { nonNullable: true }),
+      text: new FormControl(choice.text ?? '', { nonNullable: true, validators: [Validators.required] }),
+      isCorrect: new FormControl(choice.isCorrect ?? false, { nonNullable: true }),
+    });
+  }
+
+  checkpointsAt(itemIndex: number): FormArray<VideoCheckpointFormGroup> {
+    return this.contentItemsArray.at(itemIndex).controls.checkpoints;
+  }
+
+  // Captures the admin's preview-player position as a new checkpoint — the natural "pause here"
+  // gesture instead of typing seconds by hand. The timestamp field stays editable afterwards for
+  // fine adjustment.
+  addCheckpointAtVideoTime(itemIndex: number, currentTimeSeconds: number) {
+    const group = this.createCheckpointGroup({ timestampSeconds: Math.max(0, Math.round(currentTimeSeconds)) });
+    this.checkpointsAt(itemIndex).push(group);
+    this.resortCheckpoints(itemIndex);
+  }
+
+  removeCheckpoint(itemIndex: number, checkpointIndex: number) {
+    this.checkpointsAt(itemIndex).removeAt(checkpointIndex);
+  }
+
+  resortCheckpoints(itemIndex: number) {
+    const checkpoints = this.checkpointsAt(itemIndex);
+    checkpoints.controls.sort((a, b) => a.controls.timestampSeconds.value - b.controls.timestampSeconds.value);
+    checkpoints.updateValueAndValidity();
+  }
+
+  setCheckpointQuestionType(itemIndex: number, checkpointIndex: number, questionType: 'Multiple Choice' | 'True or False') {
+    const checkpoint = this.checkpointsAt(itemIndex).at(checkpointIndex);
+    checkpoint.controls.questionType.setValue(questionType);
+    this.normalizeCheckpointChoices(checkpoint);
+    checkpoint.updateValueAndValidity();
+  }
+
+  addCheckpointChoice(itemIndex: number, checkpointIndex: number) {
+    this.checkpointsAt(itemIndex).at(checkpointIndex).controls.choices.push(this.createCheckpointChoiceGroup());
+  }
+
+  removeCheckpointChoice(itemIndex: number, checkpointIndex: number, choiceIndex: number) {
+    const checkpoint = this.checkpointsAt(itemIndex).at(checkpointIndex);
+    const choices = checkpoint.controls.choices;
+    if (choices.length <= 2) {
+      return;
+    }
+    const wasCorrect = choices.at(choiceIndex).controls.isCorrect.value;
+    choices.removeAt(choiceIndex);
+    if (wasCorrect && choices.length) {
+      choices.at(0).controls.isCorrect.setValue(true);
+    }
+  }
+
+  setCheckpointCorrectChoice(itemIndex: number, checkpointIndex: number, correctChoiceIndex: number) {
+    const choices = this.checkpointsAt(itemIndex).at(checkpointIndex).controls.choices;
+    choices.controls.forEach((choice, index) => choice.controls.isCorrect.setValue(index === correctChoiceIndex));
+  }
+
+  formatCheckpointTimestamp(totalSeconds: number): string {
+    const safeSeconds = Math.max(0, Math.round(totalSeconds || 0));
+    const minutes = Math.floor(safeSeconds / 60);
+    const seconds = safeSeconds % 60;
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  // Accepts "M:SS", "MM:SS", or a bare number of seconds — whichever an admin naturally types.
+  setCheckpointTimestampFromInput(itemIndex: number, checkpointIndex: number, rawValue: string) {
+    const trimmed = rawValue.trim();
+    const parts = trimmed.split(':');
+    let totalSeconds: number;
+
+    if (parts.length === 2) {
+      const minutes = Number(parts[0]);
+      const seconds = Number(parts[1]);
+      totalSeconds = (Number.isFinite(minutes) ? minutes : 0) * 60 + (Number.isFinite(seconds) ? seconds : 0);
+    } else {
+      const parsed = Number(trimmed);
+      totalSeconds = Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    this.checkpointsAt(itemIndex).at(checkpointIndex).controls.timestampSeconds.setValue(Math.max(0, Math.round(totalSeconds)));
+    this.resortCheckpoints(itemIndex);
+  }
+
+  private normalizeCheckpointChoices(checkpoint: VideoCheckpointFormGroup) {
+    const choices = checkpoint.controls.choices;
+
+    if (checkpoint.controls.questionType.value === 'True or False') {
+      while (choices.length) {
+        choices.removeAt(0);
+      }
+      choices.push(this.createCheckpointChoiceGroup({ text: 'True', isCorrect: true }));
+      choices.push(this.createCheckpointChoiceGroup({ text: 'False', isCorrect: false }));
+      return;
+    }
+
+    if (choices.length < 2) {
+      while (choices.length) {
+        choices.removeAt(0);
+      }
+      choices.push(this.createCheckpointChoiceGroup({ isCorrect: true }));
+      choices.push(this.createCheckpointChoiceGroup());
+    }
+
+    if (!choices.controls.some((choice) => choice.controls.isCorrect.value)) {
+      choices.at(0).controls.isCorrect.setValue(true);
+    }
+  }
+
+  private validateCheckpoint(control: AbstractControl): ValidationErrors | null {
+    if (!(control instanceof FormGroup)) {
+      return null;
+    }
+
+    const checkpoint = control as VideoCheckpointFormGroup;
+    const choices = checkpoint.controls.choices;
+
+    if (choices.length < 2) {
+      return { checkpointMinOptions: true };
+    }
+
+    if (!choices.controls.some((choice) => choice.controls.isCorrect.value)) {
+      return { checkpointCorrectAnswerRequired: true };
+    }
+
+    return null;
+  }
+
+  private createVideoCheckpointId() {
+    return `checkpoint-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  private createVideoCheckpointChoiceId() {
+    return `checkpoint-choice-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
   private validateSurveyQuestion(control: AbstractControl): ValidationErrors | null {

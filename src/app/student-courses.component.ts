@@ -7,7 +7,7 @@ import { PdfViewerComponent } from './pdf-viewer.component';
 import { PowerPointWindowComponent } from './powerpoint-window.component';
 import { StudentAssessmentAttempt, StudentCourse, StudentDataService } from './student-data.service';
 import { resolvePowerPointUploadType } from './powerpoint-preview';
-import { AdministratorDirectoryEntry, AssignmentSubmissionRecord, SurveyAnswer, SurveyQuestionType, SurveySubmissionRecord, TrainingAssessmentType, TrainingContentItem, TrainingContentKind, TrainingManagerDataService, TrainingOffering, TrainingQuestionType } from './training-manager-data.service';
+import { AdministratorDirectoryEntry, AssignmentSubmissionRecord, SurveyAnswer, SurveyQuestionType, SurveySubmissionRecord, TrainingAssessmentType, TrainingContentItem, TrainingContentKind, TrainingManagerDataService, TrainingOffering, TrainingQuestionType, VideoCheckpoint } from './training-manager-data.service';
 import { readLmsSessionRecord } from './session-auth';
 import { readCompanyScopedCache, writeCompanyScopedCache } from './company-scoped-storage';
 
@@ -27,6 +27,10 @@ type WorkspaceVideo = {
   resourceLink?: string;
   uploadedDataUrl?: string;
   durationLabel?: string;
+  // Only meaningful for a natively-played video (see canPlaySelectedVideoInline) — an
+  // iframe-embedded YouTube/Vimeo link can't report playback progress at all, so checkpoints
+  // never trigger for one even if somehow present.
+  checkpoints?: VideoCheckpoint[];
 };
 
 type WorkspaceStep = {
@@ -303,19 +307,39 @@ type ScormRuntimeState = {
                     allowfullscreen></iframe>
 
                   <ng-template #workspaceInlineOrFallback>
-                    <video
-                      *ngIf="canPlaySelectedVideoInline(); else workspaceVideoFallback"
-                      class="workspace-video-player"
-                      controls
-                      controlsList="nodownload"
-                      disablePictureInPicture
-                      playsinline
-                      preload="metadata"
-                      [attr.aria-label]="video.title"
-                      [src]="selectedVideoSource()"
-                      (contextmenu)="$event.preventDefault()"
-                      (loadedmetadata)="onSelectedVideoMetadataLoaded($event)"
-                      (ended)="onSelectedVideoEnded()"></video>
+                    <ng-container *ngIf="canPlaySelectedVideoInline(); else workspaceVideoFallback">
+                      <video
+                        #selectedVideoEl
+                        class="workspace-video-player"
+                        [controls]="!activeVideoCheckpoint()"
+                        controlsList="nodownload"
+                        disablePictureInPicture
+                        playsinline
+                        preload="metadata"
+                        [attr.aria-label]="video.title"
+                        [src]="selectedVideoSource()"
+                        (contextmenu)="$event.preventDefault()"
+                        (loadedmetadata)="onSelectedVideoMetadataLoaded($event)"
+                        (timeupdate)="onSelectedVideoTimeUpdate($event)"
+                        (play)="onSelectedVideoPlayAttempt($event)"
+                        (ended)="onSelectedVideoEnded()"></video>
+
+                      <div *ngIf="activeVideoCheckpoint() as checkpoint" class="workspace-video-checkpoint-overlay">
+                        <div class="workspace-video-checkpoint-card">
+                          <span class="workspace-video-checkpoint-eyebrow">Quick check</span>
+                          <p class="workspace-video-checkpoint-prompt">{{ checkpoint.prompt }}</p>
+                          <div class="workspace-video-checkpoint-choices">
+                            <button
+                              type="button"
+                              *ngFor="let choice of checkpoint.choices"
+                              class="workspace-video-checkpoint-choice"
+                              [class.workspace-video-checkpoint-choice-wrong]="checkpointIncorrectChoiceId() === choice.id"
+                              (click)="selectCheckpointChoice(choice.id, selectedVideoEl)">{{ choice.text }}</button>
+                          </div>
+                          <p *ngIf="checkpointIncorrectChoiceId()" class="workspace-video-checkpoint-feedback">Not quite — try again.</p>
+                        </div>
+                      </div>
+                    </ng-container>
                   </ng-template>
 
                   <ng-template #workspaceVideoFallback>
@@ -1403,11 +1427,82 @@ type ScormRuntimeState = {
     }
 
     .workspace-video-card {
+      position: relative;
       border-radius: 18px;
       overflow: hidden;
       background: #0f172a;
       min-height: 15rem;
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .workspace-video-checkpoint-overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 1.5rem;
+      background: rgba(2, 6, 23, 0.82);
+      backdrop-filter: blur(2px);
+    }
+
+    .workspace-video-checkpoint-card {
+      display: grid;
+      gap: 0.85rem;
+      width: min(26rem, 100%);
+      padding: 1.5rem;
+      border-radius: 16px;
+      background: #ffffff;
+      box-shadow: 0 16px 40px rgba(2, 6, 23, 0.45);
+    }
+
+    .workspace-video-checkpoint-eyebrow {
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #6366f1;
+    }
+
+    .workspace-video-checkpoint-prompt {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #173446;
+    }
+
+    .workspace-video-checkpoint-choices {
+      display: grid;
+      gap: 0.6rem;
+    }
+
+    .workspace-video-checkpoint-choice {
+      padding: 0.7rem 0.9rem;
+      border: 1px solid #dbe2ea;
+      border-radius: 10px;
+      background: #fff;
+      color: #173446;
+      font-size: 0.92rem;
+      font-weight: 600;
+      text-align: left;
+      cursor: pointer;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .workspace-video-checkpoint-choice:hover {
+      border-color: #818cf8;
+      background: #f5f6ff;
+    }
+
+    .workspace-video-checkpoint-choice-wrong {
+      border-color: #ef4444;
+      background: rgba(239, 68, 68, 0.08);
+    }
+
+    .workspace-video-checkpoint-feedback {
+      margin: 0;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #b91c1c;
     }
 
     .workspace-video-player {
@@ -2448,6 +2543,14 @@ export class StudentCoursesComponent {
   readonly loadedVideoDurations = signal<Record<string, string>>({});
   readonly completedCourseSteps = signal<Record<string, boolean>>(this.loadPersistedCourseProgressState().completedCourseSteps);
 
+  // Video checkpoints — set by onSelectedVideoTimeUpdate when playback crosses an unanswered
+  // checkpoint's timestamp, cleared (added to clearedCheckpointIds) once answered correctly.
+  // Neither is persisted across a reload or step change — same as video playback position
+  // itself, which this app has never remembered either; see selectCourseStep for the reset.
+  readonly activeVideoCheckpoint = signal<VideoCheckpoint | null>(null);
+  readonly clearedCheckpointIds = signal<Set<string>>(new Set());
+  readonly checkpointIncorrectChoiceId = signal<string | null>(null);
+
   // Migrates any legacy, course-NAME-keyed progress entries (from before courseStepKey moved to
   // offeringId-based keys — see that function's own comment) forward to the new format, for
   // whichever offering the student is CURRENTLY assigned to. Without this, a student's real,
@@ -3381,6 +3484,9 @@ export class StudentCoursesComponent {
     this.selectedCourseStepId.set(step.id);
     this.selectedAssessmentQuestionIndex.set(0);
     this.clearAssessmentSubmissionFeedback();
+    this.activeVideoCheckpoint.set(null);
+    this.clearedCheckpointIds.set(new Set());
+    this.checkpointIncorrectChoiceId.set(null);
 
     if (step.document) {
       this.selectedDocumentTitle.set(step.document.title);
@@ -3448,6 +3554,63 @@ export class StudentCoursesComponent {
 
   onSelectedVideoEnded() {
     this.markSelectedStepComplete();
+  }
+
+  // Fires continuously during native playback. Finds the earliest checkpoint whose timestamp has
+  // been reached but hasn't been answered correctly yet this viewing, and pauses there. Returns
+  // early while a checkpoint is already showing, rather than re-scanning every tick — the video
+  // is paused at that point anyway, so currentTime isn't advancing.
+  onSelectedVideoTimeUpdate(event: Event) {
+    if (this.activeVideoCheckpoint()) {
+      return;
+    }
+
+    const element = event.target as HTMLVideoElement | null;
+    const checkpoints = this.selectedVideo()?.checkpoints;
+    if (!element || !checkpoints?.length) {
+      return;
+    }
+
+    const cleared = this.clearedCheckpointIds();
+    const dueCheckpoint = checkpoints
+      .filter((checkpoint) => !cleared.has(checkpoint.id) && checkpoint.timestampSeconds <= element.currentTime)
+      .sort((a, b) => a.timestampSeconds - b.timestampSeconds)[0];
+
+    if (!dueCheckpoint) {
+      return;
+    }
+
+    element.pause();
+    this.activeVideoCheckpoint.set(dueCheckpoint);
+    this.checkpointIncorrectChoiceId.set(null);
+  }
+
+  // Native controls are hidden while a checkpoint is active (see [controls] in the template), but
+  // a focused <video> element still responds to the spacebar/media keys regardless — this is the
+  // backstop that re-pauses immediately if playback somehow resumes before the checkpoint is
+  // answered.
+  onSelectedVideoPlayAttempt(event: Event) {
+    if (this.activeVideoCheckpoint()) {
+      (event.target as HTMLVideoElement | null)?.pause();
+    }
+  }
+
+  selectCheckpointChoice(choiceId: string, videoElement: HTMLVideoElement) {
+    const checkpoint = this.activeVideoCheckpoint();
+    if (!checkpoint) {
+      return;
+    }
+
+    const choice = checkpoint.choices.find((candidate) => candidate.id === choiceId);
+    if (!choice?.isCorrect) {
+      this.checkpointIncorrectChoiceId.set(choiceId);
+      return;
+    }
+
+    this.clearedCheckpointIds.update((current) => new Set(current).add(checkpoint.id));
+    this.activeVideoCheckpoint.set(null);
+    this.checkpointIncorrectChoiceId.set(null);
+    void videoElement.play();
   }
 
   selectAssessmentOption(option: string) {
@@ -4840,6 +5003,7 @@ export class StudentCoursesComponent {
         fileName: item.uploadedFileName || undefined,
         resourceLink: item.resourceLink || undefined,
         uploadedDataUrl: item.uploadedFileDataUrl || undefined,
+        checkpoints: item.checkpoints ?? [],
       } satisfies WorkspaceVideo));
 
     const managerDocuments = managerOffering.contentItems
@@ -4860,6 +5024,7 @@ export class StudentCoursesComponent {
           fileName: item.uploadedFileName || undefined,
           resourceLink: item.resourceLink || undefined,
           uploadedDataUrl: item.uploadedFileDataUrl || undefined,
+          checkpoints: item.checkpoints ?? [],
         } satisfies WorkspaceVideo;
 
         steps.push({
