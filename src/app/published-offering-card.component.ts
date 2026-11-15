@@ -97,7 +97,15 @@ import { TrainingOffering } from './training-manager-data.service';
       padding: 1rem;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      /* flex-start, not space-between — the deadline badge is already absolutely positioned at
+         the bottom-left (see its own comment) and takes no part in this flow either way, so the
+         only flow children space-between ever had to work with were this row and the optional
+         thumbnail-badge row below. With exactly those two, space-between pushed the thumbnail
+         badge all the way to the bottom of the card — landing directly on top of the deadline
+         badge's own bottom-left text on any course that had both a custom thumbnail and a
+         deadline to show (i.e. most published courses), rendering both illegible. */
+      justify-content: flex-start;
+      gap: 0.6rem;
       background-size: cover;
       background-position: center;
       position: relative;
