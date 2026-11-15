@@ -3204,6 +3204,15 @@ export class LmsRepository {
     }
 
     const results: ResolvedRoleEntry[] = [];
+    // /api/auth/resolve-roles (server.ts) is the ONLY login path the actual client UI ever calls
+    // (login.ts always calls resolveRoles, never the plain authenticate()-backed /api/auth/login
+    // route) — but recordLogin, which feeds the Super Admin Reporting tab's "number of logins"
+    // column, used to be wired up only to that other, practically-unused route and the SSO
+    // callback. Every real username/password login therefore counted as zero, for every company,
+    // forever. Collected here (not written per-account inside the loop, since in practice there's
+    // almost always exactly one) and persisted in one write once every candidate account below
+    // has actually verified its password — never for one that didn't.
+    const verifiedAccountIds = new Set<string>();
 
     const matchingAccounts = data.authAccounts.filter(
       (a) => a.username.toLowerCase() === normalizedUsername || a.email.toLowerCase() === normalizedUsername,
@@ -3217,6 +3226,8 @@ export class LmsRepository {
       if (!verifyPassword(password, account.passwordSalt, account.passwordHash)) {
         continue;
       }
+
+      verifiedAccountIds.add(account.id);
 
       const identity = resolveAccountDisplayNameSync(data, account);
 
@@ -3257,6 +3268,15 @@ export class LmsRepository {
           surname: identity?.surname,
         });
       }
+    }
+
+    if (verifiedAccountIds.size > 0) {
+      data.authAccounts = data.authAccounts.map((account) =>
+        verifiedAccountIds.has(account.id)
+          ? { ...account, loginCount: (account.loginCount ?? 0) + 1 }
+          : account,
+      );
+      await this.write(data);
     }
 
     return results;
