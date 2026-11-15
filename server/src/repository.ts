@@ -645,7 +645,12 @@ function nextApproverCandidates(
  *  derived from its username/email rather than a hardcoded placeholder. */
 function deriveDisplayNameFromIdentity(username: string, email: string): { name: string; surname: string } {
   const titleCase = (segment: string) => segment.length ? segment[0].toUpperCase() + segment.slice(1).toLowerCase() : segment;
-  const source = username.trim() || email.split('@')[0] || 'User';
+  const rawSource = username.trim() || email.split('@')[0] || 'User';
+  // A username that's itself a full email address (common when a company just logs people in by
+  // email) must still only contribute its local part. Without this, the domain stays glued onto
+  // the first "word" and its TLD becomes a meaningless trailing word of its own — e.g. username
+  // "jane.doe@acme.co.za" produced name "Jane.doe@acme", surname "Co Za" instead of "Jane Doe".
+  const source = rawSource.includes('@') ? rawSource.split('@')[0] : rawSource;
   const words = source.split(/[\s._-]+/).filter(Boolean).map(titleCase);
 
   if (words.length === 0) {

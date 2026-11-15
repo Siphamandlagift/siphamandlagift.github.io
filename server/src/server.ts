@@ -901,9 +901,16 @@ const studentProfileSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   idNumber: z.string(),
-  age: z.number().min(1),
-  contactNumber: z.string().min(1),
-  address: z.string().min(1),
+  // Not required (unlike name/email) — createDefaultStudentTemplate (default-data.ts) seeds a
+  // brand-new student's age/contactNumber/address as 0/''/'' until they're actually filled in,
+  // and ensureSwitchStudentProfile's auto-created "own student workspace" for an administrator/
+  // training-manager never collects these at all (there's no enrollment form for it to come
+  // from). Requiring >=1 here rejected every snapshot save for such a student — including every
+  // autosave of their courses/badges/notifications — with no way to ever satisfy the requirement
+  // short of manually editing a profile field nothing prompted them to fill in.
+  age: z.number().min(0),
+  contactNumber: z.string(),
+  address: z.string(),
   department: z.string(),
   jobTitle: z.string(),
   joined: z.string().min(1),
