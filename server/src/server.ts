@@ -376,6 +376,37 @@ async function isOwnManagedRole(repository: LmsRepository, roleId: string, ident
   return Boolean(role && ownManagerId && role.ownerManagerId === ownManagerId);
 }
 
+// Scopes a training manager's single-learner actions (view/edit/delete a specific student's
+// profile, IDP, KPIs, course assignment, ...) to their own team — an administrator keeps full
+// company-wide access, same as every other admin-vs-manager split in this file. A manager's
+// "team" is every student whose lineManagerId points back at their own EnrollmentStudentRecord id
+// (see resolveOwnManagerStudentId's own comment) — the exact same definition the client's own
+// myTeam() (training-manager-profile.component.ts) builds the Succession Planning team list from.
+// Before this existed, routes guarded by nothing more than "role is administrator or
+// training-manager" let any training manager read, edit, or delete ANY student in the company —
+// including another manager's own team members — not just their own.
+async function isOwnManagedStudent(repository: LmsRepository, studentId: string, identity: AuthenticatedIdentity): Promise<boolean> {
+  if (identity.role === 'administrator') {
+    return true;
+  }
+
+  if (identity.role !== 'training-manager') {
+    return false;
+  }
+
+  const [ownManagerId, data] = await Promise.all([
+    resolveOwnManagerStudentId(repository, identity),
+    repository.read(),
+  ]);
+
+  if (!ownManagerId) {
+    return false;
+  }
+
+  const targetStudent = data.students.find((entry) => entry.id === studentId);
+  return Boolean(targetStudent && targetStudent.lineManagerId === ownManagerId);
+}
+
 function readAuthenticatedSessionPayload(request: express.Request) {
   return request.authIdentity ?? null;
 }
@@ -3072,9 +3103,17 @@ app.delete('/api/offerings/:offeringId', requireManagerOrAdministrator, async (r
 // See LmsRepository.setStudentOfferingAssignment / its Firestore override for the actual fix.
 app.put('/api/students/:studentId/offering-assignment', requireManagerOrAdministrator, async (request, response, next) => {
   try {
+    const identity = getAuthenticatedIdentity(request)!;
     const repository = request.repository!;
+    const studentId = request.params['studentId'] as string;
+
+    if (!(await isOwnManagedStudent(repository, studentId, identity))) {
+      response.status(403).json({ message: 'You do not have permission to assign courses for this student.' });
+      return;
+    }
+
     const body = studentOfferingAssignmentSchema.parse(request.body);
-    const student = await repository.setStudentOfferingAssignment(request.params['studentId'] as string, body.offeringId, body.assigned, body.deadline);
+    const student = await repository.setStudentOfferingAssignment(studentId, body.offeringId, body.assigned, body.deadline);
 
     if (!student) {
       response.status(404).json({ message: 'Student or offering not found.' });
@@ -3115,8 +3154,16 @@ app.put('/api/students/:studentId/offering-assignment', requireManagerOrAdminist
 // for the fix). Also removes the student's linked authAccounts login in the same transaction.
 app.delete('/api/students/:studentId', requireManagerOrAdministrator, async (request, response, next) => {
   try {
+    const identity = getAuthenticatedIdentity(request)!;
     const repository = request.repository!;
-    const deleted = await repository.deleteStudent(request.params['studentId'] as string);
+    const studentId = request.params['studentId'] as string;
+
+    if (!(await isOwnManagedStudent(repository, studentId, identity))) {
+      response.status(403).json({ message: 'You do not have permission to delete this student.' });
+      return;
+    }
+
+    const deleted = await repository.deleteStudent(studentId);
 
     if (!deleted) {
       response.status(404).json({ message: 'Student not found.' });
@@ -3138,9 +3185,9 @@ app.get('/api/students/:studentId/snapshot', async (request, response, next) => 
     }
     const repository = request.repository;
 
-    // A student may only read their own snapshot; managers/admins may read any student's.
-    const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
-    if (!isPrivileged && !(await isOwnStudentRecord(repository, request.params.studentId, identity))) {
+    // A student may only read their own snapshot; an administrator may read any student's; a
+    // training manager may read their own team's.
+    if (!(await isOwnStudentRecord(repository, request.params.studentId, identity)) && !(await isOwnManagedStudent(repository, request.params.studentId, identity))) {
       response.status(403).json({ message: 'You do not have permission to view this student.' });
       return;
     }
@@ -3167,9 +3214,9 @@ app.put('/api/students/:studentId/snapshot', async (request, response, next) => 
     }
     const repository = request.repository;
 
-    // A student may only write their own snapshot; managers/admins may write any student's.
-    const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
-    if (!isPrivileged && !(await isOwnStudentRecord(repository, request.params.studentId, identity))) {
+    // A student may only write their own snapshot; an administrator may write any student's; a
+    // training manager may write their own team's.
+    if (!(await isOwnStudentRecord(repository, request.params.studentId, identity)) && !(await isOwnManagedStudent(repository, request.params.studentId, identity))) {
       response.status(403).json({ message: 'You do not have permission to update this student.' });
       return;
     }
@@ -3204,9 +3251,9 @@ app.post('/api/students/:studentId/certificates/course-completion', async (reque
     const repository = request.repository;
     const studentId = request.params.studentId;
 
-    // A student may only issue their own certificate; managers/admins may issue any student's.
-    const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
-    if (!isPrivileged && !(await isOwnStudentRecord(repository, studentId, identity))) {
+    // A student may only issue their own certificate; an administrator may issue any student's; a
+    // training manager may issue their own team's.
+    if (!(await isOwnStudentRecord(repository, studentId, identity)) && !(await isOwnManagedStudent(repository, studentId, identity))) {
       response.status(403).json({ message: 'You do not have permission to issue a certificate for this student.' });
       return;
     }
@@ -3365,8 +3412,7 @@ app.put('/api/students/:studentId/theme-preference', async (request, response, n
     }
     const repository = request.repository;
 
-    const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
-    if (!isPrivileged && !(await isOwnStudentRecord(repository, request.params.studentId, identity))) {
+    if (!(await isOwnStudentRecord(repository, request.params.studentId, identity)) && !(await isOwnManagedStudent(repository, request.params.studentId, identity))) {
       response.status(403).json({ message: 'You do not have permission to update this student.' });
       return;
     }
@@ -3406,6 +3452,10 @@ app.put('/api/students/:studentId/idp-entries', requirePlanFeature('student-idp'
       response.status(403).json({ message: 'Only a training manager or administrator can edit an IDP table.' });
       return;
     }
+    if (!(await isOwnManagedStudent(repository, request.params['studentId'] as string, identity))) {
+      response.status(403).json({ message: 'You can only edit an IDP table for your own team.' });
+      return;
+    }
 
     const body = idpEntriesReplaceSchema.parse(request.body);
     const entries = await repository.setIdpEntriesForStudent(request.params['studentId'] as string, body.entries);
@@ -3432,6 +3482,10 @@ app.put('/api/students/:studentId/kpi-entries', requirePlanFeature('student-perf
 
     if (identity.role !== 'administrator' && identity.role !== 'training-manager') {
       response.status(403).json({ message: 'Only a training manager or administrator can edit a KPI table.' });
+      return;
+    }
+    if (!(await isOwnManagedStudent(repository, request.params['studentId'] as string, identity))) {
+      response.status(403).json({ message: 'You can only edit a KPI table for your own team.' });
       return;
     }
 
@@ -3476,9 +3530,9 @@ app.put('/api/students/:studentId/kpi-entries/employee-scoring', requirePlanFeat
     }
     const repository = request.repository;
 
-    // A student may only score their own KPI table; managers/admins may score any student's.
-    const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
-    if (!isPrivileged && !(await isOwnStudentRecord(repository, request.params['studentId'] as string, identity))) {
+    // A student may only score their own KPI table; an administrator may score any student's; a
+    // training manager may score their own team's.
+    if (!(await isOwnStudentRecord(repository, request.params['studentId'] as string, identity)) && !(await isOwnManagedStudent(repository, request.params['studentId'] as string, identity))) {
       response.status(403).json({ message: 'You do not have permission to update this student.' });
       return;
     }
@@ -3532,6 +3586,10 @@ app.put('/api/students/:studentId/kpi-entries/gap-analysis', requirePlanFeature(
       response.status(403).json({ message: 'Only a training manager or administrator can update a performance gap analysis.' });
       return;
     }
+    if (!(await isOwnManagedStudent(repository, request.params['studentId'] as string, identity))) {
+      response.status(403).json({ message: 'You can only update a performance gap analysis for your own team.' });
+      return;
+    }
 
     const body = kpiGapAnalysisUpdateSchema.parse(request.body);
     const entries = await repository.updateKpiGapAnalysis(request.params['studentId'] as string, body.entries);
@@ -3573,8 +3631,7 @@ app.get('/api/students/:studentId/idp-entries/:year', async (request, response, 
     }
     const repository = request.repository;
 
-    const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
-    if (!isPrivileged && !(await isOwnStudentRecord(repository, request.params.studentId, identity))) {
+    if (!(await isOwnStudentRecord(repository, request.params.studentId, identity)) && !(await isOwnManagedStudent(repository, request.params.studentId, identity))) {
       response.status(403).json({ message: 'You do not have permission to view this student.' });
       return;
     }
@@ -3632,8 +3689,7 @@ app.get('/api/students/:studentId/kpi-entries/:year', async (request, response, 
     }
     const repository = request.repository;
 
-    const isPrivileged = identity.role === 'administrator' || identity.role === 'training-manager';
-    if (!isPrivileged && !(await isOwnStudentRecord(repository, request.params.studentId, identity))) {
+    if (!(await isOwnStudentRecord(repository, request.params.studentId, identity)) && !(await isOwnManagedStudent(repository, request.params.studentId, identity))) {
       response.status(403).json({ message: 'You do not have permission to view this student.' });
       return;
     }
@@ -3698,6 +3754,10 @@ app.post('/api/students/:studentId/kpi-entries/submit-for-approval', requirePlan
 
     if (identity.role !== 'administrator' && identity.role !== 'training-manager') {
       response.status(403).json({ message: 'Only a training manager or administrator can submit a KPI table for approval.' });
+      return;
+    }
+    if (!(await isOwnManagedStudent(repository, request.params['studentId'] as string, identity))) {
+      response.status(403).json({ message: 'You can only submit a KPI table for approval for your own team.' });
       return;
     }
 

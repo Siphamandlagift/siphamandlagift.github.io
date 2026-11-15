@@ -816,7 +816,7 @@ type KpiEntryFormGroup = FormGroup<{
                       </div>
                     </button>
                   }
-                  @if (!managerData.students().length) {
+                  @if (!myTeam().length) {
                     <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">No team members found.</div>
                   } @else if (!filteredIdpMembers().length) {
                     <div class="student-search-empty">No team members match your search.</div>
@@ -1129,7 +1129,7 @@ type KpiEntryFormGroup = FormGroup<{
                       </div>
                     </button>
                   }
-                  @if (!managerData.students().length) {
+                  @if (!myTeam().length) {
                     <div class="mentorship-review-empty-state mentorship-review-empty-state-detail">No team members found.</div>
                   } @else if (!filteredKpiMembers().length) {
                     <div class="student-search-empty">No team members match your search.</div>
@@ -6378,7 +6378,12 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   private readonly learningActivitySnapshotRequestedIds = new Set<string>();
   private readonly learningActivityCoursesById = signal<Record<string, StudentCourse[]>>({});
   private readonly learningActivityPrefetchEffect = effect(() => {
-    for (const student of this.managerData.students()) {
+    // myTeam(), not managerData.students() — the server now refuses a training manager's
+    // GET .../snapshot for a student outside their team (see isOwnManagedStudent in server.ts),
+    // so prefetching for the whole company would 403 for everyone else and silently count them
+    // as "Not Yet Started" forever (the error handler's empty-courses fallback), skewing this
+    // chart's numbers rather than just failing loudly.
+    for (const student of this.myTeam()) {
       if (this.learningActivitySnapshotRequestedIds.has(student.id)) {
         continue;
       }
@@ -6396,7 +6401,7 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   // (see its reportSnapshotRefreshSub); this periodically re-fetches every known student's
   // snapshot so the chart stays live here too.
   private readonly learningActivityRefreshSub = interval(60000).subscribe(() => {
-    for (const student of this.managerData.students()) {
+    for (const student of this.myTeam()) {
       this.fetchLearningActivitySnapshot(student.id);
     }
   });
@@ -6439,7 +6444,11 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
   }
 
   readonly learningActivityLive = computed<LearningActivityItem[]>(() => {
-    const students = this.managerData.students();
+    // myTeam(), not managerData.students() — see learningActivityPrefetchEffect's own comment:
+    // course data is only ever fetched for the manager's own team now, so counting the whole
+    // company here would silently score every other team's member as "Not Yet Started" via the
+    // stale EnrollmentStudent.status fallback, not an honest reflection of their real progress.
+    const students = this.myTeam();
     const statuses = students.map((student) => this.resolveStudentLearningStatus(student));
     const countByStatus = (status: LearningStatus) => statuses.filter((value) => value === status).length;
 
@@ -7451,7 +7460,11 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
   readonly filteredIdpMembers = computed(() => {
     const query = this.idpMemberSearchTerm().trim().toLowerCase();
-    const students = this.managerData.students();
+    // myTeam(), not managerData.students() — this picker is "your team's" IDP, and it's the one
+    // place a manager could otherwise browse into and edit another manager's team member's IDP
+    // (the server now independently refuses that write too, but the picker shouldn't even offer
+    // the option).
+    const students = this.myTeam();
 
     if (!query) {
       return students;
@@ -7846,7 +7859,8 @@ export class TrainingManagerProfileComponent implements OnInit, OnDestroy {
 
   readonly filteredKpiMembers = computed(() => {
     const query = this.kpiMemberSearchTerm().trim().toLowerCase();
-    const students = this.managerData.students();
+    // myTeam(), not managerData.students() — same reasoning as filteredIdpMembers above.
+    const students = this.myTeam();
 
     if (!query) {
       return students;
