@@ -1421,6 +1421,14 @@ export type ResetAdministratorPasswordResult =
   | { status: 'not-found' }
   | { status: 'invalid-password' };
 
+// Discriminated the same way — 'last-admin' is its own status (not folded into 'not-found') so
+// the Super Admin UI can show a specific "this is the only administrator left" message instead of
+// a generic failure.
+export type RemoveAdministratorAccountResult =
+  | { status: 'removed' }
+  | { status: 'not-found' }
+  | { status: 'last-admin' };
+
 export type CompanyUsageSummary = {
   userCount: number;
   licenseLimit: number;

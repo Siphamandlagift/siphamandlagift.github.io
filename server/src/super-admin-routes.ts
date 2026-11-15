@@ -540,6 +540,39 @@ export function createSuperAdminRouter(options: {
     }
   });
 
+  // Undoes an admin account add without needing to delete the whole company — see
+  // removeAdministratorAccount's own comment in repository.ts for why that was the only option
+  // before this route existed, and for exactly what "remove" means for a promoted (isAdmin-flag)
+  // admin versus a bare administrator account.
+  router.delete('/companies/:companyId/admins/:accountId', requireSuperAdmin, async (request, response, next) => {
+    try {
+      const companyId = request.params['companyId'] as string;
+      const accountId = request.params['accountId'] as string;
+
+      const company = await getCompanyRecord(companyId);
+      if (!company) {
+        response.status(404).json({ message: 'Company not found.' });
+        return;
+      }
+
+      const repository = createLmsRepository(companyId);
+      const result = await repository.removeAdministratorAccount(accountId);
+
+      switch (result.status) {
+        case 'not-found':
+          response.status(404).json({ message: 'That administrator account was not found for this company.' });
+          return;
+        case 'last-admin':
+          response.status(409).json({ message: 'This is the only administrator left for this company — add another one before removing this one.' });
+          return;
+      }
+
+      response.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.get('/companies/:companyId/usage', requireSuperAdmin, async (request, response, next) => {
     try {
       const companyId = request.params['companyId'] as string;

@@ -27,6 +27,7 @@ import {
   CompanyEngagementSummary,
   CreateAdministratorAccountResult,
   ChangePasswordInput,
+  RemoveAdministratorAccountResult,
   ResetAdministratorPasswordResult,
   EnrollmentStudentRecord,
   ExternalTrainingRequestCreateInput,
@@ -3697,6 +3698,46 @@ export class LmsRepository {
     };
     await this.write(data);
     return { status: 'reset' };
+  }
+
+  // Super Admin support action: the one thing createAdministratorAccount/resetAdministratorPassword
+  // above were missing — until now, undoing a mistakenly-added (or no-longer-wanted) administrator
+  // meant deleting the WHOLE company, since there was no way to remove just one account. Same
+  // isAdministratorAccount-based lookup as listAdministratorAccounts (catches an isAdmin-flagged
+  // student/manager too, not just a bare role === 'administrator' row) and the same reasoning for
+  // why that matters here: an account promoted to admin through the company's own User Management
+  // still needs to be reachable as a removal target. Refuses to remove the company's LAST
+  // administrator outright — dropping to zero would leave no one able to manage the company at all
+  // until a Super Admin happened to notice and added one back by hand.
+  async removeAdministratorAccount(accountId: string): Promise<RemoveAdministratorAccountResult> {
+    const data = await this.read();
+    const account = data.authAccounts.find((entry) => entry.id === accountId);
+    if (!account || !isAdministratorAccount(data, account)) {
+      return { status: 'not-found' };
+    }
+
+    const administratorCount = data.authAccounts.filter((entry) => isAdministratorAccount(data, entry)).length;
+    if (administratorCount <= 1) {
+      return { status: 'last-admin' };
+    }
+
+    if (account.role === 'administrator') {
+      // A bare administrator account exists only to grant admin access — removing it means
+      // deleting the login entirely, same as it never having been created.
+      data.authAccounts = data.authAccounts.filter((entry) => entry.id !== accountId);
+    } else {
+      // A student/manager promoted to admin via the isAdmin flag on their linked directory
+      // record keeps their own student/manager login — only the promotion itself is revoked.
+      const linkedStudent = resolveLinkedStudentRecord(data, account);
+      if (linkedStudent) {
+        data.students = data.students.map((student) =>
+          student.id === linkedStudent.id ? { ...student, isAdmin: false } : student,
+        );
+      }
+    }
+
+    await this.write(data);
+    return { status: 'removed' };
   }
 
   // Called from both login routes in server.ts (password and Microsoft SSO) right after a

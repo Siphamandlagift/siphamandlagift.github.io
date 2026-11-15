@@ -243,6 +243,10 @@ export class PlatformBackendService {
     );
   }
 
+  removeCompanyAdmin(companyId: string, accountId: string) {
+    return this.http.delete<void>(`${this.baseUrl}/companies/${encodeURIComponent(companyId)}/admins/${encodeURIComponent(accountId)}`);
+  }
+
   getUsageOverview(): Observable<PlatformUsageOverview> {
     return this.http.get<PlatformUsageOverview>(`${this.baseUrl}/usage`);
   }

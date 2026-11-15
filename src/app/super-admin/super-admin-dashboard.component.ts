@@ -472,8 +472,19 @@ type CompanyViewSection = 'subscription' | 'admins' | 'branding' | 'management';
                           </button>
                           <button type="button" class="inline-btn" [disabled]="resettingPassword()" (click)="cancelResetAdminPassword()">Cancel</button>
                         </div>
+                      } @else if (removingAdminId() === admin.id) {
+                        <div class="admin-reset-inline">
+                          <span>Remove {{ admin.email }}?</span>
+                          <button type="button" class="inline-btn inline-btn-danger" [disabled]="removingAdmin()" (click)="submitRemoveAdmin(admin)">
+                            {{ removingAdmin() ? 'Removing…' : 'Confirm remove' }}
+                          </button>
+                          <button type="button" class="inline-btn" [disabled]="removingAdmin()" (click)="cancelRemoveAdmin()">Cancel</button>
+                        </div>
                       } @else {
-                        <button type="button" class="inline-btn" (click)="startResetAdminPassword(admin)">Reset password</button>
+                        <div class="admin-reset-inline">
+                          <button type="button" class="inline-btn" (click)="startResetAdminPassword(admin)">Reset password</button>
+                          <button type="button" class="inline-btn inline-btn-danger" (click)="startRemoveAdmin(admin)">Remove</button>
+                        </div>
                       }
                     </div>
                   } @empty {
@@ -486,6 +497,12 @@ type CompanyViewSection = 'subscription' | 'admins' | 'branding' | 'management';
                 }
                 @if (resetAdminPasswordSuccess()) {
                   <div class="success">{{ resetAdminPasswordSuccess() }}</div>
+                }
+                @if (removeAdminError()) {
+                  <div class="error">{{ removeAdminError() }}</div>
+                }
+                @if (removeAdminSuccess()) {
+                  <div class="success">{{ removeAdminSuccess() }}</div>
                 }
               }
 
@@ -1968,6 +1985,10 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
   readonly resettingPassword = signal(false);
   readonly resetAdminPasswordError = signal('');
   readonly resetAdminPasswordSuccess = signal('');
+  readonly removingAdminId = signal<string | null>(null);
+  readonly removingAdmin = signal(false);
+  readonly removeAdminError = signal('');
+  readonly removeAdminSuccess = signal('');
 
   // ── Manage Super Admins panel — platform-level, not company-scoped ─────
   readonly superAdmins = signal<SuperAdminSummary[]>([]);
@@ -2162,6 +2183,8 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
       this.addAdminSuccess.set('');
       this.companyAdmins.set([]);
       this.cancelResetAdminPassword();
+      this.cancelRemoveAdmin();
+      this.removeAdminSuccess.set('');
       this.loadCompanyAdmins(activeCompany.id);
     } else if (section === 'branding') {
       this.editBrandingSlug = activeCompany.slug ?? '';
@@ -2344,6 +2367,42 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           this.resetAdminPasswordError.set(error?.error?.message || 'Could not reset this password.');
+        },
+      });
+  }
+
+  startRemoveAdmin(admin: AdministratorAccountSummary) {
+    this.removingAdminId.set(admin.id);
+    this.removeAdminError.set('');
+    this.removeAdminSuccess.set('');
+  }
+
+  cancelRemoveAdmin() {
+    this.removingAdminId.set(null);
+    this.removeAdminError.set('');
+  }
+
+  submitRemoveAdmin(admin: AdministratorAccountSummary) {
+    const companyId = this.activeCompanyId();
+    if (!companyId || this.removingAdmin()) {
+      return;
+    }
+
+    this.removingAdmin.set(true);
+    this.removeAdminError.set('');
+    this.removeAdminSuccess.set('');
+
+    this.backend.removeCompanyAdmin(companyId, admin.id)
+      .pipe(finalize(() => this.removingAdmin.set(false)))
+      .subscribe({
+        next: () => {
+          this.removeAdminSuccess.set(`Removed ${admin.email}.`);
+          this.removingAdminId.set(null);
+          this.companyAdmins.update((admins) => admins.filter((entry) => entry.id !== admin.id));
+          this.loadAll();
+        },
+        error: (error) => {
+          this.removeAdminError.set(error?.error?.message || 'Could not remove this administrator.');
         },
       });
   }
