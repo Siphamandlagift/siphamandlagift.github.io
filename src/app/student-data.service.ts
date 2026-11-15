@@ -1198,6 +1198,19 @@ export class StudentDataService {
       return;
     }
 
+    // Same "never touch the shared default student" rule persistStudentSnapshot already applies
+    // to writes, now applied to this read/poll path too. This service is an app-lifetime root
+    // singleton — its constructor starts this 10s poll once and it never stops, including after
+    // switching away to the admin/training-manager view, which has no own linked student profile
+    // of its own to poll for and never reads from this service at all. Without this guard, every
+    // such session polled /students/student-1/snapshot (the hardcoded fallback default id)
+    // forever, 404ing on any company whose roster doesn't happen to have that literal id, or —
+    // worse — silently loading a completely unrelated company's same-named default student into
+    // this session's signals on one that does.
+    if (!this.readSessionOwnStudentId()) {
+      return;
+    }
+
     const studentId = this.currentSessionStudentId();
     // studentId alone isn't a safe staleness key across a same-tab company switch: ids are
     // generated from name/surname/email (createUniqueStudentId in

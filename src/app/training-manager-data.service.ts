@@ -1341,6 +1341,20 @@ export class TrainingManagerDataService {
     }
     this.hydrationInFlight = true;
 
+    // mergeServerAuthoritative below exists to protect a just-created record whose write hasn't
+    // round-tripped yet — but on the very FIRST hydration of a session, studentsSignal/
+    // offeringsSignal start from whatever savePersistedStudentSnapshot-style localStorage cache
+    // the PREVIOUS session left behind (loadStudents/loadOfferings below), not from anything
+    // created in this one. Nothing in that leftover cache has a legitimate in-flight write to
+    // protect, so treating it as "local-only, re-add it" the same way a genuine pending write is
+    // treated resurrects any student/offering that was for real deleted server-side sometime
+    // after this browser last cached it — permanently, on every poll, for as long as this
+    // browser's cache lives (concretely: a training manager's dashboard counts and Learning
+    // Activity chart kept including a long-deleted student, and the chart's own 60s refresh loop
+    // 404'd on that id forever). Skipping the merge on just this first call lets the server's own
+    // list win outright instead, with no such phantom entries — see its two uses below.
+    const isFirstHydrationOfSession = !this.backendHydrated;
+
     // Captured now, checked again once the request resolves below — this service is an
     // app-lifetime singleton (providedIn: 'root'), so if the account logs out and a DIFFERENT
     // one logs in (same tab, no reload — logout/login are both plain SPA navigation here) while
@@ -1393,10 +1407,16 @@ export class TrainingManagerDataService {
         // a real edit made in the brief window before this first fetch resolves still isn't lost.
         const mergedOfferings = this.pendingOfferingWriteCount > 0
           ? this.offeringsSignal()
-          : this.mergeServerAuthoritative(bootstrap.offerings, this.offeringsSignal());
+          : isFirstHydrationOfSession
+            ? bootstrap.offerings
+            : this.mergeServerAuthoritative(bootstrap.offerings, this.offeringsSignal());
         const isStudentsStale = this.pendingStudentWriteCount > 0
           || (this.studentsDirtyAt !== null && this.studentsDirtyAt >= requestStartedAt);
-        const mergedStudents = isStudentsStale ? this.studentsSignal() : this.mergeServerAuthoritative(bootstrap.students, this.studentsSignal());
+        const mergedStudents = isStudentsStale
+          ? this.studentsSignal()
+          : isFirstHydrationOfSession
+            ? bootstrap.students
+            : this.mergeServerAuthoritative(bootstrap.students, this.studentsSignal());
         this.offeringsSignal.set(mergedOfferings);
         this.saveOfferings(mergedOfferings);
         this.studentsSignal.set(mergedStudents);
