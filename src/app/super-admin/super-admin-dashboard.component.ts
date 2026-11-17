@@ -15,10 +15,10 @@ import {
   SubscriptionStatus,
   SuperAdminSummary,
 } from './platform-backend.service';
-import { clearPlatformAuthSession, readPlatformSessionRecord } from './platform-session-auth';
+import { clearPlatformAuthSession, persistPlatformSession, readPlatformSessionRecord, readPlatformToken } from './platform-session-auth';
 import { LMS_BRAND_THEME_OPTIONS, type LmsBrandThemeId } from '../lms-brand-themes';
 
-type ActivePanel = 'none' | 'create-company' | 'view-company' | 'delete-company' | 'manage-super-admins';
+type ActivePanel = 'none' | 'create-company' | 'view-company' | 'delete-company' | 'manage-super-admins' | 'my-profile';
 type SuperAdminTab = 'dashboard' | 'login-page' | 'companies' | 'reporting';
 type ReportDownloadFormat = 'CSV' | 'XLSX';
 type CompanyViewSection = 'subscription' | 'admins' | 'branding' | 'management';
@@ -43,6 +43,7 @@ type CompanyViewSection = 'subscription' | 'admins' | 'branding' | 'management';
 
         <div class="topbar-right">
           <span class="admin-name">{{ adminName() }}</span>
+          <button type="button" class="ghost-btn" (click)="openMyProfile()">My Profile</button>
           <button type="button" class="ghost-btn" (click)="openManageSuperAdmins()">Manage Super Admins</button>
           <button type="button" class="ghost-btn" (click)="logout()">Log out</button>
         </div>
@@ -750,6 +751,69 @@ type CompanyViewSection = 'subscription' | 'admins' | 'branding' | 'management';
             }
           </div>
         </div>
+      </div>
+    }
+
+    @if (activePanel() === 'my-profile') {
+      <div class="overlay-panel" role="dialog" aria-modal="true">
+        <div class="overlay-header">
+          <h3>My Profile</h3>
+          <button type="button" class="icon-btn" (click)="closePanel()" aria-label="Close">✕</button>
+        </div>
+
+        <form (ngSubmit)="submitMyProfile()">
+          <label>
+            <span>Name</span>
+            <input type="text" name="myProfileName" [(ngModel)]="myProfileName" required />
+          </label>
+
+          <label>
+            <span>Email</span>
+            <input type="email" name="myProfileEmail" [(ngModel)]="myProfileEmail" required />
+          </label>
+
+          @if (myProfileError()) {
+            <div class="error">{{ myProfileError() }}</div>
+          }
+          @if (myProfileSuccess()) {
+            <div class="success">{{ myProfileSuccess() }}</div>
+          }
+
+          <div class="overlay-footer">
+            <button type="submit" class="primary-btn" [disabled]="savingMyProfile()">
+              {{ savingMyProfile() ? 'Saving…' : 'Save profile' }}
+            </button>
+          </div>
+        </form>
+
+        <div class="overlay-divider"></div>
+        <h4 class="overlay-subheading">Change password</h4>
+
+        <form (ngSubmit)="submitChangeOwnPassword()">
+          <label>
+            <span>Current password</span>
+            <input type="password" name="currentPasswordValue" [(ngModel)]="currentPasswordValue" required autocomplete="current-password" />
+          </label>
+
+          <label>
+            <span>New password</span>
+            <input type="password" name="newPasswordValue" [(ngModel)]="newPasswordValue" required autocomplete="new-password" />
+          </label>
+
+          @if (changeOwnPasswordError()) {
+            <div class="error">{{ changeOwnPasswordError() }}</div>
+          }
+          @if (changeOwnPasswordSuccess()) {
+            <div class="success">{{ changeOwnPasswordSuccess() }}</div>
+          }
+
+          <div class="overlay-footer">
+            <button type="button" class="secondary-btn" (click)="closePanel()">Close</button>
+            <button type="submit" class="primary-btn" [disabled]="changingOwnPassword()">
+              {{ changingOwnPassword() ? 'Changing…' : 'Change password' }}
+            </button>
+          </div>
+        </form>
       </div>
     }
 
@@ -1990,6 +2054,18 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
   readonly removeAdminError = signal('');
   readonly removeAdminSuccess = signal('');
 
+  // ── My Profile panel — the logged-in Super Admin's own name/email/password ─────
+  myProfileName = '';
+  myProfileEmail = '';
+  readonly savingMyProfile = signal(false);
+  readonly myProfileError = signal('');
+  readonly myProfileSuccess = signal('');
+  currentPasswordValue = '';
+  newPasswordValue = '';
+  readonly changingOwnPassword = signal(false);
+  readonly changeOwnPasswordError = signal('');
+  readonly changeOwnPasswordSuccess = signal('');
+
   // ── Manage Super Admins panel — platform-level, not company-scoped ─────
   readonly superAdmins = signal<SuperAdminSummary[]>([]);
   readonly loadingSuperAdmins = signal(false);
@@ -2281,6 +2357,81 @@ export class SuperAdminDashboardComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           this.addAdminError.set(error?.error?.message || 'Could not create this administrator account.');
+        },
+      });
+  }
+
+  openMyProfile() {
+    const session = readPlatformSessionRecord();
+    this.myProfileName = session?.name ?? '';
+    this.myProfileEmail = session?.email ?? '';
+    this.myProfileError.set('');
+    this.myProfileSuccess.set('');
+    this.currentPasswordValue = '';
+    this.newPasswordValue = '';
+    this.changeOwnPasswordError.set('');
+    this.changeOwnPasswordSuccess.set('');
+    this.activePanel.set('my-profile');
+  }
+
+  submitMyProfile() {
+    if (this.savingMyProfile()) {
+      return;
+    }
+
+    this.savingMyProfile.set(true);
+    this.myProfileError.set('');
+    this.myProfileSuccess.set('');
+
+    this.backend.updateOwnProfile({
+      name: this.myProfileName.trim(),
+      email: this.myProfileEmail.trim(),
+    })
+      .pipe(finalize(() => this.savingMyProfile.set(false)))
+      .subscribe({
+        next: (admin) => {
+          this.myProfileSuccess.set('Profile updated.');
+          this.myProfileName = admin.name;
+          this.myProfileEmail = admin.email;
+          this.adminName.set(admin.name);
+          // Keeps the header's displayed name/email in sync immediately — the JWT itself still
+          // carries whatever name/email was current at login, but nothing server-side ever reads
+          // those two claims back out of it (every route addresses this admin by adminId), so
+          // that staleness is cosmetic only and resolves itself on the next login.
+          const token = readPlatformToken();
+          const session = readPlatformSessionRecord();
+          if (token && session) {
+            persistPlatformSession({ ...session, name: admin.name, email: admin.email }, token);
+          }
+        },
+        error: (error) => {
+          this.myProfileError.set(error?.error?.message || 'Could not update your profile.');
+        },
+      });
+  }
+
+  submitChangeOwnPassword() {
+    if (this.changingOwnPassword()) {
+      return;
+    }
+
+    this.changingOwnPassword.set(true);
+    this.changeOwnPasswordError.set('');
+    this.changeOwnPasswordSuccess.set('');
+
+    this.backend.changeOwnPassword({
+      currentPassword: this.currentPasswordValue,
+      newPassword: this.newPasswordValue,
+    })
+      .pipe(finalize(() => this.changingOwnPassword.set(false)))
+      .subscribe({
+        next: () => {
+          this.changeOwnPasswordSuccess.set('Password changed.');
+          this.currentPasswordValue = '';
+          this.newPasswordValue = '';
+        },
+        error: (error) => {
+          this.changeOwnPasswordError.set(error?.error?.message || 'Could not change your password.');
         },
       });
   }

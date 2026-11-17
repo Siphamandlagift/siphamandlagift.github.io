@@ -13,6 +13,7 @@ import { createLmsRepository } from './repository.js';
 import type { PasswordResetEmailService } from './email-service.js';
 import {
   addCompanyDocument,
+  changePlatformAdminPassword,
   createCompanyRecord,
   createPlatformAdmin,
   createPlatformPasswordResetRequest,
@@ -30,6 +31,7 @@ import {
   updateCompanyCost,
   updateCompanySlug,
   updateCompanySubscription,
+  updatePlatformAdminProfile,
   updatePlatformBranding,
 } from './platform-repository.js';
 import type { CompanyWithUsage, PlatformAdminRecord } from './contracts.js';
@@ -106,6 +108,16 @@ const createSuperAdminSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   password: strongPasswordSchema,
+});
+
+const updatePlatformAdminProfileSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+});
+
+const changePlatformAdminPasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: strongPasswordSchema,
 });
 
 const platformPasswordResetRequestSchema = z.object({
@@ -245,6 +257,56 @@ export function createSuperAdminRouter(options: {
       }
 
       response.json({ message: 'Password updated successfully.', name: result.name, email: result.email });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // A Super Admin's own "My Profile" — see updatePlatformAdminProfile's own comment for why email
+  // is editable here, unlike every other role's locked-email profile page in this app.
+  router.put('/auth/profile', requireSuperAdmin, async (request, response, next) => {
+    try {
+      const input = updatePlatformAdminProfileSchema.parse(request.body);
+      const result = await updatePlatformAdminProfile(request.platformAuth!.adminId, input);
+
+      switch (result.status) {
+        case 'invalid':
+          response.status(400).json({ message: 'Name and email are required.' });
+          return;
+        case 'email-taken':
+          response.status(409).json({ message: 'A Super Admin account with this email already exists.' });
+          return;
+        case 'not-found':
+          response.status(404).json({ message: 'Your account could not be found.' });
+          return;
+      }
+
+      response.json(result.admin);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // The logged-in counterpart of the forgot-password email flow above — changes the caller's own
+  // password immediately, given their current one, instead of a reset token.
+  router.put('/auth/password', requireSuperAdmin, async (request, response, next) => {
+    try {
+      const input = changePlatformAdminPasswordSchema.parse(request.body);
+      const result = await changePlatformAdminPassword(request.platformAuth!.adminId, input.currentPassword, input.newPassword);
+
+      switch (result.status) {
+        case 'invalid-password':
+          response.status(400).json({ message: passwordPolicyMessage });
+          return;
+        case 'incorrect-current-password':
+          response.status(401).json({ message: 'Your current password is incorrect.' });
+          return;
+        case 'not-found':
+          response.status(404).json({ message: 'Your account could not be found.' });
+          return;
+      }
+
+      response.json({ message: 'Password updated successfully.' });
     } catch (error) {
       next(error);
     }

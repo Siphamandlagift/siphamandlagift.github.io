@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { getApp, getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, type Firestore, type DocumentReference } from 'firebase-admin/firestore';
-import { createPasswordCredentials, generatePasswordResetToken, hashPasswordResetToken, isStrongPassword } from './auth-utils.js';
+import { createPasswordCredentials, generatePasswordResetToken, hashPasswordResetToken, isStrongPassword, verifyPassword } from './auth-utils.js';
 import type {
   AddCompanyDocumentInput,
   BrandingSettingsRecord,
@@ -218,6 +218,85 @@ export async function createPlatformAdmin(input: { name: string; email: string; 
   await firestore.collection(PLATFORM_ADMINS_COLLECTION_ID).doc(record.id).set(record);
 
   return { status: 'ok', admin: { id: record.id, name: record.name, email: record.email } };
+}
+
+export type UpdatePlatformAdminProfileResult =
+  | { status: 'ok'; admin: PlatformAdminSummary }
+  | { status: 'invalid' }
+  | { status: 'email-taken' }
+  | { status: 'not-found' };
+
+// A Super Admin's own self-service "My Profile" — unlike a company admin/manager/student, there's
+// no higher authority to ask for a change ("contact your administrator" doesn't apply at the top
+// of the hierarchy), so email is editable here too, not locked the way it is everywhere else in
+// this app. The uniqueness check and the write run inside one transaction — same reasoning as
+// updateCompanySlug's own transaction above: a plain read-then-write here would leave a window
+// where two concurrent profile updates could both see the new email as "not taken" before either
+// commits, letting two Super Admin accounts end up sharing one login email.
+export async function updatePlatformAdminProfile(adminId: string, input: { name: string; email: string }): Promise<UpdatePlatformAdminProfileResult> {
+  const name = input.name.trim();
+  const email = input.email.trim();
+  const emailLower = email.toLowerCase();
+
+  if (!name || !emailLower) {
+    return { status: 'invalid' };
+  }
+
+  const firestore = getFirestoreClient();
+  const ref = firestore.collection(PLATFORM_ADMINS_COLLECTION_ID).doc(adminId);
+
+  return firestore.runTransaction(async (transaction): Promise<UpdatePlatformAdminProfileResult> => {
+    const snapshot = await transaction.get(ref);
+    if (!snapshot.exists) {
+      return { status: 'not-found' };
+    }
+
+    const current = snapshot.data() as PlatformAdminRecord;
+    if (emailLower !== current.emailLower) {
+      const conflict = await transaction.get(
+        firestore.collection(PLATFORM_ADMINS_COLLECTION_ID).where('emailLower', '==', emailLower).limit(1),
+      );
+      if (!conflict.empty && conflict.docs[0]!.id !== adminId) {
+        return { status: 'email-taken' };
+      }
+    }
+
+    transaction.set(ref, { name, email, emailLower }, { merge: true });
+    return { status: 'ok', admin: { id: adminId, name, email } };
+  });
+}
+
+export type ChangePlatformAdminPasswordResult =
+  | { status: 'ok' }
+  | { status: 'invalid-password' }
+  | { status: 'incorrect-current-password' }
+  | { status: 'not-found' };
+
+// The logged-in counterpart of resetPlatformAdminPassword above (which only ever runs from a
+// forgot-password EMAIL token, for someone who's locked out). This is for a Super Admin who's
+// already signed in and just wants to change their own password — so it verifies the CURRENT
+// password instead of a token, the same self-service shape every other role's own profile page
+// already offers.
+export async function changePlatformAdminPassword(adminId: string, currentPassword: string, newPassword: string): Promise<ChangePlatformAdminPasswordResult> {
+  if (!isStrongPassword(newPassword)) {
+    return { status: 'invalid-password' };
+  }
+
+  const firestore = getFirestoreClient();
+  const ref = firestore.collection(PLATFORM_ADMINS_COLLECTION_ID).doc(adminId);
+  const snapshot = await ref.get();
+  if (!snapshot.exists) {
+    return { status: 'not-found' };
+  }
+
+  const admin = snapshot.data() as PlatformAdminRecord;
+  if (!verifyPassword(currentPassword, admin.passwordSalt, admin.passwordHash)) {
+    return { status: 'incorrect-current-password' };
+  }
+
+  const credentials = createPasswordCredentials(newPassword);
+  await ref.set({ passwordHash: credentials.passwordHash, passwordSalt: credentials.passwordSalt }, { merge: true });
+  return { status: 'ok' };
 }
 
 // Platform-level counterpart of repository.ts's createPasswordResetRequest/

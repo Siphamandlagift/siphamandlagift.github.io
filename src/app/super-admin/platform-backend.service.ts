@@ -212,6 +212,14 @@ export class PlatformBackendService {
     return this.http.post<SuperAdminSummary>(`${this.baseUrl}/admins`, input);
   }
 
+  updateOwnProfile(input: { name: string; email: string }): Observable<SuperAdminSummary> {
+    return this.http.put<SuperAdminSummary>(`${this.baseUrl}/auth/profile`, input);
+  }
+
+  changeOwnPassword(input: { currentPassword: string; newPassword: string }): Observable<{ message: string }> {
+    return this.http.put<{ message: string }>(`${this.baseUrl}/auth/password`, input);
+  }
+
   listCompanies(): Observable<CompanyWithUsage[]> {
     return this.http.get<CompanyWithUsage[]>(`${this.baseUrl}/companies`);
   }
